@@ -1,0 +1,40 @@
+{
+  "name": "avera-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env --watch src/server.js",
+    "start": "node --env-file=.env src/server.js",
+    "migrate": "node --env-file=.env src/database/migrate.js",
+    "migrate:container": "node src/database/migrate.js",
+    "seed:development": "node --env-file=.env src/database/seed-development.js",
+    "seed:development:container": "node src/database/seed-development.js",
+    "demo:generate": "node --env-file=.env src/demo/cli.js generate",
+    "demo:small": "node --env-file=.env src/demo/cli.js generate --size=small",
+    "demo:medium": "node --env-file=.env src/demo/cli.js generate --size=medium",
+    "demo:large": "node --env-file=.env src/demo/cli.js generate --size=large",
+    "demo:enterprise": "node --env-file=.env src/demo/cli.js generate --size=enterprise --confirm-enterprise=true",
+    "demo:reset": "node --env-file=.env src/demo/cli.js reset",
+    "demo:validate": "node --env-file=.env src/demo/cli.js validate",
+    "demo:benchmark": "node --env-file=.env src/demo/benchmark.js",
+    "demo:grant-access": "node --env-file=.env src/demo/grant-demo-access.js",
+    "diagnose:development-auth": "node src/database/diagnose-development-auth.js",
+    "diagnose:development-auth:local": "node --env-file=.env src/database/diagnose-development-auth.js",
+    "test": "node --test tests/migration-contract.test.js tests/demo-generator-contract.test.js",
+    "test:auth:integration": "node --test tests/auth-integration.test.js",
+    "test:auth:integration:local": "node --env-file=.env --test tests/auth-integration.test.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "10.1.0",
+    "@fastify/jwt": "9.1.0",
+    "@fastify/rate-limit": "10.3.0",
+    "bcryptjs": "2.4.3",
+    "fastify": "5.6.0",
+    "pg": "8.16.3",
+    "zod": "3.24.2"
+  }
+}

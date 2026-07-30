@@ -4,10 +4,28 @@ import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/clinic_registration_provider.dart';
+import '../../../core/location/country_catalog.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/subscription_widgets.dart';
+import 'subscription_comparison_screen.dart';
 
 class ClinicRegistrationScreen extends HookConsumerWidget {
   const ClinicRegistrationScreen({super.key});
+
+  static const _timeZones = <String>[
+    'Africa/Accra',
+    'Africa/Cairo',
+    'Africa/Johannesburg',
+    'Africa/Lagos',
+    'Africa/Nairobi',
+    'America/New_York',
+    'Asia/Dubai',
+    'Europe/London',
+    'UTC',
+  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,17 +35,19 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
     final phone = useTextEditingController();
     final address = useTextEditingController();
     final city = useTextEditingController();
-    final country = useTextEditingController(text: 'Nigeria');
+    final countryCode = useState('NG');
+    final country = CountryCatalog.byAlpha2(countryCode.value)!;
     final administrator = useTextEditingController();
     final administratorEmail = useTextEditingController();
     final administratorPhone = useTextEditingController();
     final title = useTextEditingController();
-    final plan = useState('Starter');
     final timeZone = useState('Africa/Lagos');
     final accepted = useState(false);
     final submitting = useState(false);
+    final selectedPlan = ref.watch(clinicRegistrationPlanProvider);
 
     Future<void> submit() async {
+      FocusScope.of(context).unfocus();
       if (!(formKey.currentState?.validate() ?? false) || !accepted.value) {
         if (!accepted.value) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -51,12 +71,12 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
                 phoneNumber: phone.text,
                 address: address.text,
                 city: city.text,
-                country: country.text,
+                country: country.displayName,
                 administratorName: administrator.text,
                 administratorEmail: administratorEmail.text,
                 administratorPhone: administratorPhone.text,
                 professionalTitle: title.text,
-                subscriptionPlan: plan.value,
+                subscriptionPlan: selectedPlan.label,
                 timeZone: timeZone.value,
               ),
             );
@@ -87,162 +107,228 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
             ),
           );
         }
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Unable to submit the clinic application right now. Your form has been preserved.',
+              ),
+            ),
+          );
+        }
       } finally {
-        submitting.value = false;
+        if (context.mounted) submitting.value = false;
       }
     }
 
-    InputDecoration input(String label) => InputDecoration(labelText: label);
+    Future<void> selectCountry() async {
+      final value = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) =>
+            _CountrySelectionSheet(selectedAlpha2: countryCode.value),
+      );
+      if (value != null) countryCode.value = value;
+    }
+
+    Future<void> selectTimeZone() async {
+      final value = await _showSearchableSelection(
+        context,
+        title: 'Select Time Zone',
+        options: _timeZones,
+        selected: timeZone.value,
+      );
+      if (value != null) timeZone.value = value;
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Register Your Clinic')),
       body: SafeArea(
         child: Form(
           key: formKey,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+            key: const Key('clinic-registration-form'),
+            padding: const EdgeInsets.fromLTRB(
+              AveraSpacing.pageHorizontalPadding,
+              AveraSpacing.pageTopPadding,
+              AveraSpacing.pageHorizontalPadding,
+              48,
+            ),
             children: [
-              Text(
-                'Clinic information',
-                style: Theme.of(context).textTheme.titleLarge,
+              const AveraPageHeader(
+                title: 'Register Your Clinic',
+                subtitle: 'Create your AVERA clinic workspace.',
               ),
-              const SizedBox(height: 16),
-              TextFormField(
+              const SizedBox(height: AveraSpacing.subtitleToContentGap),
+              const AveraSectionHeader(title: 'Clinic information'),
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledTextField(
+                key: const Key('clinic-name-field'),
+                label: 'Clinic Name',
+                hint: 'Enter clinic name',
                 controller: clinicName,
-                decoration: input('Clinic Name'),
                 validator: _required,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledTextField(
+                key: const Key('clinic-email-field'),
+                label: 'Clinic Email Address',
+                hint: 'clinic@example.com',
                 controller: clinicEmail,
-                decoration: input('Clinic Email Address'),
                 keyboardType: TextInputType.emailAddress,
                 validator: _email,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledTextField(
+                key: const Key('clinic-phone-field'),
+                label: 'Phone Number',
+                hint: 'Enter clinic phone number',
                 controller: phone,
-                decoration: input('Phone Number'),
                 keyboardType: TextInputType.phone,
                 validator: _required,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledTextField(
+                key: const Key('clinic-address-field'),
+                label: 'Address',
+                hint: 'Enter clinic address',
                 controller: address,
-                decoration: input('Address'),
                 validator: _required,
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: city,
-                      decoration: input('City'),
-                      validator: _required,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: country,
-                      decoration: input('Country'),
-                      validator: _required,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              Text('Work Hours', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: timeZone.value,
-                decoration: input('Time Zone'),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'Africa/Lagos',
-                    child: Text('Africa/Lagos'),
-                  ),
-                  DropdownMenuItem(value: 'UTC', child: Text('UTC')),
-                ],
-                onChanged: (value) {
-                  if (value != null) timeZone.value = value;
+              const SizedBox(height: AveraSpacing.cardGap),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final stackFields = constraints.maxWidth < 680;
+                  final cityField = _LabeledTextField(
+                    key: const Key('clinic-city-field'),
+                    label: 'City',
+                    hint: 'Enter city',
+                    controller: city,
+                    validator: _required,
+                  );
+                  final countryField = _LabeledSelectionField(
+                    key: const Key('clinic-country-field'),
+                    label: 'Country',
+                    value: country.displayName,
+                    onTap: selectCountry,
+                  );
+                  if (stackFields) {
+                    return Column(
+                      children: [
+                        cityField,
+                        const SizedBox(height: AveraSpacing.cardGap),
+                        countryField,
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: cityField),
+                      const SizedBox(width: AveraSpacing.cardGap),
+                      Expanded(child: countryField),
+                    ],
+                  );
                 },
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AveraSpacing.sectionGap),
+              const AveraSectionHeader(title: 'Work Hours'),
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledSelectionField(
+                key: const Key('clinic-time-zone-field'),
+                label: 'Time Zone',
+                value: timeZone.value,
+                onTap: selectTimeZone,
+              ),
+              const SizedBox(height: 10),
               Text(
                 'Mon-Sat 08:00-18:00\nSun Closed\nYou can adjust individual days and break periods after approval.',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: averaText(context).caption,
               ),
-              const SizedBox(height: 28),
-              Text(
-                'Clinic administrator',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
+              const SizedBox(height: AveraSpacing.sectionGap),
+              const AveraSectionHeader(title: 'Clinic administrator'),
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledTextField(
+                key: const Key('administrator-name-field'),
+                label: 'Full Name',
+                hint: 'Administrator full name',
                 controller: administrator,
-                decoration: input('Full Name'),
                 validator: _required,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledTextField(
+                key: const Key('administrator-email-field'),
+                label: 'Email Address',
+                hint: 'administrator@example.com',
                 controller: administratorEmail,
-                decoration: input('Email Address'),
                 keyboardType: TextInputType.emailAddress,
                 validator: _email,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledTextField(
+                key: const Key('administrator-phone-field'),
+                label: 'Phone Number',
+                hint: 'Administrator phone number',
                 controller: administratorPhone,
-                decoration: input('Phone Number'),
                 keyboardType: TextInputType.phone,
                 validator: _required,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
+              const SizedBox(height: AveraSpacing.cardGap),
+              _LabeledTextField(
+                label: 'Professional Title',
+                hint: 'Veterinarian, Director, Practice Manager...',
                 controller: title,
-                decoration: input('Professional Title'),
               ),
-              const SizedBox(height: 28),
-              Text(
-                'Subscription',
-                style: Theme.of(context).textTheme.titleLarge,
+              const SizedBox(height: AveraSpacing.sectionGap),
+              const AveraSectionHeader(
+                title: 'Subscription',
+                subtitle:
+                    'Choose the plan that fits your clinic \u2014 you can upgrade anytime.',
               ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: plan.value,
-                decoration: input('Selected Subscription Plan'),
-                items: const [
-                  DropdownMenuItem(value: 'Starter', child: Text('Starter')),
-                  DropdownMenuItem(
-                    value: 'Professional',
-                    child: Text('Professional'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Enterprise',
-                    child: Text('Enterprise'),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) plan.value = value;
+              const SizedBox(height: AveraSpacing.cardGap),
+              SubscriptionPlanSelector(
+                selectedPlan: selectedPlan,
+                onSelected: (plan) {
+                  ref.read(clinicRegistrationPlanProvider.notifier).state =
+                      plan;
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const Key('compare-all-features'),
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const ClinicSubscriptionComparisonScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  label: const Text('Compare all features'),
+                ),
+              ),
+              const SizedBox(height: 12),
               CheckboxListTile(
+                key: const Key('clinic-registration-terms'),
                 contentPadding: EdgeInsets.zero,
                 value: accepted.value,
                 onChanged: (value) => accepted.value = value ?? false,
-                title: const Text(
+                title: Text(
                   'I accept the Terms of Service and Privacy Policy.',
+                  style: averaText(context).listItemSubtitle,
                 ),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
               const SizedBox(height: 12),
-              FilledButton(
-                onPressed: submitting.value ? null : submit,
-                child: submitting.value
-                    ? const CircularProgressIndicator()
-                    : const Text('Submit Application'),
+              AveraPrimaryActionButton(
+                label: 'Continue with ${selectedPlan.label}',
+                icon: Icons.arrow_forward_rounded,
+                loading: submitting.value,
+                onPressed: submit,
               ),
             ],
           ),
@@ -251,10 +337,278 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
     );
   }
 
+  static Future<String?> _showSearchableSelection(
+    BuildContext context, {
+    required String title,
+    required List<String> options,
+    required String selected,
+  }) => showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (_) => _SearchSelectionSheet(
+      title: title,
+      options: options,
+      selected: selected,
+    ),
+  );
+
   static String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'This field is required.' : null;
   static String? _email(String? value) =>
       value == null || !RegExp(r'^\S+@\S+\.\S+$').hasMatch(value)
       ? 'Enter a valid email address.'
       : null;
+}
+
+class _LabeledTextField extends StatelessWidget {
+  const _LabeledTextField({
+    super.key,
+    required this.label,
+    required this.hint,
+    required this.controller,
+    this.validator,
+    this.keyboardType,
+  });
+
+  final String label;
+  final String hint;
+  final TextEditingController controller;
+  final String? Function(String?)? validator;
+  final TextInputType? keyboardType;
+
+  @override
+  Widget build(BuildContext context) => AveraLabeledFieldCard(
+    label: label,
+    child: TextFormField(
+      controller: controller,
+      validator: validator,
+      keyboardType: keyboardType,
+      style: averaText(context).fieldValue,
+      decoration: InputDecoration.collapsed(
+        hintText: hint,
+        hintStyle: averaText(context).fieldPlaceholder,
+      ),
+    ),
+  );
+}
+
+class _LabeledSelectionField extends StatelessWidget {
+  const _LabeledSelectionField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => AveraLabeledFieldCard(
+    label: label,
+    child: Semantics(
+      button: true,
+      label: '$label, $value',
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(value, style: averaText(context).fieldValue),
+              ),
+              const SizedBox(width: 12),
+              const Icon(Icons.keyboard_arrow_down_rounded),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _SearchSelectionSheet extends StatefulWidget {
+  const _SearchSelectionSheet({
+    required this.title,
+    required this.options,
+    required this.selected,
+  });
+
+  final String title;
+  final List<String> options;
+  final String selected;
+
+  @override
+  State<_SearchSelectionSheet> createState() => _SearchSelectionSheetState();
+}
+
+class _CountrySelectionSheet extends StatefulWidget {
+  const _CountrySelectionSheet({required this.selectedAlpha2});
+
+  final String selectedAlpha2;
+
+  @override
+  State<_CountrySelectionSheet> createState() => _CountrySelectionSheetState();
+}
+
+class _CountrySelectionSheetState extends State<_CountrySelectionSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final countries = CountryCatalog.search(_query);
+    return FractionallySizedBox(
+      heightFactor: .86,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AveraSpacing.pageHorizontalPadding,
+          4,
+          AveraSpacing.pageHorizontalPadding,
+          MediaQuery.viewInsetsOf(context).bottom + 20,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Select Country', style: averaText(context).sectionTitle),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('country-selection-search'),
+              controller: _searchController,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: const InputDecoration(
+                hintText: 'Search by country or ISO code',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: countries.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No matching countries',
+                        style: averaText(context).listItemSubtitle,
+                      ),
+                    )
+                  : ListView.builder(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      itemCount: countries.length,
+                      itemBuilder: (context, index) {
+                        final country = countries[index];
+                        final selected =
+                            country.isoAlpha2 == widget.selectedAlpha2;
+                        return ListTile(
+                          key: Key('country-${country.isoAlpha2}'),
+                          title: Text(
+                            country.displayName,
+                            style: averaText(context).listItemTitle,
+                          ),
+                          subtitle: Text(
+                            '${country.isoAlpha2}  |  ${country.isoAlpha3}',
+                            style: averaText(context).listItemSubtitle,
+                          ),
+                          trailing: selected
+                              ? Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Theme.of(context).colorScheme.primary,
+                                )
+                              : null,
+                          onTap: () =>
+                              Navigator.pop(context, country.isoAlpha2),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchSelectionSheetState extends State<_SearchSelectionSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.options
+        .where((value) => value.toLowerCase().contains(_query.toLowerCase()))
+        .toList(growable: false);
+    return FractionallySizedBox(
+      heightFactor: .78,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AveraSpacing.pageHorizontalPadding,
+          4,
+          AveraSpacing.pageHorizontalPadding,
+          MediaQuery.viewInsetsOf(context).bottom + 20,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.title, style: averaText(context).sectionTitle),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('clinic-selection-search'),
+              controller: _searchController,
+              autofocus: true,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: const InputDecoration(
+                hintText: 'Search',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No matching options',
+                        style: averaText(context).listItemSubtitle,
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final value = filtered[index];
+                        return ListTile(
+                          key: Key('clinic-selection-$value'),
+                          title: Text(
+                            value,
+                            style: averaText(context).listItemTitle,
+                          ),
+                          trailing: value == widget.selected
+                              ? const Icon(Icons.check_circle_rounded)
+                              : null,
+                          onTap: () => Navigator.pop(context, value),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

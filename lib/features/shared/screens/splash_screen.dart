@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
+import '../../../core/theme/app_theme.dart';
 import '../widgets/avera_logo.dart';
 
 /// Continues the native Android splash with a brief branded Flutter handoff.
@@ -89,7 +89,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppTheme.primary,
       body: SafeArea(
         child: Center(
           child: AnimatedBuilder(
@@ -101,10 +101,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   opacity: _logoOpacity,
                   child: ScaleTransition(
                     scale: _logoScale,
-                    child: const AveraLogo(size: 164),
+                    child: const AveraLogo(
+                      size: 164,
+                      variant: AveraLogoVariant.splash,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(
+                  key: ValueKey('splash-logo-wordmark-gap'),
+                  height: 20,
+                ),
                 Semantics(
                   label: 'AVERA',
                   child: ExcludeSemantics(
@@ -136,7 +142,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           padding: const EdgeInsets.symmetric(horizontal: 3),
           child: Text(
             wordmark[index],
-            style: GoogleFonts.sora(
+            style: const TextStyle(
+              fontFamily: 'Sora',
               color: Colors.white,
               fontSize: 28,
               fontWeight: FontWeight.w800,

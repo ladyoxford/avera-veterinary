@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/services/feature_gate_service.dart';
+import '../../../core/theme/app_theme.dart';
 
 class VeraScreen extends ConsumerStatefulWidget {
   const VeraScreen({super.key, this.patientId, this.patientName});
@@ -190,7 +191,7 @@ class _VeraMarkPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final paint = Paint()
       ..shader = const LinearGradient(
-        colors: [Color(0xFF39C5FF), Color(0xFF1769E0)],
+        colors: [AppTheme.primary, AppTheme.secondary],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(Offset.zero & size)
@@ -207,7 +208,7 @@ class _VeraMarkPainter extends CustomPainter {
       Offset(size.width * .66, size.height * .52),
       paint,
     );
-    final node = Paint()..color = const Color(0xFF8DEBFF);
+    final node = Paint()..color = AppTheme.accent;
     for (final point in [
       Offset(size.width * .3, size.height * .72),
       Offset(size.width * .5, size.height * .18),

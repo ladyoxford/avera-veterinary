@@ -90,6 +90,18 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 orElse: () => const SizedBox.shrink(),
               ),
+              session.maybeWhen(
+                data: (data) => data.can(Permissions.managePatientNumbering)
+                    ? const _NavTile(
+                        icon: Iconsax.hashtag,
+                        title: 'Patient Numbering',
+                        subtitle:
+                            'Hospital-number prefix and sequence settings',
+                        path: '/settings/patient-numbering',
+                      )
+                    : const SizedBox.shrink(),
+                orElse: () => const SizedBox.shrink(),
+              ),
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
@@ -260,6 +272,8 @@ class SettingsScreen extends ConsumerWidget {
     } else {
       await ref.read(authenticationRepositoryProvider).signOut();
     }
+    await ref.read(biometricAuthServiceProvider).clear();
+    ref.invalidate(biometricEnrollmentProvider);
     ref.invalidate(userSessionProvider);
     if (context.mounted) context.go('/login');
   }

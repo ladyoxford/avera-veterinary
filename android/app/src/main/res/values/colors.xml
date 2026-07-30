@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="avera_black">#000000</color>
-	<color name="ic_launcher_background">#000000</color>
+    <color name="avera_primary">#087F7B</color>
+    <color name="avera_light_surface">#F5F7F9</color>
+    <color name="avera_dark_surface">#171C22</color>
+    <color name="ic_launcher_background">#087F7B</color>
 </resources>

@@ -36,20 +36,22 @@ class MedicalFileQuickAccessScope {
   int get hashCode => Object.hash(clinicId, userId);
 }
 
-final medicalFileQuickAccessProvider = StateNotifierProvider.autoDispose.family<
-    MedicalFileQuickAccessController,
-    AsyncValue<List<String>>,
-    MedicalFileQuickAccessScope>((ref, scope) {
-  return MedicalFileQuickAccessController(
-    ref.read(sharedPreferencesProvider),
-    scope,
-  );
-});
+final medicalFileQuickAccessProvider = StateNotifierProvider.autoDispose
+    .family<
+      MedicalFileQuickAccessController,
+      AsyncValue<List<String>>,
+      MedicalFileQuickAccessScope
+    >((ref, scope) {
+      return MedicalFileQuickAccessController(
+        ref.read(sharedPreferencesProvider),
+        scope,
+      );
+    });
 
 class MedicalFileQuickAccessController
     extends StateNotifier<AsyncValue<List<String>>> {
   MedicalFileQuickAccessController(this._preferences, this._scope)
-      : super(const AsyncValue.loading()) {
+    : super(const AsyncValue.loading()) {
     _load();
   }
 

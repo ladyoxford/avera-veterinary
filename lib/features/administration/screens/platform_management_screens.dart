@@ -6,7 +6,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/models/platform_support_session.dart';
+import '../../../core/remote/api_client.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/security/access_control.dart';
+import '../../../core/theme/app_theme.dart';
 
 class PlatformClinicsScreen extends ConsumerWidget {
   const PlatformClinicsScreen({super.key, this.status});
@@ -73,6 +77,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(userSessionProvider).valueOrNull;
+    final supportSession = ref.watch(platformSupportSessionProvider);
     return _PlatformGuard(
       child: StreamBuilder<List<Clinic>>(
         stream: ref.read(clinicRepositoryProvider).watchPlatformClinics(),
@@ -91,6 +96,24 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
             body: ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                if (supportSession?.clinicId == clinic.clinicId)
+                  Card(
+                    color: Theme.of(context).colorScheme.tertiaryContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.support_agent_rounded),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Platform Support Mode is active. Actions are recorded and no clinic user is being impersonated.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 Text(
                   clinic.clinicName,
                   style: Theme.of(context).textTheme.headlineSmall,
@@ -151,6 +174,24 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
                         icon: const Icon(Icons.link_rounded),
                         label: const Text('Copy Development Activation Link'),
                       ),
+                    if (session != null &&
+                        session.canManagePlatform(
+                          Permissions.platformSupportAccess,
+                        ))
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            _toggleSupportMode(context, ref, session, clinic),
+                        icon: Icon(
+                          supportSession?.clinicId == clinic.clinicId
+                              ? Icons.logout_rounded
+                              : Icons.support_agent_rounded,
+                        ),
+                        label: Text(
+                          supportSession?.clinicId == clinic.clinicId
+                              ? 'Exit Support Mode'
+                              : 'Open Support Mode',
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -164,6 +205,50 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _toggleSupportMode(
+    BuildContext context,
+    WidgetRef ref,
+    UserSession session,
+    Clinic clinic,
+  ) async {
+    final active = ref.read(platformSupportSessionProvider);
+    final starting = active?.clinicId != clinic.clinicId;
+    try {
+      await ref
+          .read(clinicRepositoryProvider)
+          .recordPlatformSupportAccess(
+            actingSession: session,
+            clinicId: clinic.clinicId,
+            started: starting,
+          );
+      ref.read(platformSupportSessionProvider.notifier).state = starting
+          ? PlatformSupportSession(
+              clinicId: clinic.clinicId,
+              clinicName: clinic.clinicName,
+              startedAt: DateTime.now(),
+              startedBy: session.user.userId,
+            )
+          : null;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              starting
+                  ? 'Platform Support Mode opened for ${clinic.clinicName}.'
+                  : 'Platform Support Mode closed.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
   }
 
   Future<void> _setStatus(
@@ -420,6 +505,187 @@ class PlatformAuditLogsScreen extends ConsumerWidget {
   );
 }
 
+class PlatformOperationsScreen extends StatelessWidget {
+  const PlatformOperationsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => _PlatformGuard(
+    child: Scaffold(
+      appBar: AppBar(title: const Text('Platform Operations')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AveraSpacing.pageHorizontalPadding,
+          AveraSpacing.pageTopPadding,
+          AveraSpacing.pageHorizontalPadding,
+          AveraSpacing.bottomContentClearance,
+        ),
+        children: [
+          _PlatformRouteCard(
+            icon: Icons.business_center_outlined,
+            title: 'Clinics',
+            subtitle: 'Review, approve, suspend, and support clinics',
+            route: '/platform/clinics',
+          ),
+          _PlatformRouteCard(
+            icon: Icons.workspace_premium_outlined,
+            title: 'Subscriptions',
+            subtitle: 'Manage plans, billing status, payments, and renewals',
+            route: '/platform/subscriptions',
+          ),
+          _PlatformRouteCard(
+            icon: Icons.campaign_outlined,
+            title: 'Announcements',
+            subtitle: 'Create and publish platform notices',
+            route: '/platform/notifications',
+          ),
+          _PlatformRouteCard(
+            icon: Icons.admin_panel_settings_outlined,
+            title: 'Platform Administrators',
+            subtitle: 'Manage appointed platform accounts',
+            route: '/platform/users',
+          ),
+          if (BackendConfiguration.isLocalMode && kDebugMode)
+            _PlatformRouteCard(
+              icon: Icons.science_outlined,
+              title: 'Developer Settings',
+              subtitle: 'Local development and feature-gate tools',
+              route: '/platform/developer-settings',
+            ),
+          _PlatformRouteCard(
+            icon: Icons.policy_outlined,
+            title: 'Audit & Security',
+            subtitle: 'Review immutable platform audit logs',
+            route: '/platform/audit',
+          ),
+          _PlatformRouteCard(
+            icon: Icons.settings_outlined,
+            title: 'Platform Settings',
+            subtitle: 'Security, integrations, email, and configuration',
+            route: '/platform/settings',
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class PlatformAccountScreen extends ConsumerWidget {
+  const PlatformAccountScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _PlatformGuard(
+    child: Scaffold(
+      appBar: AppBar(title: const Text('Platform Owner Account')),
+      body: ref
+          .watch(userSessionProvider)
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => const _EmptyState(
+              icon: Icons.error_outline,
+              message: 'Account information is unavailable.',
+            ),
+            data: (session) => ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AveraSpacing.pageHorizontalPadding,
+                AveraSpacing.pageTopPadding,
+                AveraSpacing.pageHorizontalPadding,
+                AveraSpacing.bottomContentClearance,
+              ),
+              children: [
+                CircleAvatar(
+                  radius: 34,
+                  child: Text(
+                    session.user.fullName
+                        .trim()
+                        .split(RegExp(r'\s+'))
+                        .take(2)
+                        .map((part) => part.isEmpty ? '' : part[0])
+                        .join()
+                        .toUpperCase(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  session.user.fullName,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).extension<AveraTextStyles>()!.pageTitle,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Platform Owner',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).extension<AveraTextStyles>()!.pageSubtitle,
+                ),
+                const SizedBox(height: 24),
+                _PlatformRouteCard(
+                  icon: Icons.lock_outline_rounded,
+                  title: 'Change Password',
+                  subtitle: 'Update your protected Platform Owner credentials',
+                  route: '/platform/password',
+                ),
+                _PlatformRouteCard(
+                  icon: Icons.security_outlined,
+                  title: 'Security Settings',
+                  subtitle: 'Review authentication and platform security',
+                  route: '/platform/settings',
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => _logout(context, ref),
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Log out'),
+                ),
+              ],
+            ),
+          ),
+    ),
+  );
+
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    if (BackendConfiguration.isLocalMode) {
+      await ref.read(localSessionStoreProvider).clear();
+    } else {
+      await ref.read(authenticationRepositoryProvider).signOut();
+    }
+    await ref.read(biometricAuthServiceProvider).clear();
+    ref.invalidate(biometricEnrollmentProvider);
+    ref.invalidate(userSessionProvider);
+    if (context.mounted) context.go('/login');
+  }
+}
+
+class _PlatformRouteCard extends StatelessWidget {
+  const _PlatformRouteCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.route,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String route;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: AveraSpacing.compactRowGap),
+    clipBehavior: Clip.antiAlias,
+    child: ListTile(
+      minVerticalPadding: 14,
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: () => context.go(route),
+    ),
+  );
+}
+
 class PlatformUtilityScreen extends StatelessWidget {
   const PlatformUtilityScreen({
     super.key,
@@ -541,7 +807,8 @@ class _PlatformGuard extends ConsumerWidget {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, __) => const _PlatformDenied(),
-      data: (value) => value.isPlatformOwner ? child : const _PlatformDenied(),
+      data: (value) =>
+          value.isPlatformAccount ? child : const _PlatformDenied(),
     );
   }
 }

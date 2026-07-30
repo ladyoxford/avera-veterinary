@@ -14,6 +14,7 @@ export const permissions = {
   appointmentsView: 'appointments.view', appointmentsCreate: 'appointments.create',
   billingView: 'billing.view', billingManage: 'billing.manage',
   mediaView: 'media.view',
+  twoFactorManageSelf: 'security.twoFactor.manageSelf',
 };
 
 export async function effectivePermissions(client, user) {

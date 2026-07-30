@@ -10,8 +10,8 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 
 final themeControllerProvider =
     StateNotifierProvider<ThemeController, ThemeMode>((ref) {
-  return ThemeController(ref.watch(sharedPreferencesProvider));
-});
+      return ThemeController(ref.watch(sharedPreferencesProvider));
+    });
 
 class ThemeController extends StateNotifier<ThemeMode> {
   ThemeController(this._prefs) : super(_readThemeMode(_prefs));

@@ -1,19 +1,6 @@
-enum SubscriptionPlan {
-  starter('Starter'),
-  professional('Professional'),
-  enterprise('Enterprise');
+import '../subscription/subscription_plan_config.dart';
 
-  const SubscriptionPlan(this.label);
-
-  final String label;
-
-  static SubscriptionPlan fromStorage(String value) {
-    return SubscriptionPlan.values.firstWhere(
-      (plan) => plan.label.toLowerCase() == value.trim().toLowerCase(),
-      orElse: () => SubscriptionPlan.starter,
-    );
-  }
-}
+export '../subscription/subscription_plan_config.dart' show SubscriptionPlan;
 
 enum SubscriptionStatus {
   active,

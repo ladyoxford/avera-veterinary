@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zevora/core/services/feature_gate_service.dart';
+import 'package:avera/core/services/feature_gate_service.dart';
 
 void main() {
   test(

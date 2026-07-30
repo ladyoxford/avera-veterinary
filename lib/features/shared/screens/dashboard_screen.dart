@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/models/alert_destination.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
@@ -13,6 +14,7 @@ import '../../../core/services/dashboard_mode_resolver.dart';
 import '../../../core/services/feature_gate_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/branded_app_bar.dart';
+import '../widgets/avera_ui.dart';
 import 'cloud_dashboard_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -53,7 +55,12 @@ class DashboardScreen extends ConsumerWidget {
             },
             child: LayoutBuilder(
               builder: (context, constraints) => ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 124),
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  20,
+                  20,
+                  AveraSpacing.bottomContentClearance,
+                ),
                 children: [
                   Center(
                     child: ConstrainedBox(
@@ -106,8 +113,9 @@ class DashboardScreen extends ConsumerWidget {
           : FloatingActionButton.extended(
               onPressed: () => context.push('/animals/new'),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('Register patient'),
+              label: const Text('Register Pet'),
             ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
@@ -187,16 +195,8 @@ class _SectionHeading extends StatelessWidget {
   final String title;
   final String? subtitle;
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(title, style: Theme.of(context).textTheme.titleLarge),
-      if (subtitle != null) ...[
-        const SizedBox(height: 4),
-        Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
-      ],
-    ],
-  );
+  Widget build(BuildContext context) =>
+      AveraSectionHeader(title: title, subtitle: subtitle);
 }
 
 // Legacy static action layout retained while older dashboard widget tests are migrated.
@@ -212,12 +212,6 @@ class _QuickActionGrid extends StatelessWidget {
         Icons.pets_rounded,
         '/animals',
         _ActionTone.teal,
-      ),
-      _QuickAction(
-        'Schedule',
-        Icons.calendar_month_rounded,
-        '/appointments',
-        _ActionTone.blue,
       ),
       _QuickAction(
         'Consultation',
@@ -375,7 +369,7 @@ class _AlertPanel extends StatelessWidget {
         title: 'Alerts & Upcoming Activity',
         subtitle: 'Items that need attention',
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: AveraSpacing.cardGap),
       Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -386,7 +380,10 @@ class _AlertPanel extends StatelessWidget {
                   icon: Icons.warning_amber_rounded,
                   title: '${data.expiredDrugs} expired products',
                   subtitle: 'Remove or quarantine expired inventory',
-                  path: '/inventory?filter=expired',
+                  destination: const AlertDestination(
+                    type: AlertDestinationType.inventoryFilteredList,
+                    entityId: null,
+                  ),
                   tone: _ActionTone.red,
                 ),
               if (data.lowStock > 0)
@@ -394,7 +391,11 @@ class _AlertPanel extends StatelessWidget {
                   icon: Icons.inventory_2_outlined,
                   title: '${data.lowStock} low stock items',
                   subtitle: 'Review items below reorder level',
-                  path: '/inventory?filter=low',
+                  destination: const AlertDestination(
+                    type: AlertDestinationType.inventoryFilteredList,
+                    entityId: null,
+                  ),
+                  inventoryFilter: 'low',
                   tone: _ActionTone.amber,
                 ),
               if (data.vaccinationsDue > 0)
@@ -402,7 +403,9 @@ class _AlertPanel extends StatelessWidget {
                   icon: Icons.vaccines_outlined,
                   title: '${data.vaccinationsDue} vaccines due',
                   subtitle: 'Patients requiring protocol follow-up',
-                  path: '/vaccinations',
+                  destination: const AlertDestination(
+                    type: AlertDestinationType.vaccineScheduleFilteredList,
+                  ),
                   tone: _ActionTone.teal,
                 ),
               for (final alert in alerts)
@@ -410,7 +413,9 @@ class _AlertPanel extends StatelessWidget {
                   icon: Icons.notifications_none_rounded,
                   title: alert.title,
                   subtitle: alert.message,
-                  path: '/notifications',
+                  destination: const AlertDestination(
+                    type: AlertDestinationType.notificationCenter,
+                  ),
                   tone: _ActionTone.blue,
                 ),
               if (data.expiredDrugs == 0 &&
@@ -437,33 +442,62 @@ class _AlertTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.path,
+    required this.destination,
     required this.tone,
+    this.inventoryFilter,
   });
   final IconData icon;
   final String title;
   final String subtitle;
-  final String path;
+  final AlertDestination destination;
   final _ActionTone tone;
+  final String? inventoryFilter;
   @override
   Widget build(BuildContext context) {
     final color = _toneColor(context, tone);
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .12),
-          borderRadius: BorderRadius.circular(14),
+    return Column(
+      children: [
+        ListTile(
+          minVerticalPadding: 14,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          title: Text(title, style: averaText(context).listItemTitle),
+          subtitle: Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: averaText(context).listItemSubtitle,
+          ),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => _openDestination(context),
         ),
-        child: Icon(icon, color: color, size: 20),
-      ),
-      title: Text(title),
-      subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () => context.push(path),
+        const Divider(height: 1, indent: 68),
+      ],
     );
+  }
+
+  void _openDestination(BuildContext context) {
+    switch (destination.type) {
+      case AlertDestinationType.inventoryFilteredList:
+        context.push('/inventory?filter=${inventoryFilter ?? 'expired'}');
+      case AlertDestinationType.vaccineScheduleFilteredList:
+        context.push('/vaccinations?filter=due-now');
+      case AlertDestinationType.notificationCenter:
+        context.push('/notifications');
+      default:
+        context.push('/notifications');
+    }
   }
 }
 
@@ -474,15 +508,26 @@ class _RecentActivity extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const _SectionHeading(
-        title: 'Recent Activity',
-        subtitle: 'Latest consultation records',
+      Row(
+        children: [
+          const Expanded(
+            child: _SectionHeading(
+              title: 'Recent Activity',
+              subtitle: 'Latest clinic activity',
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => context.push('/activity-history'),
+            icon: const Icon(Icons.chevron_right_rounded, size: 18),
+            label: const Text('View All'),
+          ),
+        ],
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: AveraSpacing.cardGap),
       Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: data.recentVisits.isEmpty
+          child: data.recentActivity.isEmpty && data.recentVisits.isEmpty
               ? const Padding(
                   padding: EdgeInsets.all(18),
                   child: _CalmEmpty(
@@ -492,8 +537,11 @@ class _RecentActivity extends StatelessWidget {
                 )
               : Column(
                   children: [
-                    for (final visit in data.recentVisits.take(5))
-                      _ActivityTile(visit: visit),
+                    for (final event in data.recentActivity.take(5))
+                      _OperationalActivityTile(event: event),
+                    if (data.recentActivity.isEmpty)
+                      for (final visit in data.recentVisits.take(5))
+                        _ActivityTile(visit: visit),
                   ],
                 ),
         ),
@@ -506,23 +554,156 @@ class _ActivityTile extends StatelessWidget {
   const _ActivityTile({required this.visit});
   final dynamic visit;
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    leading: CircleAvatar(
-      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-      child: Icon(
-        Icons.medical_information_outlined,
-        color: Theme.of(context).colorScheme.onPrimaryContainer,
+  Widget build(BuildContext context) => Column(
+    children: [
+      ListTile(
+        minVerticalPadding: 14,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          child: Icon(
+            Icons.medical_information_outlined,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ),
+        title: Text(
+          visit.diagnosis ?? visit.chiefComplaint ?? 'Consultation completed',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: averaText(context).listItemTitle,
+        ),
+        subtitle: Text(
+          '${visit.veterinarian ?? 'Clinic team'}  •  ${DateFormat.MMMd().add_jm().format(visit.visitDate)}',
+          style: averaText(context).listItemSubtitle,
+        ),
+        trailing: SizedBox(
+          width: 72,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: _StatusText(status: visit.status),
+          ),
+        ),
+        onTap: () => context.push('/consultations/${visit.id}'),
       ),
+      const Divider(height: 1, indent: 68),
+    ],
+  );
+}
+
+class _OperationalActivityTile extends StatelessWidget {
+  const _OperationalActivityTile({required this.event});
+  final ClinicActivityTimelineEvent event;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      ListTile(
+        minVerticalPadding: 14,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          child: Icon(
+            event.type == 'vaccinationRecorded'
+                ? Icons.vaccines_outlined
+                : Icons.history_rounded,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ),
+        title: Text(event.title, style: averaText(context).listItemTitle),
+        subtitle: Text(
+          '${_professionalDescription(event)} • ${DateFormat.MMMd().add_jm().format(event.occurredAt)}',
+          style: averaText(context).listItemSubtitle,
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => _openActivity(context, event),
+      ),
+      const Divider(height: 1, indent: 68),
+    ],
+  );
+}
+
+void _openActivity(BuildContext context, ClinicActivityTimelineEvent event) {
+  final id = event.relatedEntityId;
+  switch (event.relatedEntityType) {
+    case 'Appointment' when id != null:
+      context.push('/appointments/$id');
+    case 'Vaccination' when id != null:
+      context.push('/vaccinations/$id');
+    case 'Consultation' when id != null:
+      context.push('/consultations/$id');
+    case 'Patient' when id != null:
+      context.push('/animals/$id');
+    case 'ClinicalOperation' when id != null:
+      final route = switch (event.module) {
+        ClinicalOperationTypes.prescription => '/operations/prescriptions',
+        ClinicalOperationTypes.treatment => '/operations/treatment-board',
+        ClinicalOperationTypes.surgery => '/operations/surgery',
+        ClinicalOperationTypes.imaging => '/operations/imaging',
+        ClinicalOperationTypes.document => '/operations/documents',
+        _ => null,
+      };
+      if (route != null) context.push('$route?recordId=$id');
+    case 'Invoice' when id != null:
+      context.push('/billing/history?invoiceId=$id');
+    default:
+      showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        builder: (_) => _ActivityDetailsSheet(event: event),
+      );
+  }
+}
+
+String _professionalDescription(ClinicActivityTimelineEvent event) {
+  final raw = event.description;
+  return raw.replaceAllMapped(
+    RegExp(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?'),
+    (match) {
+      final date = DateTime.tryParse(match.group(0)!);
+      return date == null
+          ? match.group(0)!
+          : DateFormat.yMMMMd().add_jm().format(date);
+    },
+  );
+}
+
+class _ActivityDetailsSheet extends StatelessWidget {
+  const _ActivityDetailsSheet({required this.event});
+  final ClinicActivityTimelineEvent event;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(20),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Activity Details', style: averaText(context).sectionTitle),
+        const SizedBox(height: 16),
+        Text(event.title, style: averaText(context).listItemTitle),
+        const SizedBox(height: 6),
+        Text(
+          _professionalDescription(event),
+          style: averaText(context).listItemSubtitle,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          DateFormat.yMMMMd().add_jm().format(event.occurredAt),
+          style: averaText(context).caption,
+        ),
+        if (event.patientId != null) ...[
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/animals/${event.patientId}');
+            },
+            icon: const Icon(Icons.pets_outlined),
+            label: const Text('Open Patient File'),
+          ),
+        ],
+      ],
     ),
-    title: Text(
-      visit.diagnosis ?? visit.chiefComplaint ?? 'Consultation completed',
-    ),
-    subtitle: Text(
-      '${visit.veterinarian ?? 'Clinic team'}  •  ${DateFormat.MMMd().add_jm().format(visit.visitDate)}',
-    ),
-    trailing: _StatusText(status: visit.status),
-    onTap: () => context.push('/consultations/${visit.id}'),
   );
 }
 
@@ -532,7 +713,7 @@ class _StatusText extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
     status,
-    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+    style: averaText(context).caption.copyWith(
       color: Theme.of(context).extension<AppSemanticColors>()!.success,
     ),
   );
@@ -851,27 +1032,6 @@ List<_QuickAction> _dashboardActionsFor(
         ),
       );
     }
-    if (session.can(Permissions.usersAssignPermissions) ||
-        session.can(Permissions.usersAssignRoles)) {
-      actions.add(
-        const _QuickAction(
-          'Permissions',
-          Icons.admin_panel_settings_outlined,
-          '/administration',
-          _ActionTone.violet,
-        ),
-      );
-    }
-    if (session.can(Permissions.clinicSettingsView)) {
-      actions.add(
-        const _QuickAction(
-          'Clinic Settings',
-          Icons.settings_outlined,
-          '/settings',
-          _ActionTone.teal,
-        ),
-      );
-    }
     add(
       label: 'Reports',
       icon: Icons.bar_chart_rounded,
@@ -889,14 +1049,6 @@ List<_QuickAction> _dashboardActionsFor(
     tone: _ActionTone.teal,
     permission: Permissions.patientsView,
     feature: AveraFeature.patientRecords,
-  );
-  add(
-    label: 'Schedule',
-    icon: Icons.calendar_month_rounded,
-    path: '/appointments',
-    tone: _ActionTone.blue,
-    permission: Permissions.appointmentsView,
-    feature: AveraFeature.schedule,
   );
   add(
     label: 'Consultation',

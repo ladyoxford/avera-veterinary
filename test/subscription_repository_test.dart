@@ -1,9 +1,9 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zevora/core/database/app_database.dart';
-import 'package:zevora/core/repositories/clinic_repository.dart';
-import 'package:zevora/core/repositories/subscription_repository.dart';
-import 'package:zevora/core/services/feature_gate_service.dart';
+import 'package:avera/core/database/app_database.dart';
+import 'package:avera/core/repositories/clinic_repository.dart';
+import 'package:avera/core/repositories/subscription_repository.dart';
+import 'package:avera/core/services/feature_gate_service.dart';
 
 void main() {
   late AppDatabase database;

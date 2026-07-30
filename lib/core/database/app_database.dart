@@ -38,6 +38,15 @@ class Clinics extends Table {
   TextColumn get subscriptionPlan =>
       text().withDefault(const Constant('Starter'))();
   TextColumn get clinicStatus => text().withDefault(const Constant('Active'))();
+  TextColumn get patientNumberPrefix => text().nullable()();
+  IntColumn get patientNumberSequenceLength =>
+      integer().withDefault(const Constant(5))();
+  BoolColumn get patientNumberResetYearly =>
+      boolean().withDefault(const Constant(true))();
+  BoolColumn get patientNumberPrefixReviewed =>
+      boolean().withDefault(const Constant(false))();
+  DateTimeColumn get patientNumberLastChangedAt => dateTime().nullable()();
+  TextColumn get patientNumberLastChangedBy => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {clinicId};
@@ -106,6 +115,15 @@ class AppUsers extends Table {
   DateTimeColumn get lastLogin => dateTime().nullable()();
   TextColumn get accountStatus =>
       text().withDefault(const Constant('Active'))();
+  TextColumn get membershipStatus =>
+      text().withDefault(const Constant('Active'))();
+  DateTimeColumn get formerStaffAt => dateTime().nullable()();
+  TextColumn get formerStaffBy => text().nullable()();
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+  TextColumn get archivedBy => text().nullable()();
+  TextColumn get removalReason => text().nullable()();
+  TextColumn get removalNote => text().nullable()();
+  TextColumn get previousRole => text().nullable()();
   BoolColumn get rememberMe => boolean().withDefault(const Constant(false))();
   IntColumn get sessionTimeoutMinutes =>
       integer().withDefault(const Constant(30))();
@@ -141,7 +159,7 @@ class Animals extends Table {
   TextColumn get clinicId => text()
       .references(Clinics, #clinicId)
       .withDefault(const Constant(defaultClinicId))();
-  TextColumn get hospitalNumber => text().unique()();
+  TextColumn get hospitalNumber => text()();
   TextColumn get animalName => text().withLength(min: 1, max: 120)();
   TextColumn get species => text().withLength(min: 1, max: 80)();
   TextColumn get breed => text().nullable()();
@@ -158,6 +176,33 @@ class Animals extends Table {
   TextColumn get status => text().withDefault(const Constant('Active'))();
   DateTimeColumn get statusUpdatedAt => dateTime().nullable()();
   TextColumn get statusUpdatedBy => text().nullable()();
+  TextColumn get numberAssignmentStatus =>
+      text().withDefault(const Constant('Legacy'))();
+  TextColumn get temporaryHospitalNumber => text().nullable()();
+  IntColumn get registrationYear => integer().nullable()();
+  TextColumn get registrationSubmissionId => text().nullable()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {clinicId, hospitalNumber},
+    {clinicId, registrationSubmissionId},
+  ];
+}
+
+class ClinicNumberSequences extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get sequenceType => text()();
+  TextColumn get sequenceKey => text()();
+  IntColumn get currentValue => integer().withDefault(const Constant(0))();
+  IntColumn get sequenceLength => integer().withDefault(const Constant(5))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {clinicId, sequenceType, sequenceKey},
+  ];
 }
 
 class Visits extends Table {
@@ -187,6 +232,123 @@ class Visits extends Table {
   TextColumn get status => text().withDefault(const Constant('Completed'))();
 }
 
+/// Clinic-scoped operational work that sits alongside a patient's clinical
+/// history. One table keeps these related workflows locally durable while the
+/// individual modules retain their own views and status vocabulary.
+class ClinicalOperationRecords extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  IntColumn get animalId => integer().references(Animals, #id)();
+  IntColumn get visitId => integer().nullable().references(Visits, #id)();
+  IntColumn get hospitalizationId => integer().nullable()();
+  IntColumn get sourceOperationId =>
+      integer().nullable().references(ClinicalOperationRecords, #id)();
+  TextColumn get operationType => text()();
+  TextColumn get referenceNumber => text().nullable()();
+  TextColumn get title => text()();
+  TextColumn get description => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('Pending'))();
+  TextColumn get priority => text().withDefault(const Constant('Routine'))();
+  TextColumn get assignedTo => text().nullable()();
+  DateTimeColumn get scheduledAt => dateTime().nullable()();
+  DateTimeColumn get completedAt => dateTime().nullable()();
+  RealColumn get estimatedAmount => real().nullable()();
+  TextColumn get detailsJson => text().nullable()();
+  TextColumn get createdByUserId =>
+      text().nullable().references(AppUsers, #userId)();
+  TextColumn get updatedByUserId =>
+      text().nullable().references(AppUsers, #userId)();
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+  IntColumn get recordVersion => integer().withDefault(const Constant(1))();
+  TextColumn get syncStatus => text().withDefault(const Constant('Synced'))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {clinicId, referenceNumber},
+  ];
+}
+
+/// Medication, consumable, imaging-view, checklist, or treatment line attached
+/// to a clinical operation. Module-specific attributes remain in [detailsJson]
+/// while stock and dose fields stay queryable and transaction-safe.
+class ClinicalOperationItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  IntColumn get operationId =>
+      integer().references(ClinicalOperationRecords, #id)();
+  IntColumn get inventoryItemId =>
+      integer().nullable().references(InventoryItems, #id)();
+  TextColumn get itemType => text()();
+  TextColumn get name => text()();
+  TextColumn get strength => text().nullable()();
+  RealColumn get prescribedQuantity => real().nullable()();
+  RealColumn get completedQuantity => real().withDefault(const Constant(0))();
+  TextColumn get unit => text().nullable()();
+  TextColumn get dose => text().nullable()();
+  TextColumn get doseUnit => text().nullable()();
+  TextColumn get route => text().nullable()();
+  TextColumn get frequency => text().nullable()();
+  TextColumn get duration => text().nullable()();
+  TextColumn get instructions => text().nullable()();
+  BoolColumn get isHighRisk => boolean().withDefault(const Constant(false))();
+  TextColumn get status => text().withDefault(const Constant('Pending'))();
+  TextColumn get detailsJson => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+}
+
+/// Immutable action history for dispensing, administering, verification,
+/// clinical status changes, uploads, and document lifecycle events.
+class ClinicalOperationActions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  IntColumn get operationId =>
+      integer().references(ClinicalOperationRecords, #id)();
+  IntColumn get operationItemId =>
+      integer().nullable().references(ClinicalOperationItems, #id)();
+  TextColumn get action => text()();
+  TextColumn get previousStatus => text().nullable()();
+  TextColumn get newStatus => text().nullable()();
+  RealColumn get quantity => real().nullable()();
+  TextColumn get unit => text().nullable()();
+  IntColumn get inventoryItemId =>
+      integer().nullable().references(InventoryItems, #id)();
+  TextColumn get batchNumber => text().nullable()();
+  DateTimeColumn get batchExpiryDate => dateTime().nullable()();
+  TextColumn get performedByUserId => text().references(AppUsers, #userId)();
+  TextColumn get verifiedByUserId =>
+      text().nullable().references(AppUsers, #userId)();
+  TextColumn get reason => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get detailsJson => text().nullable()();
+  DateTimeColumn get occurredAt => dateTime()();
+}
+
+/// Versioned file metadata. Large file bytes remain in the existing file
+/// storage layer and only a storage reference is persisted here.
+class ClinicalDocumentVersions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  IntColumn get operationId =>
+      integer().references(ClinicalOperationRecords, #id)();
+  IntColumn get parentVersionId =>
+      integer().nullable().references(ClinicalDocumentVersions, #id)();
+  TextColumn get category => text()();
+  TextColumn get fileName => text()();
+  TextColumn get mimeType => text().nullable()();
+  IntColumn get fileSize => integer().nullable()();
+  TextColumn get storagePath => text()();
+  IntColumn get versionNumber => integer().withDefault(const Constant(1))();
+  BoolColumn get isSensitive => boolean().withDefault(const Constant(false))();
+  TextColumn get replacementReason => text().nullable()();
+  TextColumn get uploadedByUserId => text().references(AppUsers, #userId)();
+  DateTimeColumn get uploadedAt => dateTime()();
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+}
+
 class Vaccinations extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get clinicId => text()
@@ -211,6 +373,8 @@ class Vaccinations extends Table {
   TextColumn get reminderStatus =>
       text().withDefault(const Constant('Pending'))();
   TextColumn get status => text().withDefault(const Constant('Completed'))();
+  IntColumn get sourceVaccinationId =>
+      integer().nullable().references(Vaccinations, #id)();
 }
 
 class InventoryItems extends Table {
@@ -220,6 +384,7 @@ class InventoryItems extends Table {
       .withDefault(const Constant(defaultClinicId))();
   TextColumn get drugName => text()();
   TextColumn get category => text()();
+  TextColumn get categoryId => text().nullable()();
   TextColumn get manufacturer => text().nullable()();
   TextColumn get batchNumber => text().nullable()();
   DateTimeColumn get expiryDate => dateTime().nullable()();
@@ -229,6 +394,10 @@ class InventoryItems extends Table {
   RealColumn get sellingPrice => real().withDefault(const Constant(0))();
   TextColumn get supplier => text().nullable()();
   TextColumn get location => text().nullable()();
+  BoolColumn get isSellable => boolean().withDefault(const Constant(true))();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
 }
 
 class Sales extends Table {
@@ -243,6 +412,105 @@ class Sales extends Table {
   TextColumn get customer => text().nullable()();
 }
 
+class Invoices extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  IntColumn get animalId => integer().references(Animals, #id)();
+  IntColumn get appointmentId =>
+      integer().nullable().references(Appointments, #id)();
+  IntColumn get consultationId =>
+      integer().nullable().references(Visits, #id)();
+  TextColumn get reference => text()();
+  TextColumn get status => text().withDefault(const Constant('Pending'))();
+  RealColumn get productsSubtotal => real().withDefault(const Constant(0))();
+  RealColumn get servicesSubtotal => real().withDefault(const Constant(0))();
+  RealColumn get consultationFee => real().withDefault(const Constant(0))();
+  RealColumn get homeServiceFee => real().withDefault(const Constant(0))();
+  RealColumn get total => real().withDefault(const Constant(0))();
+  RealColumn get amountPaid => real().withDefault(const Constant(0))();
+  RealColumn get refundTotal => real().withDefault(const Constant(0))();
+  RealColumn get balance => real().withDefault(const Constant(0))();
+  TextColumn get paymentMethod => text().nullable()();
+  IntColumn get linkedClinicalOperationId =>
+      integer().nullable().references(ClinicalOperationRecords, #id)();
+  DateTimeColumn get paidAt => dateTime().nullable()();
+  TextColumn get paidByUserId =>
+      text().nullable().references(AppUsers, #userId)();
+  DateTimeColumn get voidedAt => dateTime().nullable()();
+  TextColumn get voidedByUserId =>
+      text().nullable().references(AppUsers, #userId)();
+  TextColumn get voidReason => text().nullable()();
+  TextColumn get clinicNameSnapshot => text()();
+  TextColumn get clinicAddressSnapshot => text().nullable()();
+  TextColumn get clinicPhoneSnapshot => text().nullable()();
+  TextColumn get clinicEmailSnapshot => text().nullable()();
+  TextColumn get createdByUserId => text().references(AppUsers, #userId)();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {clinicId, reference},
+  ];
+}
+
+/// Payment and refund ledger. Original transactions are never overwritten;
+/// invoice totals are cached for fast list rendering and reconciled from this
+/// ledger inside the same database transaction.
+class InvoicePayments extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  IntColumn get invoiceId => integer().references(Invoices, #id)();
+  TextColumn get receiptNumber => text()();
+  TextColumn get transactionType =>
+      text().withDefault(const Constant('Payment'))();
+  RealColumn get amount => real()();
+  TextColumn get paymentMethod => text()();
+  TextColumn get processedByUserId => text().references(AppUsers, #userId)();
+  IntColumn get originalPaymentId =>
+      integer().nullable().references(InvoicePayments, #id)();
+  TextColumn get reason => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {clinicId, receiptNumber},
+  ];
+}
+
+class InvoiceProductLines extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get invoiceId => integer().references(Invoices, #id)();
+  IntColumn get inventoryItemId => integer().references(InventoryItems, #id)();
+  TextColumn get productNameSnapshot => text()();
+  TextColumn get categoryNameSnapshot => text()();
+  TextColumn get batchNumberSnapshot => text().nullable()();
+  IntColumn get quantity => integer()();
+  RealColumn get unitPrice => real()();
+  RealColumn get lineTotal => real()();
+}
+
+class InvoiceServiceLines extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get invoiceId => integer().references(Invoices, #id)();
+  TextColumn get description => text()();
+  RealColumn get amount => real()();
+}
+
+class InventoryStockMovements extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  IntColumn get inventoryItemId => integer().references(InventoryItems, #id)();
+  TextColumn get movementType => text()();
+  IntColumn get quantityChange => integer()();
+  IntColumn get quantityBefore => integer()();
+  IntColumn get quantityAfter => integer()();
+  IntColumn get invoiceId => integer().nullable().references(Invoices, #id)();
+  TextColumn get performedByUserId => text().references(AppUsers, #userId)();
+  TextColumn get reason => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+}
+
 class Appointments extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get clinicId => text()
@@ -252,6 +520,30 @@ class Appointments extends Table {
   DateTimeColumn get appointmentDate => dateTime()();
   TextColumn get purpose => text()();
   TextColumn get status => text().withDefault(const Constant('Scheduled'))();
+  TextColumn get assignedStaffId =>
+      text().nullable().references(AppUsers, #userId)();
+  TextColumn get notes => text().nullable()();
+  IntColumn get consultationId =>
+      integer().nullable().references(Visits, #id)();
+  TextColumn get reference => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+}
+
+class AppointmentReminders extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get appointmentId => integer().references(Appointments, #id)();
+  IntColumn get daysBefore => integer()();
+  BoolColumn get enabled => boolean().withDefault(const Constant(true))();
+  IntColumn get notificationId => integer()();
+  DateTimeColumn get scheduledFor => dateTime().nullable()();
+  DateTimeColumn get lastScheduledAt => dateTime().nullable()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {appointmentId, daysBefore},
+    {notificationId},
+  ];
 }
 
 class VaccinationProtocols extends Table {
@@ -289,7 +581,38 @@ class Notifications extends Table {
   IntColumn get animalId => integer().nullable().references(Animals, #id)();
   DateTimeColumn get dueDate => dateTime().nullable()();
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();
+  TextColumn get status => text().withDefault(const Constant('unread'))();
+  TextColumn get destinationType => text().nullable()();
+  IntColumn get destinationEntityId => integer().nullable()();
+  DateTimeColumn get deliveredAt => dateTime().nullable()();
+  DateTimeColumn get readAt => dateTime().nullable()();
+  DateTimeColumn get reviewedAt => dateTime().nullable()();
+  DateTimeColumn get dismissedAt => dateTime().nullable()();
+  IntColumn get systemNotificationId => integer().nullable()();
   DateTimeColumn get createdAt => dateTime()();
+}
+
+/// Clinic-owned role policies supplement the built-in role templates. A row is
+/// created only when a clinic customizes a default role or adds a custom role;
+/// this keeps existing staff and their permissions intact during migration.
+class ClinicRolePolicies extends Table {
+  TextColumn get id => text()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get roleName => text()();
+  TextColumn get description => text().nullable()();
+  TextColumn get permissions => text().withDefault(const Constant('[]'))();
+  BoolColumn get isCustom => boolean().withDefault(const Constant(false))();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {clinicId, roleName},
+  ];
 }
 
 class AuditLogs extends Table {
@@ -303,6 +626,45 @@ class AuditLogs extends Table {
   TextColumn get entityId => text().nullable()();
   TextColumn get details => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
+}
+
+/// Concise operational timeline. Unlike audit logs, these events describe
+/// completed clinic work suitable for dashboards and daily reports.
+class ClinicActivityEvents extends Table {
+  TextColumn get id => text()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get type => text()();
+  TextColumn get title => text()();
+  TextColumn get description => text()();
+  DateTimeColumn get occurredAt => dateTime()();
+  TextColumn get performedByUserId => text().nullable()();
+  TextColumn get relatedEntityType => text().nullable()();
+  TextColumn get relatedEntityId => text().nullable()();
+  IntColumn get patientId => integer().nullable().references(Animals, #id)();
+  TextColumn get module => text().nullable()();
+  TextColumn get metadata => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Marks explicitly generated, development-only datasets. Keeping the marker
+/// separate from clinic records makes a reset precise and prevents generated
+/// data from being mistaken for ordinary clinic work.
+class DevelopmentDatasetMarkers extends Table {
+  TextColumn get datasetId => text()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get version => text()();
+  DateTimeColumn get generatedAt => dateTime()();
+  TextColumn get settings => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {datasetId};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {clinicId, version},
+  ];
 }
 
 /// Durable, tenant-scoped journal for clinical work completed while the device
@@ -500,6 +862,210 @@ class SubscriptionAuditLogs extends Table {
   DateTimeColumn get createdAt => dateTime()();
 }
 
+/// Farm data stays inside the existing clinic database.  Stable string IDs make
+/// later cloud synchronization possible without replacing local relationships.
+class Farms extends Table {
+  TextColumn get id => text()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get name => text().withLength(min: 2, max: 160)();
+  TextColumn get location => text().nullable()();
+  TextColumn get speciesJson => text().withDefault(const Constant('[]'))();
+  TextColumn get breedJson => text().withDefault(const Constant('[]'))();
+  TextColumn get ownerOrganization => text().nullable()();
+  TextColumn get contactNumber => text().nullable()();
+  TextColumn get farmType => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('Active'))();
+  DateTimeColumn get createdAt => dateTime()();
+  TextColumn get createdByUserId => text().references(AppUsers, #userId)();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {clinicId, name},
+  ];
+}
+
+class FarmUnits extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  TextColumn get name => text().withLength(min: 1, max: 100)();
+  TextColumn get unitType => text().withDefault(const Constant('Pen'))();
+  TextColumn get speciesId => text().nullable()();
+  TextColumn get breedId => text().nullable()();
+  IntColumn get capacity => integer().nullable()();
+  IntColumn get maleCount => integer().withDefault(const Constant(0))();
+  IntColumn get femaleCount => integer().withDefault(const Constant(0))();
+  IntColumn get unknownCount => integer().withDefault(const Constant(0))();
+  TextColumn get status => text().withDefault(const Constant('Active'))();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  TextColumn get createdByUserId => text().references(AppUsers, #userId)();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {farmId, name},
+  ];
+}
+
+class FarmDailyRecords extends Table {
+  TextColumn get id => text()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  DateTimeColumn get recordDate => dateTime()();
+  TextColumn get status => text().withDefault(const Constant('Draft'))();
+  IntColumn get openingPopulation => integer().withDefault(const Constant(0))();
+  IntColumn get births => integer().withDefault(const Constant(0))();
+  IntColumn get purchases => integer().withDefault(const Constant(0))();
+  IntColumn get transfersIn => integer().withDefault(const Constant(0))();
+  IntColumn get mortality => integer().withDefault(const Constant(0))();
+  IntColumn get sales => integer().withDefault(const Constant(0))();
+  IntColumn get transfersOut => integer().withDefault(const Constant(0))();
+  IntColumn get closingPopulation => integer().withDefault(const Constant(0))();
+  RealColumn get feedSuppliedKg => real().withDefault(const Constant(0))();
+  TextColumn get dailyNote => text().nullable()();
+  TextColumn get tasksForTomorrow => text().nullable()();
+  TextColumn get correctionReason => text().nullable()();
+  TextColumn get originalSnapshotJson => text().nullable()();
+  TextColumn get lastEditedByUserId => text().nullable()();
+  DateTimeColumn get finalizedAt => dateTime().nullable()();
+  TextColumn get finalizedByUserId => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  TextColumn get createdByUserId => text().references(AppUsers, #userId)();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {farmId, recordDate},
+  ];
+}
+
+class FarmSpeciesPopulationMovements extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  TextColumn get dailyRecordId => text().references(FarmDailyRecords, #id)();
+  TextColumn get speciesId => text()();
+  IntColumn get openingPopulation => integer().withDefault(const Constant(0))();
+  IntColumn get births => integer().withDefault(const Constant(0))();
+  IntColumn get purchases => integer().withDefault(const Constant(0))();
+  IntColumn get transfersIn => integer().withDefault(const Constant(0))();
+  IntColumn get mortality => integer().withDefault(const Constant(0))();
+  IntColumn get sales => integer().withDefault(const Constant(0))();
+  IntColumn get transfersOut => integer().withDefault(const Constant(0))();
+  IntColumn get closingPopulation => integer().withDefault(const Constant(0))();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {dailyRecordId, speciesId},
+  ];
+}
+
+class FarmMortalityRecords extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  TextColumn get dailyRecordId => text().references(FarmDailyRecords, #id)();
+  IntColumn get farmUnitId => integer().nullable().references(FarmUnits, #id)();
+  DateTimeColumn get occurredAt => dateTime()();
+  TextColumn get speciesId => text().nullable()();
+  IntColumn get numberDead => integer()();
+  TextColumn get suspectedCause =>
+      text().withDefault(const Constant('Unknown'))();
+  TextColumn get notes => text().nullable()();
+  TextColumn get recordedByUserId => text().references(AppUsers, #userId)();
+}
+
+class FarmFeedRecords extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  TextColumn get dailyRecordId => text().references(FarmDailyRecords, #id)();
+  IntColumn get farmUnitId => integer().nullable().references(FarmUnits, #id)();
+  DateTimeColumn get occurredAt => dateTime()();
+  TextColumn get rationName => text()();
+  TextColumn get preparationType =>
+      text().withDefault(const Constant('Mixed'))();
+  RealColumn get totalMixedKg => real().withDefault(const Constant(0))();
+  RealColumn get totalSuppliedKg => real().withDefault(const Constant(0))();
+  RealColumn get remainingKg => real().withDefault(const Constant(0))();
+  TextColumn get notes => text().nullable()();
+  TextColumn get recordedByUserId => text().references(AppUsers, #userId)();
+}
+
+class FarmEvents extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  TextColumn get dailyRecordId => text().references(FarmDailyRecords, #id)();
+  IntColumn get farmUnitId => integer().nullable().references(FarmUnits, #id)();
+  DateTimeColumn get occurredAt => dateTime()();
+  TextColumn get eventType => text()();
+  TextColumn get description => text().nullable()();
+  TextColumn get responsibleUserId => text().nullable()();
+  TextColumn get createdByUserId => text().references(AppUsers, #userId)();
+}
+
+class FarmReproductionRecords extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  IntColumn get farmUnitId => integer().nullable().references(FarmUnits, #id)();
+  TextColumn get animalIdentifier => text()();
+  TextColumn get speciesId => text().nullable()();
+  DateTimeColumn get heatDetectedAt => dateTime().nullable()();
+  DateTimeColumn get serviceAt => dateTime().nullable()();
+  TextColumn get serviceType => text().nullable()();
+  DateTimeColumn get expectedDeliveryAt => dateTime().nullable()();
+  DateTimeColumn get deliveryAt => dateTime().nullable()();
+  IntColumn get bornAlive => integer().withDefault(const Constant(0))();
+  IntColumn get stillborn => integer().withDefault(const Constant(0))();
+  TextColumn get notes => text().nullable()();
+  TextColumn get createdByUserId => text().references(AppUsers, #userId)();
+  DateTimeColumn get createdAt => dateTime()();
+}
+
+class FarmHealthRecords extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  TextColumn get dailyRecordId =>
+      text().nullable().references(FarmDailyRecords, #id)();
+  IntColumn get farmUnitId => integer().nullable().references(FarmUnits, #id)();
+  DateTimeColumn get occurredAt => dateTime()();
+  TextColumn get eventType => text()();
+  TextColumn get product => text().nullable()();
+  TextColumn get purpose => text().nullable()();
+  TextColumn get dose => text().nullable()();
+  TextColumn get route => text().nullable()();
+  DateTimeColumn get nextDueDate => dateTime().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get createdByUserId => text().references(AppUsers, #userId)();
+}
+
+class FarmReportSnapshots extends Table {
+  TextColumn get id => text()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  TextColumn get dailyRecordId => text().references(FarmDailyRecords, #id)();
+  TextColumn get filePath => text().nullable()();
+  TextColumn get snapshotJson => text()();
+  BoolColumn get isAmended => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get generatedAt => dateTime()();
+  TextColumn get generatedByUserId => text().references(AppUsers, #userId)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(
   tables: [
     Clinics,
@@ -508,14 +1074,28 @@ class SubscriptionAuditLogs extends Table {
     AppUsers,
     Owners,
     Animals,
+    ClinicNumberSequences,
     Visits,
+    ClinicalOperationRecords,
+    ClinicalOperationItems,
+    ClinicalOperationActions,
+    ClinicalDocumentVersions,
     Vaccinations,
     InventoryItems,
     Sales,
+    Invoices,
+    InvoicePayments,
+    InvoiceProductLines,
+    InvoiceServiceLines,
+    InventoryStockMovements,
     Appointments,
+    AppointmentReminders,
     VaccinationProtocols,
     Notifications,
+    ClinicRolePolicies,
     AuditLogs,
+    ClinicActivityEvents,
+    DevelopmentDatasetMarkers,
     SyncOperations,
     CloudCacheEntries,
     CloudEntitySynchronizations,
@@ -528,6 +1108,16 @@ class SubscriptionAuditLogs extends Table {
     SubscriptionGracePeriods,
     SubscriptionOverrides,
     SubscriptionAuditLogs,
+    Farms,
+    FarmUnits,
+    FarmDailyRecords,
+    FarmSpeciesPopulationMovements,
+    FarmMortalityRecords,
+    FarmFeedRecords,
+    FarmEvents,
+    FarmReproductionRecords,
+    FarmHealthRecords,
+    FarmReportSnapshots,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -535,13 +1125,26 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
+  static const currentSchemaVersion = 23;
+
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => currentSchemaVersion;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
     onUpgrade: (m, from, to) async {
+      // Debug builds from the early local-first migrations could be left with
+      // an advanced user_version but only a subset of the expected tables.
+      // Resume those upgrades by adding missing tables without touching any
+      // table or record that already exists.
+      if (from >= 11) {
+        for (final table in allTables) {
+          if (!await _hasTable(table.actualTableName)) {
+            await m.createTable(table);
+          }
+        }
+      }
       if (from < 2) {
         await m.createTable(clinics);
         await m.createTable(appUsers);
@@ -616,6 +1219,373 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(subscriptionOverrides);
         await m.createTable(subscriptionAuditLogs);
       }
+      if (from < 11) {
+        await m.addColumn(appUsers, appUsers.membershipStatus);
+        await m.addColumn(appUsers, appUsers.formerStaffAt);
+        await m.addColumn(appUsers, appUsers.formerStaffBy);
+        await m.addColumn(appUsers, appUsers.archivedAt);
+        await m.addColumn(appUsers, appUsers.archivedBy);
+        await m.addColumn(appUsers, appUsers.removalReason);
+        await m.addColumn(appUsers, appUsers.removalNote);
+        await m.addColumn(appUsers, appUsers.previousRole);
+      }
+      if (from < 12) {
+        // A previous debug build could stop after adding some version-12
+        // objects but before SQLite recorded the new user_version. Check each
+        // object so the upgrade resumes safely instead of failing on a
+        // duplicate-column error at sign-in.
+        if (!await _hasColumn('clinics', 'patient_number_prefix')) {
+          await m.addColumn(clinics, clinics.patientNumberPrefix);
+        }
+        if (!await _hasColumn('clinics', 'patient_number_sequence_length')) {
+          await m.addColumn(clinics, clinics.patientNumberSequenceLength);
+        }
+        if (!await _hasColumn('clinics', 'patient_number_reset_yearly')) {
+          await m.addColumn(clinics, clinics.patientNumberResetYearly);
+        }
+        if (!await _hasColumn('clinics', 'patient_number_prefix_reviewed')) {
+          await m.addColumn(clinics, clinics.patientNumberPrefixReviewed);
+        }
+        if (!await _hasColumn('clinics', 'patient_number_last_changed_at')) {
+          await m.addColumn(clinics, clinics.patientNumberLastChangedAt);
+        }
+        if (!await _hasColumn('clinics', 'patient_number_last_changed_by')) {
+          await m.addColumn(clinics, clinics.patientNumberLastChangedBy);
+        }
+        if (!await _hasTable('clinic_number_sequences')) {
+          await m.createTable(clinicNumberSequences);
+        }
+        // Add patient-numbering columns in place. Rebuilding `animals` with
+        // TableMigration is unsafe here because existing clinical tables hold
+        // foreign keys to patient rows, and an interrupted rebuild leaves the
+        // database at version 11 even after earlier version-12 objects exist.
+        if (!await _hasColumn('animals', 'number_assignment_status')) {
+          await m.addColumn(animals, animals.numberAssignmentStatus);
+        }
+        if (!await _hasColumn('animals', 'temporary_hospital_number')) {
+          await m.addColumn(animals, animals.temporaryHospitalNumber);
+        }
+        if (!await _hasColumn('animals', 'registration_year')) {
+          await m.addColumn(animals, animals.registrationYear);
+        }
+        if (!await _hasColumn('animals', 'registration_submission_id')) {
+          await m.addColumn(animals, animals.registrationSubmissionId);
+        }
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS '
+          'animals_clinic_hospital_number_unique '
+          'ON animals (clinic_id, hospital_number)',
+        );
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS '
+          'animals_clinic_submission_id_unique '
+          'ON animals (clinic_id, registration_submission_id)',
+        );
+      }
+      if (from < 13) {
+        if (!await _hasColumn('appointments', 'assigned_staff_id')) {
+          await m.addColumn(appointments, appointments.assignedStaffId);
+        }
+        if (!await _hasColumn('appointments', 'notes')) {
+          await m.addColumn(appointments, appointments.notes);
+        }
+        if (!await _hasColumn('appointments', 'consultation_id')) {
+          await m.addColumn(appointments, appointments.consultationId);
+        }
+        if (!await _hasColumn('appointments', 'reference')) {
+          await m.addColumn(appointments, appointments.reference);
+        }
+        if (!await _hasColumn('appointments', 'created_at')) {
+          await m.addColumn(appointments, appointments.createdAt);
+        }
+        if (!await _hasColumn('appointments', 'updated_at')) {
+          await m.addColumn(appointments, appointments.updatedAt);
+        }
+        if (!await _hasTable('appointment_reminders')) {
+          await m.createTable(appointmentReminders);
+        }
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS '
+          'appointment_reminders_appointment_days_unique '
+          'ON appointment_reminders (appointment_id, days_before)',
+        );
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS '
+          'appointment_reminders_notification_unique '
+          'ON appointment_reminders (notification_id)',
+        );
+      }
+      if (from < 14) {
+        if (!await _hasColumn('inventory_items', 'category_id')) {
+          await m.addColumn(inventoryItems, inventoryItems.categoryId);
+        }
+        if (!await _hasColumn('inventory_items', 'is_sellable')) {
+          await m.addColumn(inventoryItems, inventoryItems.isSellable);
+        }
+        if (!await _hasColumn('inventory_items', 'is_archived')) {
+          await m.addColumn(inventoryItems, inventoryItems.isArchived);
+        }
+        if (!await _hasColumn('inventory_items', 'created_at')) {
+          await m.addColumn(inventoryItems, inventoryItems.createdAt);
+        }
+        if (!await _hasColumn('inventory_items', 'updated_at')) {
+          await m.addColumn(inventoryItems, inventoryItems.updatedAt);
+        }
+        if (!await _hasTable('invoices')) await m.createTable(invoices);
+        if (!await _hasTable('invoice_product_lines')) {
+          await m.createTable(invoiceProductLines);
+        }
+        if (!await _hasTable('invoice_service_lines')) {
+          await m.createTable(invoiceServiceLines);
+        }
+        if (!await _hasTable('inventory_stock_movements')) {
+          await m.createTable(inventoryStockMovements);
+        }
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS invoices_clinic_reference_unique '
+          'ON invoices (clinic_id, reference)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS inventory_stock_movements_item_index '
+          'ON inventory_stock_movements (clinic_id, inventory_item_id)',
+        );
+      }
+      if (from < 15) {
+        if (!await _hasTable('clinic_role_policies')) {
+          await m.createTable(clinicRolePolicies);
+        }
+      }
+      if (from < 16) {
+        if (!await _hasColumn('notifications', 'status')) {
+          await m.addColumn(notifications, notifications.status);
+        }
+        if (!await _hasColumn('notifications', 'destination_type')) {
+          await m.addColumn(notifications, notifications.destinationType);
+        }
+        if (!await _hasColumn('notifications', 'destination_entity_id')) {
+          await m.addColumn(notifications, notifications.destinationEntityId);
+        }
+        if (!await _hasColumn('notifications', 'delivered_at')) {
+          await m.addColumn(notifications, notifications.deliveredAt);
+        }
+        if (!await _hasColumn('notifications', 'read_at')) {
+          await m.addColumn(notifications, notifications.readAt);
+        }
+        if (!await _hasColumn('notifications', 'reviewed_at')) {
+          await m.addColumn(notifications, notifications.reviewedAt);
+        }
+        if (!await _hasColumn('notifications', 'dismissed_at')) {
+          await m.addColumn(notifications, notifications.dismissedAt);
+        }
+        if (!await _hasColumn('notifications', 'system_notification_id')) {
+          await m.addColumn(notifications, notifications.systemNotificationId);
+        }
+        await customStatement(
+          "UPDATE notifications SET status = CASE WHEN is_read = 1 THEN 'read' ELSE 'unread' END "
+          "WHERE status IS NULL OR status = '' OR status = 'unread'",
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS notifications_clinic_status_index '
+          'ON notifications (clinic_id, status, created_at)',
+        );
+      }
+      if (from < 17) {
+        if (!await _hasTable('clinic_activity_events')) {
+          await m.createTable(clinicActivityEvents);
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS clinic_activity_events_timeline_index '
+          'ON clinic_activity_events (clinic_id, occurred_at)',
+        );
+      }
+      if (from < 18) {
+        if (!await _hasTable('development_dataset_markers')) {
+          await m.createTable(developmentDatasetMarkers);
+        }
+      }
+      if (from < 19) {
+        if (!await _hasTable('farms')) await m.createTable(farms);
+        if (!await _hasTable('farm_units')) await m.createTable(farmUnits);
+        if (!await _hasTable('farm_daily_records')) {
+          await m.createTable(farmDailyRecords);
+        }
+        if (!await _hasTable('farm_mortality_records')) {
+          await m.createTable(farmMortalityRecords);
+        }
+        if (!await _hasTable('farm_feed_records')) {
+          await m.createTable(farmFeedRecords);
+        }
+        if (!await _hasTable('farm_events')) await m.createTable(farmEvents);
+        if (!await _hasTable('farm_reproduction_records')) {
+          await m.createTable(farmReproductionRecords);
+        }
+        if (!await _hasTable('farm_health_records')) {
+          await m.createTable(farmHealthRecords);
+        }
+        if (!await _hasTable('farm_report_snapshots')) {
+          await m.createTable(farmReportSnapshots);
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS farms_clinic_status_index '
+          'ON farms (clinic_id, status, name)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS farm_daily_records_timeline_index '
+          'ON farm_daily_records (clinic_id, farm_id, record_date)',
+        );
+      }
+      if (from < 20) {
+        if (!await _hasColumn('vaccinations', 'source_vaccination_id')) {
+          await m.addColumn(vaccinations, vaccinations.sourceVaccinationId);
+        }
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS vaccinations_source_schedule_unique '
+          'ON vaccinations (source_vaccination_id) '
+          'WHERE source_vaccination_id IS NOT NULL',
+        );
+      }
+      if (from < 21) {
+        if (!await _hasColumn('farms', 'owner_organization')) {
+          await m.addColumn(farms, farms.ownerOrganization);
+        }
+        if (!await _hasColumn('farms', 'contact_number')) {
+          await m.addColumn(farms, farms.contactNumber);
+        }
+        if (!await _hasColumn('farms', 'farm_type')) {
+          await m.addColumn(farms, farms.farmType);
+        }
+        if (!await _hasColumn('farms', 'notes')) {
+          await m.addColumn(farms, farms.notes);
+        }
+        if (!await _hasColumn('farm_units', 'species_id')) {
+          await m.addColumn(farmUnits, farmUnits.speciesId);
+        }
+        if (!await _hasColumn('farm_units', 'breed_id')) {
+          await m.addColumn(farmUnits, farmUnits.breedId);
+        }
+        if (!await _hasColumn('farm_units', 'notes')) {
+          await m.addColumn(farmUnits, farmUnits.notes);
+        }
+        if (!await _hasColumn('farm_daily_records', 'correction_reason')) {
+          await m.addColumn(
+            farmDailyRecords,
+            farmDailyRecords.correctionReason,
+          );
+        }
+        if (!await _hasColumn('farm_daily_records', 'original_snapshot_json')) {
+          await m.addColumn(
+            farmDailyRecords,
+            farmDailyRecords.originalSnapshotJson,
+          );
+        }
+        if (!await _hasColumn('farm_daily_records', 'last_edited_by_user_id')) {
+          await m.addColumn(
+            farmDailyRecords,
+            farmDailyRecords.lastEditedByUserId,
+          );
+        }
+        if (!await _hasTable('farm_species_population_movements')) {
+          await m.createTable(farmSpeciesPopulationMovements);
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS farm_species_population_timeline_index '
+          'ON farm_species_population_movements '
+          '(clinic_id, farm_id, daily_record_id, species_id)',
+        );
+      }
+      if (from < 22) {
+        if (!await _hasTable('clinical_operation_records')) {
+          await m.createTable(clinicalOperationRecords);
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS clinical_operation_records_clinic_type_index '
+          'ON clinical_operation_records (clinic_id, operation_type, status, scheduled_at)',
+        );
+      }
+      if (from < 23) {
+        final operationColumns = <String, GeneratedColumn>{
+          'hospitalization_id': clinicalOperationRecords.hospitalizationId,
+          'source_operation_id': clinicalOperationRecords.sourceOperationId,
+          'reference_number': clinicalOperationRecords.referenceNumber,
+          'priority': clinicalOperationRecords.priority,
+          'estimated_amount': clinicalOperationRecords.estimatedAmount,
+          'created_by_user_id': clinicalOperationRecords.createdByUserId,
+          'updated_by_user_id': clinicalOperationRecords.updatedByUserId,
+          'archived_at': clinicalOperationRecords.archivedAt,
+          'record_version': clinicalOperationRecords.recordVersion,
+          'sync_status': clinicalOperationRecords.syncStatus,
+        };
+        for (final entry in operationColumns.entries) {
+          if (!await _hasColumn('clinical_operation_records', entry.key)) {
+            await m.addColumn(clinicalOperationRecords, entry.value);
+          }
+        }
+        final invoiceColumns = <String, GeneratedColumn>{
+          'amount_paid': invoices.amountPaid,
+          'refund_total': invoices.refundTotal,
+          'balance': invoices.balance,
+          'linked_clinical_operation_id': invoices.linkedClinicalOperationId,
+        };
+        for (final entry in invoiceColumns.entries) {
+          if (!await _hasColumn('invoices', entry.key)) {
+            await m.addColumn(invoices, entry.value);
+          }
+        }
+        if (!await _hasTable(clinicalOperationItems.actualTableName)) {
+          await m.createTable(clinicalOperationItems);
+        }
+        if (!await _hasTable(clinicalOperationActions.actualTableName)) {
+          await m.createTable(clinicalOperationActions);
+        }
+        if (!await _hasTable(clinicalDocumentVersions.actualTableName)) {
+          await m.createTable(clinicalDocumentVersions);
+        }
+        if (!await _hasTable(invoicePayments.actualTableName)) {
+          await m.createTable(invoicePayments);
+        }
+        await customStatement(
+          "UPDATE invoices SET amount_paid = CASE WHEN status = 'Paid' THEN total ELSE 0 END, "
+          "balance = CASE WHEN status = 'Paid' THEN 0 ELSE total END "
+          'WHERE amount_paid = 0 AND balance = 0',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS clinical_operations_patient_status_index '
+          'ON clinical_operation_records (clinic_id, animal_id, operation_type, status, created_at)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS clinical_operation_items_operation_index '
+          'ON clinical_operation_items (clinic_id, operation_id, status)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS clinical_operation_actions_timeline_index '
+          'ON clinical_operation_actions (clinic_id, operation_id, occurred_at)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS clinical_document_versions_operation_index '
+          'ON clinical_document_versions (clinic_id, operation_id, version_number)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS invoice_payments_invoice_index '
+          'ON invoice_payments (clinic_id, invoice_id, created_at)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS invoices_history_index '
+          'ON invoices (clinic_id, status, created_at)',
+        );
+      }
     },
   );
+
+  Future<bool> _hasTable(String tableName) async {
+    final rows = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      variables: [Variable.withString(tableName)],
+    ).get();
+    return rows.isNotEmpty;
+  }
+
+  Future<bool> _hasColumn(String tableName, String columnName) async {
+    final rows = await customSelect('PRAGMA table_info($tableName)').get();
+    return rows.any((row) => row.read<String>('name') == columnName);
+  }
 }

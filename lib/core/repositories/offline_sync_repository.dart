@@ -9,13 +9,13 @@ enum OfflineSyncStatus { pending, syncing, synced, conflict, failed, cancelled }
 
 extension OfflineSyncStatusValue on OfflineSyncStatus {
   String get value => switch (this) {
-        OfflineSyncStatus.pending => 'Pending',
-        OfflineSyncStatus.syncing => 'Syncing',
-        OfflineSyncStatus.synced => 'Synced',
-        OfflineSyncStatus.conflict => 'Conflict',
-        OfflineSyncStatus.failed => 'Failed',
-        OfflineSyncStatus.cancelled => 'Cancelled',
-      };
+    OfflineSyncStatus.pending => 'Pending',
+    OfflineSyncStatus.syncing => 'Syncing',
+    OfflineSyncStatus.synced => 'Synced',
+    OfflineSyncStatus.conflict => 'Conflict',
+    OfflineSyncStatus.failed => 'Failed',
+    OfflineSyncStatus.cancelled => 'Cancelled',
+  };
 }
 
 /// The sync journal never applies remote changes without an authenticated
@@ -37,7 +37,9 @@ class OfflineSyncRepository {
     int baseVersion = 0,
   }) async {
     final now = DateTime.now().toUtc();
-    await _db.into(_db.syncOperations).insert(
+    await _db
+        .into(_db.syncOperations)
+        .insert(
           SyncOperationsCompanion.insert(
             operationId: _uuid.v4(),
             clinicId: clinicId,
@@ -57,48 +59,62 @@ class OfflineSyncRepository {
 
   Stream<List<SyncOperation>> watchPending(String clinicId) =>
       (_db.select(_db.syncOperations)
-            ..where((row) =>
-                row.clinicId.equals(clinicId) &
-                row.syncStatus.equals(OfflineSyncStatus.pending.value))
+            ..where(
+              (row) =>
+                  row.clinicId.equals(clinicId) &
+                  row.syncStatus.equals(OfflineSyncStatus.pending.value),
+            )
             ..orderBy([(row) => OrderingTerm.asc(row.localTimestamp)]))
           .watch();
 
   Future<int> pendingCount(String clinicId) async =>
-      (_db.select(_db.syncOperations)
-            ..where((row) =>
+      (_db.select(_db.syncOperations)..where(
+            (row) =>
                 row.clinicId.equals(clinicId) &
-                row.syncStatus.equals(OfflineSyncStatus.pending.value)))
+                row.syncStatus.equals(OfflineSyncStatus.pending.value),
+          ))
           .get()
           .then((rows) => rows.length);
 
   Future<void> markFailed(String operationId, String message) =>
-      (_db.update(_db.syncOperations)..where((row) => row.operationId.equals(operationId)))
-          .write(SyncOperationsCompanion(
-        syncStatus: Value(OfflineSyncStatus.failed.value),
-        lastError: Value(message),
-        updatedAt: Value(DateTime.now().toUtc()),
-      ));
+      (_db.update(
+        _db.syncOperations,
+      )..where((row) => row.operationId.equals(operationId))).write(
+        SyncOperationsCompanion(
+          syncStatus: Value(OfflineSyncStatus.failed.value),
+          lastError: Value(message),
+          updatedAt: Value(DateTime.now().toUtc()),
+        ),
+      );
 
   Future<void> markSyncing(String operationId) =>
-      (_db.update(_db.syncOperations)..where((row) => row.operationId.equals(operationId)))
-          .write(SyncOperationsCompanion(
-        syncStatus: Value(OfflineSyncStatus.syncing.value),
-        updatedAt: Value(DateTime.now().toUtc()),
-      ));
+      (_db.update(
+        _db.syncOperations,
+      )..where((row) => row.operationId.equals(operationId))).write(
+        SyncOperationsCompanion(
+          syncStatus: Value(OfflineSyncStatus.syncing.value),
+          updatedAt: Value(DateTime.now().toUtc()),
+        ),
+      );
 
   Future<void> markSynced(String operationId) =>
-      (_db.update(_db.syncOperations)..where((row) => row.operationId.equals(operationId)))
-          .write(SyncOperationsCompanion(
-        syncStatus: Value(OfflineSyncStatus.synced.value),
-        lastError: const Value(null),
-        updatedAt: Value(DateTime.now().toUtc()),
-      ));
+      (_db.update(
+        _db.syncOperations,
+      )..where((row) => row.operationId.equals(operationId))).write(
+        SyncOperationsCompanion(
+          syncStatus: Value(OfflineSyncStatus.synced.value),
+          lastError: const Value(null),
+          updatedAt: Value(DateTime.now().toUtc()),
+        ),
+      );
 
   Future<List<SyncOperation>> pending(String clinicId) =>
       (_db.select(_db.syncOperations)
-            ..where((row) =>
-                row.clinicId.equals(clinicId) &
-                row.syncStatus.equals(OfflineSyncStatus.pending.value))
+            ..where(
+              (row) =>
+                  row.clinicId.equals(clinicId) &
+                  row.syncStatus.equals(OfflineSyncStatus.pending.value),
+            )
             ..orderBy([(row) => OrderingTerm.asc(row.localTimestamp)]))
           .get();
 }

@@ -22,6 +22,19 @@ test('membership migration supports one global identity across clinic membership
   assert.match(memberships, /ENABLE ROW LEVEL SECURITY/);
 });
 
+test('authentication security migration protects MFA and revocation state', () => {
+  const security = fs.readFileSync(
+    new URL('../migrations/007_auth_security.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(security, /token_version/);
+  assert.match(security, /user_mfa_settings/);
+  assert.match(security, /encrypted_totp_secret/);
+  assert.match(security, /user_recovery_codes/);
+  assert.match(security, /mfa_challenges/);
+  assert.match(security, /security\.twoFactor\.manageSelf/);
+});
+
 test('demo clinical migration is tenant-scoped and identifies removable demo rows', () => {
   const demo = fs.readFileSync(new URL('../migrations/004_demo_clinical_domain.sql', import.meta.url), 'utf8');
   for (const table of ['owners', 'patients', 'consultations', 'laboratory_reports', 'hospitalizations', 'surgeries', 'inventory_products', 'invoices', 'payments', 'schedule_entries']) {

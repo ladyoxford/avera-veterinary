@@ -29,6 +29,7 @@ export async function authRoutes(app) {
     const parsed = refreshSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'A refresh token is required.' });
     const result = await app.authService.refresh(parsed.data.refreshToken, request.ip);
+    if (result?.restricted) return reply.code(403).send({ error: result.code, message: 'Account access is restricted.' });
     if (!result) return reply.code(401).send({ error: 'invalid_session', message: 'The session is no longer valid.' });
     return result;
   });

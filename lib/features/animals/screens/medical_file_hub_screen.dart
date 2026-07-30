@@ -24,7 +24,10 @@ class MedicalFileHubScreen extends ConsumerWidget {
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('Unable to open medical file.\n$error', textAlign: TextAlign.center),
+            child: Text(
+              'Unable to open medical file.\n$error',
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       ),
@@ -60,7 +63,8 @@ class _MedicalFileHubContent extends ConsumerWidget {
         ? const AsyncValue<List<String>>.data(defaultMedicalFileQuickAccessIds)
         : ref.watch(medicalFileQuickAccessProvider(scope));
     final theme = Theme.of(context);
-    final selectedRecords = pinned.valueOrNull ?? defaultMedicalFileQuickAccessIds;
+    final selectedRecords =
+        pinned.valueOrNull ?? defaultMedicalFileQuickAccessIds;
     final records = selectedRecords
         .map(_MedicalFileRecord.fromId)
         .whereType<_MedicalFileRecord>()
@@ -115,7 +119,10 @@ class _MedicalFileHubContent extends ConsumerWidget {
                   icon: const Icon(Icons.edit_rounded, size: 18),
                   label: const Text('Edit'),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     shape: const StadiumBorder(),
                   ),
                 ),
@@ -134,18 +141,25 @@ class _MedicalFileHubContent extends ConsumerWidget {
           SizedBox(
             height: 54,
             child: OutlinedButton(
-              onPressed: scope == null ? null : () => _openAllRecords(context, scope),
+              onPressed: scope == null
+                  ? null
+                  : () => _openAllRecords(context, scope),
               style: OutlinedButton.styleFrom(
                 alignment: Alignment.centerLeft,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.apps_rounded),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text('More Records', style: theme.textTheme.titleSmall),
+                    child: Text(
+                      'More Records',
+                      style: theme.textTheme.titleSmall,
+                    ),
                   ),
                   const Icon(Icons.chevron_right_rounded),
                 ],
@@ -199,14 +213,16 @@ class AllMedicalRecordsScreen extends ConsumerStatefulWidget {
       _AllMedicalRecordsScreenState();
 }
 
-class _AllMedicalRecordsScreenState extends ConsumerState<AllMedicalRecordsScreen> {
+class _AllMedicalRecordsScreenState
+    extends ConsumerState<AllMedicalRecordsScreen> {
   List<String>? _draft;
   bool _saving = false;
 
   @override
   Widget build(BuildContext context) {
     final selection = ref.watch(medicalFileQuickAccessProvider(widget.scope));
-    final pinned = _draft ?? selection.valueOrNull ?? defaultMedicalFileQuickAccessIds;
+    final pinned =
+        _draft ?? selection.valueOrNull ?? defaultMedicalFileQuickAccessIds;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -312,7 +328,9 @@ class _AllMedicalRecordsScreenState extends ConsumerState<AllMedicalRecordsScree
   }
 
   void _message(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -329,10 +347,10 @@ class _QuickAccessGrid extends StatelessWidget {
         final columns = constraints.maxWidth >= 700
             ? 5
             : constraints.maxWidth >= 490
-                ? 4
-                : constraints.maxWidth >= 360
-                    ? 3
-                    : 2;
+            ? 4
+            : constraints.maxWidth >= 360
+            ? 3
+            : 2;
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -345,7 +363,10 @@ class _QuickAccessGrid extends StatelessWidget {
           ),
           itemBuilder: (context, index) {
             final record = records[index];
-            return _QuickAccessTile(record: record, onTap: () => onSelected(record));
+            return _QuickAccessTile(
+              record: record,
+              onTap: () => onSelected(record),
+            );
           },
         );
       },
@@ -444,7 +465,10 @@ class _QuickAccessSkeleton extends StatelessWidget {
           Container(
             width: 72,
             height: 72,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(20),
+            ),
           ),
           const SizedBox(height: 10),
           Container(width: 70, height: 14, color: color),
@@ -498,16 +522,51 @@ const _medicalFileRecords = <_MedicalFileRecord>[
   _MedicalFileRecord('overview', 'Overview', Icons.dashboard_outlined, 0),
   _MedicalFileRecord('signalment', 'Signalment', Icons.pets_outlined, 1),
   _MedicalFileRecord('owner', 'Owner', Icons.person_outline_rounded, 2),
-  _MedicalFileRecord('medical_history', 'Medical History', Icons.history_rounded, 3),
-  _MedicalFileRecord('consultations', 'Consultations', Icons.medical_services_outlined, 4),
-  _MedicalFileRecord('vaccinations', 'Vaccinations', Icons.vaccines_outlined, 5),
+  _MedicalFileRecord(
+    'medical_history',
+    'Medical History',
+    Icons.history_rounded,
+    3,
+  ),
+  _MedicalFileRecord(
+    'consultations',
+    'Consultations',
+    Icons.medical_services_outlined,
+    4,
+  ),
+  _MedicalFileRecord(
+    'vaccinations',
+    'Vaccinations',
+    Icons.vaccines_outlined,
+    5,
+  ),
   _MedicalFileRecord('laboratory', 'Laboratory', Icons.science_outlined, 6),
-  _MedicalFileRecord('hospitalization', 'Hospitalization', Icons.local_hospital_outlined, 7),
+  _MedicalFileRecord(
+    'hospitalization',
+    'Hospitalization',
+    Icons.local_hospital_outlined,
+    7,
+  ),
   _MedicalFileRecord('surgery', 'Surgery', Icons.medical_services_outlined, 8),
-  _MedicalFileRecord('medications', 'Medications', Icons.medication_outlined, 9),
+  _MedicalFileRecord(
+    'medications',
+    'Medications',
+    Icons.medication_outlined,
+    9,
+  ),
   _MedicalFileRecord('billing', 'Billing', Icons.receipt_long_outlined, 10),
-  _MedicalFileRecord('appointments', 'Schedule', Icons.calendar_month_outlined, 11),
+  _MedicalFileRecord(
+    'appointments',
+    'Schedule',
+    Icons.calendar_month_outlined,
+    11,
+  ),
   _MedicalFileRecord('documents', 'Documents', Icons.description_outlined, 12),
-  _MedicalFileRecord('images', 'Images & AI Recognition', Icons.photo_library_outlined, 13),
+  _MedicalFileRecord(
+    'images',
+    'Images & AI Recognition',
+    Icons.photo_library_outlined,
+    13,
+  ),
   _MedicalFileRecord('timeline', 'Timeline', Icons.timeline_rounded, 14),
 ];

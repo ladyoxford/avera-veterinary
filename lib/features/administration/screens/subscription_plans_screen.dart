@@ -3,30 +3,63 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/repositories/subscription_repository.dart';
+import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/services/feature_gate_service.dart';
+import '../../../core/services/subscription_receipt_service.dart';
+import '../../../core/subscription/subscription_plan_config.dart'
+    show SubscriptionPlanCatalogue;
+import '../../../core/subscription/subscription_payment_gateway.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/security/access_control.dart';
+import '../../shared/widgets/avera_ui.dart';
 
-class SubscriptionPlansScreen extends ConsumerWidget {
+class SubscriptionPlansScreen extends ConsumerStatefulWidget {
   const SubscriptionPlansScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(userSessionProvider).valueOrNull;
-    final subscription = ref
-        .watch(activeClinicSubscriptionProvider)
-        .valueOrNull;
-    final usage = ref.watch(subscriptionUsageProvider).valueOrNull;
-    final currentPlan =
-        subscription?.plan ??
-        SubscriptionPlan.fromStorage(
-          session?.clinic.subscriptionPlan ?? SubscriptionPlan.starter.label,
-        );
+  ConsumerState<SubscriptionPlansScreen> createState() =>
+      _SubscriptionPlansScreenState();
+}
+
+class _SubscriptionPlansScreenState
+    extends ConsumerState<SubscriptionPlansScreen> {
+  SubscriptionBillingCycle _cycle = SubscriptionBillingCycle.monthly;
+  SubscriptionPlan? _selectedPlan;
+  String? _pendingReference;
+  bool _working = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final sessionState = ref.watch(userSessionProvider);
+    if (sessionState.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final session = sessionState.valueOrNull;
+    if (session == null) {
+      return const Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'You do not have permission to access this administration area.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+    final subscriptionState = ref.watch(activeClinicSubscriptionProvider);
+    final billingState = ref.watch(subscriptionBillingProvider);
+    final canManage = session.can(Permissions.subscriptionsManage);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Subscriptions & Plans', maxLines: 1),
+        title: const Text('Subscription', maxLines: 1),
         actions: [
           TextButton.icon(
             onPressed: () => context.push('/subscription/compare'),
@@ -36,71 +69,786 @@ class SubscriptionPlansScreen extends ConsumerWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
-        children: [
-          Text(
-            'Subscriptions & Plans',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Choose the clinical intelligence and operational depth that fits your clinic.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+      body: billingState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => _SubscriptionLoadError(
+          onRetry: () {
+            ref.invalidate(subscriptionBillingProvider);
+            ref.invalidate(activeClinicSubscriptionProvider);
+          },
+        ),
+        data: (billing) {
+          final localSubscription = subscriptionState.valueOrNull;
+          final currentPlan =
+              billing.subscription?.plan ?? localSubscription?.plan;
+          _selectedPlan ??= currentPlan ?? SubscriptionPlan.starter;
+          final selected = billing.plans
+              .where((item) => item.plan == _selectedPlan)
+              .firstOrNull;
+          final checkoutConfigured =
+              selected?.checkoutConfiguredFor(_cycle) == true;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(
+              AveraSpacing.pageHorizontalPadding,
+              AveraSpacing.pageTopPadding,
+              AveraSpacing.pageHorizontalPadding,
+              AveraSpacing.bottomContentClearance,
             ),
-          ),
-          const SizedBox(height: 20),
-          _CurrentPlanBanner(
-            plan: currentPlan,
-            status: subscription?.status ?? SubscriptionStatus.active,
-          ),
-          if (usage != null) ...[
-            const SizedBox(height: 16),
-            _UsagePanel(plan: currentPlan, usage: usage),
-          ],
-          const SizedBox(height: 28),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 1080
-                  ? 3
-                  : constraints.maxWidth >= 690
-                  ? 2
-                  : 1;
-              if (columns == 1) {
-                return Column(
-                  children: [
-                    for (final plan in SubscriptionPlan.values) ...[
-                      _PlanCard(plan: plan, currentPlan: currentPlan),
-                      if (plan != SubscriptionPlan.enterprise)
-                        const SizedBox(height: 14),
+            children: [
+              const AveraPageHeader(
+                title: 'Subscription',
+                subtitle: 'Review your clinic plan, billing and renewal.',
+              ),
+              const SizedBox(height: AveraSpacing.subtitleToContentGap),
+              const Text('CURRENT SUBSCRIPTION'),
+              const SizedBox(height: AveraSpacing.compactRowGap),
+              _SubscriptionSummaryCard(
+                plan: currentPlan,
+                localSubscription: localSubscription,
+                serverSubscription: billing.subscription,
+              ),
+              const SizedBox(height: AveraSpacing.sectionGap),
+              const AveraSectionHeader(
+                title: 'Billing Cycle',
+                subtitle: 'Choose monthly or annual billing.',
+              ),
+              const SizedBox(height: AveraSpacing.compactRowGap),
+              SegmentedButton<SubscriptionBillingCycle>(
+                segments: [
+                  const ButtonSegment(
+                    value: SubscriptionBillingCycle.monthly,
+                    label: Text('Monthly'),
+                  ),
+                  ButtonSegment(
+                    value: SubscriptionBillingCycle.annual,
+                    label: const Text('Annually'),
+                    enabled: billing.plans.any(
+                      (plan) => plan.annualAmountMinor != null,
+                    ),
+                  ),
+                ],
+                selected: {_cycle},
+                onSelectionChanged: (value) =>
+                    setState(() => _cycle = value.first),
+              ),
+              if (!billing.plans.any(
+                (plan) => plan.annualAmountMinor != null,
+              )) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Annual billing has not been configured.',
+                  style: averaText(context).caption,
+                ),
+              ],
+              const SizedBox(height: AveraSpacing.sectionGap),
+              const AveraSectionHeader(
+                title: 'Plans',
+                subtitle: 'Select a plan to review its billing action.',
+              ),
+              const SizedBox(height: AveraSpacing.compactRowGap),
+              for (var index = 0; index < billing.plans.length; index++) ...[
+                _BillingPlanCard(
+                  plan: billing.plans[index],
+                  cycle: _cycle,
+                  selected: billing.plans[index].plan == _selectedPlan,
+                  current: billing.plans[index].plan == currentPlan,
+                  onTap: () =>
+                      setState(() => _selectedPlan = billing.plans[index].plan),
+                ),
+                if (index != billing.plans.length - 1)
+                  const SizedBox(height: AveraSpacing.cardGap),
+              ],
+              if (billing.plans.isEmpty) ...[
+                const AveraSurfaceCard(
+                  child: Text(
+                    'Billing plans have not been configured. Retry after the server plan catalogue is available.',
+                  ),
+                ),
+              ],
+              const SizedBox(height: AveraSpacing.cardGap),
+              if (canManage)
+                AveraPrimaryActionButton(
+                  label: _ctaLabel(
+                    selected: _selectedPlan,
+                    current: currentPlan,
+                    status:
+                        billing.subscription?.status ??
+                        localSubscription?.status.name,
+                  ),
+                  icon: Icons.open_in_browser_rounded,
+                  loading: _working,
+                  onPressed:
+                      checkoutConfigured &&
+                          _selectedPlan != currentPlan &&
+                          _selectedPlan != null
+                      ? () => _startCheckout(
+                          clinicId: session.clinic.clinicId,
+                          plan: _selectedPlan!,
+                        )
+                      : null,
+                )
+              else
+                const AveraSurfaceCard(
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock_outline_rounded),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'You can view the current plan. Payment controls require subscription management permission.',
+                        ),
+                      ),
                     ],
+                  ),
+                ),
+              if (!checkoutConfigured && _selectedPlan != currentPlan) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'This plan and billing cycle are not configured for online payment.',
+                  textAlign: TextAlign.center,
+                  style: averaText(context).caption,
+                ),
+              ],
+              if (_pendingReference != null) ...[
+                const SizedBox(height: AveraSpacing.cardGap),
+                _PendingPaymentCard(
+                  reference: _pendingReference!,
+                  checking: _working,
+                  onCheck: _checkPayment,
+                ),
+              ],
+              if (canManage) ...[
+                const SizedBox(height: AveraSpacing.sectionGap),
+                AveraSectionHeader(
+                  title: 'Billing History',
+                  subtitle: billing.payments.isEmpty
+                      ? 'No server payment transactions are available.'
+                      : 'Verified and pending subscription payments.',
+                ),
+                const SizedBox(height: AveraSpacing.compactRowGap),
+                if (billing.payments.isEmpty)
+                  const AveraSurfaceCard(child: Text('No billing history yet.'))
+                else
+                  for (
+                    var index = 0;
+                    index < billing.payments.length;
+                    index++
+                  ) ...[
+                    _PaymentHistoryCard(
+                      payment: billing.payments[index],
+                      clinicName: session.clinic.clinicName,
+                    ),
+                    if (index != billing.payments.length - 1)
+                      const SizedBox(height: AveraSpacing.cardGap),
                   ],
-                );
-              }
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: SubscriptionPlan.values.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: columns == 3 ? .66 : .73,
+                if (billing.subscription != null) ...[
+                  const SizedBox(height: AveraSpacing.sectionGap),
+                  AveraSectionHeader(
+                    title: 'Subscription Management',
+                    subtitle: billing.subscription!.cancelAtPeriodEnd
+                        ? 'Access remains active through the paid period.'
+                        : 'Automatic renewal is currently enabled.',
+                  ),
+                  const SizedBox(height: AveraSpacing.compactRowGap),
+                  OutlinedButton.icon(
+                    onPressed: _working
+                        ? null
+                        : () => _toggleRenewal(
+                            session.clinic.clinicId,
+                            reactivate: billing.subscription!.cancelAtPeriodEnd,
+                          ),
+                    icon: Icon(
+                      billing.subscription!.cancelAtPeriodEnd
+                          ? Icons.restart_alt_rounded
+                          : Icons.pause_circle_outline_rounded,
+                    ),
+                    label: Text(
+                      billing.subscription!.cancelAtPeriodEnd
+                          ? 'Reactivate Renewal'
+                          : 'Turn Off Automatic Renewal',
+                    ),
+                  ),
+                ],
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _startCheckout({
+    required String clinicId,
+    required SubscriptionPlan plan,
+  }) async {
+    setState(() => _working = true);
+    try {
+      final checkout = await ref
+          .read(subscriptionPaymentGatewayProvider)
+          .initializeCheckout(
+            clinicId: clinicId,
+            plan: plan,
+            billingCycle: _cycle,
+          );
+      if (!mounted) return;
+      setState(() => _pendingReference = checkout.reference);
+      final opened = await launchUrl(
+        checkout.authorizationUrl,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) {
+        throw const ApiException(
+          'checkout_unavailable',
+          'The secure payment page could not be opened.',
+        );
+      }
+    } on ApiException catch (error) {
+      if (mounted) _showError(error.message);
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _checkPayment() async {
+    final reference = _pendingReference;
+    if (reference == null) return;
+    setState(() => _working = true);
+    try {
+      await ref
+          .read(subscriptionPaymentGatewayProvider)
+          .verifyPayment(reference);
+      ref.invalidate(subscriptionBillingProvider);
+      ref.invalidate(activeClinicSubscriptionProvider);
+      if (mounted) {
+        setState(() => _pendingReference = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment confirmed securely.')),
+        );
+      }
+    } on ApiException catch (error) {
+      if (mounted) _showError(error.message);
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _toggleRenewal(
+    String clinicId, {
+    required bool reactivate,
+  }) async {
+    setState(() => _working = true);
+    try {
+      final gateway = ref.read(subscriptionPaymentGatewayProvider);
+      if (reactivate) {
+        await gateway.reactivateSubscription(clinicId);
+      } else {
+        await gateway.cancelRenewal(clinicId);
+      }
+      ref.invalidate(subscriptionBillingProvider);
+    } on ApiException catch (error) {
+      if (mounted) _showError(error.message);
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class SubscriptionPaymentCallbackScreen extends ConsumerStatefulWidget {
+  const SubscriptionPaymentCallbackScreen({super.key, this.reference});
+
+  final String? reference;
+
+  @override
+  ConsumerState<SubscriptionPaymentCallbackScreen> createState() =>
+      _SubscriptionPaymentCallbackScreenState();
+}
+
+class _SubscriptionPaymentCallbackScreenState
+    extends ConsumerState<SubscriptionPaymentCallbackScreen> {
+  String? _error;
+  bool _confirmed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _verify());
+  }
+
+  Future<void> _verify() async {
+    final reference = widget.reference?.trim();
+    if (reference == null || reference.isEmpty) {
+      setState(() => _error = 'The payment reference is missing.');
+      return;
+    }
+    try {
+      await ref
+          .read(subscriptionPaymentGatewayProvider)
+          .verifyPayment(reference);
+      ref.invalidate(subscriptionBillingProvider);
+      ref.invalidate(activeClinicSubscriptionProvider);
+      if (mounted) setState(() => _confirmed = true);
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Confirming Payment')),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _confirmed
+                  ? Icons.check_circle_rounded
+                  : _error != null
+                  ? Icons.error_outline_rounded
+                  : Icons.sync_rounded,
+              size: 48,
+              color: _confirmed
+                  ? Theme.of(context).extension<AppSemanticColors>()!.success
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _confirmed
+                  ? 'Payment confirmed'
+                  : _error ?? 'Confirming payment securely...',
+              textAlign: TextAlign.center,
+              style: averaText(context).sectionTitle,
+            ),
+            const SizedBox(height: 20),
+            if (_error != null)
+              FilledButton.icon(
+                onPressed: () {
+                  setState(() => _error = null);
+                  _verify();
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try Again'),
+              )
+            else if (_confirmed)
+              FilledButton(
+                onPressed: () => context.go('/subscription'),
+                child: const Text('View Subscription'),
+              )
+            else
+              const CircularProgressIndicator(),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _SubscriptionSummaryCard extends StatelessWidget {
+  const _SubscriptionSummaryCard({
+    required this.plan,
+    required this.localSubscription,
+    required this.serverSubscription,
+  });
+
+  final SubscriptionPlan? plan;
+  final LocalClinicSubscription? localSubscription;
+  final ServerClinicSubscription? serverSubscription;
+
+  @override
+  Widget build(BuildContext context) {
+    final status =
+        serverSubscription?.status ??
+        localSubscription?.status.name ??
+        'Unconfigured';
+    final periodStart =
+        serverSubscription?.currentPeriodStart ?? localSubscription?.startedAt;
+    final periodEnd =
+        serverSubscription?.currentPeriodEnd ?? localSubscription?.expiresAt;
+    final format = DateFormat.yMMMd();
+    return AveraSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  plan?.label ?? 'No plan',
+                  style: averaText(context).sectionTitle,
                 ),
-                itemBuilder: (context, index) => _PlanCard(
-                  plan: SubscriptionPlan.values[index],
-                  currentPlan: currentPlan,
-                ),
-              );
-            },
+              ),
+              _SubscriptionStatusBadge(status: status),
+            ],
           ),
-          const SizedBox(height: 24),
-          _VeraComparison(currentPlan: currentPlan),
+          const SizedBox(height: 16),
+          _SummaryLine(
+            label: 'Billing cycle',
+            value: serverSubscription?.billingCycle.name ?? 'Local plan',
+          ),
+          const Divider(height: 24),
+          _SummaryLine(
+            label: 'Paid period',
+            value: periodStart == null
+                ? 'Not configured'
+                : periodEnd == null
+                ? 'From ${format.format(periodStart)}'
+                : '${format.format(periodStart)} - ${format.format(periodEnd)}',
+          ),
+          const Divider(height: 24),
+          _SummaryLine(
+            label: 'Next payment',
+            value: serverSubscription?.nextBillingDate == null
+                ? 'Not configured'
+                : format.format(serverSubscription!.nextBillingDate!),
+          ),
+          const Divider(height: 24),
+          _SummaryLine(
+            label: 'Automatic renewal',
+            value: serverSubscription == null
+                ? 'Not configured'
+                : serverSubscription!.cancelAtPeriodEnd
+                ? 'Off'
+                : 'On',
+          ),
+          const Divider(height: 24),
+          _SummaryLine(
+            label: 'Payment gateway',
+            value: serverSubscription?.gateway ?? 'Not configured',
+          ),
+          const Divider(height: 24),
+          _SummaryLine(
+            label: 'Reference',
+            value: serverSubscription?.id ?? 'Local subscription',
+          ),
         ],
       ),
     );
   }
+}
+
+class _SummaryLine extends StatelessWidget {
+  const _SummaryLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(child: Text(label, style: averaText(context).listItemSubtitle)),
+      const SizedBox(width: 16),
+      Flexible(
+        child: Text(
+          value,
+          textAlign: TextAlign.end,
+          style: averaText(context).fieldValue,
+        ),
+      ),
+    ],
+  );
+}
+
+class _SubscriptionStatusBadge extends StatelessWidget {
+  const _SubscriptionStatusBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final normalized = status.toLowerCase();
+    final color = normalized == 'active'
+        ? Theme.of(context).extension<AppSemanticColors>()!.success
+        : normalized.contains('past') ||
+              normalized.contains('failed') ||
+              normalized.contains('expired')
+        ? scheme.error
+        : normalized.contains('pending') || normalized.contains('trial')
+        ? Theme.of(context).extension<AppSemanticColors>()!.warning
+        : scheme.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status,
+        style: averaText(
+          context,
+        ).caption.copyWith(color: color, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _BillingPlanCard extends StatelessWidget {
+  const _BillingPlanCard({
+    required this.plan,
+    required this.cycle,
+    required this.selected,
+    required this.current,
+    required this.onTap,
+  });
+
+  final SubscriptionBillingPlan plan;
+  final SubscriptionBillingCycle cycle;
+  final bool selected;
+  final bool current;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final config = SubscriptionPlanCatalogue.plan(plan.plan);
+    final scheme = Theme.of(context).colorScheme;
+    final accent = plan.plan == SubscriptionPlan.enterprise
+        ? scheme.tertiary
+        : plan.plan == SubscriptionPlan.professional
+        ? scheme.primary
+        : scheme.onSurfaceVariant;
+    final amount = plan.amountFor(cycle);
+    final price = amount == null
+        ? 'Not configured'
+        : '${NumberFormat.simpleCurrency(name: plan.currency, decimalDigits: 0).format(amount / 100)} / ${cycle == SubscriptionBillingCycle.monthly ? 'month' : 'year'}';
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${plan.name}. $price',
+      child: Material(
+        color: selected
+            ? accent.withValues(alpha: .08)
+            : scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
+          side: BorderSide(
+            color: selected ? accent : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AveraSpacing.largeCardPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            plan.name,
+                            style: averaText(context).sectionTitle,
+                          ),
+                          if (config.isRecommended)
+                            const Chip(
+                              label: Text('RECOMMENDED'),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          if (current)
+                            const Chip(
+                              label: Text('CURRENT PLAN'),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(
+                      selected
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_off_rounded,
+                      color: selected ? accent : scheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(plan.tagline, style: averaText(context).fieldValue),
+                const SizedBox(height: 12),
+                Text(
+                  price,
+                  style: averaText(
+                    context,
+                  ).listItemTitle.copyWith(color: accent),
+                ),
+                const SizedBox(height: 16),
+                for (final benefit in config.highlightBenefits)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.check_rounded, size: 18, color: accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            benefit,
+                            style: averaText(context).listItemSubtitle,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingPaymentCard extends StatelessWidget {
+  const _PendingPaymentCard({
+    required this.reference,
+    required this.checking,
+    required this.onCheck,
+  });
+
+  final String reference;
+  final bool checking;
+  final VoidCallback onCheck;
+
+  @override
+  Widget build(BuildContext context) => AveraSurfaceCard(
+    outlined: true,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Payment Pending', style: averaText(context).listItemTitle),
+        const SizedBox(height: 6),
+        Text(
+          'Reference: $reference',
+          style: averaText(context).listItemSubtitle,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: checking ? null : onCheck,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Check Payment Status'),
+        ),
+      ],
+    ),
+  );
+}
+
+class _PaymentHistoryCard extends StatelessWidget {
+  const _PaymentHistoryCard({required this.payment, required this.clinicName});
+
+  final SubscriptionPaymentRecord payment;
+  final String clinicName;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = payment.paidAt ?? payment.createdAt;
+    final amount = NumberFormat.simpleCurrency(
+      name: payment.currency,
+      decimalDigits: 0,
+    ).format(payment.amountMinor / 100);
+    return AveraSurfaceCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.receipt_long_outlined),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${payment.plan.label} - $amount',
+                  style: averaText(context).listItemTitle,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${payment.billingCycle.name} - ${DateFormat.yMMMd().format(date)}\n${payment.reference}',
+                  style: averaText(context).listItemSubtitle,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _SubscriptionStatusBadge(status: payment.status),
+              if (payment.status.toLowerCase() == 'successful')
+                IconButton(
+                  tooltip: 'Receipt',
+                  onPressed: () => const SubscriptionReceiptService()
+                      .printReceipt(clinicName: clinicName, payment: payment),
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _ctaLabel({
+  required SubscriptionPlan? selected,
+  required SubscriptionPlan? current,
+  required String? status,
+}) {
+  if (selected == null) return 'Select a Plan';
+  if (selected == current) {
+    if (status?.toLowerCase().contains('pending') == true) {
+      return 'Complete Payment';
+    }
+    if (status?.toLowerCase().contains('expired') == true) {
+      return 'Renew ${selected.label}';
+    }
+    return 'Current Plan';
+  }
+  if (current == null) return 'Subscribe to ${selected.label}';
+  return selected.index > current.index
+      ? 'Upgrade to ${selected.label}'
+      : 'Switch to ${selected.label}';
+}
+
+class _SubscriptionLoadError extends StatelessWidget {
+  const _SubscriptionLoadError({required this.onRetry});
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 40),
+          const SizedBox(height: 12),
+          Text(
+            'We could not load this clinic\'s subscription.',
+            textAlign: TextAlign.center,
+            style: averaText(context).listItemTitle,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try Again'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class SubscriptionCompareScreen extends StatelessWidget {
@@ -267,14 +1015,184 @@ class PlatformDeveloperSettingsScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Bioqarah Supplier Receipt',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Receive invoice 300519 into the active clinic once. Unpriced products are received but cannot be sold.',
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () =>
+                            _importBioqarahReceipt(context, ref, value),
+                        icon: const Icon(Icons.inventory_2_outlined),
+                        label: const Text('Receive Invoice 300519'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.dataset_linked_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Load Test Dataset',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Creates an isolated 500-patient Metropolitan Hospital for local performance testing. It never changes Avera Veterinary Clinic.',
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: () =>
+                                _runLoadTestAction(context, ref, reset: false),
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: const Text('Generate 500-Patient Hospital'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                _runLoadTestAction(context, ref, reset: true),
+                            icon: const Icon(Icons.restart_alt_rounded),
+                            label: const Text('Reset Stress-Test Hospital'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         );
       },
     );
   }
+
+  static Future<void> _runLoadTestAction(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool reset,
+  }) async {
+    final seeder = ref.read(hospitalLoadTestSeederProvider);
+    if (reset) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Reset stress-test hospital?'),
+          content: const Text(
+            'Only records generated for AVERA Metropolitan Veterinary Hospital will be removed. The separate clinic administrator remains available.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Reset'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 18),
+            Expanded(child: Text('Preparing the local stress-test dataset...')),
+          ],
+        ),
+      ),
+    );
+    try {
+      if (reset) {
+        await seeder.resetLargeHospital();
+        if (!context.mounted) return;
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Stress-test hospital data was reset.')),
+        );
+      } else {
+        final result = await seeder.seedLargeHospital();
+        if (!context.mounted) return;
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.alreadyExisted
+                  ? 'Dataset already exists: ${result.patients} patients.'
+                  : 'Dataset created: ${result.patients} patients, ${result.consultations} consultations, ${result.vaccinations} vaccinations.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Load-test action failed: $error')),
+      );
+    }
+  }
+
+  static Future<void> _importBioqarahReceipt(
+    BuildContext context,
+    WidgetRef ref,
+    UserSession session,
+  ) async {
+    try {
+      await ref.read(bioqarahReceiptImporterProvider).importFor(session);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invoice 300519 received into inventory.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+  }
 }
 
+// Legacy private widget retained temporarily for developer-screen compatibility.
+// ignore: unused_element
 class _CurrentPlanBanner extends StatelessWidget {
   const _CurrentPlanBanner({required this.plan, required this.status});
   final SubscriptionPlan plan;
@@ -329,6 +1247,7 @@ class _CurrentPlanBanner extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _UsagePanel extends StatelessWidget {
   const _UsagePanel({required this.plan, required this.usage});
   final SubscriptionPlan plan;
@@ -404,6 +1323,7 @@ class _UsageLine extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _PlanCard extends StatelessWidget {
   const _PlanCard({required this.plan, required this.currentPlan});
   final SubscriptionPlan plan;
@@ -412,6 +1332,7 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final definition = FeatureGateService.plan(plan);
+    final display = SubscriptionPlanCatalogue.plan(plan);
     final colors = Theme.of(context).colorScheme;
     final isCurrent = plan == currentPlan;
     final isProfessional = definition.isMostPopular;
@@ -421,7 +1342,7 @@ class _PlanCard extends StatelessWidget {
         : isEnterprise
         ? colors.tertiary
         : colors.outlineVariant;
-    final highlights = _highlights(plan);
+    final highlights = display.highlightBenefits;
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: borderColor, width: isProfessional ? 2 : 1),
@@ -458,10 +1379,7 @@ class _PlanCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(plan.label, style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 7),
-          Text(
-            definition.positioning,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          Text(display.tagline, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 16),
           Text(
             definition.monthlyPriceLabel,
@@ -477,10 +1395,7 @@ class _PlanCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text('Best for', style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 4),
-          Text(
-            definition.targetCustomer,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text(display.bestFor, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 16),
           Text('Includes', style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
@@ -542,24 +1457,6 @@ class _PlanCard extends StatelessWidget {
       ),
     );
   }
-
-  List<String> _highlights(SubscriptionPlan plan) => switch (plan) {
-    SubscriptionPlan.starter => const [
-      'Patients, owners, consultations and Medical Files',
-      'Vaccinations, prescriptions, billing, schedule and local backup',
-      'Basic laboratory, inventory and essential reports',
-    ],
-    SubscriptionPlan.professional => const [
-      'Everything in Starter',
-      'Hospitalization, Treatment Board, surgery and advanced clinical workflows',
-      'Advanced reporting, inventory operations and client automation placeholders',
-    ],
-    SubscriptionPlan.enterprise => const [
-      'Everything in Professional',
-      'Cross-clinic intelligence, central inventory and corporate controls',
-      'Enterprise automation, integrations and governance placeholders',
-    ],
-  };
 
   String _veraDetail(SubscriptionPlan plan) => switch (plan) {
     SubscriptionPlan.starter =>
@@ -644,6 +1541,7 @@ class _CapabilityState extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _VeraComparison extends StatelessWidget {
   const _VeraComparison({required this.currentPlan});
   final SubscriptionPlan currentPlan;

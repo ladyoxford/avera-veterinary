@@ -51,35 +51,35 @@ class OfflineAuthorizationSnapshot {
       membershipStatus == 'Active';
 
   RemoteCurrentUser toRemoteUser() => RemoteCurrentUser(
-        userId: userId,
-        clinicId: clinicId,
-        accountType: accountType,
-        permissions: permissions,
-        fullName: fullName,
-        email: email,
-        roleId: roleId,
-        clinicName: clinicName,
-        clinicStatus: clinicStatus,
-        subscriptionPlan: subscriptionPlan,
-      );
+    userId: userId,
+    clinicId: clinicId,
+    accountType: accountType,
+    permissions: permissions,
+    fullName: fullName,
+    email: email,
+    roleId: roleId,
+    clinicName: clinicName,
+    clinicStatus: clinicStatus,
+    subscriptionPlan: subscriptionPlan,
+  );
 
   Map<String, dynamic> toJson() => {
-        'userId': userId,
-        'clinicId': clinicId,
-        'membershipId': membershipId,
-        'accountType': accountType,
-        'permissions': permissions.toList(),
-        'fullName': fullName,
-        'email': email,
-        'clinicName': clinicName,
-        'clinicStatus': clinicStatus,
-        'membershipStatus': membershipStatus,
-        'subscriptionPlan': subscriptionPlan,
-        'deviceId': deviceId,
-        'lastOnlineAt': lastOnlineAt.toIso8601String(),
-        'expiresAt': expiresAt.toIso8601String(),
-        'roleId': roleId,
-      };
+    'userId': userId,
+    'clinicId': clinicId,
+    'membershipId': membershipId,
+    'accountType': accountType,
+    'permissions': permissions.toList(),
+    'fullName': fullName,
+    'email': email,
+    'clinicName': clinicName,
+    'clinicStatus': clinicStatus,
+    'membershipStatus': membershipStatus,
+    'subscriptionPlan': subscriptionPlan,
+    'deviceId': deviceId,
+    'lastOnlineAt': lastOnlineAt.toIso8601String(),
+    'expiresAt': expiresAt.toIso8601String(),
+    'roleId': roleId,
+  };
 
   factory OfflineAuthorizationSnapshot.fromJson(Map<String, dynamic> json) =>
       OfflineAuthorizationSnapshot(
@@ -143,7 +143,10 @@ class OfflineAuthorizationService {
       expiresAt: now.add(offlineValidity),
       roleId: user.roleId,
     );
-    await _storage.write(key: _snapshotKey, value: jsonEncode(snapshot.toJson()));
+    await _storage.write(
+      key: _snapshotKey,
+      value: jsonEncode(snapshot.toJson()),
+    );
     return snapshot;
   }
 
@@ -154,7 +157,9 @@ class OfflineAuthorizationService {
       final snapshot = OfflineAuthorizationSnapshot.fromJson(
         jsonDecode(raw) as Map<String, dynamic>,
       );
-      if (!snapshot.isValid || snapshot.deviceId != await deviceId()) return null;
+      if (!snapshot.isValid || snapshot.deviceId != await deviceId()) {
+        return null;
+      }
       return snapshot;
     } catch (_) {
       return null;
@@ -180,8 +185,11 @@ class OfflineAuthorizationService {
     final snapshot = await validSnapshot();
     if (snapshot == null) return null;
     final lockedUntil = await _storage.read(key: _pinLockedUntilKey);
-    if (lockedUntil != null && DateTime.parse(lockedUntil).isAfter(DateTime.now())) {
-      throw StateError('Offline access is temporarily locked. Try again later.');
+    if (lockedUntil != null &&
+        DateTime.parse(lockedUntil).isAfter(DateTime.now())) {
+      throw StateError(
+        'Offline access is temporarily locked. Try again later.',
+      );
     }
     final saltText = await _storage.read(key: _pinSaltKey);
     final hashText = await _storage.read(key: _pinHashKey);
@@ -195,7 +203,9 @@ class OfflineAuthorizationService {
       await _storage.delete(key: _pinLockedUntilKey);
       return snapshot;
     }
-    final failures = (int.tryParse(await _storage.read(key: _pinFailuresKey) ?? '') ?? 0) + 1;
+    final failures =
+        (int.tryParse(await _storage.read(key: _pinFailuresKey) ?? '') ?? 0) +
+        1;
     await _storage.write(key: _pinFailuresKey, value: '$failures');
     if (failures >= 5) {
       await _storage.write(

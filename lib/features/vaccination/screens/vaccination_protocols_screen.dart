@@ -15,7 +15,8 @@ class VaccinationProtocolsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Vaccination Protocols')),
       body: protocols.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Unable to load protocols: $error')),
+        error: (error, _) =>
+            Center(child: Text('Unable to load protocols: $error')),
         data: (items) => ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: items.length,
@@ -26,7 +27,9 @@ class VaccinationProtocolsScreen extends ConsumerWidget {
               child: ExpansionTile(
                 leading: const Icon(Iconsax.shield_tick),
                 title: Text('${protocol.species} • ${protocol.vaccine}'),
-                subtitle: Text('${protocol.recommendedAge} • ${protocol.route ?? 'Route not set'}'),
+                subtitle: Text(
+                  '${protocol.recommendedAge} • ${protocol.route ?? 'Route not set'}',
+                ),
                 childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 children: [
                   _Line('Protects', protocol.diseasesProtectedAgainst),

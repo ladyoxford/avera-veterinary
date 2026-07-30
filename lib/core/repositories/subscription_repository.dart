@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -59,6 +61,13 @@ abstract class SubscriptionRepository {
     required SubscriptionPlan plan,
     String? actingUserId,
     String action,
+  });
+  Future<void> cacheServerEntitlement({
+    required String clinicId,
+    required SubscriptionPlan plan,
+    required String status,
+    required DateTime? validUntil,
+    required DateTime serverUpdatedAt,
   });
 }
 
@@ -202,16 +211,24 @@ class LocalSubscriptionRepository implements SubscriptionRepository {
         .map((row) => row == null ? null : _map(row));
   }
 
-  LocalClinicSubscription _map(ClinicSubscription row) =>
-      LocalClinicSubscription(
-        clinicId: row.clinicId,
-        plan: SubscriptionPlan.fromStorage(row.planKey),
-        status: SubscriptionStatus.fromStorage(row.status),
-        startedAt: row.startedAt,
-        expiresAt: row.expiresAt,
-        trialEndsAt: row.trialEndsAt,
-        gracePeriodEndsAt: row.gracePeriodEndsAt,
-      );
+  LocalClinicSubscription _map(ClinicSubscription row) {
+    final storedStatus = SubscriptionStatus.fromStorage(row.status);
+    final status =
+        row.expiresAt != null &&
+            row.expiresAt!.isBefore(DateTime.now()) &&
+            storedStatus != SubscriptionStatus.cancelled
+        ? SubscriptionStatus.expired
+        : storedStatus;
+    return LocalClinicSubscription(
+      clinicId: row.clinicId,
+      plan: SubscriptionPlan.fromStorage(row.planKey),
+      status: status,
+      startedAt: row.startedAt,
+      expiresAt: row.expiresAt,
+      trialEndsAt: row.trialEndsAt,
+      gracePeriodEndsAt: row.gracePeriodEndsAt,
+    );
+  }
 
   @override
   Future<SubscriptionUsageSummary> usageForClinic(String clinicId) async {
@@ -370,6 +387,65 @@ class LocalSubscriptionRepository implements SubscriptionRepository {
     });
   }
 
+  @override
+  Future<void> cacheServerEntitlement({
+    required String clinicId,
+    required SubscriptionPlan plan,
+    required String status,
+    required DateTime? validUntil,
+    required DateTime serverUpdatedAt,
+  }) async {
+    await ensureCatalog();
+    final localStatus = switch (status.toLowerCase()) {
+      'trial' => SubscriptionStatus.trial.name,
+      'past due' => SubscriptionStatus.gracePeriod.name,
+      'cancelled' => SubscriptionStatus.cancelled.name,
+      'expired' => SubscriptionStatus.expired.name,
+      _ => SubscriptionStatus.active.name,
+    };
+    final existing = await getClinicSubscription(clinicId);
+    await db.transaction(() async {
+      if (existing == null) {
+        await db
+            .into(db.clinicSubscriptions)
+            .insert(
+              ClinicSubscriptionsCompanion.insert(
+                id: _uuid.v4(),
+                clinicId: clinicId,
+                planKey: plan.label,
+                status: Value(localStatus),
+                startedAt: serverUpdatedAt,
+                expiresAt: Value(validUntil),
+                createdAt: serverUpdatedAt,
+                updatedAt: serverUpdatedAt,
+              ),
+            );
+      } else {
+        await (db.update(
+          db.clinicSubscriptions,
+        )..where((row) => row.clinicId.equals(clinicId))).write(
+          ClinicSubscriptionsCompanion(
+            planKey: Value(plan.label),
+            status: Value(localStatus),
+            expiresAt: Value(validUntil),
+            updatedAt: Value(serverUpdatedAt),
+          ),
+        );
+      }
+      await (db.update(db.clinics)
+            ..where((clinic) => clinic.clinicId.equals(clinicId)))
+          .write(ClinicsCompanion(subscriptionPlan: Value(plan.label)));
+      await _audit(
+        clinicId: clinicId,
+        action: 'subscription.server_entitlement_cached',
+        previousValue: existing?.plan.label,
+        newValue: plan.label,
+        details:
+            'Cached verified server entitlement through ${validUntil?.toIso8601String() ?? 'the configured validity period'}.',
+      );
+    });
+  }
+
   Future<void> startProfessionalTrial({
     required String clinicId,
     String? actingUserId,
@@ -500,19 +576,41 @@ class LocalSubscriptionRepository implements SubscriptionRepository {
     String? newValue,
     String? details,
   }) async {
-    await db
-        .into(db.subscriptionAuditLogs)
-        .insert(
-          SubscriptionAuditLogsCompanion.insert(
-            clinicId: clinicId,
-            actingUserId: Value(actingUserId),
-            action: action,
-            previousValue: Value(previousValue),
-            newValue: Value(newValue),
-            details: Value(details),
-            createdAt: DateTime.now(),
-          ),
-        );
+    final now = DateTime.now();
+    await db.transaction(() async {
+      await db
+          .into(db.subscriptionAuditLogs)
+          .insert(
+            SubscriptionAuditLogsCompanion.insert(
+              clinicId: clinicId,
+              actingUserId: Value(actingUserId),
+              action: action,
+              previousValue: Value(previousValue),
+              newValue: Value(newValue),
+              details: Value(details),
+              createdAt: now,
+            ),
+          );
+      await db
+          .into(db.auditLogs)
+          .insert(
+            AuditLogsCompanion.insert(
+              clinicId: Value(clinicId),
+              userId: Value(actingUserId),
+              action: action,
+              entityType: const Value('subscription'),
+              entityId: Value(clinicId),
+              details: Value(
+                jsonEncode({
+                  'previousValue': previousValue,
+                  'newValue': newValue,
+                  'message': details,
+                }),
+              ),
+              createdAt: now,
+            ),
+          );
+    });
   }
 
   Future<void> _storeUsage(

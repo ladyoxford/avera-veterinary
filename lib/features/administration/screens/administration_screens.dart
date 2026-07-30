@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/security/access_control.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../shared/widgets/avera_ui.dart';
 
 class ClinicAdministrationScreen extends ConsumerWidget {
   const ClinicAdministrationScreen({super.key});
@@ -17,65 +19,74 @@ class ClinicAdministrationScreen extends ConsumerWidget {
       loading: () => const _LoadingScreen(),
       error: (_, __) => const _AccessDeniedScreen(),
       data: (data) {
-        if (!data.isClinicAdministrator && !data.can(Permissions.usersView)) {
+        if (!data.isClinicAdministrator) {
           return const _AccessDeniedScreen();
         }
         return Scaffold(
           appBar: AppBar(title: const Text('Clinic Administration')),
-          floatingActionButton: data.can(Permissions.usersCreate)
-              ? FloatingActionButton.extended(
-                  onPressed: () => context.push('/administration/users/new'),
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                  label: const Text('Invite User'),
-                )
-              : null,
-          body: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              Text(
-                data.clinic.clinicName,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Administration is scoped to this clinic only.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 24),
-              _AdminLink(
-                icon: Icons.people_alt_outlined,
-                title: 'Users',
-                subtitle:
-                    'Invite, manage roles, status, and permission overrides',
-                onTap: () => context.push('/administration/users'),
-              ),
-              const _AdminLink(
-                icon: Icons.admin_panel_settings_outlined,
-                title: 'Roles & Permissions',
-                subtitle: 'Role defaults and effective access',
-              ),
-              const _AdminLink(
-                icon: Icons.history_outlined,
-                title: 'Audit Logs',
-                subtitle: 'Sensitive clinic administration activity',
-              ),
-              _AdminLink(
-                icon: Icons.business_outlined,
-                title: 'Clinic Information',
-                subtitle: 'Branding, working hours, and notifications',
-                onTap: () => context.push('/settings/work-hours'),
-              ),
-              const _AdminLink(
-                icon: Icons.security_outlined,
-                title: 'Security',
-                subtitle: 'Sessions, password policy, and access controls',
-              ),
-              const _AdminLink(
-                icon: Icons.workspace_premium_outlined,
-                title: 'Subscription',
-                subtitle: 'Plan and billing details',
-              ),
-            ],
+          body: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(
+              AveraSpacing.pageHorizontalPadding,
+              AveraSpacing.pageTopPadding,
+              AveraSpacing.pageHorizontalPadding,
+              AveraSpacing.bottomContentClearance,
+            ),
+            itemCount: 7,
+            separatorBuilder: (_, index) => SizedBox(
+              height: index == 0
+                  ? AveraSpacing.subtitleToContentGap
+                  : AveraSpacing.cardGap,
+            ),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return AveraPageHeader(
+                  title: data.clinic.clinicName,
+                  subtitle: 'Administration is scoped to this clinic only.',
+                );
+              }
+              final item = <Widget>[
+                AveraAdministrationCard(
+                  icon: Icons.people_alt_outlined,
+                  title: 'Users',
+                  subtitle: 'Invite staff, manage roles, status and access.',
+                  onTap: () => context.push('/administration/users'),
+                ),
+                AveraAdministrationCard(
+                  icon: Icons.admin_panel_settings_outlined,
+                  title: 'Roles & Permissions',
+                  subtitle:
+                      'Configure role defaults and effective permissions.',
+                  onTap: () => context.push('/administration/roles'),
+                ),
+                AveraAdministrationCard(
+                  icon: Icons.history_outlined,
+                  title: 'Audit Logs',
+                  subtitle: 'Review sensitive administrative activity.',
+                  onTap: () => context.push('/administration/audit'),
+                ),
+                AveraAdministrationCard(
+                  icon: Icons.business_outlined,
+                  title: 'Clinic Information',
+                  subtitle:
+                      'Manage branding, contact details and working hours.',
+                  onTap: () => context.push('/settings'),
+                ),
+                AveraAdministrationCard(
+                  icon: Icons.security_outlined,
+                  title: 'Security',
+                  subtitle:
+                      'Manage sessions, password policy and access controls.',
+                  onTap: () => context.push('/administration/security'),
+                ),
+                AveraAdministrationCard(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Subscription',
+                  subtitle: 'Review plan, billing and available features.',
+                  onTap: () => context.push('/subscription'),
+                ),
+              ];
+              return item[index - 1];
+            },
           ),
         );
       },
@@ -230,6 +241,7 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
                         'Cashier',
                         'Practice Manager',
                         'Inventory Officer',
+                        'Sales Representative',
                         'Custom Role',
                       ]
                       .map(
@@ -382,22 +394,25 @@ class PlatformOwnerDashboardScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 28),
-              const _AdminLink(
+              const AveraAdministrationCard(
                 icon: Icons.business_center_outlined,
                 title: 'Clinic Directory',
                 subtitle: 'Review, approve, suspend, and support clinics',
               ),
-              const _AdminLink(
+              const SizedBox(height: AveraSpacing.cardGap),
+              const AveraAdministrationCard(
                 icon: Icons.groups_outlined,
                 title: 'Platform Administrators',
                 subtitle: 'Manage global administration access',
               ),
-              const _AdminLink(
+              const SizedBox(height: AveraSpacing.cardGap),
+              const AveraAdministrationCard(
                 icon: Icons.history_outlined,
                 title: 'Global Audit Logs',
                 subtitle: 'Platform-level security and activity history',
               ),
-              const _AdminLink(
+              const SizedBox(height: AveraSpacing.cardGap),
+              const AveraAdministrationCard(
                 icon: Icons.email_outlined,
                 title: 'Email Delivery',
                 subtitle: 'Provider status and template configuration',
@@ -432,29 +447,6 @@ class _PlatformMetric extends StatelessWidget {
           ],
         ),
       ),
-    ),
-  );
-}
-
-class _AdminLink extends StatelessWidget {
-  const _AdminLink({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback? onTap;
-  @override
-  Widget build(BuildContext context) => Card(
-    child: ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: onTap,
     ),
   );
 }

@@ -15,9 +15,8 @@ class ArchivedAnimalsScreen extends ConsumerWidget {
     final session = ref.watch(userSessionProvider);
 
     return session.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) => Scaffold(
         appBar: AppBar(title: const Text('Archived Animals')),
         body: Center(child: Text('Unable to load permissions: $error')),
@@ -27,7 +26,9 @@ class ArchivedAnimalsScreen extends ConsumerWidget {
           return Scaffold(
             appBar: AppBar(title: const Text('Archived Animals')),
             body: const Center(
-              child: Text('You do not have permission to view archived animals.'),
+              child: Text(
+                'You do not have permission to view archived animals.',
+              ),
             ),
           );
         }
@@ -49,7 +50,8 @@ class ArchivedAnimalsScreen extends ConsumerWidget {
   }
 }
 
-class _ArchivedAnimalsAppBar extends StatelessWidget implements PreferredSizeWidget {
+class _ArchivedAnimalsAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
   const _ArchivedAnimalsAppBar();
 
   @override
@@ -80,7 +82,8 @@ class _ArchivedAnimalsList extends ConsumerWidget {
 
     return animals.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text('Unable to load archived animals: $error')),
+      error: (error, _) =>
+          Center(child: Text('Unable to load archived animals: $error')),
       data: (items) {
         if (items.isEmpty) {
           return Center(child: Text('No $status animals archived.'));
@@ -89,7 +92,8 @@ class _ArchivedAnimalsList extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           itemCount: items.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, index) => _ArchivedAnimalCard(animal: items[index]),
+          itemBuilder: (context, index) =>
+              _ArchivedAnimalCard(animal: items[index]),
         );
       },
     );
@@ -123,7 +127,9 @@ class _ArchivedAnimalCard extends ConsumerWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    child: Text(animal.animalName.characters.first.toUpperCase()),
+                    child: Text(
+                      animal.animalName.characters.first.toUpperCase(),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -179,7 +185,9 @@ class _ArchivedAnimalCard extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Restore ${animal.animalName}?'),
-        content: const Text('This will return the animal to the active Registered Pets list.'),
+        content: const Text(
+          'This will return the animal to the active Registered Pets list.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -195,17 +203,18 @@ class _ArchivedAnimalCard extends ConsumerWidget {
     if (confirmed != true) return;
 
     final session = await ref.read(userSessionProvider.future);
-    await ref.read(clinicRepositoryProvider).restoreAnimal(
-          animalId: animal.animalId,
-          session: session,
-        );
+    await ref
+        .read(clinicRepositoryProvider)
+        .restoreAnimal(animalId: animal.animalId, session: session);
     ref
       ..invalidate(animalSearchProvider)
       ..invalidate(archivedAnimalsProvider)
       ..invalidate(dashboardStatsProvider);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${animal.animalName} restored to active pets.')),
+        SnackBar(
+          content: Text('${animal.animalName} restored to active pets.'),
+        ),
       );
     }
   }
@@ -227,8 +236,8 @@ class _Detail extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),
         ],

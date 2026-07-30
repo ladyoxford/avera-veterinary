@@ -79,7 +79,7 @@ class AppScaffold extends ConsumerWidget {
                     ? const Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          AveraLogo(size: 48),
+                          AveraCompactLogo(size: 48),
                           SizedBox(height: 8),
                           Text('AVERA'),
                           SizedBox(height: 2),
@@ -89,7 +89,7 @@ class AppScaffold extends ConsumerWidget {
                           ),
                         ],
                       )
-                    : const AveraLogo(size: 44),
+                    : const AveraCompactLogo(size: 44),
               ),
               selectedIndex: selected,
               onDestinationSelected: (index) =>

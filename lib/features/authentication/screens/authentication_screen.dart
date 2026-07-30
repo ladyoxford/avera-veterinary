@@ -10,13 +10,13 @@ import 'package:iconsax/iconsax.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
+import '../../../core/remote/auth_remote_data_source.dart';
 import '../../../core/services/local_session_store.dart';
 import '../../shared/widgets/avera_logo.dart';
+import 'security_auth_screens.dart';
 
 class AuthenticationScreen extends HookConsumerWidget {
-  const AuthenticationScreen({super.key, this.clinicName});
-
-  final String? clinicName;
+  const AuthenticationScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,6 +26,9 @@ class AuthenticationScreen extends HookConsumerWidget {
     final remember = useState(true);
     final obscurePassword = useState(true);
     final signingIn = useState(false);
+    final biometricEnrollment = ref
+        .watch(biometricEnrollmentProvider)
+        .valueOrNull;
 
     Future<void> signIn() async {
       if (!(formKey.currentState?.validate() ?? false)) return;
@@ -59,7 +62,7 @@ class AuthenticationScreen extends HookConsumerWidget {
             await ref.read(localSessionStoreProvider).clear();
           }
           ref.invalidate(userSessionProvider);
-          final destination = local.isPlatformOwner
+          final destination = local.isPlatformAccount
               ? '/platform'
               : '/dashboard';
           if (context.mounted) context.go(destination);
@@ -89,7 +92,9 @@ class AuthenticationScreen extends HookConsumerWidget {
               .then<void>((_) {}, onError: (_, __) {}),
         );
         ref.invalidate(userSessionProvider);
-        final destination = remote.accountType == 'PlatformOwner'
+        final destination =
+            remote.accountType == 'PlatformOwner' ||
+                remote.accountType == 'PlatformAdministrator'
             ? '/platform'
             : '/dashboard';
         if (kDebugMode) {
@@ -99,6 +104,86 @@ class AuthenticationScreen extends HookConsumerWidget {
           );
         }
         if (context.mounted) context.go(destination);
+      } on MfaRequiredException catch (challenge) {
+        if (context.mounted) {
+          context.push(
+            '/mfa-challenge',
+            extra: MfaChallengeArgs(
+              challengeToken: challenge.challengeToken,
+              expiresIn: challenge.expiresIn,
+            ),
+          );
+        }
+      } on ApiException catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.message)));
+        }
+      } catch (error, stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+            '[AVERA.auth] Local sign-in failed: '
+            '${error.runtimeType}: $error\n$stackTrace',
+          );
+          developer.log(
+            'Local sign-in failed: $error',
+            name: 'AVERA.auth',
+            stackTrace: stackTrace,
+          );
+        }
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                kDebugMode
+                    ? 'Sign-in failed: ${error.runtimeType}: $error'
+                    : 'Unable to sign in right now. Please try again.',
+              ),
+            ),
+          );
+        }
+      } finally {
+        signingIn.value = false;
+      }
+    }
+
+    Future<void> signInWithBiometrics() async {
+      if (signingIn.value || biometricEnrollment == null) return;
+      signingIn.value = true;
+      try {
+        final approved = await ref
+            .read(biometricAuthServiceProvider)
+            .authenticate();
+        if (!approved) return;
+        if (BackendConfiguration.isLocalMode) {
+          ref.invalidate(userSessionProvider);
+          final local = await ref.read(userSessionProvider.future);
+          if (!context.mounted) return;
+          context.go(local.isPlatformAccount ? '/platform' : '/dashboard');
+          return;
+        }
+        final remote = await ref
+            .read(authenticationRepositoryProvider)
+            .restore();
+        if (remote == null) {
+          await ref.read(biometricAuthServiceProvider).clear();
+          ref.invalidate(biometricEnrollmentProvider);
+          throw const ApiException(
+            'biometric_session_expired',
+            'Biometric sign-in expired. Use your password to sign in again.',
+          );
+        }
+        await ref.read(clinicRepositoryProvider).cacheRemoteSession(remote);
+        await ref
+            .read(offlineAuthorizationServiceProvider)
+            .recordOnlineAuthorization(remote);
+        ref.invalidate(userSessionProvider);
+        if (!context.mounted) return;
+        final platform =
+            remote.accountType == 'PlatformOwner' ||
+            remote.accountType == 'PlatformAdministrator';
+        context.go(platform ? '/platform' : '/dashboard');
       } on ApiException catch (error) {
         if (context.mounted) {
           ScaffoldMessenger.of(
@@ -112,11 +197,6 @@ class AuthenticationScreen extends HookConsumerWidget {
 
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final resolvedClinicName = clinicName?.trim().isNotEmpty == true
-        ? clinicName!.trim()
-        : BackendConfiguration.isLocalMode
-        ? 'Avera Veterinary Clinic'
-        : 'your veterinary practice';
 
     return Scaffold(
       backgroundColor: colors.surface,
@@ -148,7 +228,7 @@ class AuthenticationScreen extends HookConsumerWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Sign in to manage $resolvedClinicName',
+                          'Sign in to manage your veterinary clinic.',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colors.onSurfaceVariant,
                           ),
@@ -241,6 +321,19 @@ class AuthenticationScreen extends HookConsumerWidget {
                                 : const Text('Sign In'),
                           ),
                         ),
+                        if (biometricEnrollment != null) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: signingIn.value
+                                  ? null
+                                  : signInWithBiometrics,
+                              icon: const Icon(Icons.fingerprint_rounded),
+                              label: const Text('Sign in with biometrics'),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         Center(
                           child: TextButton(

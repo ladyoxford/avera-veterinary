@@ -5,10 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-import 'package:zevora/core/remote/api_client.dart';
-import 'package:zevora/core/remote/backend_auth_remote_data_source.dart';
+import 'package:avera/core/remote/api_client.dart';
+import 'package:avera/core/remote/backend_auth_remote_data_source.dart';
+import 'package:avera/core/remote/auth_remote_data_source.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  FlutterSecureStorage.setMockInitialValues({});
+
   test(
     'ApiClient uses the configured base URL and normalizes one trailing slash',
     () async {
@@ -135,5 +139,75 @@ void main() {
     expect(requestBody['deviceName'], 'flutter-device');
     expect(requestBody.containsKey('platform'), isFalse);
     expect(requestBody.values, isNot(contains(null)));
+  });
+
+  test(
+    'sign-in returns a typed MFA challenge without parsing session tokens',
+    () async {
+      final client = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'mfaRequired': true,
+            'challengeToken': 'challenge-token-value',
+            'expiresIn': 300,
+          }),
+          200,
+        ),
+      );
+      final source = BackendAuthRemoteDataSource(
+        ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: client,
+        ),
+      );
+
+      await expectLater(
+        source.signIn(
+          email: 'admin@avera.test',
+          password: 'password',
+          deviceId: 'device',
+        ),
+        throwsA(
+          isA<MfaRequiredException>()
+              .having(
+                (value) => value.challengeToken,
+                'challenge',
+                'challenge-token-value',
+              )
+              .having((value) => value.expiresIn, 'expiry', 300),
+        ),
+      );
+    },
+  );
+
+  test('ACCOUNT_SUSPENDED is preserved and broadcasts restriction', () async {
+    final client = MockClient(
+      (_) async => http.Response(
+        jsonEncode({
+          'error': 'ACCOUNT_SUSPENDED',
+          'message': 'Account access is restricted.',
+        }),
+        403,
+      ),
+    );
+    final apiClient = ApiClient(
+      baseUrl: 'https://api.avera.test',
+      tokens: const TokenStore(FlutterSecureStorage()),
+      client: client,
+    );
+    final event = AccountRestrictionDispatcher.events.first;
+
+    await expectLater(
+      apiClient.post('/protected', authenticated: false),
+      throwsA(
+        isA<ApiException>().having(
+          (value) => value.code,
+          'code',
+          'ACCOUNT_SUSPENDED',
+        ),
+      ),
+    );
+    await expectLater(event, completes);
   });
 }

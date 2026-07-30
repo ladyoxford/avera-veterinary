@@ -12,6 +12,11 @@ export class AuthService {
     this.pool = pool;
     this.environment = environment;
     this.app = app;
+    this.mfaService = null;
+  }
+
+  setMfaService(service) {
+    this.mfaService = service;
   }
 
   async signIn({ email, password, deviceName, platform, ipAddress, userAgent }) {
@@ -50,6 +55,20 @@ export class AuthService {
           );
         }
       }
+      const mfa = await client.query(
+        'SELECT enabled FROM user_mfa_settings WHERE user_id = $1',
+        [user.user_id],
+      );
+      if (mfa.rows[0]?.enabled === true) {
+        const challenge = await this.mfaService.createLoginChallenge(client, user, {
+          deviceName,
+          platform,
+          ipAddress,
+          userAgent,
+        });
+        await client.query('COMMIT');
+        return { ok: true, session: challenge };
+      }
       const permissions = await effectivePermissions(client, user);
       const device = await client.query(
         'INSERT INTO devices (user_id, device_name, platform) VALUES ($1,$2,$3) RETURNING device_id',
@@ -83,7 +102,10 @@ export class AuthService {
         [hashToken(refreshToken)],
       );
       const row = result.rows[0];
-      if (!row || row.status !== 'Active') return null;
+      if (!row) return null;
+      if (row.status !== 'Active') {
+        return { restricted: true, code: 'ACCOUNT_SUSPENDED' };
+      }
       if (!(await clinicAccess(client, row)).allowed) return null;
       const permissions = await effectivePermissions(client, row);
       const replacement = issueRefreshToken();
@@ -125,6 +147,39 @@ export class AuthService {
 
   async currentUser(user, permissions) {
     return publicUser(user, permissions, await this.#workspace(user));
+  }
+
+  async completeMfaSignIn(client, user, context) {
+    const access = await clinicAccess(client, user);
+    if (!access.allowed) throw new Error('Clinic access is not active.');
+    const permissions = await effectivePermissions(client, user);
+    const device = await client.query(
+      'INSERT INTO devices (user_id, device_name, platform) VALUES ($1,$2,$3) RETURNING device_id',
+      [user.user_id, context.deviceName ?? null, context.platform ?? null],
+    );
+    const refresh = issueRefreshToken();
+    const expiresAt = new Date(Date.now() + this.environment.REFRESH_TOKEN_TTL_DAYS * 86_400_000);
+    const session = await client.query(
+      `INSERT INTO sessions (user_id, device_id, refresh_token_hash, expires_at, ip_address, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING session_id`,
+      [user.user_id, device.rows[0].device_id, refresh.hash, expiresAt, context.ipAddress ?? null, context.userAgent ?? null],
+    );
+    await writeAudit(client, {
+      clinicId: user.clinic_id,
+      actingUserId: user.user_id,
+      targetType: 'User',
+      targetId: user.user_id,
+      action: 'auth.mfa_login_success',
+      sessionId: session.rows[0].session_id,
+      deviceId: device.rows[0].device_id,
+      ipAddress: context.ipAddress,
+    });
+    return this.#tokenPair({
+      user,
+      permissions,
+      sessionId: session.rows[0].session_id,
+      refreshToken: refresh.raw,
+    });
   }
 
   async #recordFailure(client, user, ipAddress) {

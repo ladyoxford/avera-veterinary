@@ -6,36 +6,106 @@ import '../remote/api_client.dart';
 import '../remote/auth_remote_data_source.dart';
 
 class AuthenticationRepository {
-  AuthenticationRepository({required AuthRemoteDataSource remote, required TokenStore tokens})
-      : _remote = remote,
-        _tokens = tokens;
+  AuthenticationRepository({
+    required AuthRemoteDataSource remote,
+    required TokenStore tokens,
+  }) : _remote = remote,
+       _tokens = tokens;
 
   final AuthRemoteDataSource _remote;
   final TokenStore _tokens;
 
-  Future<RemoteCurrentUser> signIn({required String email, required String password, required String deviceId, String? deviceName, String? platform}) async {
-    final session = await _remote.signIn(email: email, password: password, deviceId: deviceId, deviceName: deviceName, platform: platform);
+  Future<RemoteCurrentUser> signIn({
+    required String email,
+    required String password,
+    required String deviceId,
+    String? deviceName,
+    String? platform,
+  }) async {
+    final session = await _remote.signIn(
+      email: email,
+      password: password,
+      deviceId: deviceId,
+      deviceName: deviceName,
+      platform: platform,
+    );
     try {
-      await _tokens.save(accessToken: session.accessToken, refreshToken: session.refreshToken);
-      if (kDebugMode) developer.log('secure token persistence=success', name: 'AVERA.auth');
+      await _persist(session);
+      if (kDebugMode) {
+        developer.log('secure token persistence=success', name: 'AVERA.auth');
+      }
     } catch (error) {
-      if (kDebugMode) developer.log('secure token persistence=failed type=${error.runtimeType}', name: 'AVERA.auth');
-      throw const ApiException('secure_storage_failed', 'AVERA could not securely store this session on the device.');
+      if (kDebugMode) {
+        developer.log(
+          'secure token persistence=failed type=${error.runtimeType}',
+          name: 'AVERA.auth',
+        );
+      }
+      throw const ApiException(
+        'secure_storage_failed',
+        'AVERA could not securely store this session on the device.',
+      );
     }
     return session.user;
   }
+
+  Future<RemoteCurrentUser> verifyMfa({
+    required String challengeToken,
+    String? code,
+    String? recoveryCode,
+  }) async {
+    final session = await _remote.verifyMfa(
+      challengeToken: challengeToken,
+      code: code,
+      recoveryCode: recoveryCode,
+    );
+    await _persist(session);
+    return session.user;
+  }
+
+  Future<RemoteMfaStatus> mfaStatus() => _remote.mfaStatus();
+  Future<RemoteMfaSetup> beginMfaSetup(String password) =>
+      _remote.beginMfaSetup(password);
+  Future<List<String>> confirmMfaSetup({
+    required String setupId,
+    required String code,
+  }) => _remote.confirmMfaSetup(setupId: setupId, code: code);
+  Future<void> disableMfa({
+    required String password,
+    required String codeOrRecovery,
+  }) => _remote.disableMfa(password: password, codeOrRecovery: codeOrRecovery);
+  Future<List<String>> regenerateMfaRecoveryCodes({
+    required String password,
+    required String codeOrRecovery,
+  }) => _remote.regenerateMfaRecoveryCodes(
+    password: password,
+    codeOrRecovery: codeOrRecovery,
+  );
 
   Future<RemoteCurrentUser?> restore() async {
     final refreshToken = await _tokens.refreshToken;
     if (refreshToken == null) return null;
     try {
       final session = await _remote.refresh(refreshToken);
-      await _tokens.save(accessToken: session.accessToken, refreshToken: session.refreshToken);
-      if (kDebugMode) developer.log('session restoration=success accountType=${session.user.accountType}', name: 'AVERA.auth');
+      await _tokens.save(
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      );
+      if (kDebugMode) {
+        developer.log(
+          'session restoration=success accountType=${session.user.accountType}',
+          name: 'AVERA.auth',
+        );
+      }
       return session.user;
     } on ApiException {
       await _tokens.clear();
-      if (kDebugMode) developer.log('session restoration=failed credentialsCleared=true', name: 'AVERA.auth');
+      if (kDebugMode) {
+        developer.log(
+          'session restoration=failed credentialsCleared=true',
+          name: 'AVERA.auth',
+        );
+      }
       return null;
     }
   }
@@ -57,4 +127,9 @@ class AuthenticationRepository {
     if (accessToken != null) await _remote.signOutAll(accessToken);
     await _tokens.clear();
   }
+
+  Future<void> _persist(RemoteAuthSession session) => _tokens.save(
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+  );
 }

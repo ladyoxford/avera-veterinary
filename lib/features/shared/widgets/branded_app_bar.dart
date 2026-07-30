@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/models/alert_destination.dart';
 import '../../../core/remote/api_client.dart';
 import 'avera_logo.dart';
 
@@ -20,7 +21,17 @@ class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final notifications = ref.watch(notificationsProvider);
     final compact = MediaQuery.sizeOf(context).width < 620;
     final unreadCount =
-        notifications.valueOrNull?.where((item) => !item.isRead).length ?? 0;
+        notifications.valueOrNull
+            ?.where(
+              (item) =>
+                  InAppNotificationStatusStorage.fromStorage(
+                    item.status,
+                    isRead: item.isRead,
+                  ) ==
+                  InAppNotificationStatus.unread,
+            )
+            .length ??
+        0;
 
     return AppBar(
       toolbarHeight: 84,
@@ -30,7 +41,7 @@ class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
         error: (_, __) => const _BrandTitle(clinicName: 'AVERA'),
         data: (data) => Row(
           children: [
-            const AveraLogo(size: 44),
+            const AveraCompactLogo(size: 44),
             const SizedBox(width: 12),
             Expanded(child: _BrandTitle(clinicName: data.clinic.clinicName)),
           ],
@@ -45,11 +56,6 @@ class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
             label: Text('$unreadCount'),
             child: const Icon(Icons.notifications_none_rounded),
           ),
-        ),
-        IconButton(
-          tooltip: 'Settings',
-          onPressed: () => context.push('/settings'),
-          icon: const Icon(Icons.settings_outlined),
         ),
         session.maybeWhen(
           data: (data) => Padding(
@@ -186,6 +192,8 @@ class _UserAvatarButton extends StatelessWidget {
                 } else {
                   await ref.read(authenticationRepositoryProvider).signOut();
                 }
+                await ref.read(biometricAuthServiceProvider).clear();
+                ref.invalidate(biometricEnrollmentProvider);
                 ref.invalidate(userSessionProvider);
                 if (sheetContext.mounted) Navigator.of(sheetContext).pop();
                 if (context.mounted) context.go('/login');

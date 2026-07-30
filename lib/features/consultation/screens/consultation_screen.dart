@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,8 @@ import 'package:iconsax/iconsax.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/security/access_control.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../shared/widgets/avera_ui.dart';
 
 enum ConsultationScreenMode { create, view, edit }
 
@@ -18,6 +21,9 @@ class ConsultationScreen extends ConsumerStatefulWidget {
     this.mode = ConsultationScreenMode.create,
     this.consultationId,
     this.initialAnimalId,
+    this.initialAppointmentId,
+    this.initialComplaint,
+    this.initialVeterinarian,
   }) : assert(
          mode == ConsultationScreenMode.create || consultationId != null,
          'Saved consultation screens require a consultationId.',
@@ -26,6 +32,9 @@ class ConsultationScreen extends ConsumerStatefulWidget {
   final ConsultationScreenMode mode;
   final int? consultationId;
   final int? initialAnimalId;
+  final int? initialAppointmentId;
+  final String? initialComplaint;
+  final String? initialVeterinarian;
 
   bool get isNew => mode == ConsultationScreenMode.create;
   bool get isView => mode == ConsultationScreenMode.view;
@@ -54,7 +63,10 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
     super.initState();
     animalId = widget.initialAnimalId;
     if (widget.isNew) {
-      vet.text = 'Dr. Amina Okafor';
+      complaint.text = widget.initialComplaint?.trim() ?? '';
+      vet.text = widget.initialVeterinarian?.trim().isNotEmpty == true
+          ? widget.initialVeterinarian!.trim()
+          : 'Dr. Amina Okafor';
     } else {
       _loadingRecord = true;
       unawaited(_loadConsultation());
@@ -82,6 +94,9 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
         _loadError = 'This consultation is unavailable in the current clinic.';
         return;
       }
+      if (kDebugMode) {
+        unawaited(_logPatientDiagnostic(visit));
+      }
       animalId = visit.animalId;
       complaint.text = visit.chiefComplaint ?? '';
       history.text = visit.history ?? '';
@@ -97,6 +112,29 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
     }
   }
 
+  Future<void> _logPatientDiagnostic(Visit visit) async {
+    final repository = ref.read(clinicRepositoryProvider);
+    final patients =
+        await (repository.db.select(repository.db.animals)..where(
+              (animal) => animal.clinicId.equals(repository.activeClinicId),
+            ))
+            .get();
+    final matching = patients
+        .where((animal) => animal.id == visit.animalId)
+        .toList(growable: false);
+    final canonical = <int, Animal>{
+      for (final animal in patients) animal.id: animal,
+    };
+    debugPrint(
+      'AVERA consultation diagnostic: id=${visit.id}, '
+      'diagnosis=${visit.diagnosis ?? visit.chiefComplaint ?? 'none'}, '
+      'patientId=${visit.animalId}, patientRows=${matching.length}, '
+      'hospitalNumbers=${matching.map((animal) => animal.hospitalNumber).join(',')}, '
+      'dropdownItems=${canonical.length}, clinicId=${repository.activeClinicId}, '
+      'mergedLocalRemote=false',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(userSessionProvider).valueOrNull;
@@ -109,7 +147,7 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_title),
+        title: Text(widget.isView ? 'Consultation' : _title),
         actions: [
           if (widget.isView &&
               session?.can(Permissions.consultationsEdit) == true)
@@ -200,6 +238,14 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
           session: session,
         );
       }
+      if (widget.isNew && widget.initialAppointmentId != null) {
+        await repository.linkAppointmentConsultation(
+          session: session,
+          appointmentId: widget.initialAppointmentId!,
+          consultationId: visitId,
+        );
+        ref.invalidate(appointmentDetailProvider(widget.initialAppointmentId!));
+      }
 
       final offline = ref.read(offlineAuthorizationSnapshotProvider);
       if (offline != null && offline.clinicId != null) {
@@ -288,74 +334,119 @@ class _ConsultationForm extends ConsumerWidget {
     return StreamBuilder<List<Animal>>(
       stream: animals,
       builder: (context, snapshot) {
-        final list = snapshot.data ?? const <Animal>[];
+        final canonicalById = <int, Animal>{};
+        for (final animal in snapshot.data ?? const <Animal>[]) {
+          canonicalById.putIfAbsent(animal.id, () => animal);
+        }
+        final list = canonicalById.values.toList()
+          ..sort((a, b) {
+            final hospital = a.hospitalNumber.compareTo(b.hospitalNumber);
+            return hospital != 0 ? hospital : a.id.compareTo(b.id);
+          });
+        final matchingItems = list
+            .where((animal) => animal.id == animalId)
+            .toList();
+        final safeSelectedPatientId = matchingItems.length == 1
+            ? animalId
+            : null;
+        final selectedPatient = safeSelectedPatientId == null
+            ? null
+            : canonicalById[safeSelectedPatientId];
+        final subtitle = isNew
+            ? '${veterinarian.text.isEmpty ? 'Veterinarian' : veterinarian.text} • Select patient context'
+            : '${veterinarian.text.isEmpty ? 'Clinic team' : veterinarian.text} • Saved consultation';
         return ListView(
-          padding: const EdgeInsets.all(16),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.pageTopPadding,
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.bottomContentClearance,
+          ),
           children: [
-            DropdownButtonFormField<int>(
-              value: animalId,
-              decoration: const InputDecoration(
-                labelText: 'Patient',
-                prefixIcon: Icon(Iconsax.search_normal),
-              ),
-              items: [
-                for (final animal in list)
-                  DropdownMenuItem(
-                    value: animal.id,
-                    child: Text(
-                      '${animal.animalName} - ${animal.hospitalNumber}',
-                    ),
+            Text(subtitle, style: averaText(context).pageSubtitle),
+            const SizedBox(height: AveraSpacing.subtitleToContentGap),
+            if (isReadOnly)
+              _ReadOnlyFieldCard(
+                label: 'Patient',
+                value: selectedPatient == null
+                    ? 'Patient record unavailable'
+                    : '${selectedPatient.animalName} • ${selectedPatient.hospitalNumber}',
+              )
+            else
+              AveraLabeledFieldCard(
+                label: 'Patient',
+                child: DropdownButtonFormField<int>(
+                  value: safeSelectedPatientId,
+                  isExpanded: true,
+                  hint: Text(
+                    'Select a patient',
+                    style: averaText(context).fieldPlaceholder,
                   ),
-              ],
-              onChanged: isNew && !isReadOnly ? onAnimalChanged : null,
-            ),
-            const SizedBox(height: 12),
-            _ConsultationField(
+                  style: averaText(context).fieldValue,
+                  decoration: const InputDecoration.collapsed(hintText: ''),
+                  items: [
+                    for (final animal in list)
+                      DropdownMenuItem<int>(
+                        value: animal.id,
+                        child: Text(
+                          '${animal.animalName} • ${animal.hospitalNumber}',
+                        ),
+                      ),
+                  ],
+                  onChanged: snapshot.hasData ? onAnimalChanged : null,
+                ),
+              ),
+            const SizedBox(height: AveraSpacing.cardGap),
+            _ConsultationFieldCard(
               controller: complaint,
               label: 'Complaint',
               readOnly: isReadOnly,
             ),
-            _ConsultationField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            _ConsultationFieldCard(
               controller: history,
               label: 'History',
               readOnly: isReadOnly,
             ),
-            _ConsultationField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            _ConsultationFieldCard(
               controller: signs,
-              label: 'Clinical Signs and Physical Examination',
+              label: 'Clinical Signs & Physical Exam',
               readOnly: isReadOnly,
             ),
-            _ConsultationField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            _ConsultationFieldCard(
               controller: diagnosis,
               label: 'Diagnosis',
               readOnly: isReadOnly,
             ),
-            _ConsultationField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            _ConsultationFieldCard(
               controller: treatment,
               label: 'Treatment',
               readOnly: isReadOnly,
             ),
-            _ConsultationField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            _ConsultationFieldCard(
               controller: prescription,
               label: 'Prescription',
               readOnly: isReadOnly,
             ),
-            TextField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            _ConsultationFieldCard(
               controller: veterinarian,
+              label: 'Veterinarian',
               readOnly: isReadOnly,
-              decoration: const InputDecoration(labelText: 'Veterinarian'),
+              multiline: false,
             ),
             if (!isReadOnly) ...[
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: animalId == null || saving ? null : onSave,
-                icon: saving
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Iconsax.save_2),
-                label: Text(saveLabel),
+              const SizedBox(height: AveraSpacing.subtitleToContentGap),
+              AveraPrimaryActionButton(
+                label: saveLabel,
+                icon: Iconsax.save_2,
+                loading: saving,
+                onPressed: safeSelectedPatientId == null ? null : onSave,
               ),
             ],
           ],
@@ -365,30 +456,54 @@ class _ConsultationForm extends ConsumerWidget {
   }
 }
 
-class _ConsultationField extends StatelessWidget {
-  const _ConsultationField({
+class _ConsultationFieldCard extends StatelessWidget {
+  const _ConsultationFieldCard({
     required this.controller,
     required this.label,
     required this.readOnly,
+    this.multiline = true,
   });
 
   final TextEditingController controller;
   final String label;
   final bool readOnly;
+  final bool multiline;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    if (readOnly) {
+      return _ReadOnlyFieldCard(
+        label: label,
+        value: controller.text.trim().isEmpty
+            ? 'Not recorded'
+            : controller.text.trim(),
+      );
+    }
+    return AveraLabeledFieldCard(
+      label: label,
       child: TextField(
         controller: controller,
-        readOnly: readOnly,
-        minLines: 2,
-        maxLines: 4,
-        decoration: InputDecoration(labelText: label, alignLabelWithHint: true),
+        minLines: multiline ? 2 : 1,
+        maxLines: multiline ? 6 : 1,
+        style: averaText(context).fieldValue,
+        decoration: InputDecoration.collapsed(
+          hintText: multiline ? 'Enter $label' : 'Enter $label',
+          hintStyle: averaText(context).fieldPlaceholder,
+        ),
       ),
     );
   }
+}
+
+class _ReadOnlyFieldCard extends StatelessWidget {
+  const _ReadOnlyFieldCard({required this.label, required this.value});
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) => AveraLabeledFieldCard(
+    label: label,
+    child: Text(value, style: averaText(context).fieldValue),
+  );
 }
 
 class _ConsultationMessage extends StatelessWidget {

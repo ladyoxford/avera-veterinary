@@ -11,7 +11,9 @@ class BackendConfiguration {
 
   static void validateProductionConfiguration({required bool isProduction}) {
     if (isProduction && enableLocalDevelopmentAuth) {
-      throw StateError('Production builds cannot enable local development authentication.');
+      throw StateError(
+        'Production builds cannot enable local development authentication.',
+      );
     }
   }
 }

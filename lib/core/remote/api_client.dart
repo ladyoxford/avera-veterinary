@@ -9,6 +9,13 @@ import 'package:http/http.dart' as http;
 
 enum AveraDataMode { local, backend }
 
+class AccountRestrictionDispatcher {
+  AccountRestrictionDispatcher._();
+  static final _controller = StreamController<void>.broadcast();
+  static Stream<void> get events => _controller.stream;
+  static void notify() => _controller.add(null);
+}
+
 class BackendConfiguration {
   const BackendConfiguration._();
 
@@ -24,8 +31,8 @@ class BackendConfiguration {
     'AVERA_API_TIMEOUT_SECONDS',
     defaultValue: 15,
   );
-  static const _allowLocalReleaseMode = bool.fromEnvironment(
-    'AVERA_ALLOW_LOCAL_RELEASE_MODE',
+  static const enableLocalDevelopmentAuth = bool.fromEnvironment(
+    'ENABLE_LOCAL_DEVELOPMENT_AUTH',
     defaultValue: false,
   );
 
@@ -42,10 +49,19 @@ class BackendConfiguration {
         'AVERA_API_BASE_URL is required when AVERA_DATA_MODE=backend.',
       );
     }
-    if (kReleaseMode && isLocalMode && !_allowLocalReleaseMode) {
+    if (kReleaseMode && isLocalMode) {
+      throw StateError('Local data mode is unavailable in release builds.');
+    }
+    if (kReleaseMode && enableLocalDevelopmentAuth) {
       throw StateError(
-        'Local data mode is unavailable in release builds without an explicit development override.',
+        'Local development authentication is unavailable in release builds.',
       );
+    }
+    final uri = Uri.tryParse(apiBaseUrl.trim());
+    if (kReleaseMode &&
+        isBackendMode &&
+        (uri == null || uri.scheme != 'https' || uri.host.isEmpty)) {
+      throw StateError('Release builds require an HTTPS AVERA_API_BASE_URL.');
     }
   }
 
@@ -169,6 +185,20 @@ class ApiClient {
         'response method=$method url=$uri status=${response.statusCode} '
         'elapsedMs=${stopwatch.elapsedMilliseconds}',
       );
+      final decoded = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body) as Map<String, dynamic>;
+      final responseCode = decoded['error'] as String?;
+      if (responseCode == 'ACCOUNT_SUSPENDED' ||
+          responseCode == 'account_suspended') {
+        await tokens.clear();
+        AccountRestrictionDispatcher.notify();
+        throw ApiException(
+          'ACCOUNT_SUSPENDED',
+          'Your AVERA account is currently suspended.',
+          statusCode: response.statusCode,
+        );
+      }
       if (response.statusCode == 401 &&
           authenticated &&
           retry &&
@@ -197,9 +227,6 @@ class ApiClient {
           'Your session has expired. Please sign in again.',
         );
       }
-      final decoded = response.body.isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ApiException(
           decoded['error'] as String? ?? 'request_failed',

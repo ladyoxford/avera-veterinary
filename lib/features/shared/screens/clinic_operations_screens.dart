@@ -10,7 +10,9 @@ import '../../../core/database/app_database.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/feature_gate_service.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../animals/screens/animal_profile_screen.dart';
+import '../widgets/avera_ui.dart';
 
 class MoreScreen extends ConsumerStatefulWidget {
   const MoreScreen({super.key});
@@ -20,8 +22,6 @@ class MoreScreen extends ConsumerStatefulWidget {
 }
 
 class _MoreScreenState extends ConsumerState<MoreScreen> {
-  String _query = '';
-
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(userSessionProvider).valueOrNull;
@@ -32,86 +32,44 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               service.permission == null ||
               session.can(service.permission!),
         )
-        .where(
-          (service) =>
-              service.title.toLowerCase().contains(_query.toLowerCase()),
-        )
         .toList();
-    final vera = services.where((service) => service.featured).firstOrNull;
-    final pinned = services.where((service) => service.pinned).take(8).toList();
     final groups = <String, List<_ClinicService>>{};
-    for (final service in services.where(
-      (service) => !service.pinned && !service.featured,
-    )) {
+    for (final service in services) {
       (groups[service.group] ??= []).add(service);
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('More')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-        children: [
-          Text(
-            'Clinic tools and records',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.pageTopPadding,
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.bottomContentClearance,
+          ),
+          children: [
+            const AveraPageHeader(
+              title: 'More',
+              subtitle: 'Clinical and practice tools for this clinic.',
             ),
-          ),
-          if (vera != null) ...[
-            const SizedBox(height: 20),
-            Text('Featured', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 10),
-            _VeraFeaturedCard(service: vera),
-          ],
-          const SizedBox(height: 18),
-          TextField(
-            onChanged: (value) => setState(() => _query = value),
-            decoration: const InputDecoration(
-              hintText: 'Search clinic tools',
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            'Pinned Services',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 520
-                  ? 4
-                  : constraints.maxWidth >= 360
-                  ? 3
-                  : 2;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: pinned.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 14,
-                  childAspectRatio: columns >= 4 ? .95 : 1.06,
-                ),
-                itemBuilder: (context, index) =>
-                    _PinnedServiceTile(service: pinned[index]),
-              );
-            },
-          ),
-          for (final group in groups.entries) ...[
-            const SizedBox(height: 30),
-            Text(group.key, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            for (final service in group.value) _ServiceRow(service: service),
-          ],
-          if (services.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 36),
-              child: _OperationsEmpty(
-                message: 'No clinic tools match your search.',
+            const SizedBox(height: AveraSpacing.subtitleToContentGap),
+            for (final group in groups.entries) ...[
+              AveraSectionHeader(title: group.key),
+              const SizedBox(height: AveraSpacing.compactRowGap),
+              for (var index = 0; index < group.value.length; index++) ...[
+                _ServiceRow(service: group.value[index]),
+                if (index != group.value.length - 1)
+                  const SizedBox(height: AveraSpacing.cardGap),
+              ],
+              if (group.key != groups.keys.last)
+                const SizedBox(height: AveraSpacing.sectionGap),
+            ],
+            if (services.isEmpty)
+              const _OperationsEmpty(
+                message: 'No clinic tools are available for your access.',
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -311,83 +269,19 @@ class ClinicOperationsPlaceholderScreen extends StatelessWidget {
   );
 }
 
-class _PinnedServiceTile extends ConsumerWidget {
-  const _PinnedServiceTile({required this.service});
-  final _ClinicService service;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final locked = _isFeatureLocked(ref, service);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => context.push(service.route),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Icon(
-                  locked ? Icons.lock_outline_rounded : service.icon,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(height: 9),
-              Text(
-                service.title,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ServiceRow extends ConsumerWidget {
   const _ServiceRow({required this.service});
   final _ClinicService service;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final locked = _isFeatureLocked(ref, service);
-    return Card(
-      child: ListTile(
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(
-            locked ? Icons.lock_outline_rounded : service.icon,
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
-          ),
-        ),
-        title: Text(service.title),
-        subtitle: Text(
-          locked
-              ? 'Requires ${FeatureGateService.entitlement(service.feature!).minimumPlan.label}'
-              : service.description,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: locked
-            ? const Icon(Icons.lock_outline_rounded)
-            : const Icon(Icons.chevron_right_rounded),
-        onTap: () => context.push(service.route),
-      ),
+    return AveraAdministrationCard(
+      icon: locked ? Icons.lock_outline_rounded : service.icon,
+      title: service.title,
+      subtitle: locked
+          ? 'Requires ${FeatureGateService.entitlement(service.feature!).minimumPlan.label}'
+          : service.description,
+      onTap: () => context.push(service.route),
     );
   }
 }
@@ -401,8 +295,6 @@ class _ClinicService {
     this.group, {
     this.permission,
     this.feature,
-    this.pinned = false,
-    this.featured = false,
   });
   final String title;
   final String description;
@@ -411,128 +303,9 @@ class _ClinicService {
   final String group;
   final String? permission;
   final AveraFeature? feature;
-  final bool pinned;
-  final bool featured;
-}
-
-class _VeraFeaturedCard extends ConsumerWidget {
-  const _VeraFeaturedCard({required this.service});
-  final _ClinicService service;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).colorScheme;
-    final locked = _isFeatureLocked(ref, service);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 2,
-      child: InkWell(
-        onTap: () => context.push(service.route),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [colors.primaryContainer, colors.secondaryContainer],
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 68,
-                height: 68,
-                decoration: BoxDecoration(
-                  color: colors.surface.withValues(alpha: .55),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Icon(
-                  locked
-                      ? Icons.lock_outline_rounded
-                      : Icons.account_tree_rounded,
-                  size: 34,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Vera',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Veterinary Clinical Intelligence',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      locked
-                          ? 'Requires ${FeatureGateService.entitlement(service.feature!).minimumPlan.label}'
-                          : 'Ask clinical questions, analyse cases and review treatments.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.arrow_forward_rounded),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 const _services = <_ClinicService>[
-  _ClinicService(
-    'Vera',
-    'Veterinary Clinical Intelligence',
-    Icons.account_tree_rounded,
-    '/vera',
-    'Featured',
-    feature: AveraFeature.vera,
-    featured: true,
-  ),
-  _ClinicService(
-    'Vaccine Schedule',
-    'Due, upcoming and completed vaccinations',
-    Icons.vaccines_outlined,
-    '/operations/vaccines',
-    'Clinical Operations',
-    permission: Permissions.vaccinationsView,
-    feature: AveraFeature.vaccinations,
-    pinned: true,
-  ),
-  _ClinicService(
-    'Laboratory',
-    'Requests, samples and results across the clinic',
-    Icons.science_outlined,
-    '/operations/laboratory',
-    'Clinical Operations',
-    permission: Permissions.laboratoryView,
-    feature: AveraFeature.laboratory,
-    pinned: true,
-  ),
-  _ClinicService(
-    'Hospitalization',
-    'Current admissions and treatment plans',
-    Icons.local_hospital_outlined,
-    '/operations/hospitalization',
-    'Clinical Operations',
-    permission: Permissions.consultationsView,
-    feature: AveraFeature.hospitalization,
-    pinned: true,
-  ),
-  _ClinicService(
-    'Treatment Board',
-    'Treatments due across wards and patients',
-    Icons.view_kanban_outlined,
-    '/operations/treatment-board',
-    'Clinical Operations',
-    permission: Permissions.consultationsView,
-    feature: AveraFeature.treatmentBoard,
-    pinned: true,
-  ),
   _ClinicService(
     'Surgery',
     'Scheduled and completed surgical cases',
@@ -570,66 +343,29 @@ const _services = <_ClinicService>[
     feature: AveraFeature.documents,
   ),
   _ClinicService(
-    'Inventory',
-    'Stock, low quantities and product usage',
-    Icons.inventory_2_outlined,
-    '/inventory',
+    'Treatment Board',
+    'Treatments due across wards and patients',
+    Icons.view_kanban_outlined,
+    '/operations/treatment-board',
+    'Clinical Operations',
+    permission: Permissions.consultationsView,
+    feature: AveraFeature.treatmentBoard,
+  ),
+  _ClinicService(
+    'Farm Records',
+    'Manage farm populations, pens, feeding, reproduction, health and daily reports.',
+    Icons.agriculture_rounded,
+    '/farm-records',
     'Practice Operations',
-    permission: Permissions.inventoryView,
-    feature: AveraFeature.inventory,
-    pinned: true,
+    permission: Permissions.farmsView,
   ),
   _ClinicService(
     'Expired Products',
     'Products requiring inventory attention',
     Icons.warning_amber_rounded,
-    '/inventory',
+    '/inventory?filter=expired',
     'Practice Operations',
     permission: Permissions.inventoryView,
-  ),
-  _ClinicService(
-    'Billing',
-    'Invoices, payments and balances',
-    Icons.receipt_long_outlined,
-    '/billing',
-    'Finance',
-    permission: Permissions.billingView,
-    feature: AveraFeature.billing,
-    pinned: true,
-  ),
-  _ClinicService(
-    'Reports',
-    'Clinical and operational reporting',
-    Icons.analytics_outlined,
-    '/reports',
-    'Reports and Analytics',
-    permission: Permissions.reportsExport,
-    feature: AveraFeature.reports,
-    pinned: true,
-  ),
-  _ClinicService(
-    'Schedule',
-    'Schedule and clinic visit list',
-    Icons.calendar_month_outlined,
-    '/appointments',
-    'Client Engagement',
-    permission: Permissions.appointmentsView,
-    feature: AveraFeature.schedule,
-  ),
-  _ClinicService(
-    'Notifications',
-    'Clinical and operational notices',
-    Icons.notifications_none_rounded,
-    '/notifications',
-    'Client Engagement',
-  ),
-  _ClinicService(
-    'Users',
-    'Clinic staff and access management',
-    Icons.people_outline_rounded,
-    '/administration/users',
-    'Administration',
-    permission: Permissions.usersView,
   ),
   _ClinicService(
     'Administration',

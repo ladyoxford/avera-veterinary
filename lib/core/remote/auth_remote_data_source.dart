@@ -10,6 +10,25 @@ abstract class AuthRemoteDataSource {
   });
 
   Future<RemoteAuthSession> refresh(String refreshToken);
+  Future<RemoteAuthSession> verifyMfa({
+    required String challengeToken,
+    String? code,
+    String? recoveryCode,
+  });
+  Future<RemoteMfaStatus> mfaStatus();
+  Future<RemoteMfaSetup> beginMfaSetup(String password);
+  Future<List<String>> confirmMfaSetup({
+    required String setupId,
+    required String code,
+  });
+  Future<void> disableMfa({
+    required String password,
+    required String codeOrRecovery,
+  });
+  Future<List<String>> regenerateMfaRecoveryCodes({
+    required String password,
+    required String codeOrRecovery,
+  });
   Future<RemoteCurrentUser> currentUser(String accessToken);
   Future<void> signOut(String accessToken);
   Future<void> signOutAll(String accessToken);
@@ -20,6 +39,32 @@ abstract class AuthRemoteDataSource {
     required String currentPassword,
     required String newPassword,
   });
+}
+
+class MfaRequiredException implements Exception {
+  const MfaRequiredException({
+    required this.challengeToken,
+    required this.expiresIn,
+  });
+  final String challengeToken;
+  final int expiresIn;
+}
+
+class RemoteMfaStatus {
+  const RemoteMfaStatus({required this.enabled, this.verifiedAt});
+  final bool enabled;
+  final DateTime? verifiedAt;
+}
+
+class RemoteMfaSetup {
+  const RemoteMfaSetup({
+    required this.setupId,
+    required this.manualKey,
+    required this.otpauthUri,
+  });
+  final String setupId;
+  final String manualKey;
+  final String otpauthUri;
 }
 
 class RemoteAuthSession {

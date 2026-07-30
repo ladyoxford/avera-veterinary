@@ -30,7 +30,13 @@ abstract class AuditRemoteDataSource {
 }
 
 class RemoteUserSummary {
-  const RemoteUserSummary({required this.userId, required this.fullName, required this.email, required this.status, required this.roleId});
+  const RemoteUserSummary({
+    required this.userId,
+    required this.fullName,
+    required this.email,
+    required this.status,
+    required this.roleId,
+  });
   final String userId;
   final String fullName;
   final String email;
@@ -39,7 +45,12 @@ class RemoteUserSummary {
 }
 
 class RemoteClinicSummary {
-  const RemoteClinicSummary({required this.clinicId, required this.name, required this.status, required this.subscriptionPlan});
+  const RemoteClinicSummary({
+    required this.clinicId,
+    required this.name,
+    required this.status,
+    required this.subscriptionPlan,
+  });
   final String clinicId;
   final String name;
   final String status;
@@ -47,14 +58,23 @@ class RemoteClinicSummary {
 }
 
 class RemoteRoleSummary {
-  const RemoteRoleSummary({required this.roleId, required this.name, this.description});
+  const RemoteRoleSummary({
+    required this.roleId,
+    required this.name,
+    this.description,
+  });
   final String roleId;
   final String name;
   final String? description;
 }
 
 class RemoteAuditEntry {
-  const RemoteAuditEntry({required this.auditId, required this.action, required this.timestamp, required this.success});
+  const RemoteAuditEntry({
+    required this.auditId,
+    required this.action,
+    required this.timestamp,
+    required this.success,
+  });
   final String auditId;
   final String action;
   final DateTime timestamp;

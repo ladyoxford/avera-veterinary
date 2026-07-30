@@ -17,14 +17,16 @@ class AnimalSearchScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (BackendConfiguration.isConfigured) return const CloudPatientListScreen();
+    if (BackendConfiguration.isConfigured) {
+      return const CloudPatientListScreen();
+    }
     final results = ref.watch(animalSearchProvider);
     final filter = ref.watch(animalStatusFilterProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        tooltip: 'Register patient',
+        tooltip: 'Register Pet',
         icon: const Icon(Icons.add_rounded),
         label: const Text('Register pet'),
         onPressed: () => context.push('/animals/new'),
@@ -40,7 +42,10 @@ class AnimalSearchScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Registered Pets', style: theme.textTheme.headlineMedium),
+                      Text(
+                        'Registered Pets',
+                        style: theme.extension<AveraTextStyles>()!.pageTitle,
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         'Search and manage your clinic patient records',
@@ -70,7 +75,9 @@ class AnimalSearchScreen extends ConsumerWidget {
                 loading: () => const _PatientListSkeleton(),
                 error: (error, _) => SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _ErrorState(message: 'We could not load patient records.\n$error'),
+                  child: _ErrorState(
+                    message: 'We could not load patient records.\n$error',
+                  ),
                 ),
                 data: (animals) {
                   if (animals.isEmpty) {
@@ -88,7 +95,10 @@ class AnimalSearchScreen extends ConsumerWidget {
                         constraints: const BoxConstraints(maxWidth: 1120),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 220),
-                          child: _PatientList(key: ValueKey(filter), animals: animals),
+                          child: _PatientList(
+                            key: ValueKey(filter),
+                            animals: animals,
+                          ),
                         ),
                       ),
                     ),
@@ -121,7 +131,11 @@ class _PatientToolbarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 132;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     final theme = Theme.of(context);
     return ColoredBox(
       color: theme.scaffoldBackgroundColor,
@@ -145,7 +159,9 @@ class _PatientToolbarDelegate extends SliverPersistentHeaderDelegate {
                         label: Text(item.label),
                         selected: item == filter,
                         onSelected: (_) => onFilterChanged(item),
-                        avatar: item == filter ? const Icon(Icons.check_rounded, size: 16) : null,
+                        avatar: item == filter
+                            ? const Icon(Icons.check_rounded, size: 16)
+                            : null,
                       );
                     },
                   ),
@@ -160,10 +176,13 @@ class _PatientToolbarDelegate extends SliverPersistentHeaderDelegate {
                         borderRadius: BorderRadius.all(Radius.circular(24)),
                       ),
                     ),
-                    padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
+                    padding: const WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(horizontal: 16),
+                    ),
                     leading: const Icon(Icons.search_rounded),
                     trailing: const [Icon(Icons.tune_rounded, size: 20)],
-                    hintText: 'Search name, hospital number, owner, phone, species, breed or microchip',
+                    hintText:
+                        'Search name, hospital number, owner, phone, species, breed or microchip',
                     onChanged: onSearchChanged,
                   ),
                 ),
@@ -195,7 +214,10 @@ class _PatientList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) => _AnimalSearchCard(animal: animals[index])
           .animate()
-          .fadeIn(delay: Duration(milliseconds: 25 * index), duration: 180.ms)
+          .fadeIn(
+            delay: Duration(milliseconds: 25 * index),
+            duration: 180.ms,
+          )
           .slideY(begin: .03, end: 0, duration: 180.ms),
     );
   }
@@ -214,10 +236,12 @@ class _AnimalSearchCard extends ConsumerWidget {
     final isLargeLayout = MediaQuery.sizeOf(context).width >= 600;
 
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
         onTap: () => context.push('/animals/${animal.animalId}'),
         onLongPress: isArchived ? null : () => _showStatusSheet(context, ref),
         child: Padding(
@@ -300,17 +324,21 @@ class _AnimalSearchCard extends ConsumerWidget {
   }
 
   String _signalment(AnimalSearchResult animal) => [
-        animal.species,
-        if (animal.breed?.trim().isNotEmpty ?? false) animal.breed!,
-        if (animal.sex?.trim().isNotEmpty ?? false) animal.sex!,
-      ].join('  •  ');
+    animal.species,
+    if (animal.breed?.trim().isNotEmpty ?? false) animal.breed!,
+    if (animal.sex?.trim().isNotEmpty ?? false) animal.sex!,
+  ].join('  •  ');
 
   Future<void> _showStatusSheet(BuildContext context, WidgetRef ref) async {
     final session = await ref.read(userSessionProvider.future);
     if (!session.can('Manage Animal Status')) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You do not have permission to manage animal status.')),
+          const SnackBar(
+            content: Text(
+              'You do not have permission to manage animal status.',
+            ),
+          ),
         );
       }
       return;
@@ -330,7 +358,9 @@ class _AnimalSearchCard extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 leading: const Icon(Icons.heart_broken_rounded),
                 title: const Text('Mark as Deceased'),
                 onTap: () {
@@ -339,7 +369,9 @@ class _AnimalSearchCard extends ConsumerWidget {
                 },
               ),
               ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 leading: const Icon(Icons.location_on_outlined),
                 title: const Text('Mark as Relocated'),
                 onTap: () {
@@ -348,7 +380,9 @@ class _AnimalSearchCard extends ConsumerWidget {
                 },
               ),
               ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 leading: const Icon(Icons.close_rounded),
                 title: const Text('Cancel'),
                 onTap: () => Navigator.of(sheetContext).pop(),
@@ -360,22 +394,36 @@ class _AnimalSearchCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmStatus(BuildContext context, WidgetRef ref, String status) async {
+  Future<void> _confirmStatus(
+    BuildContext context,
+    WidgetRef ref,
+    String status,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Mark ${animal.animalName} as $status?'),
-        content: const Text('The complete medical, billing, vaccination, and consultation history will remain available.'),
+        content: const Text(
+          'The complete medical, billing, vaccination, and consultation history will remain available.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Confirm')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Confirm'),
+          ),
         ],
       ),
     );
     if (confirmed != true) return;
 
     final session = await ref.read(userSessionProvider.future);
-    await ref.read(clinicRepositoryProvider).updateAnimalStatus(
+    await ref
+        .read(clinicRepositoryProvider)
+        .updateAnimalStatus(
           animalId: animal.animalId,
           newStatus: status,
           session: session,
@@ -400,7 +448,12 @@ class _PatientAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = animal.animalName.trim().split(RegExp(r'\s+')).take(2).map((part) => part[0]).join();
+    final initials = animal.animalName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .take(2)
+        .map((part) => part[0])
+        .join();
     final color = _avatarColors[animal.animalId.abs() % _avatarColors.length];
     final imagePath = animal.photo;
 
@@ -415,9 +468,13 @@ class _PatientAvatar extends StatelessWidget {
               : Image.file(
                   File(imagePath),
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _InitialAvatar(initials: initials, color: color),
-                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
-                      wasSynchronouslyLoaded ? child : child.animate().fadeIn(duration: 180.ms),
+                  errorBuilder: (_, __, ___) =>
+                      _InitialAvatar(initials: initials, color: color),
+                  frameBuilder:
+                      (context, child, frame, wasSynchronouslyLoaded) =>
+                          wasSynchronouslyLoaded
+                          ? child
+                          : child.animate().fadeIn(duration: 180.ms),
                 ),
         ),
       ),
@@ -433,17 +490,17 @@ class _InitialAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-        color: color,
-        child: Center(
-          child: Text(
-            initials.toUpperCase(),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
+    color: color,
+    child: Center(
+      child: Text(
+        initials.toUpperCase(),
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -461,8 +518,14 @@ class _StatusBadge extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(10)),
-      child: Text(status, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        status,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+      ),
     );
   }
 }
@@ -472,12 +535,12 @@ class _PatientListSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SliverList.builder(
-        itemCount: 6,
-        itemBuilder: (context, index) => const Padding(
-          padding: EdgeInsets.only(bottom: 12),
-          child: _SkeletonCard(),
-        ),
-      );
+    itemCount: 6,
+    itemBuilder: (context, index) => const Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: _SkeletonCard(),
+    ),
+  );
 }
 
 class _SkeletonCard extends StatelessWidget {
@@ -485,26 +548,39 @@ class _SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shade = Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .55);
+    final shade = Theme.of(
+      context,
+    ).colorScheme.surfaceContainerHighest.withValues(alpha: .55);
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(children: [
-          CircleAvatar(radius: 30, backgroundColor: shade),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _SkeletonLine(width: 150, color: shade),
-            const SizedBox(height: 10),
-            _SkeletonLine(width: 96, color: shade),
-            const SizedBox(height: 14),
-            _SkeletonLine(width: double.infinity, color: shade),
-            const SizedBox(height: 8),
-            _SkeletonLine(width: 180, color: shade),
-          ])),
-        ]),
-      ),
-    ).animate(onPlay: (controller) => controller.repeat()).shimmer(duration: 1200.ms);
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                CircleAvatar(radius: 30, backgroundColor: shade),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SkeletonLine(width: 150, color: shade),
+                      const SizedBox(height: 10),
+                      _SkeletonLine(width: 96, color: shade),
+                      const SizedBox(height: 14),
+                      _SkeletonLine(width: double.infinity, color: shade),
+                      const SizedBox(height: 8),
+                      _SkeletonLine(width: 180, color: shade),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )
+        .animate(onPlay: (controller) => controller.repeat())
+        .shimmer(duration: 1200.ms);
   }
 }
 
@@ -514,10 +590,13 @@ class _SkeletonLine extends StatelessWidget {
   final Color color;
   @override
   Widget build(BuildContext context) => Container(
-        width: width,
-        height: 12,
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
-      );
+    width: width,
+    height: 12,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(8),
+    ),
+  );
 }
 
 class _EmptyPatientState extends StatelessWidget {
@@ -527,26 +606,48 @@ class _EmptyPatientState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.pets_outlined, size: 52, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 16),
-            Text('No ${filter.label.toLowerCase()} patients found.', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text('Try a different search or register a new patient.', style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 20),
-            FilledButton.icon(onPressed: onRegister, icon: const Icon(Icons.add_rounded), label: const Text('Register pet')),
-          ]),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.pets_outlined,
+            size: 52,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No ${filter.label.toLowerCase()} patients found.',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try a different search or register a new patient.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: onRegister,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Register pet'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message});
   final String message;
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(32), child: Text(message, textAlign: TextAlign.center)));
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Text(message, textAlign: TextAlign.center),
+    ),
+  );
 }
 
 const _avatarColors = [

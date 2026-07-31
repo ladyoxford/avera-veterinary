@@ -10,6 +10,7 @@ import '../../../core/models/animal_search_result.dart';
 import '../../../core/models/vaccine_catalogue.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
+import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 
@@ -246,6 +247,12 @@ class VaccinationDetailScreen extends ConsumerWidget {
                       '${item.animal.species}${item.animal.breed == null ? '' : ' - ${item.animal.breed}'}',
                       style: averaText(context).caption,
                     ),
+                    if (item.animal.dateOfBirth != null)
+                      Text(
+                        'Age at vaccination: '
+                        '${AnimalAgeService.displayAge(birthDate: item.animal.dateOfBirth!, referenceDate: vaccination.dateGiven, estimated: item.animal.isDateOfBirthEstimated)}',
+                        style: averaText(context).caption,
+                      ),
                     Text(
                       'Owner: ${item.owner.fullName}',
                       style: averaText(context).caption,

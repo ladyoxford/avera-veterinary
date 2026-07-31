@@ -20,6 +20,7 @@ import '../remote/auth_remote_data_source.dart';
 import '../security/access_control.dart';
 import '../remote/api_client.dart';
 import '../services/feature_gate_service.dart';
+import '../services/animal_age_service.dart';
 import '../services/hospital_numbering.dart';
 import 'subscription_repository.dart';
 
@@ -2600,6 +2601,8 @@ class ClinicRepository {
           species: animal.species,
           breed: animal.breed,
           sex: animal.sex,
+          dateOfBirth: animal.dateOfBirth,
+          isDateOfBirthEstimated: animal.isDateOfBirthEstimated,
           dateRegistered: animal.dateRegistered,
           ownerName: owner.fullName,
           ownerPhone: owner.phone,
@@ -6068,6 +6071,12 @@ class ClinicRepository {
         await _clinicForNumbering(activeClinicId),
       );
       final now = _clock.nowForClinic(clinic);
+      if (!animal.dateOfBirth.present || animal.dateOfBirth.value == null) {
+        throw ArgumentError('Date of birth or an age estimate is required.');
+      }
+      if (AnimalAgeService.isFutureBirthDate(animal.dateOfBirth.value!, now)) {
+        throw ArgumentError('Date of birth cannot be in the future.');
+      }
       final year = now.year;
       final sequenceKey = clinic.patientNumberResetYearly ? '$year' : '0';
       final sequence =

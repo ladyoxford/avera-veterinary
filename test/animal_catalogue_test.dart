@@ -134,10 +134,11 @@ void main() {
           fullName: 'Catalogue Test Owner',
           phone: '08000000001',
         ),
-        animal: const AnimalsCompanion(
-          animalName: Value('Catalogue Test Patient'),
-          species: Value('Cat'),
-          breed: Value('Lhasa Apso'),
+        animal: AnimalsCompanion(
+          animalName: const Value('Catalogue Test Patient'),
+          species: const Value('Cat'),
+          breed: const Value('Lhasa Apso'),
+          dateOfBirth: Value(DateTime(2025, 1, 1)),
         ),
       ),
       throwsArgumentError,

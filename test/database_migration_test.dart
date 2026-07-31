@@ -52,4 +52,49 @@ void main() {
       AppDatabase.currentSchemaVersion,
     );
   });
+
+  test(
+    'version 24 derives an estimated birth date from legacy year age',
+    () async {
+      final registered = DateTime(2026, 7, 30);
+      final database = AppDatabase.forTesting(
+        NativeDatabase.memory(
+          setup: (sqlite) {
+            sqlite.execute(
+              'CREATE TABLE animals ('
+              'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
+              'clinic_id TEXT NOT NULL, hospital_number TEXT NOT NULL, '
+              'animal_name TEXT NOT NULL, species TEXT NOT NULL, '
+              'breed TEXT, sex TEXT, age INTEGER, date_of_birth INTEGER, '
+              'weight REAL, color TEXT, microchip_number TEXT, '
+              'owner_id INTEGER NOT NULL, photo TEXT, '
+              'date_registered INTEGER NOT NULL, notes TEXT, '
+              "status TEXT NOT NULL DEFAULT 'Active', "
+              'status_updated_at INTEGER, status_updated_by TEXT, '
+              "number_assignment_status TEXT NOT NULL DEFAULT 'Legacy', "
+              'temporary_hospital_number TEXT, registration_year INTEGER, '
+              'registration_submission_id TEXT)',
+            );
+            sqlite.execute(
+              'INSERT INTO animals '
+              '(clinic_id, hospital_number, animal_name, species, age, '
+              'owner_id, date_registered) VALUES '
+              "('clinic-a', 'LEG-1', 'Legacy', 'Dog', 3, 1, "
+              '${registered.millisecondsSinceEpoch ~/ 1000})',
+            );
+            sqlite.execute('PRAGMA user_version = 23');
+          },
+        ),
+      );
+      addTearDown(database.close);
+
+      final animal = await database.select(database.animals).getSingle();
+      expect(animal.dateOfBirth, DateTime(2023, 7, 30));
+      expect(animal.isDateOfBirthEstimated, isTrue);
+      expect(animal.originalAgeValue, 3);
+      expect(animal.originalAgeUnit, 'years');
+      expect(animal.ageRecordedAt, registered);
+      expect(animal.age, 3);
+    },
+  );
 }

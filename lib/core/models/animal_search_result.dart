@@ -12,6 +12,8 @@ abstract class AnimalSearchResult with _$AnimalSearchResult {
     required String species,
     String? breed,
     String? sex,
+    DateTime? dateOfBirth,
+    @Default(false) bool isDateOfBirthEstimated,
     DateTime? dateRegistered,
     required String ownerName,
     required String ownerPhone,

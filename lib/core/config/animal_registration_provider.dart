@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/animal_catalogue.dart';
+import '../services/animal_age_service.dart';
 
 class AnimalRegistrationSelectionState {
   const AnimalRegistrationSelectionState({
@@ -10,6 +11,10 @@ class AnimalRegistrationSelectionState {
     this.customBreedName = '',
     this.speciesValidationError,
     this.breedValidationError,
+    this.ageInputMode = AnimalAgeInputMode.currentAge,
+    this.ageUnit = AnimalAgeUnit.weeks,
+    this.dateOfBirth,
+    this.isDateOfBirthEstimated = false,
   });
 
   final String? selectedSpeciesId;
@@ -18,6 +23,10 @@ class AnimalRegistrationSelectionState {
   final String customBreedName;
   final String? speciesValidationError;
   final String? breedValidationError;
+  final AnimalAgeInputMode ageInputMode;
+  final AnimalAgeUnit ageUnit;
+  final DateTime? dateOfBirth;
+  final bool isDateOfBirthEstimated;
 
   AnimalSpeciesOption? get selectedSpecies =>
       AnimalCatalogue.speciesById(selectedSpeciesId);
@@ -55,6 +64,11 @@ class AnimalRegistrationSelectionState {
     bool clearSpeciesError = false,
     String? breedValidationError,
     bool clearBreedError = false,
+    AnimalAgeInputMode? ageInputMode,
+    AnimalAgeUnit? ageUnit,
+    DateTime? dateOfBirth,
+    bool clearDateOfBirth = false,
+    bool? isDateOfBirthEstimated,
   }) => AnimalRegistrationSelectionState(
     selectedSpeciesId: clearSpecies
         ? null
@@ -70,6 +84,11 @@ class AnimalRegistrationSelectionState {
     breedValidationError: clearBreedError
         ? null
         : breedValidationError ?? this.breedValidationError,
+    ageInputMode: ageInputMode ?? this.ageInputMode,
+    ageUnit: ageUnit ?? this.ageUnit,
+    dateOfBirth: clearDateOfBirth ? null : dateOfBirth ?? this.dateOfBirth,
+    isDateOfBirthEstimated:
+        isDateOfBirthEstimated ?? this.isDateOfBirthEstimated,
   );
 }
 
@@ -110,6 +129,22 @@ class AnimalRegistrationSelectionController
 
   void setCustomBreed(String value) {
     state = state.copyWith(customBreedName: value, clearBreedError: true);
+  }
+
+  void setAgeInputMode(AnimalAgeInputMode mode) {
+    state = state.copyWith(ageInputMode: mode);
+  }
+
+  void setAgeUnit(AnimalAgeUnit unit) {
+    state = state.copyWith(ageUnit: unit);
+  }
+
+  void setDateOfBirth(DateTime value) {
+    state = state.copyWith(dateOfBirth: AnimalAgeService.dateOnly(value));
+  }
+
+  void setDateOfBirthEstimated(bool value) {
+    state = state.copyWith(isDateOfBirthEstimated: value);
   }
 
   bool validate() {

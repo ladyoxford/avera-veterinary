@@ -272,6 +272,7 @@ Future<AssignedHospitalNumber> _register(
       animalName: Value(animalName),
       species: const Value('Dog'),
       weight: const Value(12),
+      dateOfBirth: Value(DateTime(2025, 1, 1)),
     ),
   );
 }

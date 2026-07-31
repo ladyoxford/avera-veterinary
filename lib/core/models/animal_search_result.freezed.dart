@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AnimalSearchResult {
 
- int get animalId; String get hospitalNumber; String get animalName; String get species; String? get breed; String? get sex; DateTime? get dateRegistered; String get ownerName; String get ownerPhone; String? get photo; String get status; DateTime? get statusUpdatedAt;
+ int get animalId; String get hospitalNumber; String get animalName; String get species; String? get breed; String? get sex; DateTime? get dateOfBirth; bool get isDateOfBirthEstimated; DateTime? get dateRegistered; String get ownerName; String get ownerPhone; String? get photo; String get status; DateTime? get statusUpdatedAt;
 /// Create a copy of AnimalSearchResult
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $AnimalSearchResultCopyWith<AnimalSearchResult> get copyWith => _$AnimalSearchRe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AnimalSearchResult&&(identical(other.animalId, animalId) || other.animalId == animalId)&&(identical(other.hospitalNumber, hospitalNumber) || other.hospitalNumber == hospitalNumber)&&(identical(other.animalName, animalName) || other.animalName == animalName)&&(identical(other.species, species) || other.species == species)&&(identical(other.breed, breed) || other.breed == breed)&&(identical(other.sex, sex) || other.sex == sex)&&(identical(other.dateRegistered, dateRegistered) || other.dateRegistered == dateRegistered)&&(identical(other.ownerName, ownerName) || other.ownerName == ownerName)&&(identical(other.ownerPhone, ownerPhone) || other.ownerPhone == ownerPhone)&&(identical(other.photo, photo) || other.photo == photo)&&(identical(other.status, status) || other.status == status)&&(identical(other.statusUpdatedAt, statusUpdatedAt) || other.statusUpdatedAt == statusUpdatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AnimalSearchResult&&(identical(other.animalId, animalId) || other.animalId == animalId)&&(identical(other.hospitalNumber, hospitalNumber) || other.hospitalNumber == hospitalNumber)&&(identical(other.animalName, animalName) || other.animalName == animalName)&&(identical(other.species, species) || other.species == species)&&(identical(other.breed, breed) || other.breed == breed)&&(identical(other.sex, sex) || other.sex == sex)&&(identical(other.dateOfBirth, dateOfBirth) || other.dateOfBirth == dateOfBirth)&&(identical(other.isDateOfBirthEstimated, isDateOfBirthEstimated) || other.isDateOfBirthEstimated == isDateOfBirthEstimated)&&(identical(other.dateRegistered, dateRegistered) || other.dateRegistered == dateRegistered)&&(identical(other.ownerName, ownerName) || other.ownerName == ownerName)&&(identical(other.ownerPhone, ownerPhone) || other.ownerPhone == ownerPhone)&&(identical(other.photo, photo) || other.photo == photo)&&(identical(other.status, status) || other.status == status)&&(identical(other.statusUpdatedAt, statusUpdatedAt) || other.statusUpdatedAt == statusUpdatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,animalId,hospitalNumber,animalName,species,breed,sex,dateRegistered,ownerName,ownerPhone,photo,status,statusUpdatedAt);
+int get hashCode => Object.hash(runtimeType,animalId,hospitalNumber,animalName,species,breed,sex,dateOfBirth,isDateOfBirthEstimated,dateRegistered,ownerName,ownerPhone,photo,status,statusUpdatedAt);
 
 @override
 String toString() {
-  return 'AnimalSearchResult(animalId: $animalId, hospitalNumber: $hospitalNumber, animalName: $animalName, species: $species, breed: $breed, sex: $sex, dateRegistered: $dateRegistered, ownerName: $ownerName, ownerPhone: $ownerPhone, photo: $photo, status: $status, statusUpdatedAt: $statusUpdatedAt)';
+  return 'AnimalSearchResult(animalId: $animalId, hospitalNumber: $hospitalNumber, animalName: $animalName, species: $species, breed: $breed, sex: $sex, dateOfBirth: $dateOfBirth, isDateOfBirthEstimated: $isDateOfBirthEstimated, dateRegistered: $dateRegistered, ownerName: $ownerName, ownerPhone: $ownerPhone, photo: $photo, status: $status, statusUpdatedAt: $statusUpdatedAt)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $AnimalSearchResultCopyWith<$Res>  {
   factory $AnimalSearchResultCopyWith(AnimalSearchResult value, $Res Function(AnimalSearchResult) _then) = _$AnimalSearchResultCopyWithImpl;
 @useResult
 $Res call({
- int animalId, String hospitalNumber, String animalName, String species, String? breed, String? sex, DateTime? dateRegistered, String ownerName, String ownerPhone, String? photo, String status, DateTime? statusUpdatedAt
+ int animalId, String hospitalNumber, String animalName, String species, String? breed, String? sex, DateTime? dateOfBirth, bool isDateOfBirthEstimated, DateTime? dateRegistered, String ownerName, String ownerPhone, String? photo, String status, DateTime? statusUpdatedAt
 });
 
 
@@ -65,7 +65,7 @@ class _$AnimalSearchResultCopyWithImpl<$Res>
 
 /// Create a copy of AnimalSearchResult
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? animalId = null,Object? hospitalNumber = null,Object? animalName = null,Object? species = null,Object? breed = freezed,Object? sex = freezed,Object? dateRegistered = freezed,Object? ownerName = null,Object? ownerPhone = null,Object? photo = freezed,Object? status = null,Object? statusUpdatedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? animalId = null,Object? hospitalNumber = null,Object? animalName = null,Object? species = null,Object? breed = freezed,Object? sex = freezed,Object? dateOfBirth = freezed,Object? isDateOfBirthEstimated = null,Object? dateRegistered = freezed,Object? ownerName = null,Object? ownerPhone = null,Object? photo = freezed,Object? status = null,Object? statusUpdatedAt = freezed,}) {
   return _then(_self.copyWith(
 animalId: null == animalId ? _self.animalId : animalId // ignore: cast_nullable_to_non_nullable
 as int,hospitalNumber: null == hospitalNumber ? _self.hospitalNumber : hospitalNumber // ignore: cast_nullable_to_non_nullable
@@ -73,7 +73,9 @@ as String,animalName: null == animalName ? _self.animalName : animalName // igno
 as String,species: null == species ? _self.species : species // ignore: cast_nullable_to_non_nullable
 as String,breed: freezed == breed ? _self.breed : breed // ignore: cast_nullable_to_non_nullable
 as String?,sex: freezed == sex ? _self.sex : sex // ignore: cast_nullable_to_non_nullable
-as String?,dateRegistered: freezed == dateRegistered ? _self.dateRegistered : dateRegistered // ignore: cast_nullable_to_non_nullable
+as String?,dateOfBirth: freezed == dateOfBirth ? _self.dateOfBirth : dateOfBirth // ignore: cast_nullable_to_non_nullable
+as DateTime?,isDateOfBirthEstimated: null == isDateOfBirthEstimated ? _self.isDateOfBirthEstimated : isDateOfBirthEstimated // ignore: cast_nullable_to_non_nullable
+as bool,dateRegistered: freezed == dateRegistered ? _self.dateRegistered : dateRegistered // ignore: cast_nullable_to_non_nullable
 as DateTime?,ownerName: null == ownerName ? _self.ownerName : ownerName // ignore: cast_nullable_to_non_nullable
 as String,ownerPhone: null == ownerPhone ? _self.ownerPhone : ownerPhone // ignore: cast_nullable_to_non_nullable
 as String,photo: freezed == photo ? _self.photo : photo // ignore: cast_nullable_to_non_nullable
@@ -164,10 +166,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int animalId,  String hospitalNumber,  String animalName,  String species,  String? breed,  String? sex,  DateTime? dateRegistered,  String ownerName,  String ownerPhone,  String? photo,  String status,  DateTime? statusUpdatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int animalId,  String hospitalNumber,  String animalName,  String species,  String? breed,  String? sex,  DateTime? dateOfBirth,  bool isDateOfBirthEstimated,  DateTime? dateRegistered,  String ownerName,  String ownerPhone,  String? photo,  String status,  DateTime? statusUpdatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AnimalSearchResult() when $default != null:
-return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.species,_that.breed,_that.sex,_that.dateRegistered,_that.ownerName,_that.ownerPhone,_that.photo,_that.status,_that.statusUpdatedAt);case _:
+return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.species,_that.breed,_that.sex,_that.dateOfBirth,_that.isDateOfBirthEstimated,_that.dateRegistered,_that.ownerName,_that.ownerPhone,_that.photo,_that.status,_that.statusUpdatedAt);case _:
   return orElse();
 
 }
@@ -185,10 +187,10 @@ return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.speci
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int animalId,  String hospitalNumber,  String animalName,  String species,  String? breed,  String? sex,  DateTime? dateRegistered,  String ownerName,  String ownerPhone,  String? photo,  String status,  DateTime? statusUpdatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int animalId,  String hospitalNumber,  String animalName,  String species,  String? breed,  String? sex,  DateTime? dateOfBirth,  bool isDateOfBirthEstimated,  DateTime? dateRegistered,  String ownerName,  String ownerPhone,  String? photo,  String status,  DateTime? statusUpdatedAt)  $default,) {final _that = this;
 switch (_that) {
 case _AnimalSearchResult():
-return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.species,_that.breed,_that.sex,_that.dateRegistered,_that.ownerName,_that.ownerPhone,_that.photo,_that.status,_that.statusUpdatedAt);case _:
+return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.species,_that.breed,_that.sex,_that.dateOfBirth,_that.isDateOfBirthEstimated,_that.dateRegistered,_that.ownerName,_that.ownerPhone,_that.photo,_that.status,_that.statusUpdatedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -205,10 +207,10 @@ return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.speci
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int animalId,  String hospitalNumber,  String animalName,  String species,  String? breed,  String? sex,  DateTime? dateRegistered,  String ownerName,  String ownerPhone,  String? photo,  String status,  DateTime? statusUpdatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int animalId,  String hospitalNumber,  String animalName,  String species,  String? breed,  String? sex,  DateTime? dateOfBirth,  bool isDateOfBirthEstimated,  DateTime? dateRegistered,  String ownerName,  String ownerPhone,  String? photo,  String status,  DateTime? statusUpdatedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _AnimalSearchResult() when $default != null:
-return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.species,_that.breed,_that.sex,_that.dateRegistered,_that.ownerName,_that.ownerPhone,_that.photo,_that.status,_that.statusUpdatedAt);case _:
+return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.species,_that.breed,_that.sex,_that.dateOfBirth,_that.isDateOfBirthEstimated,_that.dateRegistered,_that.ownerName,_that.ownerPhone,_that.photo,_that.status,_that.statusUpdatedAt);case _:
   return null;
 
 }
@@ -220,7 +222,7 @@ return $default(_that.animalId,_that.hospitalNumber,_that.animalName,_that.speci
 @JsonSerializable()
 
 class _AnimalSearchResult implements AnimalSearchResult {
-  const _AnimalSearchResult({required this.animalId, required this.hospitalNumber, required this.animalName, required this.species, this.breed, this.sex, this.dateRegistered, required this.ownerName, required this.ownerPhone, this.photo, required this.status, this.statusUpdatedAt});
+  const _AnimalSearchResult({required this.animalId, required this.hospitalNumber, required this.animalName, required this.species, this.breed, this.sex, this.dateOfBirth, this.isDateOfBirthEstimated = false, this.dateRegistered, required this.ownerName, required this.ownerPhone, this.photo, required this.status, this.statusUpdatedAt});
   factory _AnimalSearchResult.fromJson(Map<String, dynamic> json) => _$AnimalSearchResultFromJson(json);
 
 @override final  int animalId;
@@ -229,6 +231,8 @@ class _AnimalSearchResult implements AnimalSearchResult {
 @override final  String species;
 @override final  String? breed;
 @override final  String? sex;
+@override final  DateTime? dateOfBirth;
+@override@JsonKey() final  bool isDateOfBirthEstimated;
 @override final  DateTime? dateRegistered;
 @override final  String ownerName;
 @override final  String ownerPhone;
@@ -249,16 +253,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AnimalSearchResult&&(identical(other.animalId, animalId) || other.animalId == animalId)&&(identical(other.hospitalNumber, hospitalNumber) || other.hospitalNumber == hospitalNumber)&&(identical(other.animalName, animalName) || other.animalName == animalName)&&(identical(other.species, species) || other.species == species)&&(identical(other.breed, breed) || other.breed == breed)&&(identical(other.sex, sex) || other.sex == sex)&&(identical(other.dateRegistered, dateRegistered) || other.dateRegistered == dateRegistered)&&(identical(other.ownerName, ownerName) || other.ownerName == ownerName)&&(identical(other.ownerPhone, ownerPhone) || other.ownerPhone == ownerPhone)&&(identical(other.photo, photo) || other.photo == photo)&&(identical(other.status, status) || other.status == status)&&(identical(other.statusUpdatedAt, statusUpdatedAt) || other.statusUpdatedAt == statusUpdatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AnimalSearchResult&&(identical(other.animalId, animalId) || other.animalId == animalId)&&(identical(other.hospitalNumber, hospitalNumber) || other.hospitalNumber == hospitalNumber)&&(identical(other.animalName, animalName) || other.animalName == animalName)&&(identical(other.species, species) || other.species == species)&&(identical(other.breed, breed) || other.breed == breed)&&(identical(other.sex, sex) || other.sex == sex)&&(identical(other.dateOfBirth, dateOfBirth) || other.dateOfBirth == dateOfBirth)&&(identical(other.isDateOfBirthEstimated, isDateOfBirthEstimated) || other.isDateOfBirthEstimated == isDateOfBirthEstimated)&&(identical(other.dateRegistered, dateRegistered) || other.dateRegistered == dateRegistered)&&(identical(other.ownerName, ownerName) || other.ownerName == ownerName)&&(identical(other.ownerPhone, ownerPhone) || other.ownerPhone == ownerPhone)&&(identical(other.photo, photo) || other.photo == photo)&&(identical(other.status, status) || other.status == status)&&(identical(other.statusUpdatedAt, statusUpdatedAt) || other.statusUpdatedAt == statusUpdatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,animalId,hospitalNumber,animalName,species,breed,sex,dateRegistered,ownerName,ownerPhone,photo,status,statusUpdatedAt);
+int get hashCode => Object.hash(runtimeType,animalId,hospitalNumber,animalName,species,breed,sex,dateOfBirth,isDateOfBirthEstimated,dateRegistered,ownerName,ownerPhone,photo,status,statusUpdatedAt);
 
 @override
 String toString() {
-  return 'AnimalSearchResult(animalId: $animalId, hospitalNumber: $hospitalNumber, animalName: $animalName, species: $species, breed: $breed, sex: $sex, dateRegistered: $dateRegistered, ownerName: $ownerName, ownerPhone: $ownerPhone, photo: $photo, status: $status, statusUpdatedAt: $statusUpdatedAt)';
+  return 'AnimalSearchResult(animalId: $animalId, hospitalNumber: $hospitalNumber, animalName: $animalName, species: $species, breed: $breed, sex: $sex, dateOfBirth: $dateOfBirth, isDateOfBirthEstimated: $isDateOfBirthEstimated, dateRegistered: $dateRegistered, ownerName: $ownerName, ownerPhone: $ownerPhone, photo: $photo, status: $status, statusUpdatedAt: $statusUpdatedAt)';
 }
 
 
@@ -269,7 +273,7 @@ abstract mixin class _$AnimalSearchResultCopyWith<$Res> implements $AnimalSearch
   factory _$AnimalSearchResultCopyWith(_AnimalSearchResult value, $Res Function(_AnimalSearchResult) _then) = __$AnimalSearchResultCopyWithImpl;
 @override @useResult
 $Res call({
- int animalId, String hospitalNumber, String animalName, String species, String? breed, String? sex, DateTime? dateRegistered, String ownerName, String ownerPhone, String? photo, String status, DateTime? statusUpdatedAt
+ int animalId, String hospitalNumber, String animalName, String species, String? breed, String? sex, DateTime? dateOfBirth, bool isDateOfBirthEstimated, DateTime? dateRegistered, String ownerName, String ownerPhone, String? photo, String status, DateTime? statusUpdatedAt
 });
 
 
@@ -286,7 +290,7 @@ class __$AnimalSearchResultCopyWithImpl<$Res>
 
 /// Create a copy of AnimalSearchResult
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? animalId = null,Object? hospitalNumber = null,Object? animalName = null,Object? species = null,Object? breed = freezed,Object? sex = freezed,Object? dateRegistered = freezed,Object? ownerName = null,Object? ownerPhone = null,Object? photo = freezed,Object? status = null,Object? statusUpdatedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? animalId = null,Object? hospitalNumber = null,Object? animalName = null,Object? species = null,Object? breed = freezed,Object? sex = freezed,Object? dateOfBirth = freezed,Object? isDateOfBirthEstimated = null,Object? dateRegistered = freezed,Object? ownerName = null,Object? ownerPhone = null,Object? photo = freezed,Object? status = null,Object? statusUpdatedAt = freezed,}) {
   return _then(_AnimalSearchResult(
 animalId: null == animalId ? _self.animalId : animalId // ignore: cast_nullable_to_non_nullable
 as int,hospitalNumber: null == hospitalNumber ? _self.hospitalNumber : hospitalNumber // ignore: cast_nullable_to_non_nullable
@@ -294,7 +298,9 @@ as String,animalName: null == animalName ? _self.animalName : animalName // igno
 as String,species: null == species ? _self.species : species // ignore: cast_nullable_to_non_nullable
 as String,breed: freezed == breed ? _self.breed : breed // ignore: cast_nullable_to_non_nullable
 as String?,sex: freezed == sex ? _self.sex : sex // ignore: cast_nullable_to_non_nullable
-as String?,dateRegistered: freezed == dateRegistered ? _self.dateRegistered : dateRegistered // ignore: cast_nullable_to_non_nullable
+as String?,dateOfBirth: freezed == dateOfBirth ? _self.dateOfBirth : dateOfBirth // ignore: cast_nullable_to_non_nullable
+as DateTime?,isDateOfBirthEstimated: null == isDateOfBirthEstimated ? _self.isDateOfBirthEstimated : isDateOfBirthEstimated // ignore: cast_nullable_to_non_nullable
+as bool,dateRegistered: freezed == dateRegistered ? _self.dateRegistered : dateRegistered // ignore: cast_nullable_to_non_nullable
 as DateTime?,ownerName: null == ownerName ? _self.ownerName : ownerName // ignore: cast_nullable_to_non_nullable
 as String,ownerPhone: null == ownerPhone ? _self.ownerPhone : ownerPhone // ignore: cast_nullable_to_non_nullable
 as String,photo: freezed == photo ? _self.photo : photo // ignore: cast_nullable_to_non_nullable

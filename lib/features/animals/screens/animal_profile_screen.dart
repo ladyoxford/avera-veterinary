@@ -8,7 +8,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/database/app_database.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 class AnimalProfileScreen extends ConsumerWidget {
@@ -216,12 +218,14 @@ class _OverviewTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final referenceDate = ref.watch(animalAgeReferenceDateProvider);
     return _TabCanvas(
       children: [
         _SectionLabel('Patient details'),
         _PatientDetailsCard(
           profile: profile,
           clinicName: clinicName,
+          referenceDate: referenceDate,
           onPhotoPressed: () => _changePhoto(context, ref),
         ),
         const SizedBox(height: 24),
@@ -317,10 +321,12 @@ enum _PhotoAction { camera, gallery, remove }
 class _PatientDetailsCard extends StatelessWidget {
   const _PatientDetailsCard({
     required this.profile,
+    required this.referenceDate,
     this.clinicName,
     this.onPhotoPressed,
   });
   final AnimalProfile profile;
+  final DateTime referenceDate;
   final String? clinicName;
   final VoidCallback? onPhotoPressed;
 
@@ -374,7 +380,7 @@ class _PatientDetailsCard extends StatelessWidget {
                         animal.species,
                         animal.breed,
                         animal.sex,
-                        animal.age,
+                        _currentAge(animal, referenceDate, compact: true),
                       ),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
@@ -406,8 +412,13 @@ class _PatientDetailsCard extends StatelessWidget {
               _InfoItem(Icons.wc_rounded, 'Sex', animal.sex ?? 'Not recorded'),
               _InfoItem(
                 Icons.cake_outlined,
-                'Age',
-                animal.age == null ? 'Not recorded' : '${animal.age} years',
+                'Current age',
+                _currentAge(animal, referenceDate),
+              ),
+              _InfoItem(
+                Icons.event_outlined,
+                'Date of birth',
+                _birthDate(animal),
               ),
               _InfoItem(
                 Icons.monitor_weight_outlined,
@@ -469,12 +480,13 @@ class _PatientDetailsCard extends StatelessWidget {
   }
 }
 
-class _SignalmentTab extends StatelessWidget {
+class _SignalmentTab extends ConsumerWidget {
   const _SignalmentTab({required this.profile});
   final AnimalProfile profile;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final a = profile.animal;
+    final referenceDate = ref.watch(animalAgeReferenceDateProvider);
     return _TabCanvas(
       children: [
         _SectionLabel('Signalment'),
@@ -490,9 +502,10 @@ class _SignalmentTab extends StatelessWidget {
               _InfoItem(Icons.wc_rounded, 'Sex', a.sex ?? 'Not recorded'),
               _InfoItem(
                 Icons.cake_outlined,
-                'Age',
-                a.age == null ? 'Not recorded' : '${a.age} years',
+                'Current age',
+                _currentAge(a, referenceDate),
               ),
+              _InfoItem(Icons.event_outlined, 'Date of birth', _birthDate(a)),
               _InfoItem(
                 Icons.monitor_weight_outlined,
                 'Weight',
@@ -620,7 +633,11 @@ class _MedicalHistoryTab extends StatelessWidget {
         )
       else
         for (final visit in profile.visits) ...[
-          _ConsultationRow(visit: visit),
+          _ConsultationRow(
+            visit: visit,
+            dateOfBirth: profile.animal.dateOfBirth,
+            isEstimated: profile.animal.isDateOfBirthEstimated,
+          ),
           const SizedBox(height: 12),
         ],
     ],
@@ -642,7 +659,11 @@ class _ConsultationsTab extends StatelessWidget {
         )
       else
         for (final visit in profile.visits) ...[
-          _ConsultationRow(visit: visit),
+          _ConsultationRow(
+            visit: visit,
+            dateOfBirth: profile.animal.dateOfBirth,
+            isEstimated: profile.animal.isDateOfBirthEstimated,
+          ),
           const SizedBox(height: 12),
         ],
     ],
@@ -650,9 +671,15 @@ class _ConsultationsTab extends StatelessWidget {
 }
 
 class _ConsultationRow extends StatelessWidget {
-  const _ConsultationRow({required this.visit});
+  const _ConsultationRow({
+    required this.visit,
+    required this.dateOfBirth,
+    required this.isEstimated,
+  });
 
   final dynamic visit;
+  final DateTime? dateOfBirth;
+  final bool isEstimated;
 
   @override
   Widget build(BuildContext context) {
@@ -681,6 +708,14 @@ class _ConsultationRow extends StatelessWidget {
                       '${_date(visit.visitDate)} - ${visit.veterinarian ?? 'Veterinarian not recorded'}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if (dateOfBirth != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Age at consultation: '
+                        '${AnimalAgeService.displayAge(birthDate: dateOfBirth!, referenceDate: visit.visitDate, estimated: isEstimated)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Text(
                       summary,
@@ -1644,11 +1679,40 @@ String _initials(String value) => value
     .map((part) => part.isEmpty ? '' : part[0])
     .join()
     .toUpperCase();
-String _signalment(String species, String? breed, String? sex, int? age) => [
+String _currentAge(
+  Animal animal,
+  DateTime referenceDate, {
+  bool compact = false,
+}) {
+  final birthDate = animal.dateOfBirth;
+  if (birthDate != null) {
+    final age = compact
+        ? AnimalAgeService.formatCompactAge(birthDate, referenceDate)
+        : AnimalAgeService.formatMedicalProfileAge(birthDate, referenceDate);
+    return animal.isDateOfBirthEstimated ? '$age (estimated)' : age;
+  }
+  return animal.age == null
+      ? 'Not recorded'
+      : '${animal.age} yr (legacy estimate)';
+}
+
+String _birthDate(Animal animal) {
+  final birthDate = animal.dateOfBirth;
+  if (birthDate == null) return 'Not recorded';
+  final formatted = DateFormat.yMMMMd().format(birthDate);
+  return animal.isDateOfBirthEstimated ? 'Estimated: $formatted' : formatted;
+}
+
+String _signalment(
+  String species,
+  String? breed,
+  String? sex,
+  String currentAge,
+) => [
   species,
   if (breed?.isNotEmpty ?? false) breed!,
   if (sex?.isNotEmpty ?? false) sex!,
-  if (age != null) '$age yrs',
+  if (currentAge != 'Not recorded') currentAge,
 ].join('  •  ');
 
 const _avatarColors = [

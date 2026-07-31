@@ -45,8 +45,18 @@ final databaseProvider = Provider<AppDatabase>((ref) {
   return db;
 });
 
+final appClockProvider = Provider<AppClock>((ref) => const LocalAppClock());
+
+/// Replaced in tests to make age previews and current-age displays deterministic.
+final animalAgeReferenceDateProvider = Provider<DateTime>(
+  (ref) => DateTime.now(),
+);
+
 final clinicRepositoryProvider = Provider<ClinicRepository>((ref) {
-  return ClinicRepository(ref.watch(databaseProvider));
+  return ClinicRepository(
+    ref.watch(databaseProvider),
+    clock: ref.watch(appClockProvider),
+  );
 });
 
 final platformRepositoryProvider = Provider<PlatformRepository>((ref) {

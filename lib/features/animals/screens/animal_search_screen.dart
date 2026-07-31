@@ -9,6 +9,7 @@ import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/models/animal_search_result.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
 import 'cloud_patient_screens.dart';
 
@@ -289,7 +290,10 @@ class _AnimalSearchCard extends ConsumerWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _signalment(animal),
+                      _signalment(
+                        animal,
+                        ref.watch(animalAgeReferenceDateProvider),
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -323,10 +327,17 @@ class _AnimalSearchCard extends ConsumerWidget {
     );
   }
 
-  String _signalment(AnimalSearchResult animal) => [
+  String _signalment(AnimalSearchResult animal, DateTime referenceDate) => [
     animal.species,
     if (animal.breed?.trim().isNotEmpty ?? false) animal.breed!,
     if (animal.sex?.trim().isNotEmpty ?? false) animal.sex!,
+    if (animal.dateOfBirth != null)
+      AnimalAgeService.displayAge(
+        birthDate: animal.dateOfBirth!,
+        referenceDate: referenceDate,
+        estimated: animal.isDateOfBirthEstimated,
+        compact: true,
+      ),
   ].join('  •  ');
 
   Future<void> _showStatusSheet(BuildContext context, WidgetRef ref) async {

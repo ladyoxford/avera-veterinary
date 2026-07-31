@@ -14,6 +14,10 @@ _AnimalSearchResult _$AnimalSearchResultFromJson(Map<String, dynamic> json) =>
       species: json['species'] as String,
       breed: json['breed'] as String?,
       sex: json['sex'] as String?,
+      dateOfBirth: json['dateOfBirth'] == null
+          ? null
+          : DateTime.parse(json['dateOfBirth'] as String),
+      isDateOfBirthEstimated: json['isDateOfBirthEstimated'] as bool? ?? false,
       dateRegistered: json['dateRegistered'] == null
           ? null
           : DateTime.parse(json['dateRegistered'] as String),
@@ -34,6 +38,8 @@ Map<String, dynamic> _$AnimalSearchResultToJson(_AnimalSearchResult instance) =>
       'species': instance.species,
       'breed': instance.breed,
       'sex': instance.sex,
+      'dateOfBirth': instance.dateOfBirth?.toIso8601String(),
+      'isDateOfBirthEstimated': instance.isDateOfBirthEstimated,
       'dateRegistered': instance.dateRegistered?.toIso8601String(),
       'ownerName': instance.ownerName,
       'ownerPhone': instance.ownerPhone,

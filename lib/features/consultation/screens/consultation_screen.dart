@@ -10,6 +10,7 @@ import 'package:iconsax/iconsax.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/security/access_control.dart';
+import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 
@@ -57,6 +58,7 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
   bool _loadingRecord = false;
   bool _saving = false;
   String? _loadError;
+  DateTime? _consultationDate;
 
   @override
   void initState() {
@@ -98,6 +100,7 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
         unawaited(_logPatientDiagnostic(visit));
       }
       animalId = visit.animalId;
+      _consultationDate = visit.visitDate;
       complaint.text = visit.chiefComplaint ?? '';
       history.text = visit.history ?? '';
       signs.text = visit.physicalExamination ?? '';
@@ -175,6 +178,7 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
             )
           : _ConsultationForm(
               animalId: animalId,
+              consultationDate: _consultationDate,
               isNew: widget.isNew,
               isReadOnly: widget.isView,
               saving: _saving,
@@ -298,6 +302,7 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
 class _ConsultationForm extends ConsumerWidget {
   const _ConsultationForm({
     required this.animalId,
+    required this.consultationDate,
     required this.isNew,
     required this.isReadOnly,
     required this.saving,
@@ -314,6 +319,7 @@ class _ConsultationForm extends ConsumerWidget {
   });
 
   final int? animalId;
+  final DateTime? consultationDate;
   final bool isNew;
   final bool isReadOnly;
   final bool saving;
@@ -352,6 +358,8 @@ class _ConsultationForm extends ConsumerWidget {
         final selectedPatient = safeSelectedPatientId == null
             ? null
             : canonicalById[safeSelectedPatientId];
+        final DateTime ageReferenceDate =
+            consultationDate ?? ref.watch(animalAgeReferenceDateProvider);
         final subtitle = isNew
             ? '${veterinarian.text.isEmpty ? 'Veterinarian' : veterinarian.text} • Select patient context'
             : '${veterinarian.text.isEmpty ? 'Clinic team' : veterinarian.text} • Saved consultation';
@@ -397,6 +405,19 @@ class _ConsultationForm extends ConsumerWidget {
                   onChanged: snapshot.hasData ? onAnimalChanged : null,
                 ),
               ),
+            if (selectedPatient?.dateOfBirth != null) ...[
+              const SizedBox(height: AveraSpacing.cardGap),
+              _ReadOnlyFieldCard(
+                label: isReadOnly
+                    ? 'Age at Consultation'
+                    : 'Current Patient Age',
+                value: AnimalAgeService.displayAge(
+                  birthDate: selectedPatient!.dateOfBirth!,
+                  referenceDate: ageReferenceDate,
+                  estimated: selectedPatient.isDateOfBirthEstimated,
+                ),
+              ),
+            ],
             const SizedBox(height: AveraSpacing.cardGap),
             _ConsultationFieldCard(
               controller: complaint,

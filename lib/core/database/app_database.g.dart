@@ -5926,6 +5926,55 @@ class $AnimalsTable extends Animals with TableInfo<$AnimalsTable, Animal> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isDateOfBirthEstimatedMeta =
+      const VerificationMeta('isDateOfBirthEstimated');
+  @override
+  late final GeneratedColumn<bool> isDateOfBirthEstimated =
+      GeneratedColumn<bool>(
+        'is_date_of_birth_estimated',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("is_date_of_birth_estimated" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _originalAgeValueMeta = const VerificationMeta(
+    'originalAgeValue',
+  );
+  @override
+  late final GeneratedColumn<int> originalAgeValue = GeneratedColumn<int>(
+    'original_age_value',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _originalAgeUnitMeta = const VerificationMeta(
+    'originalAgeUnit',
+  );
+  @override
+  late final GeneratedColumn<String> originalAgeUnit = GeneratedColumn<String>(
+    'original_age_unit',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ageRecordedAtMeta = const VerificationMeta(
+    'ageRecordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> ageRecordedAt =
+      GeneratedColumn<DateTime>(
+        'age_recorded_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _weightMeta = const VerificationMeta('weight');
   @override
   late final GeneratedColumn<double> weight = GeneratedColumn<double>(
@@ -6088,6 +6137,10 @@ class $AnimalsTable extends Animals with TableInfo<$AnimalsTable, Animal> {
     sex,
     age,
     dateOfBirth,
+    isDateOfBirthEstimated,
+    originalAgeValue,
+    originalAgeUnit,
+    ageRecordedAt,
     weight,
     color,
     microchipNumber,
@@ -6175,6 +6228,42 @@ class $AnimalsTable extends Animals with TableInfo<$AnimalsTable, Animal> {
         dateOfBirth.isAcceptableOrUnknown(
           data['date_of_birth']!,
           _dateOfBirthMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_date_of_birth_estimated')) {
+      context.handle(
+        _isDateOfBirthEstimatedMeta,
+        isDateOfBirthEstimated.isAcceptableOrUnknown(
+          data['is_date_of_birth_estimated']!,
+          _isDateOfBirthEstimatedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('original_age_value')) {
+      context.handle(
+        _originalAgeValueMeta,
+        originalAgeValue.isAcceptableOrUnknown(
+          data['original_age_value']!,
+          _originalAgeValueMeta,
+        ),
+      );
+    }
+    if (data.containsKey('original_age_unit')) {
+      context.handle(
+        _originalAgeUnitMeta,
+        originalAgeUnit.isAcceptableOrUnknown(
+          data['original_age_unit']!,
+          _originalAgeUnitMeta,
+        ),
+      );
+    }
+    if (data.containsKey('age_recorded_at')) {
+      context.handle(
+        _ageRecordedAtMeta,
+        ageRecordedAt.isAcceptableOrUnknown(
+          data['age_recorded_at']!,
+          _ageRecordedAtMeta,
         ),
       );
     }
@@ -6340,6 +6429,22 @@ class $AnimalsTable extends Animals with TableInfo<$AnimalsTable, Animal> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}date_of_birth'],
       ),
+      isDateOfBirthEstimated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_date_of_birth_estimated'],
+      )!,
+      originalAgeValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}original_age_value'],
+      ),
+      originalAgeUnit: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}original_age_unit'],
+      ),
+      ageRecordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}age_recorded_at'],
+      ),
       weight: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}weight'],
@@ -6415,6 +6520,10 @@ class Animal extends DataClass implements Insertable<Animal> {
   final String? sex;
   final int? age;
   final DateTime? dateOfBirth;
+  final bool isDateOfBirthEstimated;
+  final int? originalAgeValue;
+  final String? originalAgeUnit;
+  final DateTime? ageRecordedAt;
   final double? weight;
   final String? color;
   final String? microchipNumber;
@@ -6439,6 +6548,10 @@ class Animal extends DataClass implements Insertable<Animal> {
     this.sex,
     this.age,
     this.dateOfBirth,
+    required this.isDateOfBirthEstimated,
+    this.originalAgeValue,
+    this.originalAgeUnit,
+    this.ageRecordedAt,
     this.weight,
     this.color,
     this.microchipNumber,
@@ -6473,6 +6586,16 @@ class Animal extends DataClass implements Insertable<Animal> {
     }
     if (!nullToAbsent || dateOfBirth != null) {
       map['date_of_birth'] = Variable<DateTime>(dateOfBirth);
+    }
+    map['is_date_of_birth_estimated'] = Variable<bool>(isDateOfBirthEstimated);
+    if (!nullToAbsent || originalAgeValue != null) {
+      map['original_age_value'] = Variable<int>(originalAgeValue);
+    }
+    if (!nullToAbsent || originalAgeUnit != null) {
+      map['original_age_unit'] = Variable<String>(originalAgeUnit);
+    }
+    if (!nullToAbsent || ageRecordedAt != null) {
+      map['age_recorded_at'] = Variable<DateTime>(ageRecordedAt);
     }
     if (!nullToAbsent || weight != null) {
       map['weight'] = Variable<double>(weight);
@@ -6530,6 +6653,16 @@ class Animal extends DataClass implements Insertable<Animal> {
       dateOfBirth: dateOfBirth == null && nullToAbsent
           ? const Value.absent()
           : Value(dateOfBirth),
+      isDateOfBirthEstimated: Value(isDateOfBirthEstimated),
+      originalAgeValue: originalAgeValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originalAgeValue),
+      originalAgeUnit: originalAgeUnit == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originalAgeUnit),
+      ageRecordedAt: ageRecordedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ageRecordedAt),
       weight: weight == null && nullToAbsent
           ? const Value.absent()
           : Value(weight),
@@ -6582,6 +6715,12 @@ class Animal extends DataClass implements Insertable<Animal> {
       sex: serializer.fromJson<String?>(json['sex']),
       age: serializer.fromJson<int?>(json['age']),
       dateOfBirth: serializer.fromJson<DateTime?>(json['dateOfBirth']),
+      isDateOfBirthEstimated: serializer.fromJson<bool>(
+        json['isDateOfBirthEstimated'],
+      ),
+      originalAgeValue: serializer.fromJson<int?>(json['originalAgeValue']),
+      originalAgeUnit: serializer.fromJson<String?>(json['originalAgeUnit']),
+      ageRecordedAt: serializer.fromJson<DateTime?>(json['ageRecordedAt']),
       weight: serializer.fromJson<double?>(json['weight']),
       color: serializer.fromJson<String?>(json['color']),
       microchipNumber: serializer.fromJson<String?>(json['microchipNumber']),
@@ -6617,6 +6756,10 @@ class Animal extends DataClass implements Insertable<Animal> {
       'sex': serializer.toJson<String?>(sex),
       'age': serializer.toJson<int?>(age),
       'dateOfBirth': serializer.toJson<DateTime?>(dateOfBirth),
+      'isDateOfBirthEstimated': serializer.toJson<bool>(isDateOfBirthEstimated),
+      'originalAgeValue': serializer.toJson<int?>(originalAgeValue),
+      'originalAgeUnit': serializer.toJson<String?>(originalAgeUnit),
+      'ageRecordedAt': serializer.toJson<DateTime?>(ageRecordedAt),
       'weight': serializer.toJson<double?>(weight),
       'color': serializer.toJson<String?>(color),
       'microchipNumber': serializer.toJson<String?>(microchipNumber),
@@ -6650,6 +6793,10 @@ class Animal extends DataClass implements Insertable<Animal> {
     Value<String?> sex = const Value.absent(),
     Value<int?> age = const Value.absent(),
     Value<DateTime?> dateOfBirth = const Value.absent(),
+    bool? isDateOfBirthEstimated,
+    Value<int?> originalAgeValue = const Value.absent(),
+    Value<String?> originalAgeUnit = const Value.absent(),
+    Value<DateTime?> ageRecordedAt = const Value.absent(),
     Value<double?> weight = const Value.absent(),
     Value<String?> color = const Value.absent(),
     Value<String?> microchipNumber = const Value.absent(),
@@ -6674,6 +6821,17 @@ class Animal extends DataClass implements Insertable<Animal> {
     sex: sex.present ? sex.value : this.sex,
     age: age.present ? age.value : this.age,
     dateOfBirth: dateOfBirth.present ? dateOfBirth.value : this.dateOfBirth,
+    isDateOfBirthEstimated:
+        isDateOfBirthEstimated ?? this.isDateOfBirthEstimated,
+    originalAgeValue: originalAgeValue.present
+        ? originalAgeValue.value
+        : this.originalAgeValue,
+    originalAgeUnit: originalAgeUnit.present
+        ? originalAgeUnit.value
+        : this.originalAgeUnit,
+    ageRecordedAt: ageRecordedAt.present
+        ? ageRecordedAt.value
+        : this.ageRecordedAt,
     weight: weight.present ? weight.value : this.weight,
     color: color.present ? color.value : this.color,
     microchipNumber: microchipNumber.present
@@ -6719,6 +6877,18 @@ class Animal extends DataClass implements Insertable<Animal> {
       dateOfBirth: data.dateOfBirth.present
           ? data.dateOfBirth.value
           : this.dateOfBirth,
+      isDateOfBirthEstimated: data.isDateOfBirthEstimated.present
+          ? data.isDateOfBirthEstimated.value
+          : this.isDateOfBirthEstimated,
+      originalAgeValue: data.originalAgeValue.present
+          ? data.originalAgeValue.value
+          : this.originalAgeValue,
+      originalAgeUnit: data.originalAgeUnit.present
+          ? data.originalAgeUnit.value
+          : this.originalAgeUnit,
+      ageRecordedAt: data.ageRecordedAt.present
+          ? data.ageRecordedAt.value
+          : this.ageRecordedAt,
       weight: data.weight.present ? data.weight.value : this.weight,
       color: data.color.present ? data.color.value : this.color,
       microchipNumber: data.microchipNumber.present
@@ -6764,6 +6934,10 @@ class Animal extends DataClass implements Insertable<Animal> {
           ..write('sex: $sex, ')
           ..write('age: $age, ')
           ..write('dateOfBirth: $dateOfBirth, ')
+          ..write('isDateOfBirthEstimated: $isDateOfBirthEstimated, ')
+          ..write('originalAgeValue: $originalAgeValue, ')
+          ..write('originalAgeUnit: $originalAgeUnit, ')
+          ..write('ageRecordedAt: $ageRecordedAt, ')
           ..write('weight: $weight, ')
           ..write('color: $color, ')
           ..write('microchipNumber: $microchipNumber, ')
@@ -6793,6 +6967,10 @@ class Animal extends DataClass implements Insertable<Animal> {
     sex,
     age,
     dateOfBirth,
+    isDateOfBirthEstimated,
+    originalAgeValue,
+    originalAgeUnit,
+    ageRecordedAt,
     weight,
     color,
     microchipNumber,
@@ -6821,6 +6999,10 @@ class Animal extends DataClass implements Insertable<Animal> {
           other.sex == this.sex &&
           other.age == this.age &&
           other.dateOfBirth == this.dateOfBirth &&
+          other.isDateOfBirthEstimated == this.isDateOfBirthEstimated &&
+          other.originalAgeValue == this.originalAgeValue &&
+          other.originalAgeUnit == this.originalAgeUnit &&
+          other.ageRecordedAt == this.ageRecordedAt &&
           other.weight == this.weight &&
           other.color == this.color &&
           other.microchipNumber == this.microchipNumber &&
@@ -6847,6 +7029,10 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
   final Value<String?> sex;
   final Value<int?> age;
   final Value<DateTime?> dateOfBirth;
+  final Value<bool> isDateOfBirthEstimated;
+  final Value<int?> originalAgeValue;
+  final Value<String?> originalAgeUnit;
+  final Value<DateTime?> ageRecordedAt;
   final Value<double?> weight;
   final Value<String?> color;
   final Value<String?> microchipNumber;
@@ -6871,6 +7057,10 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
     this.sex = const Value.absent(),
     this.age = const Value.absent(),
     this.dateOfBirth = const Value.absent(),
+    this.isDateOfBirthEstimated = const Value.absent(),
+    this.originalAgeValue = const Value.absent(),
+    this.originalAgeUnit = const Value.absent(),
+    this.ageRecordedAt = const Value.absent(),
     this.weight = const Value.absent(),
     this.color = const Value.absent(),
     this.microchipNumber = const Value.absent(),
@@ -6896,6 +7086,10 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
     this.sex = const Value.absent(),
     this.age = const Value.absent(),
     this.dateOfBirth = const Value.absent(),
+    this.isDateOfBirthEstimated = const Value.absent(),
+    this.originalAgeValue = const Value.absent(),
+    this.originalAgeUnit = const Value.absent(),
+    this.ageRecordedAt = const Value.absent(),
     this.weight = const Value.absent(),
     this.color = const Value.absent(),
     this.microchipNumber = const Value.absent(),
@@ -6925,6 +7119,10 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
     Expression<String>? sex,
     Expression<int>? age,
     Expression<DateTime>? dateOfBirth,
+    Expression<bool>? isDateOfBirthEstimated,
+    Expression<int>? originalAgeValue,
+    Expression<String>? originalAgeUnit,
+    Expression<DateTime>? ageRecordedAt,
     Expression<double>? weight,
     Expression<String>? color,
     Expression<String>? microchipNumber,
@@ -6950,6 +7148,11 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
       if (sex != null) 'sex': sex,
       if (age != null) 'age': age,
       if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
+      if (isDateOfBirthEstimated != null)
+        'is_date_of_birth_estimated': isDateOfBirthEstimated,
+      if (originalAgeValue != null) 'original_age_value': originalAgeValue,
+      if (originalAgeUnit != null) 'original_age_unit': originalAgeUnit,
+      if (ageRecordedAt != null) 'age_recorded_at': ageRecordedAt,
       if (weight != null) 'weight': weight,
       if (color != null) 'color': color,
       if (microchipNumber != null) 'microchip_number': microchipNumber,
@@ -6980,6 +7183,10 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
     Value<String?>? sex,
     Value<int?>? age,
     Value<DateTime?>? dateOfBirth,
+    Value<bool>? isDateOfBirthEstimated,
+    Value<int?>? originalAgeValue,
+    Value<String?>? originalAgeUnit,
+    Value<DateTime?>? ageRecordedAt,
     Value<double?>? weight,
     Value<String?>? color,
     Value<String?>? microchipNumber,
@@ -7005,6 +7212,11 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
       sex: sex ?? this.sex,
       age: age ?? this.age,
       dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      isDateOfBirthEstimated:
+          isDateOfBirthEstimated ?? this.isDateOfBirthEstimated,
+      originalAgeValue: originalAgeValue ?? this.originalAgeValue,
+      originalAgeUnit: originalAgeUnit ?? this.originalAgeUnit,
+      ageRecordedAt: ageRecordedAt ?? this.ageRecordedAt,
       weight: weight ?? this.weight,
       color: color ?? this.color,
       microchipNumber: microchipNumber ?? this.microchipNumber,
@@ -7054,6 +7266,20 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
     }
     if (dateOfBirth.present) {
       map['date_of_birth'] = Variable<DateTime>(dateOfBirth.value);
+    }
+    if (isDateOfBirthEstimated.present) {
+      map['is_date_of_birth_estimated'] = Variable<bool>(
+        isDateOfBirthEstimated.value,
+      );
+    }
+    if (originalAgeValue.present) {
+      map['original_age_value'] = Variable<int>(originalAgeValue.value);
+    }
+    if (originalAgeUnit.present) {
+      map['original_age_unit'] = Variable<String>(originalAgeUnit.value);
+    }
+    if (ageRecordedAt.present) {
+      map['age_recorded_at'] = Variable<DateTime>(ageRecordedAt.value);
     }
     if (weight.present) {
       map['weight'] = Variable<double>(weight.value);
@@ -7118,6 +7344,10 @@ class AnimalsCompanion extends UpdateCompanion<Animal> {
           ..write('sex: $sex, ')
           ..write('age: $age, ')
           ..write('dateOfBirth: $dateOfBirth, ')
+          ..write('isDateOfBirthEstimated: $isDateOfBirthEstimated, ')
+          ..write('originalAgeValue: $originalAgeValue, ')
+          ..write('originalAgeUnit: $originalAgeUnit, ')
+          ..write('ageRecordedAt: $ageRecordedAt, ')
           ..write('weight: $weight, ')
           ..write('color: $color, ')
           ..write('microchipNumber: $microchipNumber, ')
@@ -49326,6 +49556,10 @@ typedef $$AnimalsTableCreateCompanionBuilder =
       Value<String?> sex,
       Value<int?> age,
       Value<DateTime?> dateOfBirth,
+      Value<bool> isDateOfBirthEstimated,
+      Value<int?> originalAgeValue,
+      Value<String?> originalAgeUnit,
+      Value<DateTime?> ageRecordedAt,
       Value<double?> weight,
       Value<String?> color,
       Value<String?> microchipNumber,
@@ -49352,6 +49586,10 @@ typedef $$AnimalsTableUpdateCompanionBuilder =
       Value<String?> sex,
       Value<int?> age,
       Value<DateTime?> dateOfBirth,
+      Value<bool> isDateOfBirthEstimated,
+      Value<int?> originalAgeValue,
+      Value<String?> originalAgeUnit,
+      Value<DateTime?> ageRecordedAt,
       Value<double?> weight,
       Value<String?> color,
       Value<String?> microchipNumber,
@@ -49604,6 +49842,26 @@ class $$AnimalsTableFilterComposer
 
   ColumnFilters<DateTime> get dateOfBirth => $composableBuilder(
     column: $table.dateOfBirth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDateOfBirthEstimated => $composableBuilder(
+    column: $table.isDateOfBirthEstimated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get originalAgeValue => $composableBuilder(
+    column: $table.originalAgeValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get originalAgeUnit => $composableBuilder(
+    column: $table.originalAgeUnit,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get ageRecordedAt => $composableBuilder(
+    column: $table.ageRecordedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -49945,6 +50203,26 @@ class $$AnimalsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isDateOfBirthEstimated => $composableBuilder(
+    column: $table.isDateOfBirthEstimated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get originalAgeValue => $composableBuilder(
+    column: $table.originalAgeValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get originalAgeUnit => $composableBuilder(
+    column: $table.originalAgeUnit,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get ageRecordedAt => $composableBuilder(
+    column: $table.ageRecordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get weight => $composableBuilder(
     column: $table.weight,
     builder: (column) => ColumnOrderings(column),
@@ -50093,6 +50371,26 @@ class $$AnimalsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get dateOfBirth => $composableBuilder(
     column: $table.dateOfBirth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDateOfBirthEstimated => $composableBuilder(
+    column: $table.isDateOfBirthEstimated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get originalAgeValue => $composableBuilder(
+    column: $table.originalAgeValue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get originalAgeUnit => $composableBuilder(
+    column: $table.originalAgeUnit,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get ageRecordedAt => $composableBuilder(
+    column: $table.ageRecordedAt,
     builder: (column) => column,
   );
 
@@ -50423,6 +50721,10 @@ class $$AnimalsTableTableManager
                 Value<String?> sex = const Value.absent(),
                 Value<int?> age = const Value.absent(),
                 Value<DateTime?> dateOfBirth = const Value.absent(),
+                Value<bool> isDateOfBirthEstimated = const Value.absent(),
+                Value<int?> originalAgeValue = const Value.absent(),
+                Value<String?> originalAgeUnit = const Value.absent(),
+                Value<DateTime?> ageRecordedAt = const Value.absent(),
                 Value<double?> weight = const Value.absent(),
                 Value<String?> color = const Value.absent(),
                 Value<String?> microchipNumber = const Value.absent(),
@@ -50447,6 +50749,10 @@ class $$AnimalsTableTableManager
                 sex: sex,
                 age: age,
                 dateOfBirth: dateOfBirth,
+                isDateOfBirthEstimated: isDateOfBirthEstimated,
+                originalAgeValue: originalAgeValue,
+                originalAgeUnit: originalAgeUnit,
+                ageRecordedAt: ageRecordedAt,
                 weight: weight,
                 color: color,
                 microchipNumber: microchipNumber,
@@ -50473,6 +50779,10 @@ class $$AnimalsTableTableManager
                 Value<String?> sex = const Value.absent(),
                 Value<int?> age = const Value.absent(),
                 Value<DateTime?> dateOfBirth = const Value.absent(),
+                Value<bool> isDateOfBirthEstimated = const Value.absent(),
+                Value<int?> originalAgeValue = const Value.absent(),
+                Value<String?> originalAgeUnit = const Value.absent(),
+                Value<DateTime?> ageRecordedAt = const Value.absent(),
                 Value<double?> weight = const Value.absent(),
                 Value<String?> color = const Value.absent(),
                 Value<String?> microchipNumber = const Value.absent(),
@@ -50497,6 +50807,10 @@ class $$AnimalsTableTableManager
                 sex: sex,
                 age: age,
                 dateOfBirth: dateOfBirth,
+                isDateOfBirthEstimated: isDateOfBirthEstimated,
+                originalAgeValue: originalAgeValue,
+                originalAgeUnit: originalAgeUnit,
+                ageRecordedAt: ageRecordedAt,
                 weight: weight,
                 color: color,
                 microchipNumber: microchipNumber,

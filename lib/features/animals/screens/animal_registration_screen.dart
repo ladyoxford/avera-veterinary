@@ -5,12 +5,14 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/config/animal_registration_provider.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/animal_catalogue.dart';
+import '../../../core/services/animal_age_service.dart';
 import '../../../core/services/hospital_numbering.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
@@ -28,6 +30,7 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
     final formKey = useMemoized(GlobalKey<FormState>.new);
     final animalName = useTextEditingController();
     final age = useTextEditingController();
+    useListenable(age);
     final weight = useTextEditingController();
     final color = useTextEditingController();
     final microchip = useTextEditingController();
@@ -39,17 +42,31 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
     final sex = useState('Female');
     final photoPath = useState<String?>(null);
     final saving = useState(false);
+    final ageValidationError = useState<String?>(null);
     final submissionId = useMemoized(() => const Uuid().v4());
     final numberPreview = ref.watch(hospitalNumberPreviewProvider);
     final selection = ref.watch(animalRegistrationSelectionProvider);
     final selectionController = ref.read(
       animalRegistrationSelectionProvider.notifier,
     );
-    final clinicName = ref
-        .watch(userSessionProvider)
-        .valueOrNull
-        ?.clinic
-        .clinicName;
+    final sessionValue = ref.watch(userSessionProvider).valueOrNull;
+    final clinicName = sessionValue?.clinic.clinicName;
+    final referenceDate = sessionValue == null
+        ? ref.watch(animalAgeReferenceDateProvider)
+        : ref.watch(appClockProvider).nowForClinic(sessionValue.clinic);
+    final enteredAge = int.tryParse(age.text.trim());
+    final previewBirthDate =
+        selection.ageInputMode == AnimalAgeInputMode.dateOfBirth
+        ? selection.dateOfBirth
+        : enteredAge == null ||
+              enteredAge < 0 ||
+              (enteredAge == 0 && selection.ageUnit != AnimalAgeUnit.days)
+        ? null
+        : AnimalAgeService.estimateDateOfBirth(
+            value: enteredAge,
+            unit: selection.ageUnit,
+            referenceDate: referenceDate,
+          );
 
     Future<void> selectSpecies() async {
       final selected = await showSearchableCatalogueSelector(
@@ -95,10 +112,30 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
       photoPath.value = photo?.path;
     }
 
+    Future<void> selectDateOfBirth() async {
+      final selected = await showDatePicker(
+        context: context,
+        initialDate: selection.dateOfBirth ?? referenceDate,
+        firstDate: DateTime(referenceDate.year - 100),
+        lastDate: referenceDate,
+        helpText: 'Select Date of Birth',
+      );
+      if (selected == null) return;
+      selectionController.setDateOfBirth(selected);
+      ageValidationError.value = null;
+    }
+
     Future<void> save() async {
+      ageValidationError.value = _validateAgeSelection(
+        selection: selection,
+        ageText: age.text,
+        referenceDate: referenceDate,
+      );
       final fieldsValid = formKey.currentState?.validate() ?? false;
       final selectionValid = selectionController.validate();
-      if (!fieldsValid || !selectionValid) return;
+      if (!fieldsValid || !selectionValid || ageValidationError.value != null) {
+        return;
+      }
       final resolved = ref.read(animalRegistrationSelectionProvider);
       final speciesName = resolved.resolvedSpeciesName!;
       final breedName = resolved.resolvedBreedName!;
@@ -106,6 +143,21 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
       try {
         final repo = ref.read(clinicRepositoryProvider);
         final session = await ref.read(userSessionProvider.future);
+        final registrationDate = ref
+            .read(appClockProvider)
+            .nowForClinic(session.clinic);
+        final originalAge = int.tryParse(age.text.trim());
+        final dateOfBirth =
+            resolved.ageInputMode == AnimalAgeInputMode.dateOfBirth
+            ? resolved.dateOfBirth!
+            : AnimalAgeService.estimateDateOfBirth(
+                value: originalAge!,
+                unit: resolved.ageUnit,
+                referenceDate: registrationDate,
+              );
+        final isEstimated =
+            resolved.ageInputMode == AnimalAgeInputMode.currentAge ||
+            resolved.isDateOfBirthEstimated;
         final assignment = await repo.registerAnimalWithHospitalNumber(
           session: session,
           submissionId: submissionId,
@@ -122,7 +174,18 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
             species: Value(speciesName),
             breed: Value(breedName),
             sex: Value(sex.value),
-            age: Value(int.tryParse(age.text.trim())),
+            age: const Value(null),
+            dateOfBirth: Value(dateOfBirth),
+            isDateOfBirthEstimated: Value(isEstimated),
+            originalAgeValue:
+                resolved.ageInputMode == AnimalAgeInputMode.currentAge
+                ? Value(originalAge)
+                : const Value(null),
+            originalAgeUnit:
+                resolved.ageInputMode == AnimalAgeInputMode.currentAge
+                ? Value(resolved.ageUnit.storageValue)
+                : const Value(null),
+            ageRecordedAt: Value(registrationDate),
             weight: Value(double.tryParse(weight.text.trim())),
             color: Value(_nullIfEmpty(color.text)),
             microchipNumber: Value(_nullIfEmpty(microchip.text)),
@@ -149,6 +212,8 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
                   'animalName': animalName.text.trim(),
                   'species': speciesName,
                   'breed': breedName,
+                  'dateOfBirth': dateOfBirth.toIso8601String(),
+                  'isDateOfBirthEstimated': isEstimated,
                 },
               );
         }
@@ -270,13 +335,133 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
               ),
             ),
             const SizedBox(height: AveraSpacing.cardGap),
-            _RegistrationTextFieldCard(
-              controller: age,
-              label: 'Age',
-              hintText: 'Enter age',
-              keyboardType: TextInputType.number,
-              validator: _optionalNonNegativeInteger,
+            Text('AGE / DATE OF BIRTH', style: averaText(context).sectionLabel),
+            const SizedBox(height: 8),
+            SegmentedButton<AnimalAgeInputMode>(
+              key: const Key('age-input-mode-selector'),
+              segments: const [
+                ButtonSegment(
+                  value: AnimalAgeInputMode.dateOfBirth,
+                  label: Text('Date of Birth'),
+                  icon: Icon(Icons.cake_outlined),
+                ),
+                ButtonSegment(
+                  value: AnimalAgeInputMode.currentAge,
+                  label: Text('Current Age'),
+                  icon: Icon(Icons.timelapse_rounded),
+                ),
+              ],
+              selected: {selection.ageInputMode},
+              onSelectionChanged: (value) {
+                selectionController.setAgeInputMode(value.single);
+                ageValidationError.value = null;
+              },
             ),
+            const SizedBox(height: AveraSpacing.cardGap),
+            if (selection.ageInputMode == AnimalAgeInputMode.dateOfBirth) ...[
+              AveraLabeledFieldCard(
+                label: 'Date of Birth',
+                child: InkWell(
+                  key: const Key('date-of-birth-field'),
+                  onTap: selectDateOfBirth,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          selection.dateOfBirth == null
+                              ? 'Select date'
+                              : DateFormat.yMMMMd().format(
+                                  selection.dateOfBirth!,
+                                ),
+                          style: selection.dateOfBirth == null
+                              ? averaText(context).fieldPlaceholder
+                              : averaText(context).fieldValue,
+                        ),
+                      ),
+                      const Icon(Icons.calendar_month_outlined),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AveraSpacing.cardGap),
+              AveraLabeledSwitchField(
+                label: 'Date Accuracy',
+                title: 'Date of birth is estimated',
+                subtitle:
+                    'The record will identify this date as an approximation.',
+                value: selection.isDateOfBirthEstimated,
+                onChanged: selectionController.setDateOfBirthEstimated,
+              ),
+            ] else ...[
+              _RegistrationTextFieldCard(
+                key: const Key('current-age-field'),
+                controller: age,
+                label: 'Age',
+                hintText: 'Enter current age',
+                keyboardType: TextInputType.number,
+                onChanged: (_) {
+                  ageValidationError.value = null;
+                },
+                validator: (value) =>
+                    _validateCurrentAge(value, selection.ageUnit),
+              ),
+              const SizedBox(height: AveraSpacing.cardGap),
+              AveraLabeledDropdownField<AnimalAgeUnit>(
+                label: 'Age Unit',
+                hintText: 'Select age unit',
+                value: selection.ageUnit,
+                items: [
+                  for (final unit in AnimalAgeUnit.values)
+                    DropdownMenuItem(
+                      value: unit,
+                      child: Text(unit.pluralLabel),
+                    ),
+                ],
+                onChanged: (unit) {
+                  if (unit != null) selectionController.setAgeUnit(unit);
+                  ageValidationError.value = null;
+                },
+              ),
+            ],
+            if (ageValidationError.value != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                ageValidationError.value!,
+                style: averaText(
+                  context,
+                ).caption.copyWith(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            if (previewBirthDate != null &&
+                !AnimalAgeService.isFutureBirthDate(
+                  previewBirthDate,
+                  referenceDate,
+                )) ...[
+              const SizedBox(height: AveraSpacing.cardGap),
+              AveraSurfaceCard(
+                outlined: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (selection.ageInputMode == AnimalAgeInputMode.currentAge)
+                      Text(
+                        'Estimated date of birth: '
+                        '${DateFormat.yMMMMd().format(previewBirthDate)}',
+                        key: const Key('estimated-birth-date-preview'),
+                        style: averaText(context).fieldValue,
+                      ),
+                    if (selection.ageInputMode == AnimalAgeInputMode.currentAge)
+                      const SizedBox(height: 6),
+                    Text(
+                      'Current age: '
+                      '${AnimalAgeService.formatDetailedAge(previewBirthDate, referenceDate)}',
+                      key: const Key('current-age-preview'),
+                      style: averaText(context).caption,
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: AveraSpacing.cardGap),
             _RegistrationTextFieldCard(
               controller: weight,
@@ -546,11 +731,33 @@ String? _nullIfEmpty(String value) {
   return trimmed.isEmpty ? null : trimmed;
 }
 
-String? _optionalNonNegativeInteger(String? value) {
+String? _validateCurrentAge(String? value, AnimalAgeUnit unit) {
   final trimmed = value?.trim() ?? '';
-  if (trimmed.isEmpty) return null;
+  if (trimmed.isEmpty) return 'Please enter the current age.';
   final parsed = int.tryParse(trimmed);
-  return parsed == null || parsed < 0 ? 'Enter a valid age.' : null;
+  if (parsed == null || parsed < 0) {
+    return 'Age must be a whole number.';
+  }
+  if (parsed == 0 && unit != AnimalAgeUnit.days) {
+    return 'Use 0 days for an animal born today.';
+  }
+  return null;
+}
+
+String? _validateAgeSelection({
+  required AnimalRegistrationSelectionState selection,
+  required String ageText,
+  required DateTime referenceDate,
+}) {
+  if (selection.ageInputMode == AnimalAgeInputMode.currentAge) {
+    return _validateCurrentAge(ageText, selection.ageUnit);
+  }
+  final birthDate = selection.dateOfBirth;
+  if (birthDate == null) return 'Please select a date of birth.';
+  if (AnimalAgeService.isFutureBirthDate(birthDate, referenceDate)) {
+    return 'Date of birth cannot be in the future.';
+  }
+  return null;
 }
 
 String? _optionalNonNegativeNumber(String? value) {

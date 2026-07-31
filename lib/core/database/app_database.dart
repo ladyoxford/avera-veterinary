@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../services/animal_age_service.dart';
 import 'database_connection_native.dart'
     if (dart.library.html) 'database_connection_web.dart';
 
@@ -166,6 +167,11 @@ class Animals extends Table {
   TextColumn get sex => text().nullable()();
   IntColumn get age => integer().nullable()();
   DateTimeColumn get dateOfBirth => dateTime().nullable()();
+  BoolColumn get isDateOfBirthEstimated =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get originalAgeValue => integer().nullable()();
+  TextColumn get originalAgeUnit => text().nullable()();
+  DateTimeColumn get ageRecordedAt => dateTime().nullable()();
   RealColumn get weight => real().nullable()();
   TextColumn get color => text().nullable()();
   TextColumn get microchipNumber => text().nullable()();
@@ -1125,7 +1131,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 23;
+  static const currentSchemaVersion = 24;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1571,6 +1577,63 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE INDEX IF NOT EXISTS invoices_history_index '
           'ON invoices (clinic_id, status, created_at)',
+        );
+      }
+      if (from < 24) {
+        if (!await _hasColumn('animals', 'date_of_birth')) {
+          await m.addColumn(animals, animals.dateOfBirth);
+        }
+        final ageColumns = <String, GeneratedColumn>{
+          'is_date_of_birth_estimated': animals.isDateOfBirthEstimated,
+          'original_age_value': animals.originalAgeValue,
+          'original_age_unit': animals.originalAgeUnit,
+          'age_recorded_at': animals.ageRecordedAt,
+        };
+        for (final entry in ageColumns.entries) {
+          if (!await _hasColumn('animals', entry.key)) {
+            await m.addColumn(animals, entry.value);
+          }
+        }
+
+        final canMigrateLegacyAge =
+            await _hasColumn('animals', 'age') &&
+            await _hasColumn('animals', 'date_registered');
+        if (canMigrateLegacyAge) {
+          final query = selectOnly(animals)
+            ..addColumns([animals.id, animals.age, animals.dateRegistered])
+            ..where(animals.dateOfBirth.isNull() & animals.age.isNotNull());
+          final legacyAnimals = await query.get();
+          for (final row in legacyAnimals) {
+            final animalId = row.read(animals.id);
+            final legacyAge = row.read(animals.age);
+            final referenceDate = row.read(animals.dateRegistered);
+            if (animalId == null ||
+                legacyAge == null ||
+                legacyAge < 0 ||
+                referenceDate == null) {
+              continue;
+            }
+            final estimatedBirthDate = AnimalAgeService.estimateDateOfBirth(
+              value: legacyAge,
+              unit: AnimalAgeUnit.years,
+              referenceDate: referenceDate,
+            );
+            await (update(
+              animals,
+            )..where((animal) => animal.id.equals(animalId))).write(
+              AnimalsCompanion(
+                dateOfBirth: Value(estimatedBirthDate),
+                isDateOfBirthEstimated: const Value(true),
+                originalAgeValue: Value(legacyAge),
+                originalAgeUnit: const Value('years'),
+                ageRecordedAt: Value(referenceDate),
+              ),
+            );
+          }
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS animals_clinic_birth_date_index '
+          'ON animals (clinic_id, date_of_birth)',
         );
       }
     },

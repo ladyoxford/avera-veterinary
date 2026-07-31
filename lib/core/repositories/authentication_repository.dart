@@ -98,7 +98,13 @@ class AuthenticationRepository {
         );
       }
       return session.user;
-    } on ApiException {
+    } on ApiException catch (error) {
+      final credentialsAreInvalid =
+          error.statusCode == 401 ||
+          error.code == 'session_expired' ||
+          error.code == 'invalid_refresh_token' ||
+          error.code == 'invalid_credentials';
+      if (!credentialsAreInvalid) rethrow;
       await _tokens.clear();
       if (kDebugMode) {
         developer.log(

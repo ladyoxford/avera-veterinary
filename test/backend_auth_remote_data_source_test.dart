@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:avera/core/remote/api_client.dart';
 import 'package:avera/core/remote/backend_auth_remote_data_source.dart';
 import 'package:avera/core/remote/auth_remote_data_source.dart';
+import 'package:avera/core/repositories/authentication_repository.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +34,43 @@ void main() {
       await apiClient.post('api/v1/auth/sign-in', body: const {});
     },
   );
+
+  test(
+    'authentication resolves against the production Render base URL',
+    () async {
+      final client = MockClient((request) async {
+        expect(
+          request.url.toString(),
+          '${BackendConfiguration.productionApiBaseUrl}/api/v1/auth/sign-in',
+        );
+        return http.Response('{}', 200);
+      });
+      final apiClient = ApiClient(
+        baseUrl: '${BackendConfiguration.productionApiBaseUrl}/',
+        tokens: const TokenStore(FlutterSecureStorage()),
+        client: client,
+      );
+
+      await apiClient.post('/api/v1/auth/sign-in', body: const {});
+    },
+  );
+
+  test('clinical endpoints share the production Render base URL', () async {
+    final client = MockClient((request) async {
+      expect(
+        request.url.toString(),
+        '${BackendConfiguration.productionApiBaseUrl}/api/v1/patients?page=1',
+      );
+      return http.Response('{}', 200);
+    });
+    final apiClient = ApiClient(
+      baseUrl: BackendConfiguration.productionApiBaseUrl,
+      tokens: const TokenStore(FlutterSecureStorage()),
+      client: client,
+    );
+
+    await apiClient.get('/api/v1/patients?page=1', authenticated: false);
+  });
 
   test(
     'ApiClient uses a configurable timeout with a 15-second development default',
@@ -210,4 +248,32 @@ void main() {
     );
     await expectLater(event, completes);
   });
+
+  test(
+    'temporary server failure preserves the offline refresh token',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'avera_access_token': 'cached-access',
+        'avera_refresh_token': 'cached-refresh',
+      });
+      const storage = FlutterSecureStorage();
+      final tokens = const TokenStore(storage);
+      final source = BackendAuthRemoteDataSource(
+        ApiClient(
+          baseUrl: BackendConfiguration.productionApiBaseUrl,
+          tokens: tokens,
+          client: MockClient(
+            (_) async => throw http.ClientException('network is unreachable'),
+          ),
+        ),
+      );
+      final repository = AuthenticationRepository(
+        remote: source,
+        tokens: tokens,
+      );
+
+      await expectLater(repository.restore(), throwsA(isA<ApiException>()));
+      expect(await tokens.refreshToken, 'cached-refresh');
+    },
+  );
 }

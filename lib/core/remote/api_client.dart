@@ -7,68 +7,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
-enum AveraDataMode { local, backend }
+import '../config/backend_configuration.dart';
+
+export '../config/backend_configuration.dart';
 
 class AccountRestrictionDispatcher {
   AccountRestrictionDispatcher._();
   static final _controller = StreamController<void>.broadcast();
   static Stream<void> get events => _controller.stream;
   static void notify() => _controller.add(null);
-}
-
-class BackendConfiguration {
-  const BackendConfiguration._();
-
-  static const _dataMode = String.fromEnvironment(
-    'AVERA_DATA_MODE',
-    defaultValue: 'local',
-  );
-  static const apiBaseUrl = String.fromEnvironment(
-    'AVERA_API_BASE_URL',
-    defaultValue: '',
-  );
-  static const requestTimeoutSeconds = int.fromEnvironment(
-    'AVERA_API_TIMEOUT_SECONDS',
-    defaultValue: 15,
-  );
-  static const enableLocalDevelopmentAuth = bool.fromEnvironment(
-    'ENABLE_LOCAL_DEVELOPMENT_AUTH',
-    defaultValue: false,
-  );
-
-  static AveraDataMode get dataMode => _dataMode.toLowerCase() == 'backend'
-      ? AveraDataMode.backend
-      : AveraDataMode.local;
-  static bool get isLocalMode => dataMode == AveraDataMode.local;
-  static bool get isBackendMode => dataMode == AveraDataMode.backend;
-  static bool get isConfigured => isBackendMode && apiBaseUrl.trim().isNotEmpty;
-
-  static void validate() {
-    if (isBackendMode && apiBaseUrl.trim().isEmpty) {
-      throw StateError(
-        'AVERA_API_BASE_URL is required when AVERA_DATA_MODE=backend.',
-      );
-    }
-    if (kReleaseMode && isLocalMode) {
-      throw StateError('Local data mode is unavailable in release builds.');
-    }
-    if (kReleaseMode && enableLocalDevelopmentAuth) {
-      throw StateError(
-        'Local development authentication is unavailable in release builds.',
-      );
-    }
-    final uri = Uri.tryParse(apiBaseUrl.trim());
-    if (kReleaseMode &&
-        isBackendMode &&
-        (uri == null || uri.scheme != 'https' || uri.host.isEmpty)) {
-      throw StateError('Release builds require an HTTPS AVERA_API_BASE_URL.');
-    }
-  }
-
-  static Duration get requestTimeout {
-    final seconds = requestTimeoutSeconds.clamp(10, 60).toInt();
-    return Duration(seconds: seconds);
-  }
 }
 
 class ApiException implements Exception {
@@ -110,8 +57,12 @@ typedef RefreshTokens =
     );
 
 class ApiClient {
-  ApiClient({required this.baseUrl, required this.tokens, http.Client? client})
-    : _client = client ?? http.Client();
+  ApiClient({
+    required String baseUrl,
+    required this.tokens,
+    http.Client? client,
+  }) : baseUrl = BackendConfiguration.normalizeBaseUrl(baseUrl),
+       _client = client ?? http.Client();
 
   final String baseUrl;
   final TokenStore tokens;
@@ -268,11 +219,10 @@ class ApiClient {
     }
   }
 
-  Uri _requestUri(String path) {
-    final normalizedBase = baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
-    final normalizedPath = path.startsWith('/') ? path : '/$path';
-    return Uri.parse('$normalizedBase$normalizedPath');
-  }
+  Uri resolve(String path) =>
+      BackendConfiguration.resolveEndpoint(baseUrl, path);
+
+  Uri _requestUri(String path) => resolve(path);
 
   String _clientFailureCategory(http.ClientException error) {
     final message = error.message.toLowerCase();

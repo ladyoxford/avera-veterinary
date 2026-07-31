@@ -11,6 +11,7 @@
     "start": "node --env-file=.env src/server.js",
     "migrate": "node --env-file=.env src/database/migrate.js",
     "migrate:container": "node src/database/migrate.js",
+    "bootstrap:platform-owner": "node src/database/bootstrap-platform-owner.js",
     "seed:development": "node --env-file=.env src/database/seed-development.js",
     "seed:development:container": "node src/database/seed-development.js",
     "demo:generate": "node --env-file=.env src/demo/cli.js generate",
@@ -24,7 +25,7 @@
     "demo:grant-access": "node --env-file=.env src/demo/grant-demo-access.js",
     "diagnose:development-auth": "node src/database/diagnose-development-auth.js",
     "diagnose:development-auth:local": "node --env-file=.env src/database/diagnose-development-auth.js",
-    "test": "node --test tests/migration-contract.test.js tests/demo-generator-contract.test.js tests/subscription-payments.test.js tests/mfa-security.test.js",
+    "test": "node --test tests/migration-contract.test.js tests/demo-generator-contract.test.js tests/subscription-payments.test.js tests/mfa-security.test.js tests/bootstrap-platform-owner.test.js",
     "test:auth:integration": "node --test tests/auth-integration.test.js",
     "test:auth:integration:local": "node --env-file=.env --test tests/auth-integration.test.js"
   },

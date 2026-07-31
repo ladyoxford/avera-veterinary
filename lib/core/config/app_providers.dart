@@ -14,6 +14,7 @@ import '../remote/api_client.dart';
 import '../remote/auth_remote_data_source.dart';
 import '../remote/backend_auth_remote_data_source.dart';
 import '../services/offline_authorization_service.dart';
+import '../services/backend_health_service.dart';
 import '../repositories/offline_sync_repository.dart';
 import '../repositories/platform_repository.dart';
 import '../repositories/subscription_repository.dart';
@@ -164,6 +165,24 @@ final apiClientProvider = Provider<ApiClient>(
     tokens: ref.watch(tokenStoreProvider),
   ),
 );
+
+final backendHealthServiceProvider = Provider<BackendHealthService>(
+  (ref) => BackendHealthService(baseUrl: BackendConfiguration.apiBaseUrl),
+);
+
+/// A single cached startup probe prevents every screen from waking Render
+/// independently. Invalidation is the explicit retry mechanism.
+final cloudConnectivityProvider = FutureProvider<CloudConnectivityResult>((
+  ref,
+) async {
+  if (BackendConfiguration.isLocalMode) {
+    return CloudConnectivityResult(
+      status: CloudConnectivityStatus.offline,
+      checkedAt: DateTime.now(),
+    );
+  }
+  return ref.watch(backendHealthServiceProvider).check();
+});
 
 final subscriptionPaymentGatewayProvider = Provider<SubscriptionPaymentGateway>(
   (ref) {

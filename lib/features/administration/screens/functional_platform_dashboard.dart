@@ -107,6 +107,15 @@ class _OverviewBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (overview.isOffline) ...[
+                      const MaterialBanner(
+                        content: Text(
+                          'Offline: showing the latest platform data cached on this device.',
+                        ),
+                        actions: [SizedBox.shrink()],
+                      ),
+                      const SizedBox(height: AveraSpacing.cardGap),
+                    ],
                     const _SectionLabel('Overview'),
                     _StatGrid(
                       children: [

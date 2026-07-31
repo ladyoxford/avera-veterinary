@@ -215,6 +215,12 @@ class _SubscriptionPlansScreenState
                   reference: _pendingReference!,
                   checking: _working,
                   onCheck: _checkPayment,
+                  onCancel: () {
+                    setState(() => _pendingReference = null);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Payment cancelled.')),
+                    );
+                  },
                 ),
               ],
               if (canManage) ...[
@@ -314,9 +320,17 @@ class _SubscriptionPlansScreenState
     if (reference == null) return;
     setState(() => _working = true);
     try {
-      await ref
+      final subscription = await ref
           .read(subscriptionPaymentGatewayProvider)
           .verifyPayment(reference);
+      if (subscription == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Payment is still pending.')),
+          );
+        }
+        return;
+      }
       ref.invalidate(subscriptionBillingProvider);
       ref.invalidate(activeClinicSubscriptionProvider);
       if (mounted) {
@@ -326,7 +340,18 @@ class _SubscriptionPlansScreenState
         );
       }
     } on ApiException catch (error) {
-      if (mounted) _showError(error.message);
+      if (!mounted) return;
+      if (error.code == 'payment_pending') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment is still pending.')),
+        );
+      } else {
+        _showError(
+          error.code == 'payment_not_successful'
+              ? 'Payment verification failed.'
+              : error.message,
+        );
+      }
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -716,11 +741,13 @@ class _PendingPaymentCard extends StatelessWidget {
     required this.reference,
     required this.checking,
     required this.onCheck,
+    required this.onCancel,
   });
 
   final String reference;
   final bool checking;
   final VoidCallback onCheck;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) => AveraSurfaceCard(
@@ -735,10 +762,20 @@ class _PendingPaymentCard extends StatelessWidget {
           style: averaText(context).listItemSubtitle,
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: checking ? null : onCheck,
-          icon: const Icon(Icons.refresh_rounded),
-          label: const Text('Check Payment Status'),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: checking ? null : onCheck,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Check Payment Status'),
+            ),
+            TextButton(
+              onPressed: checking ? null : onCancel,
+              child: const Text('Cancel Payment'),
+            ),
+          ],
         ),
       ],
     ),

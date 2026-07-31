@@ -57,10 +57,24 @@ final clinicRepositoryProvider = Provider<ClinicRepository>((ref) {
   return ClinicRepository(
     ref.watch(databaseProvider),
     clock: ref.watch(appClockProvider),
+    apiClient: BackendConfiguration.isBackendMode
+        ? ref.watch(apiClientProvider)
+        : null,
   );
 });
 
+final platformDataOfflineProvider = StateProvider<bool>((ref) => false);
+
 final platformRepositoryProvider = Provider<PlatformRepository>((ref) {
+  if (BackendConfiguration.isBackendMode) {
+    return RemotePlatformRepository(
+      db: ref.watch(databaseProvider),
+      apiClient: ref.watch(apiClientProvider),
+      onOfflineChanged: (offline) {
+        ref.read(platformDataOfflineProvider.notifier).state = offline;
+      },
+    );
+  }
   return LocalPlatformRepository(ref.watch(databaseProvider));
 });
 
@@ -69,8 +83,25 @@ final platformOverviewProvider = StreamProvider<PlatformOverviewSnapshot>((
 ) async* {
   final session = await ref.watch(userSessionProvider.future);
   final repository = ref.watch(platformRepositoryProvider);
-  yield await repository.loadOverview(session);
   yield* repository.watchOverview(session);
+});
+
+final platformClinicsProvider = StreamProvider.family<List<Clinic>, String?>((
+  ref,
+  status,
+) async* {
+  final session = await ref.watch(userSessionProvider.future);
+  yield* ref
+      .watch(platformRepositoryProvider)
+      .watchClinics(session, status: status);
+});
+
+final platformClinicProvider = FutureProvider.family<Clinic?, String>((
+  ref,
+  clinicId,
+) async {
+  final session = await ref.watch(userSessionProvider.future);
+  return ref.watch(platformRepositoryProvider).loadClinic(session, clinicId);
 });
 
 /// Development-only generator. The service itself also checks [kDebugMode],

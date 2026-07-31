@@ -563,11 +563,16 @@ class AnimalStatuses {
 }
 
 class ClinicRepository {
-  ClinicRepository(this.db, {AppClock clock = const LocalAppClock()})
-    : _clock = clock;
+  ClinicRepository(
+    this.db, {
+    AppClock clock = const LocalAppClock(),
+    ApiClient? apiClient,
+  }) : _clock = clock,
+       _apiClient = apiClient;
 
   final AppDatabase db;
   final AppClock _clock;
+  final ApiClient? _apiClient;
   final _uuid = const Uuid();
   String _activeClinicId = defaultClinicId;
   String get activeClinicId => _activeClinicId;
@@ -606,6 +611,67 @@ class ClinicRepository {
   Future<ClinicApplication> submitClinicApplication(
     ClinicApplication application,
   ) async {
+    if (BackendConfiguration.isBackendMode) {
+      final client = _apiClient;
+      if (client == null) {
+        throw StateError(
+          'The production clinic-registration service is unavailable.',
+        );
+      }
+      final response = await client.post(
+        '/api/v1/clinic-applications',
+        body: {
+          'clinicName': application.clinicName,
+          'clinicEmail': application.clinicEmail,
+          'phoneNumber': application.phoneNumber,
+          'address': application.address,
+          'city': application.city,
+          'country': application.country,
+          'administratorName': application.administratorName,
+          'administratorEmail': application.administratorEmail,
+          'administratorPhone': application.administratorPhone,
+          'professionalTitle': application.professionalTitle,
+          'subscriptionPlan': application.subscriptionPlan,
+          'timeZone': application.timeZone,
+        },
+      );
+      final remote = response['application'] as Map<String, dynamic>;
+      final clinicId = remote['clinicId'] as String;
+      await db
+          .into(db.clinics)
+          .insertOnConflictUpdate(
+            ClinicsCompanion.insert(
+              clinicId: clinicId,
+              clinicName: application.clinicName.trim(),
+              address: Value(application.address.trim()),
+              city: Value(application.city.trim()),
+              country: Value(application.country.trim()),
+              phoneNumber: Value(application.phoneNumber.trim()),
+              email: Value(application.clinicEmail.trim().toLowerCase()),
+              timeZone: Value(application.timeZone),
+              subscriptionPlan: Value(application.subscriptionPlan),
+              clinicStatus: const Value('Pending'),
+              dateRegistered:
+                  DateTime.tryParse(remote['submittedAt'] as String? ?? '') ??
+                  DateTime.now(),
+            ),
+          );
+      return ClinicApplication(
+        clinicName: application.clinicName,
+        clinicEmail: application.clinicEmail,
+        phoneNumber: application.phoneNumber,
+        address: application.address,
+        city: application.city,
+        country: application.country,
+        administratorName: application.administratorName,
+        administratorEmail: application.administratorEmail,
+        administratorPhone: application.administratorPhone,
+        professionalTitle: application.professionalTitle,
+        subscriptionPlan: application.subscriptionPlan,
+        timeZone: application.timeZone,
+        reference: remote['reference'] as String?,
+      );
+    }
     final normalizedEmail = application.administratorEmail.trim().toLowerCase();
     final duplicate =
         await (db.select(db.appUsers)

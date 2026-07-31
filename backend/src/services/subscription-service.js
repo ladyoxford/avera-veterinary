@@ -104,6 +104,16 @@ export class SubscriptionService {
           )
         ).rows[0];
         if (!plan) throw serviceError('invalid_plan', 'The selected plan is unavailable.', 400);
+        if (
+          String(plan.currency).toUpperCase() !==
+          String(this.environment.PAYSTACK_CURRENCY ?? 'NGN').toUpperCase()
+        ) {
+          throw serviceError(
+            'currency_not_configured',
+            'The selected plan currency is not available for checkout.',
+            409,
+          );
+        }
         const amountMinor =
           cycle === 'annual'
             ? plan.annual_amount_minor
@@ -172,7 +182,10 @@ export class SubscriptionService {
         currency: result.currency,
         planCode: result.gatewayPlanCode,
         reference: result.reference,
-        callbackUrl: this.environment.APP_PAYMENT_CALLBACK_URL,
+        callbackUrl:
+          this.environment.paymentCallbackUrl ??
+          this.environment.PAYSTACK_CALLBACK_URL ??
+          this.environment.APP_PAYMENT_CALLBACK_URL,
         metadata: { clinicId, planCode, billingCycle: cycle },
       });
       return {
@@ -222,6 +235,17 @@ export class SubscriptionService {
       return this.#verificationResult(expected);
     }
     const verified = await this.gateway.verifyPayment(reference);
+    if (
+      ['pending', 'ongoing', 'processing'].includes(
+        String(verified?.status).toLowerCase(),
+      )
+    ) {
+      throw serviceError(
+        'payment_pending',
+        'Paystack has not confirmed this payment yet.',
+        409,
+      );
+    }
     const verificationError = validateVerifiedPayment(expected, verified);
     if (verificationError != null) {
       await this.#markVerificationFailure(expected, verified);

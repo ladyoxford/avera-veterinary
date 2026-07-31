@@ -19,49 +19,74 @@ class PlatformClinicsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final clinics = ref.watch(platformClinicsProvider(status));
+    final offline = ref.watch(platformDataOfflineProvider);
     return _PlatformGuard(
       child: Scaffold(
         appBar: AppBar(
           title: Text(status == null ? 'Clinic Management' : '$status Clinics'),
         ),
-        body: StreamBuilder<List<Clinic>>(
-          stream: ref
-              .read(clinicRepositoryProvider)
-              .watchPlatformClinics(status: status),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final clinics = snapshot.data!;
-            if (clinics.isEmpty) {
+        body: clinics.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => _PlatformLoadError(
+            message: error is ApiException
+                ? error.message
+                : 'Clinic data could not be loaded.',
+            onRetry: () => ref.invalidate(platformClinicsProvider(status)),
+          ),
+          data: (items) {
+            if (items.isEmpty) {
               return const _EmptyState(
                 icon: Icons.business_outlined,
                 message: 'No clinics match this filter.',
               );
             }
-            return ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: clinics.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final clinic = clinics[index];
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                  leading: CircleAvatar(
-                    child: Text(
-                      clinic.clinicName.substring(0, 1).toUpperCase(),
+            return Column(
+              children: [
+                if (offline)
+                  const MaterialBanner(
+                    content: Text(
+                      'Offline: showing the latest clinics cached on this device.',
+                    ),
+                    actions: [SizedBox.shrink()],
+                  ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(platformClinicsProvider(status));
+                      await ref.read(platformClinicsProvider(status).future);
+                    },
+                    child: ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(20),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final clinic = items[index];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                          ),
+                          leading: CircleAvatar(
+                            child: Text(
+                              clinic.clinicName.substring(0, 1).toUpperCase(),
+                            ),
+                          ),
+                          title: Text(clinic.clinicName),
+                          subtitle: Text(
+                            '${clinic.subscriptionPlan} • ${clinic.clinicStatus}\n${clinic.city ?? 'Location not recorded'}',
+                          ),
+                          isThreeLine: true,
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () => context.push(
+                            '/platform/clinics/${clinic.clinicId}',
+                          ),
+                        );
+                      },
                     ),
                   ),
-                  title: Text(clinic.clinicName),
-                  subtitle: Text(
-                    '${clinic.subscriptionPlan} • ${clinic.clinicStatus}\n${clinic.city ?? 'Location not recorded'}',
-                  ),
-                  isThreeLine: true,
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () =>
-                      context.push('/platform/clinics/${clinic.clinicId}'),
-                );
-              },
+                ),
+              ],
             );
           },
         ),
@@ -78,6 +103,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(userSessionProvider).valueOrNull;
     final supportSession = ref.watch(platformSupportSessionProvider);
+    ref.watch(platformClinicProvider(clinicId));
     return _PlatformGuard(
       child: StreamBuilder<List<Clinic>>(
         stream: ref.read(clinicRepositoryProvider).watchPlatformClinics(),
@@ -259,12 +285,15 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
   ) async {
     try {
       await ref
-          .read(clinicRepositoryProvider)
+          .read(platformRepositoryProvider)
           .updateClinicStatus(
-            actingSession: session,
+            session: session,
             clinicId: clinicId,
             status: status,
           );
+      ref.invalidate(platformClinicProvider(clinicId));
+      ref.invalidate(platformClinicsProvider);
+      ref.invalidate(platformOverviewProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Clinic status changed to $status.')),
@@ -316,6 +345,7 @@ class PlatformSubscriptionsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(userSessionProvider).valueOrNull;
+    ref.watch(platformClinicsProvider(status));
     return _PlatformGuard(
       child: Scaffold(
         appBar: AppBar(
@@ -389,12 +419,14 @@ class PlatformSubscriptionsScreen extends ConsumerWidget {
   ) async {
     try {
       await ref
-          .read(clinicRepositoryProvider)
+          .read(platformRepositoryProvider)
           .updateClinicSubscription(
-            actingSession: session,
+            session: session,
             clinicId: clinicId,
             plan: plan,
           );
+      ref.invalidate(platformClinicsProvider);
+      ref.invalidate(platformOverviewProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Subscription changed to $plan.')),
@@ -833,6 +865,34 @@ class _DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       ListTile(title: Text(label), trailing: Text(value));
+}
+
+class _PlatformLoadError extends StatelessWidget {
+  const _PlatformLoadError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_rounded, size: 40),
+          const SizedBox(height: 12),
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try Again'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _EmptyState extends StatelessWidget {

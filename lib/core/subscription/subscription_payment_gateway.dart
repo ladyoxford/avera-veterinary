@@ -225,7 +225,7 @@ class PaystackSubscriptionGateway implements SubscriptionPaymentGateway {
     required SubscriptionBillingCycle billingCycle,
   }) async {
     final response = await _client.post(
-      '/api/subscriptions/checkout',
+      '/api/v1/subscriptions/payments/paystack/initialize',
       authenticated: true,
       body: {
         'clinicId': clinicId,
@@ -242,7 +242,7 @@ class PaystackSubscriptionGateway implements SubscriptionPaymentGateway {
   @override
   Future<ServerClinicSubscription?> verifyPayment(String reference) async {
     final response = await _client.get(
-      '/api/subscriptions/payments/${Uri.encodeComponent(reference)}/verify',
+      '/api/v1/subscriptions/payments/paystack/verify/${Uri.encodeComponent(reference)}',
     );
     final value = response['subscription'];
     return value is Map<String, dynamic>

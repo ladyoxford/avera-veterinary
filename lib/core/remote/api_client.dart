@@ -86,6 +86,18 @@ class ApiClient {
     bool authenticated = true,
     bool retry = true,
   }) => _request('GET', path, authenticated: authenticated, retry: retry);
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = true,
+    bool retry = true,
+  }) => _request(
+    'PATCH',
+    path,
+    body: body,
+    authenticated: authenticated,
+    retry: retry,
+  );
   Future<Map<String, dynamic>> delete(
     String path, {
     bool authenticated = true,
@@ -120,15 +132,13 @@ class ApiClient {
     final stopwatch = Stopwatch()..start();
     _debugLog('request method=$method url=$uri authenticated=$authenticated');
     try {
-      final request = method == 'GET'
-          ? _client.get(uri, headers: headers)
-          : method == 'DELETE'
-          ? _client.delete(uri, headers: headers)
-          : _client.post(
-              uri,
-              headers: headers,
-              body: jsonEncode(body ?? const {}),
-            );
+      final encodedBody = jsonEncode(body ?? const {});
+      final request = switch (method) {
+        'GET' => _client.get(uri, headers: headers),
+        'DELETE' => _client.delete(uri, headers: headers),
+        'PATCH' => _client.patch(uri, headers: headers, body: encodedBody),
+        _ => _client.post(uri, headers: headers, body: encodedBody),
+      };
       final response = await request.timeout(
         BackendConfiguration.requestTimeout,
       );

@@ -15,6 +15,8 @@ const schema = z.object({
   PAYSTACK_SECRET_KEY: z.string().min(1).optional(),
   PAYSTACK_PUBLIC_KEY: z.string().min(1).optional(),
   PAYSTACK_WEBHOOK_SECRET: z.string().min(1).optional(),
+  PAYSTACK_CALLBACK_URL: z.string().url().optional(),
+  PAYSTACK_CURRENCY: z.string().length(3).default('NGN'),
   APP_PAYMENT_CALLBACK_URL: z.string().url().optional(),
   APP_DEEP_LINK_SCHEME: z.string().regex(/^[a-z][a-z0-9+.-]*$/).default('avera'),
   PAYSTACK_STARTER_MONTHLY_PLAN_CODE: z.string().optional(),
@@ -46,5 +48,7 @@ export function loadEnvironment(raw = process.env) {
     localDevelopmentAuth: environment.ENABLE_LOCAL_DEVELOPMENT_AUTH === 'true',
     demoDataGeneratorEnabled: environment.ENABLE_DEMO_DATA_GENERATOR === 'true',
     allowedOrigins: environment.ALLOWED_ORIGINS.split(',').map((value) => value.trim()),
+    paymentCallbackUrl:
+      environment.PAYSTACK_CALLBACK_URL ?? environment.APP_PAYMENT_CALLBACK_URL,
   };
 }

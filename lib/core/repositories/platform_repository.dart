@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../database/app_database.dart';
+import '../remote/api_client.dart';
 import 'clinic_repository.dart';
 
 class PlatformOverviewSnapshot {
@@ -18,6 +19,7 @@ class PlatformOverviewSnapshot {
     this.systemHealthStatus,
     this.storageUsedBytes,
     this.storageAvailableBytes,
+    this.isOffline = false,
   });
 
   final int totalClinics;
@@ -33,12 +35,31 @@ class PlatformOverviewSnapshot {
   final String? systemHealthStatus;
   final int? storageUsedBytes;
   final int? storageAvailableBytes;
+  final bool isOffline;
 }
 
 abstract interface class PlatformRepository {
   Future<PlatformOverviewSnapshot> loadOverview(UserSession session);
 
   Stream<PlatformOverviewSnapshot> watchOverview(UserSession session);
+
+  Future<List<Clinic>> loadClinics(UserSession session, {String? status});
+
+  Stream<List<Clinic>> watchClinics(UserSession session, {String? status});
+
+  Future<Clinic?> loadClinic(UserSession session, String clinicId);
+
+  Future<Clinic> updateClinicStatus({
+    required UserSession session,
+    required String clinicId,
+    required String status,
+  });
+
+  Future<Clinic> updateClinicSubscription({
+    required UserSession session,
+    required String clinicId,
+    required String plan,
+  });
 }
 
 class LocalPlatformRepository implements PlatformRepository {
@@ -56,6 +77,59 @@ class LocalPlatformRepository implements PlatformRepository {
   Stream<PlatformOverviewSnapshot> watchOverview(UserSession session) {
     _ensurePlatformOwner(session);
     return _totalsQuery().watchSingle().asyncMap(_snapshotFromRow);
+  }
+
+  @override
+  Future<List<Clinic>> loadClinics(
+    UserSession session, {
+    String? status,
+  }) async {
+    _ensurePlatformOwner(session);
+    return _clinicQuery(status).get();
+  }
+
+  @override
+  Stream<List<Clinic>> watchClinics(UserSession session, {String? status}) {
+    _ensurePlatformOwner(session);
+    return _clinicQuery(status).watch();
+  }
+
+  @override
+  Future<Clinic?> loadClinic(UserSession session, String clinicId) async {
+    _ensurePlatformOwner(session);
+    return (db.select(
+      db.clinics,
+    )..where((clinic) => clinic.clinicId.equals(clinicId))).getSingleOrNull();
+  }
+
+  @override
+  Future<Clinic> updateClinicStatus({
+    required UserSession session,
+    required String clinicId,
+    required String status,
+  }) async {
+    _ensurePlatformOwner(session);
+    await ClinicRepository(db).updateClinicStatus(
+      actingSession: session,
+      clinicId: clinicId,
+      status: status,
+    );
+    return (await loadClinic(session, clinicId))!;
+  }
+
+  @override
+  Future<Clinic> updateClinicSubscription({
+    required UserSession session,
+    required String clinicId,
+    required String plan,
+  }) async {
+    _ensurePlatformOwner(session);
+    await ClinicRepository(db).updateClinicSubscription(
+      actingSession: session,
+      clinicId: clinicId,
+      plan: plan,
+    );
+    return (await loadClinic(session, clinicId))!;
   }
 
   void _ensurePlatformOwner(UserSession session) {
@@ -88,6 +162,24 @@ class LocalPlatformRepository implements PlatformRepository {
       ''',
     readsFrom: {db.clinics, db.appUsers, db.clinicSubscriptions},
   );
+
+  SimpleSelectStatement<$ClinicsTable, Clinic> _clinicQuery(String? status) {
+    final query = db.select(db.clinics)
+      ..where((clinic) => clinic.clinicId.equals('platform-control').not());
+    if (status != null) {
+      if (status.toLowerCase() == 'pending') {
+        query.where(
+          (clinic) =>
+              clinic.clinicStatus.equals('Pending') |
+              clinic.clinicStatus.equals('PendingApproval'),
+        );
+      } else {
+        query.where((clinic) => clinic.clinicStatus.equals(status));
+      }
+    }
+    query.orderBy([(clinic) => OrderingTerm.desc(clinic.dateRegistered)]);
+    return query;
+  }
 
   Future<PlatformOverviewSnapshot> _snapshotFromRow(QueryRow row) async {
     final recent =
@@ -122,3 +214,232 @@ class LocalPlatformRepository implements PlatformRepository {
     );
   }
 }
+
+class RemotePlatformRepository implements PlatformRepository {
+  RemotePlatformRepository({
+    required this.db,
+    required ApiClient apiClient,
+    this.onOfflineChanged,
+  }) : _apiClient = apiClient,
+       _local = LocalPlatformRepository(db);
+
+  final AppDatabase db;
+  final ApiClient _apiClient;
+  final LocalPlatformRepository _local;
+  final void Function(bool offline)? onOfflineChanged;
+
+  @override
+  Future<PlatformOverviewSnapshot> loadOverview(UserSession session) async {
+    _ensurePlatformAccount(session);
+    try {
+      final response = await _apiClient.get('/api/v1/platform/overview');
+      final recent = _clinicList(response['recentClinics']);
+      await _cacheClinics(recent);
+      onOfflineChanged?.call(false);
+      return PlatformOverviewSnapshot(
+        totalClinics: _integer(response['totalClinics']),
+        activeClinics: _integer(response['activeClinics']),
+        pendingApplications: _integer(response['pendingApplications']),
+        suspendedClinics: _integer(response['suspendedClinics']),
+        activeUsers: _integer(response['activeUsers']),
+        expiredSubscriptions: _integer(response['expiredSubscriptions']),
+        recentClinics: recent,
+        monthlyRevenue: _integer(response['monthlyRevenueMinor']) / 100,
+        currency: response['currency'] as String? ?? 'NGN',
+      );
+    } on ApiException {
+      onOfflineChanged?.call(true);
+      final cached = await _local.loadOverview(session);
+      return PlatformOverviewSnapshot(
+        totalClinics: cached.totalClinics,
+        activeClinics: cached.activeClinics,
+        pendingApplications: cached.pendingApplications,
+        suspendedClinics: cached.suspendedClinics,
+        activeUsers: cached.activeUsers,
+        expiredSubscriptions: cached.expiredSubscriptions,
+        recentClinics: cached.recentClinics,
+        monthlyRevenue: cached.monthlyRevenue,
+        currency: cached.currency,
+        emailDeliveryStatus: cached.emailDeliveryStatus,
+        systemHealthStatus: cached.systemHealthStatus,
+        storageUsedBytes: cached.storageUsedBytes,
+        storageAvailableBytes: cached.storageAvailableBytes,
+        isOffline: true,
+      );
+    }
+  }
+
+  @override
+  Stream<PlatformOverviewSnapshot> watchOverview(UserSession session) async* {
+    yield await loadOverview(session);
+  }
+
+  @override
+  Future<List<Clinic>> loadClinics(
+    UserSession session, {
+    String? status,
+  }) async {
+    _ensurePlatformAccount(session);
+    try {
+      final query = status == null
+          ? ''
+          : '?status=${Uri.encodeQueryComponent(status)}&pageSize=100';
+      final response = await _apiClient.get('/api/v1/platform/clinics$query');
+      final clinics = _clinicList(response['items'] ?? response['clinics']);
+      await _cacheClinics(clinics);
+      onOfflineChanged?.call(false);
+      return clinics;
+    } on ApiException {
+      onOfflineChanged?.call(true);
+      return _local.loadClinics(session, status: status);
+    }
+  }
+
+  @override
+  Stream<List<Clinic>> watchClinics(
+    UserSession session, {
+    String? status,
+  }) async* {
+    await loadClinics(session, status: status);
+    yield* _local.watchClinics(session, status: status);
+  }
+
+  @override
+  Future<Clinic?> loadClinic(UserSession session, String clinicId) async {
+    _ensurePlatformAccount(session);
+    try {
+      final response = await _apiClient.get(
+        '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}',
+      );
+      final value = response['clinic'];
+      if (value is! Map<String, dynamic>) return null;
+      final clinic = _clinicFromJson(value);
+      await _cacheClinics([clinic]);
+      onOfflineChanged?.call(false);
+      return clinic;
+    } on ApiException {
+      onOfflineChanged?.call(true);
+      return _local.loadClinic(session, clinicId);
+    }
+  }
+
+  @override
+  Future<Clinic> updateClinicStatus({
+    required UserSession session,
+    required String clinicId,
+    required String status,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.patch(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/status',
+      body: {'status': status},
+    );
+    final clinic = _clinicFromJson(response['clinic'] as Map<String, dynamic>);
+    await _cacheClinics([clinic]);
+    onOfflineChanged?.call(false);
+    return clinic;
+  }
+
+  @override
+  Future<Clinic> updateClinicSubscription({
+    required UserSession session,
+    required String clinicId,
+    required String plan,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.patch(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/subscription',
+      body: {'plan': plan},
+    );
+    final clinic = _clinicFromJson(response['clinic'] as Map<String, dynamic>);
+    await _cacheClinics([clinic]);
+    onOfflineChanged?.call(false);
+    return clinic;
+  }
+
+  void _ensurePlatformAccount(UserSession session) {
+    if (!session.isPlatformAccount) {
+      throw StateError('Platform administration authorization is required.');
+    }
+  }
+
+  List<Clinic> _clinicList(Object? value) {
+    return (value as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(_clinicFromJson)
+        .toList(growable: false);
+  }
+
+  Clinic _clinicFromJson(Map<String, dynamic> json) {
+    return Clinic(
+      clinicId: json['clinicId'] as String,
+      clinicName: json['clinicName'] as String? ?? 'Unnamed Clinic',
+      logo: null,
+      address: json['address'] as String?,
+      city: json['city'] as String?,
+      state: null,
+      country: json['country'] as String?,
+      phoneNumber: json['phoneNumber'] as String?,
+      email: json['email'] as String?,
+      website: null,
+      veterinaryLicenseNumber: null,
+      businessRegistrationNumber: null,
+      clinicType: 'General Practice',
+      workingHours: null,
+      emergencyContact: null,
+      currency: 'NGN',
+      timeZone: json['timeZone'] as String? ?? 'Africa/Lagos',
+      preferredLanguage: 'English',
+      themeColor: '#087F7B',
+      banner: null,
+      stamp: null,
+      signature: null,
+      clinicOwner: null,
+      dateRegistered:
+          DateTime.tryParse(json['registrationDate'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      subscriptionPlan: json['subscriptionPlan'] as String? ?? 'Starter',
+      clinicStatus: _normalizeStatus(json['status'] as String?),
+      patientNumberPrefix: null,
+      patientNumberSequenceLength: 5,
+      patientNumberResetYearly: true,
+      patientNumberPrefixReviewed: false,
+      patientNumberLastChangedAt: null,
+      patientNumberLastChangedBy: null,
+    );
+  }
+
+  Future<void> _cacheClinics(List<Clinic> clinics) async {
+    if (clinics.isEmpty) return;
+    await db.batch((batch) {
+      for (final clinic in clinics) {
+        batch.insert(
+          db.clinics,
+          ClinicsCompanion.insert(
+            clinicId: clinic.clinicId,
+            clinicName: clinic.clinicName,
+            logo: Value(clinic.logo),
+            address: Value(clinic.address),
+            city: Value(clinic.city),
+            state: Value(clinic.state),
+            country: Value(clinic.country),
+            phoneNumber: Value(clinic.phoneNumber),
+            email: Value(clinic.email),
+            currency: Value(clinic.currency),
+            timeZone: Value(clinic.timeZone),
+            clinicOwner: Value(clinic.clinicOwner),
+            dateRegistered: clinic.dateRegistered,
+            subscriptionPlan: Value(clinic.subscriptionPlan),
+            clinicStatus: Value(clinic.clinicStatus),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
+  }
+}
+
+int _integer(Object? value) => (value as num?)?.toInt() ?? 0;
+
+String _normalizeStatus(String? value) =>
+    value?.toLowerCase() == 'pendingapproval' ? 'Pending' : value ?? 'Pending';

@@ -25,6 +25,10 @@ const schema = z.object({
   PAYSTACK_PROFESSIONAL_ANNUAL_PLAN_CODE: z.string().optional(),
   PAYSTACK_ENTERPRISE_MONTHLY_PLAN_CODE: z.string().optional(),
   PAYSTACK_ENTERPRISE_ANNUAL_PLAN_CODE: z.string().optional(),
+  ACTIVATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(1440),
+  AVERA_ACTIVATION_BASE_URL: z.string().min(1).default('avera://app/activate-clinic-admin'),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  ACTIVATION_EMAIL_FROM: z.string().min(3).optional(),
   LOG_LEVEL: z.string().default('info'),
 });
 
@@ -38,6 +42,11 @@ export function loadEnvironment(raw = process.env) {
   }
   if (environment.NODE_ENV === 'production' && !environment.TOTP_ENCRYPTION_KEY) {
     throw new Error('Production requires TOTP_ENCRYPTION_KEY.');
+  }
+  try {
+    new URL(environment.AVERA_ACTIVATION_BASE_URL);
+  } catch (_) {
+    throw new Error('AVERA_ACTIVATION_BASE_URL must be a valid HTTPS or application deep-link URL.');
   }
   return {
     ...environment,

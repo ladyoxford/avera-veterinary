@@ -16,6 +16,10 @@ import { PaystackSubscriptionGateway } from './payments/paystack-subscription-ga
 import { SubscriptionService } from './services/subscription-service.js';
 import { MfaService } from './services/mfa-service.js';
 import { securityRoutes } from './routes/security-routes.js';
+import {
+  ActivationEmailDeliveryService,
+  ClinicAdministratorActivationService,
+} from './services/clinic-administrator-activation-service.js';
 
 export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
   const app = Fastify({ logger: { level: environment.LOG_LEVEL }, trustProxy: environment.NODE_ENV !== 'development' });
@@ -44,6 +48,17 @@ export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
   authService.setMfaService(mfaService);
   app.decorate('authService', authService);
   app.decorate('mfaService', mfaService);
+  const activationDeliveryService = new ActivationEmailDeliveryService({
+    environment,
+  });
+  app.decorate(
+    'activationService',
+    new ClinicAdministratorActivationService({
+      pool: databasePool,
+      environment,
+      deliveryService: activationDeliveryService,
+    }),
+  );
   const subscriptionGateway = new PaystackSubscriptionGateway({
     secretKey: environment.PAYSTACK_SECRET_KEY,
   });

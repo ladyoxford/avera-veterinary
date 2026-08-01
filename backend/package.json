@@ -25,7 +25,7 @@
     "demo:grant-access": "node --env-file=.env src/demo/grant-demo-access.js",
     "diagnose:development-auth": "node src/database/diagnose-development-auth.js",
     "diagnose:development-auth:local": "node --env-file=.env src/database/diagnose-development-auth.js",
-    "test": "node --test tests/migration-contract.test.js tests/demo-generator-contract.test.js tests/subscription-payments.test.js tests/mfa-security.test.js tests/bootstrap-platform-owner.test.js tests/platform-api.test.js",
+    "test": "node --test tests/migration-contract.test.js tests/demo-generator-contract.test.js tests/subscription-payments.test.js tests/mfa-security.test.js tests/bootstrap-platform-owner.test.js tests/platform-api.test.js tests/clinic-administrator-activation.test.js",
     "test:auth:integration": "node --test tests/auth-integration.test.js",
     "test:auth:integration:local": "node --env-file=.env --test tests/auth-integration.test.js"
   },

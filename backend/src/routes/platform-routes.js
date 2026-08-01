@@ -264,7 +264,7 @@ export async function platformRoutes(app) {
       }
       const storedStatus =
         parsed.data.status === 'Pending' ? 'PendingApproval' : parsed.data.status;
-      const clinic = await withTenantTransaction(
+      const result = await withTenantTransaction(
         app.pool,
         { isPlatformOwner: true },
         async (client) => {
@@ -281,14 +281,23 @@ export async function platformRoutes(app) {
               WHERE clinic_id = $3`,
             [storedStatus, request.auth.userId, request.params.clinicId],
           );
+          let administratorProvision = null;
           if (storedStatus === 'Active') {
-            await client.query(
-              `UPDATE clinic_applications
-                  SET status = 'Approved', reviewed_at = now(),
-                      reviewed_by = $2, updated_at = now()
-                WHERE clinic_id = $1 AND status IN ('Pending', 'PendingApproval')`,
-              [request.params.clinicId, request.auth.userId],
+            const isInitialApproval = ['Pending', 'PendingApproval'].includes(
+              previous.status,
             );
+            if (isInitialApproval) {
+              administratorProvision = await app.activationService.provisionOnApproval(
+                client,
+                {
+                  clinicId: request.params.clinicId,
+                  clinicName: previous.clinicName,
+                  actorUserId: request.auth.userId,
+                  sessionId: request.auth.sessionId,
+                  ipAddress: request.ip,
+                },
+              );
+            }
           }
           if (storedStatus === 'Suspended') {
             await client.query(
@@ -317,16 +326,59 @@ export async function platformRoutes(app) {
             ipAddress: request.ip,
             reason: parsed.data.reason,
           });
-          return loadPlatformClinic(client, request.params.clinicId);
+          return {
+            clinic: await loadPlatformClinic(client, request.params.clinicId),
+            issued: administratorProvision?.issued ?? null,
+          };
         },
       );
-      if (!clinic) {
+      if (!result?.clinic) {
         return reply.code(404).send({
           error: 'not_found',
           message: 'Clinic not found.',
         });
       }
-      return { clinic };
+      const activation = result.issued
+        ? await app.activationService.deliverIssuedToken(result.issued)
+        : await app.activationService.activationStatus(request.params.clinicId);
+      return { clinic: result.clinic, activation };
+    },
+  );
+
+  app.get(
+    '/api/v1/platform/clinics/:clinicId/administrator-activation',
+    { preHandler: platformView },
+    async (request) => ({
+      activation: await app.activationService.activationStatus(
+        request.params.clinicId,
+      ),
+    }),
+  );
+
+  app.post(
+    '/api/v1/platform/clinics/:clinicId/administrator-activation/resend',
+    {
+      preHandler: [
+        authenticate,
+        requirePlatformAccount,
+        requirePermission(permissions.clinicsApprove),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const activation = await app.activationService.resend({
+          clinicId: request.params.clinicId,
+          actorUserId: request.auth.userId,
+          sessionId: request.auth.sessionId,
+          ipAddress: request.ip,
+        });
+        return { activation };
+      } catch (error) {
+        return reply.code(error.statusCode ?? 400).send({
+          error: error.code ?? 'activation_resend_failed',
+          message: error.message,
+        });
+      }
     },
   );
 

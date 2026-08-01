@@ -276,4 +276,65 @@ void main() {
       expect(await tokens.refreshToken, 'cached-refresh');
     },
   );
+
+  test(
+    'clinic administrator activation uses public production endpoints',
+    () async {
+      final requests = <http.Request>[];
+      final source = BackendAuthRemoteDataSource(
+        ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: MockClient((request) async {
+            requests.add(request);
+            if (request.url.path.endsWith('/status')) {
+              return http.Response(
+                jsonEncode({
+                  'activation': {
+                    'clinicName': 'Ada Veterinary Clinic',
+                    'administratorName': 'Ada Clinic Owner',
+                    'email': 'ada@example.com',
+                    'expiresAt': '2026-08-02T10:00:00.000Z',
+                  },
+                }),
+                200,
+              );
+            }
+            return http.Response(
+              jsonEncode({
+                'activated': true,
+                'email': 'ada@example.com',
+                'mfaEnrollmentRecommended': true,
+              }),
+              200,
+            );
+          }),
+        ),
+      );
+
+      final details = await source.inspectClinicAdministratorActivation(
+        'secure-activation-token-with-more-than-32-characters',
+      );
+      final result = await source.activateClinicAdministrator(
+        token: 'secure-activation-token-with-more-than-32-characters',
+        password: 'SecureClinic#2026',
+        confirmPassword: 'SecureClinic#2026',
+      );
+
+      expect(details.clinicName, 'Ada Veterinary Clinic');
+      expect(result.mfaEnrollmentRecommended, true);
+      expect(requests.map((request) => request.url.path), [
+        '/api/v1/auth/clinic-administrator-activation/status',
+        '/api/v1/auth/activate-clinic-administrator',
+      ]);
+      expect(
+        requests.every((request) => request.headers['authorization'] == null),
+        true,
+      );
+      expect(
+        jsonDecode(requests.last.body),
+        containsPair('confirmPassword', 'SecureClinic#2026'),
+      );
+    },
+  );
 }

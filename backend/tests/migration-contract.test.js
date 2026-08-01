@@ -35,6 +35,18 @@ test('authentication security migration protects MFA and revocation state', () =
   assert.match(security, /security\.twoFactor\.manageSelf/);
 });
 
+test('clinic administrator activation migration preserves passwordless pending accounts and one live token', () => {
+  const activation = fs.readFileSync(
+    new URL('../migrations/009_clinic_administrator_activation.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(activation, /PendingActivation/);
+  assert.match(activation, /ALTER COLUMN password_hash DROP NOT NULL/);
+  assert.match(activation, /delivery_method/);
+  assert.match(activation, /duplicate_live_tokens/);
+  assert.match(activation, /activation_tokens_one_live_admin_token_idx/);
+});
+
 test('demo clinical migration is tenant-scoped and identifies removable demo rows', () => {
   const demo = fs.readFileSync(new URL('../migrations/004_demo_clinical_domain.sql', import.meta.url), 'utf8');
   for (const table of ['owners', 'patients', 'consultations', 'laboratory_reports', 'hospitalizations', 'surgeries', 'inventory_products', 'invoices', 'payments', 'schedule_entries']) {

@@ -208,6 +208,69 @@ void main() {
       expect(cached.clinicStatus, 'Active');
     },
   );
+
+  test(
+    'approval returns a one-time manual activation link and resend uses the same state contract',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final session = await _platformOwnerSession(database);
+      final tokens = const TokenStore(FlutterSecureStorage());
+      await tokens.save(
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      );
+      final requests = <http.Request>[];
+      final repository = RemotePlatformRepository(
+        db: database,
+        apiClient: ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: tokens,
+          client: MockClient((request) async {
+            requests.add(request);
+            final activation = {
+              'status': 'PendingActivation',
+              'email': 'ada@example.com',
+              'deliveryMethod': 'manual',
+              'activationUrl':
+                  'avera://app/activate-clinic-admin?token=one-time',
+              'canResend': true,
+            };
+            return http.Response(
+              jsonEncode(
+                request.method == 'PATCH'
+                    ? {
+                        'clinic': _remoteClinic(status: 'Active'),
+                        'activation': activation,
+                      }
+                    : {'activation': activation},
+              ),
+              200,
+            );
+          }),
+        ),
+      );
+
+      final approved = await repository.approveClinic(
+        session: session,
+        clinicId: 'remote-clinic',
+      );
+      final resent = await repository.resendAdministratorActivation(
+        session: session,
+        clinicId: 'remote-clinic',
+      );
+
+      expect(approved.activation.deliveryMethod, 'manual');
+      expect(approved.activation.activationUrl, contains('token=one-time'));
+      expect(resent.canResend, true);
+      expect(requests.first.method, 'PATCH');
+      expect(requests.last.method, 'POST');
+      expect(
+        requests.last.url.path,
+        '/api/v1/platform/clinics/remote-clinic/administrator-activation/resend',
+      );
+    },
+  );
 }
 
 Future<UserSession> _platformOwnerSession(AppDatabase database) async {

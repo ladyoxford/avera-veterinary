@@ -15,6 +15,30 @@ run the API as a non-owner PostgreSQL role so Row Level Security applies.
 7. Repeat for production only after staging authentication, RLS, and audit-log
    tests pass.
 
+## Clinic Administrator activation
+
+Set `ACTIVATION_TOKEN_TTL_MINUTES` and `AVERA_ACTIVATION_BASE_URL` in Render.
+The base URL may be the Flutter deep link
+`avera://app/activate-clinic-admin` until an HTTPS universal-link domain is
+configured. For email delivery, also set `RESEND_API_KEY` and a verified
+`ACTIVATION_EMAIL_FROM` sender. Secrets and activation links must not be placed
+in build logs.
+
+If the email variables are absent, approval and resend return the plaintext
+activation link once to the authenticated Platform Owner response. The
+Platform Owner Console labels this as temporary manual delivery and never
+loads that link again from activation status. Configure email delivery before
+removing the temporary UI path.
+
+After deploying code, run the migration as a Render Shell one-off command:
+
+```sh
+cd backend && npm run migrate
+```
+
+Then restart the web service and verify `/health/ready`. Never run
+`seed:development` or enable reset-link previews in production.
+
 Do not run development seeding in staging or production. Do not use the
 PostgreSQL owner credential for the API. Retain structured logs and audit logs
 according to the clinic's applicable data-retention policy.

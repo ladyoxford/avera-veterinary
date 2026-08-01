@@ -104,6 +104,17 @@ final platformClinicProvider = FutureProvider.family<Clinic?, String>((
   return ref.watch(platformRepositoryProvider).loadClinic(session, clinicId);
 });
 
+final platformAdministratorActivationProvider =
+    FutureProvider.family<PlatformAdministratorActivation, String>((
+      ref,
+      clinicId,
+    ) async {
+      final session = await ref.watch(userSessionProvider.future);
+      return ref
+          .watch(platformRepositoryProvider)
+          .loadAdministratorActivation(session: session, clinicId: clinicId);
+    });
+
 /// Development-only generator. The service itself also checks [kDebugMode],
 /// so exposing this provider cannot enable it in a production build.
 final hospitalLoadTestSeederProvider = Provider<HospitalLoadTestSeeder>((ref) {

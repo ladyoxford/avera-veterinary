@@ -9,6 +9,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/models/platform_support_session.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/repositories/platform_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -103,6 +104,9 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(userSessionProvider).valueOrNull;
     final supportSession = ref.watch(platformSupportSessionProvider);
+    final activation = ref.watch(
+      platformAdministratorActivationProvider(clinicId),
+    );
     ref.watch(platformClinicProvider(clinicId));
     return _PlatformGuard(
       child: StreamBuilder<List<Clinic>>(
@@ -165,6 +169,62 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
+                if (clinic.clinicStatus == 'Active') ...[
+                  const SizedBox(height: 16),
+                  activation.when(
+                    loading: () => const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: LinearProgressIndicator(),
+                      ),
+                    ),
+                    error: (_, __) => const Card(
+                      child: ListTile(
+                        leading: Icon(Icons.warning_amber_rounded),
+                        title: Text('Administrator activation unavailable'),
+                        subtitle: Text('Pull to refresh or try again shortly.'),
+                      ),
+                    ),
+                    data: (value) => Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Clinic Administrator Activation',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(_activationStatusText(value)),
+                            if (value.email != null) ...[
+                              const SizedBox(height: 4),
+                              Text(value.email!),
+                            ],
+                            if (value.expiresAt != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Link expires ${value.expiresAt!.toLocal()}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                            if (value.canResend && session != null) ...[
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _resendActivation(context, ref, session),
+                                icon: const Icon(
+                                  Icons.mark_email_unread_outlined,
+                                ),
+                                label: const Text('Resend Activation'),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 Wrap(
                   spacing: 12,
@@ -192,14 +252,6 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
                       icon: const Icon(Icons.mark_email_unread_outlined),
                       label: const Text('Request Information'),
                     ),
-                    if (kDebugMode && clinic.clinicStatus == 'Active')
-                      OutlinedButton.icon(
-                        onPressed: session == null
-                            ? null
-                            : () => _copyActivationLink(context, ref, session),
-                        icon: const Icon(Icons.link_rounded),
-                        label: const Text('Copy Development Activation Link'),
-                      ),
                     if (session != null &&
                         session.canManagePlatform(
                           Permissions.platformSupportAccess,
@@ -284,19 +336,38 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
     String status,
   ) async {
     try {
-      await ref
-          .read(platformRepositoryProvider)
-          .updateClinicStatus(
-            session: session,
-            clinicId: clinicId,
-            status: status,
-          );
+      PlatformAdministratorActivation? activation;
+      if (status == 'Active') {
+        final result = await ref
+            .read(platformRepositoryProvider)
+            .approveClinic(session: session, clinicId: clinicId);
+        activation = result.activation;
+      } else {
+        await ref
+            .read(platformRepositoryProvider)
+            .updateClinicStatus(
+              session: session,
+              clinicId: clinicId,
+              status: status,
+            );
+      }
       ref.invalidate(platformClinicProvider(clinicId));
+      ref.invalidate(platformAdministratorActivationProvider(clinicId));
       ref.invalidate(platformClinicsProvider);
       ref.invalidate(platformOverviewProvider);
       if (context.mounted) {
+        if (activation?.activationUrl != null) {
+          await _showOneTimeActivationLink(context, activation!);
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Clinic status changed to $status.')),
+          SnackBar(
+            content: Text(
+              activation?.deliveryMethod == 'email'
+                  ? 'Clinic approved. The activation email was sent.'
+                  : 'Clinic status changed to $status.',
+            ),
+          ),
         );
       }
     } catch (error) {
@@ -308,26 +379,30 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _copyActivationLink(
+  Future<void> _resendActivation(
     BuildContext context,
     WidgetRef ref,
     UserSession session,
   ) async {
     try {
-      final link = await ref
-          .read(clinicRepositoryProvider)
-          .createDevelopmentActivationLink(
-            actingSession: session,
-            clinicId: clinicId,
-          );
-      await Clipboard.setData(ClipboardData(text: link));
+      final activation = await ref
+          .read(platformRepositoryProvider)
+          .resendAdministratorActivation(session: session, clinicId: clinicId);
+      ref.invalidate(platformAdministratorActivationProvider(clinicId));
       if (context.mounted) {
+        if (activation.activationUrl != null) {
+          await _showOneTimeActivationLink(context, activation);
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('DEVELOPMENT ONLY: activation link copied.'),
+          SnackBar(
+            content: Text(
+              activation.deliveryMethod == 'email'
+                  ? 'A new activation email was sent.'
+                  : 'Activation delivery could not be completed.',
+            ),
           ),
         );
-        context.push(link);
       }
     } catch (error) {
       if (context.mounted) {
@@ -336,6 +411,66 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text('$error')));
       }
     }
+  }
+
+  String _activationStatusText(PlatformAdministratorActivation activation) {
+    return switch (activation.status) {
+      'Active' => 'Activated',
+      'PendingActivation' =>
+        activation.deliveryMethod == 'email'
+            ? 'Pending activation - email sent'
+            : 'Pending activation - manual delivery required',
+      'LinkExpired' => 'Activation link expired',
+      'LinkRevoked' => 'Activation link revoked',
+      'NotProvisioned' => 'Administrator not provisioned',
+      'LocalDevelopment' => 'Local development activation',
+      _ => activation.status,
+    };
+  }
+
+  Future<void> _showOneTimeActivationLink(
+    BuildContext context,
+    PlatformAdministratorActivation activation,
+  ) async {
+    final link = activation.activationUrl!;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Temporary activation-link delivery'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Email delivery is not configured. This secure, single-use link is shown only now. Deliver it privately to the clinic applicant.',
+              ),
+              const SizedBox(height: 12),
+              SelectableText(link),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: link));
+              if (dialogContext.mounted) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('Activation link copied.')),
+                );
+              }
+            },
+            icon: const Icon(Icons.copy_rounded),
+            label: const Text('Copy activation link'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

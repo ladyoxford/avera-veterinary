@@ -4,6 +4,11 @@ import { authenticate } from '../middleware/auth.js';
 export const signInSchema = z.object({ email: z.string().email(), password: z.string().min(1), deviceName: z.string().max(120).optional(), platform: z.string().max(60).optional() });
 const refreshSchema = z.object({ refreshToken: z.string().min(40) });
 const passwordSchema = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(12) });
+const activationTokenSchema = z.object({ token: z.string().min(32).max(512) });
+const activationSchema = activationTokenSchema.extend({
+  password: z.string().min(12).max(256),
+  confirmPassword: z.string().min(12).max(256),
+});
 
 export async function authRoutes(app) {
   const signInRateLimit = app.environment.NODE_ENV === 'test' ? 100 : 5;
@@ -23,6 +28,39 @@ export async function authRoutes(app) {
       return reply.code(result.status).send({ error: result.code, message: result.message });
     }
     return reply.code(200).send(result.session);
+  });
+
+  app.post('/api/v1/auth/clinic-administrator-activation/status', {
+    config: { rateLimit: { max: 20, timeWindow: '15 minutes' } },
+  }, async (request, reply) => {
+    const parsed = activationTokenSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'A valid activation token is required.' });
+    }
+    try {
+      return { activation: await app.activationService.inspect(parsed.data.token) };
+    } catch (error) {
+      return reply.code(error.statusCode ?? 400).send({ error: error.code ?? 'activation_invalid', message: error.message });
+    }
+  });
+
+  app.post('/api/v1/auth/activate-clinic-administrator', {
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+  }, async (request, reply) => {
+    const parsed = activationSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Provide a valid token and matching strong passwords.' });
+    }
+    try {
+      return await app.activationService.activate({
+        rawToken: parsed.data.token,
+        password: parsed.data.password,
+        confirmPassword: parsed.data.confirmPassword,
+        ipAddress: request.ip,
+      });
+    } catch (error) {
+      return reply.code(error.statusCode ?? 400).send({ error: error.code ?? 'activation_failed', message: error.message });
+    }
   });
 
   app.post('/api/v1/auth/refresh', async (request, reply) => {

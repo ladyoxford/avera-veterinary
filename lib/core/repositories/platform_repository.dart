@@ -38,6 +38,38 @@ class PlatformOverviewSnapshot {
   final bool isOffline;
 }
 
+class PlatformAdministratorActivation {
+  const PlatformAdministratorActivation({
+    required this.status,
+    this.administratorName,
+    this.email,
+    this.expiresAt,
+    this.deliveredAt,
+    this.deliveryMethod,
+    this.activationUrl,
+    this.canResend = false,
+  });
+
+  final String status;
+  final String? administratorName;
+  final String? email;
+  final DateTime? expiresAt;
+  final DateTime? deliveredAt;
+  final String? deliveryMethod;
+  final String? activationUrl;
+  final bool canResend;
+}
+
+class PlatformClinicApprovalResult {
+  const PlatformClinicApprovalResult({
+    required this.clinic,
+    required this.activation,
+  });
+
+  final Clinic clinic;
+  final PlatformAdministratorActivation activation;
+}
+
 abstract interface class PlatformRepository {
   Future<PlatformOverviewSnapshot> loadOverview(UserSession session);
 
@@ -53,6 +85,21 @@ abstract interface class PlatformRepository {
     required UserSession session,
     required String clinicId,
     required String status,
+  });
+
+  Future<PlatformClinicApprovalResult> approveClinic({
+    required UserSession session,
+    required String clinicId,
+  });
+
+  Future<PlatformAdministratorActivation> loadAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
+  });
+
+  Future<PlatformAdministratorActivation> resendAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
   });
 
   Future<Clinic> updateClinicSubscription({
@@ -115,6 +162,51 @@ class LocalPlatformRepository implements PlatformRepository {
       status: status,
     );
     return (await loadClinic(session, clinicId))!;
+  }
+
+  @override
+  Future<PlatformClinicApprovalResult> approveClinic({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    final clinic = await updateClinicStatus(
+      session: session,
+      clinicId: clinicId,
+      status: 'Active',
+    );
+    return PlatformClinicApprovalResult(
+      clinic: clinic,
+      activation: const PlatformAdministratorActivation(
+        status: 'LocalDevelopment',
+      ),
+    );
+  }
+
+  @override
+  Future<PlatformAdministratorActivation> loadAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    _ensurePlatformOwner(session);
+    return const PlatformAdministratorActivation(status: 'LocalDevelopment');
+  }
+
+  @override
+  Future<PlatformAdministratorActivation> resendAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    _ensurePlatformOwner(session);
+    final link = await ClinicRepository(db).createDevelopmentActivationLink(
+      actingSession: session,
+      clinicId: clinicId,
+    );
+    return PlatformAdministratorActivation(
+      status: 'PendingActivation',
+      deliveryMethod: 'manual',
+      activationUrl: link,
+      canResend: true,
+    );
   }
 
   @override
@@ -341,6 +433,50 @@ class RemotePlatformRepository implements PlatformRepository {
   }
 
   @override
+  Future<PlatformClinicApprovalResult> approveClinic({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.patch(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/status',
+      body: const {'status': 'Active'},
+    );
+    final clinic = _clinicFromJson(response['clinic'] as Map<String, dynamic>);
+    await _cacheClinics([clinic]);
+    onOfflineChanged?.call(false);
+    return PlatformClinicApprovalResult(
+      clinic: clinic,
+      activation: _activation(response['activation']),
+    );
+  }
+
+  @override
+  Future<PlatformAdministratorActivation> loadAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.get(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/administrator-activation',
+    );
+    return _activation(response['activation']);
+  }
+
+  @override
+  Future<PlatformAdministratorActivation> resendAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.post(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/administrator-activation/resend',
+      authenticated: true,
+    );
+    return _activation(response['activation']);
+  }
+
+  @override
   Future<Clinic> updateClinicSubscription({
     required UserSession session,
     required String clinicId,
@@ -369,6 +505,29 @@ class RemotePlatformRepository implements PlatformRepository {
         .map(_clinicFromJson)
         .toList(growable: false);
   }
+
+  PlatformAdministratorActivation _activation(Object? value) {
+    final json = value is Map<String, dynamic>
+        ? value
+        : const <String, dynamic>{};
+    return PlatformAdministratorActivation(
+      status: json['status'] as String? ?? 'NotProvisioned',
+      administratorName: json['administratorName'] as String?,
+      email: json['email'] as String?,
+      expiresAt: _date(json['expiresAt']),
+      deliveredAt: _date(json['deliveredAt']),
+      deliveryMethod: json['deliveryMethod'] as String?,
+      activationUrl: json['activationUrl'] as String?,
+      canResend:
+          json['canResend'] as bool? ?? json['status'] == 'PendingActivation',
+    );
+  }
+
+  DateTime? _date(Object? value) => value is String
+      ? DateTime.tryParse(value)
+      : value is DateTime
+      ? value
+      : null;
 
   Clinic _clinicFromJson(Map<String, dynamic> json) {
     return Clinic(

@@ -69,6 +69,14 @@ test('clinic accounts cannot access Platform Owner clinic APIs', async (context)
 
   assert.equal(response.statusCode, 403);
   assert.equal(response.json().error, 'forbidden');
+
+  const resend = await app.inject({
+    method: 'POST',
+    url: '/api/v1/platform/clinics/clinic-1/administrator-activation/resend',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(resend.statusCode, 403);
+  assert.equal(resend.json().error, 'forbidden');
 });
 
 function testEnvironment() {
@@ -86,5 +94,7 @@ function testEnvironment() {
     PAYSTACK_CURRENCY: 'NGN',
     paymentCallbackUrl: 'avera://payments/callback',
     allowedOrigins: ['http://localhost'],
+    ACTIVATION_TOKEN_TTL_MINUTES: 60,
+    AVERA_ACTIVATION_BASE_URL: 'avera://app/activate-clinic-admin',
   };
 }

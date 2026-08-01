@@ -33,6 +33,15 @@ export class AuthService {
         await client.query('COMMIT');
         return authenticationFailure(401, 'invalid_credentials', 'Invalid credentials or inactive account.', 'user_not_found');
       }
+      if (user.status === 'PendingActivation' || !user.password_hash) {
+        await client.query('COMMIT');
+        return authenticationFailure(
+          403,
+          'account_activation_required',
+          'Activate this account using the secure link sent after clinic approval.',
+          'account_pending_activation',
+        );
+      }
       if (!(await verifyPassword(password, user.password_hash))) {
         if (user.status === 'Active') await this.#recordFailure(client, user, ipAddress);
         await client.query('COMMIT');

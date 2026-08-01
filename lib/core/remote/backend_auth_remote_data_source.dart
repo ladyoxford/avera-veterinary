@@ -95,6 +95,44 @@ class BackendAuthRemoteDataSource implements AuthRemoteDataSource {
   }
 
   @override
+  Future<RemoteClinicAdministratorActivation>
+  inspectClinicAdministratorActivation(String token) async {
+    final response = await _client.post(
+      '/api/v1/auth/clinic-administrator-activation/status',
+      body: {'token': token},
+    );
+    final value = response['activation'] as Map<String, dynamic>;
+    return RemoteClinicAdministratorActivation(
+      clinicName: value['clinicName'] as String,
+      administratorName: value['administratorName'] as String,
+      email: value['email'] as String,
+      expiresAt: DateTime.parse(value['expiresAt'] as String),
+    );
+  }
+
+  @override
+  Future<RemoteClinicAdministratorActivationResult>
+  activateClinicAdministrator({
+    required String token,
+    required String password,
+    required String confirmPassword,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/auth/activate-clinic-administrator',
+      body: {
+        'token': token,
+        'password': password,
+        'confirmPassword': confirmPassword,
+      },
+    );
+    return RemoteClinicAdministratorActivationResult(
+      email: response['email'] as String,
+      mfaEnrollmentRecommended:
+          response['mfaEnrollmentRecommended'] as bool? ?? true,
+    );
+  }
+
+  @override
   Future<RemoteAuthSession> verifyMfa({
     required String challengeToken,
     String? code,

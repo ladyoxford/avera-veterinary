@@ -49,6 +49,21 @@ class AuthenticationRepository {
     return session.user;
   }
 
+  Future<RemoteClinicAdministratorActivation>
+  inspectClinicAdministratorActivation(String token) =>
+      _remote.inspectClinicAdministratorActivation(token);
+
+  Future<RemoteClinicAdministratorActivationResult>
+  activateClinicAdministrator({
+    required String token,
+    required String password,
+    required String confirmPassword,
+  }) => _remote.activateClinicAdministrator(
+    token: token,
+    password: password,
+    confirmPassword: confirmPassword,
+  );
+
   Future<RemoteCurrentUser> verifyMfa({
     required String challengeToken,
     String? code,

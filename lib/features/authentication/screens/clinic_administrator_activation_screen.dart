@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_providers.dart';
-import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/remote/api_client.dart';
 import '../../shared/widgets/avera_logo.dart';
 
 class ClinicAdministratorActivationScreen extends ConsumerStatefulWidget {
@@ -17,7 +17,7 @@ class ClinicAdministratorActivationScreen extends ConsumerStatefulWidget {
 
 class _ClinicAdministratorActivationScreenState
     extends ConsumerState<ClinicAdministratorActivationScreen> {
-  late Future<ClinicAdministratorActivation?> _activation;
+  late Future<_ActivationDetails?> _activation;
   final _password = TextEditingController();
   final _confirm = TextEditingController();
   bool _accepted = false;
@@ -26,9 +26,46 @@ class _ClinicAdministratorActivationScreenState
   @override
   void initState() {
     super.initState();
-    _activation = ref
+    _activation = _loadActivation();
+  }
+
+  Future<_ActivationDetails?> _loadActivation() async {
+    if (BackendConfiguration.isBackendMode) {
+      try {
+        final activation = await ref
+            .read(authenticationRepositoryProvider)
+            .inspectClinicAdministratorActivation(widget.token);
+        return _ActivationDetails(
+          clinicName: activation.clinicName,
+          administratorName: activation.administratorName,
+          email: activation.email,
+          role: 'Clinic Administrator',
+          plan: null,
+        );
+      } on ApiException catch (error) {
+        if (const {
+          'activation_invalid',
+          'activation_expired',
+          'activation_used',
+          'activation_revoked',
+          'activation_unavailable',
+        }.contains(error.code)) {
+          return null;
+        }
+        rethrow;
+      }
+    }
+    final activation = await ref
         .read(clinicRepositoryProvider)
         .validateClinicAdministratorActivation(widget.token);
+    if (activation == null) return null;
+    return _ActivationDetails(
+      clinicName: activation.clinic.clinicName,
+      administratorName: activation.user.fullName,
+      email: activation.user.email,
+      role: activation.user.role,
+      plan: activation.clinic.subscriptionPlan,
+    );
   }
 
   @override
@@ -49,19 +86,29 @@ class _ClinicAdministratorActivationScreenState
     }
     setState(() => _submitting = true);
     try {
-      await ref
-          .read(clinicRepositoryProvider)
-          .activateClinicAdministrator(
-            token: widget.token,
-            password: _password.text,
-          );
+      if (BackendConfiguration.isBackendMode) {
+        await ref
+            .read(authenticationRepositoryProvider)
+            .activateClinicAdministrator(
+              token: widget.token,
+              password: _password.text,
+              confirmPassword: _confirm.text,
+            );
+      } else {
+        await ref
+            .read(clinicRepositoryProvider)
+            .activateClinicAdministrator(
+              token: widget.token,
+              password: _password.text,
+            );
+      }
       if (mounted) {
         await showDialog<void>(
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('Account activated'),
             content: const Text(
-              'Your AVERA administrator account is active. You can now sign in with your approved email and new password.',
+              'Your AVERA administrator account is active. Sign in with your approved email and new password, then enable two-factor authentication from Security Settings.',
             ),
             actions: [
               FilledButton(
@@ -75,6 +122,8 @@ class _ClinicAdministratorActivationScreenState
           ),
         );
       }
+    } on ApiException catch (error) {
+      _notice(error.message);
     } catch (error) {
       _notice(error.toString().replaceFirst('Bad state: ', ''));
     } finally {
@@ -91,11 +140,17 @@ class _ClinicAdministratorActivationScreenState
     final theme = Theme.of(context);
     return Scaffold(
       body: SafeArea(
-        child: FutureBuilder<ClinicAdministratorActivation?>(
+        child: FutureBuilder<_ActivationDetails?>(
           future: _activation,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
               return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return _ActivationLoadError(
+                onRetry: () => setState(() => _activation = _loadActivation()),
+                onSignIn: () => context.go('/login'),
+              );
             }
             final activation = snapshot.data;
             if (activation == null) {
@@ -116,15 +171,13 @@ class _ClinicAdministratorActivationScreenState
                       ),
                       const SizedBox(height: 28),
                       Text(
-                        activation.user.accountType == 'ClinicStaff'
-                            ? 'Activate Your AVERA Staff Account'
-                            : 'Activate Your AVERA Account',
+                        'Activate Your AVERA Account',
                         style: theme.textTheme.headlineSmall,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        activation.clinic.clinicName,
+                        activation.clinicName,
                         style: theme.textTheme.titleMedium,
                       ),
                       const SizedBox(height: 24),
@@ -136,14 +189,12 @@ class _ClinicAdministratorActivationScreenState
                             children: [
                               _detail(
                                 'Administrator',
-                                activation.user.fullName,
+                                activation.administratorName,
                               ),
-                              _detail('Email', activation.user.email),
-                              _detail('Role', activation.user.role),
-                              _detail(
-                                'Plan',
-                                activation.clinic.subscriptionPlan,
-                              ),
+                              _detail('Email', activation.email),
+                              _detail('Role', activation.role),
+                              if (activation.plan != null)
+                                _detail('Plan', activation.plan!),
                               const SizedBox(height: 18),
                               TextField(
                                 controller: _password,
@@ -253,6 +304,22 @@ class _ClinicAdministratorActivationScreenState
   );
 }
 
+class _ActivationDetails {
+  const _ActivationDetails({
+    required this.clinicName,
+    required this.administratorName,
+    required this.email,
+    required this.role,
+    required this.plan,
+  });
+
+  final String clinicName;
+  final String administratorName;
+  final String email;
+  final String role;
+  final String? plan;
+}
+
 class _InvalidActivation extends StatelessWidget {
   const _InvalidActivation({required this.onSignIn});
   final VoidCallback onSignIn;
@@ -282,6 +349,43 @@ class _InvalidActivation extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+class _ActivationLoadError extends StatelessWidget {
+  const _ActivationLoadError({required this.onRetry, required this.onSignIn});
+
+  final VoidCallback onRetry;
+  final VoidCallback onSignIn;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_rounded, size: 52),
+          const SizedBox(height: 16),
+          Text(
+            'Activation service unavailable',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'AVERA could not verify this link right now. Check your connection and try again.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
+          ),
+          TextButton(onPressed: onSignIn, child: const Text('Go to Sign In')),
+        ],
       ),
     ),
   );

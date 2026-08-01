@@ -368,7 +368,7 @@ export async function clinicalRoutes(app) {
     const params = uuidSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ error: 'validation_error', message: 'The patient identifier is invalid.' });
     return withTenantTransaction(app.pool, request.auth, async (client) => {
-      const patient = await client.query(`${patientList.select} FROM ${patientList.from} WHERE p.clinic_id = $1 AND p.patient_id = $2 AND p.deleted_at IS NULL AND o.deleted_at IS NULL`, [request.auth.clinicId, params.data.patientId]);
+      const patient = await client.query(`SELECT ${patientList.select} FROM ${patientList.from} WHERE p.clinic_id = $1 AND p.patient_id = $2 AND p.deleted_at IS NULL AND o.deleted_at IS NULL`, [request.auth.clinicId, params.data.patientId]);
       if (!patient.rows[0]) return reply.code(404).send({ error: 'not_found', message: 'The patient was not found in this clinic.' });
       return { patient: patient.rows[0] };
     });
@@ -379,7 +379,7 @@ export async function clinicalRoutes(app) {
     const params = uuidSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ error: 'validation_error', message: 'The patient identifier is invalid.' });
     return withTenantTransaction(app.pool, request.auth, async (client) => {
-      const patient = await client.query(`${patientList.select} FROM ${patientList.from} WHERE p.clinic_id = $1 AND p.patient_id = $2 AND p.deleted_at IS NULL AND o.deleted_at IS NULL`, [request.auth.clinicId, params.data.patientId]);
+      const patient = await client.query(`SELECT ${patientList.select} FROM ${patientList.from} WHERE p.clinic_id = $1 AND p.patient_id = $2 AND p.deleted_at IS NULL AND o.deleted_at IS NULL`, [request.auth.clinicId, params.data.patientId]);
       if (!patient.rows[0]) return reply.code(404).send({ error: 'not_found', message: 'The patient was not found in this clinic.' });
       const patientId = params.data.patientId; const clinicId = request.auth.clinicId;
       const [consultations, vaccinations, laboratory, hospitalizations, surgeries, prescriptions, invoices, media, timeline] = await Promise.all([

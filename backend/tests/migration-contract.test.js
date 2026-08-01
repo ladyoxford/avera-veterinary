@@ -120,6 +120,22 @@ test('patient registration validates input and formats clinic numbering', () => 
   assert.equal(formatPatientHospitalNumber('AVR', 2026, 123456, 5), 'AVR-2026-123456');
 });
 
+test('patient detail and medical-file routes build complete SELECT queries', () => {
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  const detailQueries = routes.match(
+    /client\.query\(`SELECT \$\{patientList\.select\} FROM \$\{patientList\.from\}/g,
+  );
+
+  assert.equal(detailQueries?.length, 2);
+  assert.doesNotMatch(
+    routes,
+    /client\.query\(`\$\{patientList\.select\} FROM \$\{patientList\.from\}/,
+  );
+});
+
 test('demo clinical migration is tenant-scoped and identifies removable demo rows', () => {
   const demo = fs.readFileSync(new URL('../migrations/004_demo_clinical_domain.sql', import.meta.url), 'utf8');
   for (const table of ['owners', 'patients', 'consultations', 'laboratory_reports', 'hospitalizations', 'surgeries', 'inventory_products', 'invoices', 'payments', 'schedule_entries']) {

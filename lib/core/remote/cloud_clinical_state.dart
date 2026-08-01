@@ -66,9 +66,9 @@ class RemotePatientListController
   }
 
   Future<void> _loadPage({required bool reset}) async {
-    final session = await _session();
-    final key = _cacheKey(session.clinic.clinicId, _nextPage);
     try {
+      final session = await _session();
+      final key = _cacheKey(session.clinic.clinicId, _nextPage);
       final page = await _source.patients(
         page: _nextPage,
         search: _search,
@@ -96,6 +96,18 @@ class RemotePatientListController
       }
       _apply(page, reset: reset);
     } catch (error) {
+      UserSession? session;
+      try {
+        session = await _session();
+      } catch (_) {
+        state = state.copyWith(
+          isLoading: false,
+          isLoadingMore: false,
+          error: error,
+        );
+        return;
+      }
+      final key = _cacheKey(session.clinic.clinicId, _nextPage);
       final cached = await _cache.get(key, clinicId: session.clinic.clinicId);
       if (cached != null) {
         final page = RemotePage<RemotePatient>(
@@ -157,6 +169,12 @@ final remotePatientListProvider =
         () => ref.read(userSessionProvider.future),
       ),
     );
+
+final remoteHospitalNumberPreviewProvider =
+    FutureProvider.autoDispose<RemoteHospitalNumberPreview>((ref) async {
+      await ref.watch(userSessionProvider.future);
+      return ref.watch(clinicalRemoteDataSourceProvider).patientNumberPreview();
+    });
 
 final remotePatientMedicalFileProvider = FutureProvider.autoDispose
     .family<RemotePatientMedicalFile, String>((ref, patientId) async {

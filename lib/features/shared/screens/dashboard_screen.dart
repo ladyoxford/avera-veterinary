@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/models/alert_destination.dart';
 import '../../../core/remote/api_client.dart';
+import '../../../core/remote/clinical_remote_data_source.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/clinic_operating_status_service.dart';
@@ -15,16 +17,23 @@ import '../../../core/services/feature_gate_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/branded_app_bar.dart';
 import '../widgets/avera_ui.dart';
-import 'cloud_dashboard_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (BackendConfiguration.isConfigured) return const CloudDashboardScreen();
-    final stats = ref.watch(dashboardStatsProvider);
     final session = ref.watch(userSessionProvider);
+    final stats = BackendConfiguration.isConfigured
+        ? ref
+              .watch(remoteDashboardProvider)
+              .whenData(
+                (summary) => dashboardStatsFromRemote(
+                  summary,
+                  clinicId: session.valueOrNull?.clinic.clinicId ?? '',
+                ),
+              )
+        : ref.watch(dashboardStatsProvider);
     final notifications = ref.watch(notificationsProvider);
     final operatingStatus = ref.watch(clinicOperatingStatusProvider);
 
@@ -50,7 +59,11 @@ class DashboardScreen extends ConsumerWidget {
               const [];
           return RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(dashboardStatsProvider);
+              if (BackendConfiguration.isConfigured) {
+                ref.invalidate(remoteDashboardProvider);
+              } else {
+                ref.invalidate(dashboardStatsProvider);
+              }
               ref.invalidate(notificationsProvider);
             },
             child: LayoutBuilder(
@@ -118,6 +131,56 @@ class DashboardScreen extends ConsumerWidget {
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
+}
+
+DashboardStats dashboardStatsFromRemote(
+  RemoteDashboardSummary summary, {
+  required String clinicId,
+}) => DashboardStats(
+  totalAnimals: summary.registeredPatients,
+  todaysConsultations: summary.activeConsultations,
+  appointmentsToday: summary.todaysSchedule,
+  vaccinationsDue: summary.vaccinationsDue,
+  lowStock: summary.lowStock,
+  expiredDrugs: summary.expiredProducts,
+  monthlyRevenue: summary.currentRevenue.toDouble(),
+  recentVisits: const [],
+  recentActivity: [
+    for (var index = 0; index < summary.recentActivity.length; index++)
+      _remoteActivityEvent(
+        summary.recentActivity[index],
+        clinicId: clinicId,
+        index: index,
+      ),
+  ],
+  unreadNotifications: 0,
+);
+
+ClinicActivityTimelineEvent _remoteActivityEvent(
+  Map<String, dynamic> value, {
+  required String clinicId,
+  required int index,
+}) {
+  final type = value['type'] as String? ?? 'ClinicActivity';
+  final summary = value['summary'] as String? ?? 'Clinic activity';
+  final occurredAt =
+      DateTime.tryParse('${value['occurred_at']}') ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+  final relatedEntityId = value['related_entity_id']?.toString();
+  return ClinicActivityTimelineEvent(
+    id:
+        value['id']?.toString() ??
+        '${occurredAt.microsecondsSinceEpoch}-$index',
+    clinicId: clinicId,
+    type: type,
+    title: summary,
+    description: type,
+    occurredAt: occurredAt,
+    relatedEntityType:
+        value['related_entity_type'] as String? ??
+        (relatedEntityId == null ? null : type),
+    relatedEntityId: relatedEntityId,
+  );
 }
 
 // Legacy layout retained while older dashboard widget tests are migrated.

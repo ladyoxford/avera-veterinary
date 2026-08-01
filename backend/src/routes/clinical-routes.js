@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { withTenantTransaction } from '../database/pool.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { permissions } from '../security/permissions.js';
+import { writeAudit } from '../audit/audit-service.js';
 
 const pageSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -15,6 +16,95 @@ const pageSchema = z.object({
 });
 
 const uuidSchema = z.object({ patientId: z.string().uuid() });
+export const createPatientSchema = z.object({
+  submissionId: z.string().uuid(),
+  name: z.string().trim().min(1).max(160),
+  species: z.string().trim().min(1).max(120),
+  speciesId: z.string().trim().max(120).nullish(),
+  breed: z.string().trim().min(1).max(160),
+  breedId: z.string().trim().max(160).nullish(),
+  sex: z.string().trim().min(1).max(40),
+  dateOfBirth: z.string().date(),
+  isDateOfBirthEstimated: z.boolean().default(false),
+  originalAgeValue: z.number().int().min(0).max(5000).nullish(),
+  originalAgeUnit: z.enum(['days', 'weeks', 'months', 'years']).nullish(),
+  weightKg: z.number().min(0).max(100000).nullish(),
+  colour: z.string().trim().max(160).nullish(),
+  microchipNumber: z.string().trim().max(160).nullish(),
+  notes: z.string().trim().max(4000).nullish(),
+  owner: z.object({
+    fullName: z.string().trim().min(1).max(160),
+    phone: z.string().trim().min(1).max(80),
+    email: z.string().trim().email().max(254).nullish(),
+    address: z.string().trim().max(500).nullish(),
+  }),
+});
+
+const patientNumberStopWords = new Set(['VETERINARY', 'VET', 'CLINIC', 'HOSPITAL', 'ANIMAL', 'PET', 'CARE', 'SERVICES']);
+
+export function suggestedPatientPrefix(clinicName) {
+  const words = clinicName.toUpperCase().match(/[A-Z0-9]+/g) ?? [];
+  const meaningful = words.filter((word) => !patientNumberStopWords.has(word));
+  const candidates = meaningful.length > 0 ? meaningful : words;
+  let prefix = candidates.length > 1
+    ? candidates.map((word) => word[0]).join('')
+    : candidates[0] ?? 'AVERA';
+  prefix = prefix.replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  if (prefix.length < 2) prefix = 'AVR';
+  return prefix;
+}
+
+export function formatPatientHospitalNumber(prefix, year, sequence, length) {
+  if (!/^[A-Z0-9]{2,8}$/.test(prefix)) throw new Error('Invalid patient number prefix.');
+  return `${prefix}-${year}-${String(sequence).padStart(length, '0')}`;
+}
+
+async function clinicNumbering(client, clinicId, userId) {
+  const result = await client.query(
+    `SELECT clinic_id, name, time_zone, patient_number_prefix,
+            patient_number_sequence_length, patient_number_reset_yearly,
+            patient_number_prefix_reviewed,
+            EXTRACT(YEAR FROM timezone(time_zone, now()))::int AS registration_year
+       FROM clinics
+      WHERE clinic_id = $1 AND deleted_at IS NULL
+      FOR UPDATE`,
+    [clinicId],
+  );
+  const clinic = result.rows[0];
+  if (!clinic) return null;
+  if (!clinic.patient_number_prefix) {
+    clinic.patient_number_prefix = suggestedPatientPrefix(clinic.name);
+    await client.query(
+      `UPDATE clinics
+          SET patient_number_prefix = $1, patient_number_prefix_reviewed = false,
+              patient_number_last_changed_at = now(), patient_number_last_changed_by = $2,
+              updated_at = now(), revision = revision + 1
+        WHERE clinic_id = $3`,
+      [clinic.patient_number_prefix, userId, clinicId],
+    );
+  }
+  return clinic;
+}
+
+function patientResponse(row) {
+  return {
+    patient_id: row.patient_id,
+    hospital_number: row.hospital_number,
+    name: row.name,
+    species: row.species,
+    breed: row.breed,
+    sex: row.sex,
+    status: row.status,
+    date_of_birth: row.date_of_birth,
+    current_weight_kg: row.current_weight_kg,
+    image_placeholder: row.image_placeholder,
+    registered_at: row.registered_at,
+    revision: row.revision,
+    owner_id: row.owner_id,
+    owner_name: row.owner_name,
+    owner_phone: row.owner_phone,
+  };
+}
 
 function requireClinic(request, reply) {
   if (request.auth.clinicId) return true;
@@ -177,6 +267,101 @@ export async function clinicalRoutes(app) {
   }));
   app.get('/api/v1/owners', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, tenantList(ownerList));
   app.get('/api/v1/patients', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, tenantList(patientList));
+
+  app.get('/api/v1/patients/number-preview', { preHandler: [authenticate, requirePermission(permissions.patientsCreate)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const clinic = await clinicNumbering(client, request.auth.clinicId, request.auth.userId);
+      if (!clinic) return reply.code(404).send({ error: 'clinic_not_found', message: 'The active clinic was not found.' });
+      const sequenceKey = clinic.patient_number_reset_yearly ? String(clinic.registration_year) : '0';
+      const sequence = await client.query(
+        `SELECT current_value FROM clinic_number_sequences
+          WHERE clinic_id = $1 AND sequence_type = 'patient' AND sequence_key = $2`,
+        [request.auth.clinicId, sequenceKey],
+      );
+      const nextSequence = Number(sequence.rows[0]?.current_value ?? 0) + 1;
+      return {
+        clinicId: request.auth.clinicId,
+        prefix: clinic.patient_number_prefix,
+        year: clinic.registration_year,
+        sequence: nextSequence,
+        sequenceLength: clinic.patient_number_sequence_length,
+        prefixRequiresReview: !clinic.patient_number_prefix_reviewed,
+        hospitalNumber: formatPatientHospitalNumber(clinic.patient_number_prefix, clinic.registration_year, nextSequence, clinic.patient_number_sequence_length),
+      };
+    });
+  });
+
+  app.post('/api/v1/patients', { preHandler: [authenticate, requirePermission(permissions.patientsCreate)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = createPatientSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the patient and owner information.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const input = parsed.data;
+      const existing = await client.query(
+        `SELECT ${patientList.select}
+           FROM ${patientList.from}
+          WHERE p.clinic_id = $1 AND p.registration_submission_id = $2
+            AND p.deleted_at IS NULL AND o.deleted_at IS NULL`,
+        [request.auth.clinicId, input.submissionId],
+      );
+      if (existing.rows[0]) {
+        return { patient: patientResponse(existing.rows[0]), submissionId: input.submissionId, duplicateSubmission: true };
+      }
+
+      const clinic = await clinicNumbering(client, request.auth.clinicId, request.auth.userId);
+      if (!clinic) return reply.code(404).send({ error: 'clinic_not_found', message: 'The active clinic was not found.' });
+      const sequenceKey = clinic.patient_number_reset_yearly ? String(clinic.registration_year) : '0';
+      const sequence = await client.query(
+        `INSERT INTO clinic_number_sequences
+           (clinic_id, sequence_type, sequence_key, current_value, sequence_length)
+         VALUES ($1, 'patient', $2, 1, $3)
+         ON CONFLICT (clinic_id, sequence_type, sequence_key)
+         DO UPDATE SET current_value = clinic_number_sequences.current_value + 1,
+                       sequence_length = EXCLUDED.sequence_length, updated_at = now()
+         RETURNING current_value`,
+        [request.auth.clinicId, sequenceKey, clinic.patient_number_sequence_length],
+      );
+      const hospitalNumber = formatPatientHospitalNumber(
+        clinic.patient_number_prefix,
+        clinic.registration_year,
+        Number(sequence.rows[0].current_value),
+        clinic.patient_number_sequence_length,
+      );
+      const owner = await client.query(
+        `INSERT INTO owners (clinic_id, full_name, phone, email, address, registered_at)
+         VALUES ($1,$2,$3,$4,$5,now()) RETURNING owner_id`,
+        [request.auth.clinicId, input.owner.fullName, input.owner.phone, input.owner.email ?? null, input.owner.address ?? null],
+      );
+      const inserted = await client.query(
+        `INSERT INTO patients
+           (clinic_id, owner_id, hospital_number, name, species, species_id, breed, breed_id,
+            sex, date_of_birth, is_date_of_birth_estimated, original_age_value,
+            original_age_unit, age_recorded_at, colour, current_weight_kg,
+            microchip_number, notes, status, registered_at, registration_submission_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now(),$14,$15,$16,$17,'Active',now(),$18)
+         RETURNING patient_id, hospital_number, name, species, breed, sex, status,
+                   date_of_birth, current_weight_kg, image_placeholder, registered_at, revision, owner_id`,
+        [request.auth.clinicId, owner.rows[0].owner_id, hospitalNumber, input.name, input.species,
+          input.speciesId ?? null, input.breed, input.breedId ?? null, input.sex, input.dateOfBirth,
+          input.isDateOfBirthEstimated, input.originalAgeValue ?? null, input.originalAgeUnit ?? null,
+          input.colour ?? null, input.weightKg ?? null, input.microchipNumber ?? null,
+          input.notes ?? null, input.submissionId],
+      );
+      const row = { ...inserted.rows[0], owner_name: input.owner.fullName, owner_phone: input.owner.phone };
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Patient',
+        targetId: row.patient_id,
+        action: 'patient.registered',
+        newSummary: { hospitalNumber, patientName: input.name, species: input.species },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { patient: patientResponse(row), submissionId: input.submissionId, duplicateSubmission: false };
+    });
+  });
 
   app.get('/api/v1/patients/:patientId', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;

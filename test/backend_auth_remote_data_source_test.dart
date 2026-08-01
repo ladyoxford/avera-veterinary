@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:avera/core/remote/api_client.dart';
 import 'package:avera/core/remote/backend_auth_remote_data_source.dart';
 import 'package:avera/core/remote/auth_remote_data_source.dart';
+import 'package:avera/core/remote/clinical_remote_data_source.dart';
 import 'package:avera/core/repositories/authentication_repository.dart';
 
 void main() {
@@ -71,6 +72,58 @@ void main() {
 
     await apiClient.get('/api/v1/patients?page=1', authenticated: false);
   });
+
+  test(
+    'patient registration uses authenticated production POST and UUID result',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'avera_access_token': 'production-access-token',
+      });
+      final client = MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/v1/patients');
+        expect(
+          request.headers['authorization'],
+          'Bearer production-access-token',
+        );
+        expect(jsonDecode(request.body), containsPair('name', 'Luna'));
+        return http.Response(
+          jsonEncode({
+            'patient': {
+              'patient_id': 'cb159739-c0cb-4503-a069-9d64563f47bc',
+              'hospital_number': 'BIOCAMP-2026-00001',
+              'name': 'Luna',
+              'species': 'Cat',
+              'breed': 'Domestic Shorthair',
+              'sex': 'Female',
+              'status': 'Active',
+              'owner_name': 'Luna Owner',
+              'owner_phone': '08000000000',
+            },
+            'submissionId': '5b8ea5ed-f09b-4ed3-b440-e490f2f4e32d',
+            'duplicateSubmission': false,
+          }),
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final source = ClinicalRemoteDataSource(
+        ApiClient(
+          baseUrl: BackendConfiguration.productionApiBaseUrl,
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: client,
+        ),
+      );
+
+      final result = await source.registerPatient({
+        'submissionId': '5b8ea5ed-f09b-4ed3-b440-e490f2f4e32d',
+        'name': 'Luna',
+      });
+
+      expect(result.patient.id, 'cb159739-c0cb-4503-a069-9d64563f47bc');
+      expect(result.patient.hospitalNumber, 'BIOCAMP-2026-00001');
+    },
+  );
 
   test(
     'ApiClient uses a configurable timeout with a 15-second development default',

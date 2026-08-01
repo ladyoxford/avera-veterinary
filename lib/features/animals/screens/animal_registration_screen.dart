@@ -12,6 +12,8 @@ import '../../../core/config/animal_registration_provider.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/animal_catalogue.dart';
+import '../../../core/remote/api_client.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/services/animal_age_service.dart';
 import '../../../core/services/hospital_numbering.dart';
 import '../../../core/theme/app_theme.dart';
@@ -44,7 +46,20 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
     final saving = useState(false);
     final ageValidationError = useState<String?>(null);
     final submissionId = useMemoized(() => const Uuid().v4());
-    final numberPreview = ref.watch(hospitalNumberPreviewProvider);
+    final numberPreview = BackendConfiguration.isConfigured
+        ? ref
+              .watch(remoteHospitalNumberPreviewProvider)
+              .whenData(
+                (preview) => HospitalNumberPreview(
+                  clinicId: preview.clinicId,
+                  prefix: preview.prefix,
+                  year: preview.year,
+                  sequence: preview.sequence,
+                  sequenceLength: preview.sequenceLength,
+                  prefixRequiresReview: preview.prefixRequiresReview,
+                ),
+              )
+        : ref.watch(hospitalNumberPreviewProvider);
     final selection = ref.watch(animalRegistrationSelectionProvider);
     final selectionController = ref.read(
       animalRegistrationSelectionProvider.notifier,
@@ -158,6 +173,58 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
         final isEstimated =
             resolved.ageInputMode == AnimalAgeInputMode.currentAge ||
             resolved.isDateOfBirthEstimated;
+        if (BackendConfiguration.isConfigured) {
+          final registration = await ref
+              .read(clinicalRemoteDataSourceProvider)
+              .registerPatient({
+                'submissionId': submissionId,
+                'name': animalName.text.trim(),
+                'species': speciesName,
+                'speciesId': resolved.selectedSpeciesId,
+                'breed': breedName,
+                'breedId': resolved.selectedBreedId,
+                'sex': sex.value,
+                'dateOfBirth': DateFormat('yyyy-MM-dd').format(dateOfBirth),
+                'isDateOfBirthEstimated': isEstimated,
+                'originalAgeValue':
+                    resolved.ageInputMode == AnimalAgeInputMode.currentAge
+                    ? originalAge
+                    : null,
+                'originalAgeUnit':
+                    resolved.ageInputMode == AnimalAgeInputMode.currentAge
+                    ? resolved.ageUnit.storageValue
+                    : null,
+                'weightKg': double.tryParse(weight.text.trim()),
+                'colour': _nullIfEmpty(color.text),
+                'microchipNumber': _nullIfEmpty(microchip.text),
+                'notes': _nullIfEmpty(notes.text),
+                'owner': {
+                  'fullName': ownerName.text.trim(),
+                  'phone': ownerPhone.text.trim(),
+                  'email': _nullIfEmpty(ownerEmail.text),
+                  'address': _nullIfEmpty(ownerAddress.text),
+                },
+              });
+          await ref.read(remotePatientListProvider.notifier).refresh();
+          ref
+            ..invalidate(remoteDashboardProvider)
+            ..invalidate(remoteHospitalNumberPreviewProvider);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Patient registered successfully as ${registration.patient.hospitalNumber}.',
+                ),
+              ),
+            );
+            if (returnResult) {
+              context.pop(registration.patient.id);
+            } else {
+              context.push('/animals/${registration.patient.id}');
+            }
+          }
+          return;
+        }
         final assignment = await repo.registerAnimalWithHospitalNumber(
           session: session,
           submissionId: submissionId,
@@ -235,15 +302,14 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
             context.push('/animals/${assignment.patientId}');
           }
         }
-      } catch (_) {
+      } catch (error) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'The patient could not be registered. Your form entries are still available.',
-              ),
-            ),
-          );
+          final message = error is ApiException
+              ? error.message
+              : 'The patient could not be registered. Your form entries are still available.';
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
         }
       } finally {
         saving.value = false;

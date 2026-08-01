@@ -82,6 +82,7 @@ class RemoteDashboardSummary {
   const RemoteDashboardSummary({
     required this.registeredPatients,
     required this.todaysSchedule,
+    required this.activeConsultations,
     required this.vaccinationsDue,
     required this.lowStock,
     required this.expiredProducts,
@@ -94,6 +95,7 @@ class RemoteDashboardSummary {
 
   final int registeredPatients;
   final int todaysSchedule;
+  final int activeConsultations;
   final int vaccinationsDue;
   final int lowStock;
   final int expiredProducts;
@@ -107,6 +109,7 @@ class RemoteDashboardSummary {
       RemoteDashboardSummary(
         registeredPatients: _int(value['registered_patients']),
         todaysSchedule: _int(value['todays_schedule']),
+        activeConsultations: _int(value['active_consultations']),
         vaccinationsDue: _int(value['vaccinations_due']),
         lowStock: _int(value['low_stock']),
         expiredProducts: _int(value['expired_products']),
@@ -122,6 +125,7 @@ class RemoteDashboardSummary {
   Map<String, dynamic> toJson() => {
     'registered_patients': registeredPatients,
     'todays_schedule': todaysSchedule,
+    'active_consultations': activeConsultations,
     'vaccinations_due': vaccinationsDue,
     'low_stock': lowStock,
     'expired_products': expiredProducts,
@@ -144,6 +148,55 @@ class RemotePatientMedicalFile {
   final List<Map<String, dynamic>> timeline;
 }
 
+class RemoteHospitalNumberPreview {
+  const RemoteHospitalNumberPreview({
+    required this.clinicId,
+    required this.prefix,
+    required this.year,
+    required this.sequence,
+    required this.sequenceLength,
+    required this.prefixRequiresReview,
+  });
+
+  final String clinicId;
+  final String prefix;
+  final int year;
+  final int sequence;
+  final int sequenceLength;
+  final bool prefixRequiresReview;
+
+  factory RemoteHospitalNumberPreview.fromJson(Map<String, dynamic> value) =>
+      RemoteHospitalNumberPreview(
+        clinicId: value['clinicId'] as String,
+        prefix: value['prefix'] as String,
+        year: _int(value['year']),
+        sequence: _int(value['sequence']),
+        sequenceLength: _int(value['sequenceLength']),
+        prefixRequiresReview: value['prefixRequiresReview'] == true,
+      );
+}
+
+class RemotePatientRegistration {
+  const RemotePatientRegistration({
+    required this.patient,
+    required this.submissionId,
+    required this.duplicateSubmission,
+  });
+
+  final RemotePatient patient;
+  final String submissionId;
+  final bool duplicateSubmission;
+
+  factory RemotePatientRegistration.fromJson(Map<String, dynamic> value) =>
+      RemotePatientRegistration(
+        patient: RemotePatient.fromJson(
+          Map<String, dynamic>.from(value['patient'] as Map),
+        ),
+        submissionId: value['submissionId'] as String,
+        duplicateSubmission: value['duplicateSubmission'] == true,
+      );
+}
+
 class ClinicalRemoteDataSource {
   ClinicalRemoteDataSource(this._client);
   final ApiClient _client;
@@ -164,6 +217,17 @@ class ClinicalRemoteDataSource {
     );
     return _page(response, RemotePatient.fromJson);
   }
+
+  Future<RemoteHospitalNumberPreview> patientNumberPreview() async =>
+      RemoteHospitalNumberPreview.fromJson(
+        await _client.get('/api/v1/patients/number-preview'),
+      );
+
+  Future<RemotePatientRegistration> registerPatient(
+    Map<String, dynamic> payload,
+  ) async => RemotePatientRegistration.fromJson(
+    await _client.post('/api/v1/patients', body: payload, authenticated: true),
+  );
 
   Future<RemotePatientMedicalFile> medicalFile(String patientId) async {
     final value = await _client.get('/api/v1/patients/$patientId/medical-file');

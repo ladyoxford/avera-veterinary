@@ -3,13 +3,12 @@ import { writeAudit } from '../audit/audit-service.js';
 import { withTenantTransaction } from '../database/pool.js';
 import { hashPassword, validatePassword } from '../security/passwords.js';
 import { hashToken } from '../security/tokens.js';
+import { clinicAdministratorPermissionKeys } from '../security/permission-catalog.js';
 
 const purpose = 'ClinicAdministratorActivation';
-const platformPermissionKeys = new Set([
-  'clinics.view',
-  'clinics.approve',
-  'clinics.suspend',
-]);
+const clinicAdministratorPermissions = new Set(
+  clinicAdministratorPermissionKeys,
+);
 
 export class ClinicAdministratorActivationService {
   constructor({ pool, environment, deliveryService }) {
@@ -56,7 +55,7 @@ export class ClinicAdministratorActivationService {
       'SELECT permission_id, permission_key FROM permissions',
     );
     const clinicPermissionIds = permissionRows.rows
-      .filter((row) => !platformPermissionKeys.has(row.permission_key))
+      .filter((row) => clinicAdministratorPermissions.has(row.permission_key))
       .map((row) => row.permission_id);
     if (clinicPermissionIds.length > 0) {
       await client.query(

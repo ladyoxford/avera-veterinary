@@ -5,7 +5,6 @@ import '../../features/animals/screens/animal_registration_screen.dart';
 import '../../features/animals/screens/animal_search_screen.dart';
 import '../../features/animals/screens/archived_animals_screen.dart';
 import '../../features/animals/screens/medical_file_hub_screen.dart';
-import '../../features/animals/screens/cloud_patient_screens.dart';
 import '../database/app_database.dart';
 import '../models/inventory_catalog.dart';
 import '../models/vaccine_catalogue.dart';
@@ -368,7 +367,7 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/animals/:id',
           builder: (context, state) => BackendConfiguration.isConfigured
-              ? CloudPatientMedicalFileScreen(
+              ? CloudMedicalFileHubScreen(
                   patientId: state.pathParameters['id']!,
                 )
               : MedicalFileHubScreen(

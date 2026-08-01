@@ -1,0 +1,310 @@
+import 'package:avera/core/config/app_providers.dart';
+import 'package:avera/core/database/app_database.dart';
+import 'package:avera/core/remote/api_client.dart';
+import 'package:avera/core/remote/clinical_remote_data_source.dart';
+import 'package:avera/core/remote/cloud_clinical_state.dart';
+import 'package:avera/core/repositories/clinic_repository.dart';
+import 'package:avera/core/security/access_control.dart';
+import 'package:avera/core/theme/app_theme.dart';
+import 'package:avera/core/theme/theme_controller.dart';
+import 'package:avera/features/animals/screens/medical_file_hub_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+const _patientId = '6a5f8a0b-0b69-41ba-b24f-9ae5ced997b8';
+
+void main() {
+  late SharedPreferences preferences;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    preferences = await SharedPreferences.getInstance();
+  });
+
+  testWidgets(
+    'production medical file restores eight-item Quick Access without accordions',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_subject(preferences));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Medical File'), findsOneWidget);
+      expect(find.text('Luna \u2022 AVR-2026-00001'), findsOneWidget);
+      expect(find.text('Quick Access'), findsOneWidget);
+      expect(
+        find.byKey(const Key('medical-file-quick-access-grid')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('medical-file-tile-overview')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('medical-file-tile-hospitalization')),
+        findsOneWidget,
+      );
+      expect(find.byType(ExpansionTile), findsNothing);
+
+      final grid = tester.widget<GridView>(
+        find.byKey(const Key('medical-file-quick-access-grid')),
+      );
+      expect(grid.semanticChildCount, 8);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Quick Access remains usable on a small light-theme phone', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _subject(
+        preferences,
+        theme: AppTheme.light(),
+        textScaler: const TextScaler.linear(1.3),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final moreRecords = find.byKey(const Key('medical-file-more-records'));
+    await tester.scrollUntilVisible(
+      moreRecords,
+      320,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(moreRecords, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('every default record destination retains the production UUID', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(393, 873));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_subject(preferences));
+    await tester.pumpAndSettle();
+
+    const recordIds = [
+      'overview',
+      'signalment',
+      'owner',
+      'medical_history',
+      'consultations',
+      'vaccinations',
+      'laboratory',
+      'hospitalization',
+    ];
+    for (final recordId in recordIds) {
+      final tile = find.byKey(Key('medical-file-tile-$recordId'));
+      await tester.ensureVisible(tile);
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(Key('remote-medical-record-$recordId-$_patientId')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets(
+    'empty production category opens a professional state with contextual action',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_subject(preferences));
+      await tester.pumpAndSettle();
+
+      final consultations = find.byKey(
+        const Key('medical-file-tile-consultations'),
+      );
+      await tester.ensureVisible(consultations);
+      await tester.tap(consultations);
+      await tester.pumpAndSettle();
+
+      expect(find.text('No consultations yet'), findsOneWidget);
+      expect(find.text('New Consultation'), findsOneWidget);
+      expect(find.byType(ExpansionTile), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'More Records pinning updates Quick Access and enforces the limit',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_subject(preferences));
+      await tester.pumpAndSettle();
+
+      final moreRecords = find.byKey(const Key('medical-file-more-records'));
+      await tester.scrollUntilVisible(
+        moreRecords,
+        320,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(moreRecords);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('medical-file-all-records-screen')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('medical-file-pin-overview')));
+      await tester.pump();
+      final surgeryPin = find.byKey(const Key('medical-file-pin-surgery'));
+      await tester.scrollUntilVisible(
+        surgeryPin,
+        260,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(surgeryPin);
+      await tester.pump();
+      expect(find.text('PINNED'), findsWidgets);
+
+      final medicationsPin = find.byKey(
+        const Key('medical-file-pin-medications'),
+      );
+      await tester.scrollUntilVisible(
+        medicationsPin,
+        180,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(medicationsPin);
+      await tester.pump();
+      expect(find.text('You can pin up to 8 records.'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('medical-file-all-records-done')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('medical-file-tile-overview')), findsNothing);
+      expect(
+        find.byKey(const Key('medical-file-tile-surgery')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+}
+
+Widget _subject(
+  SharedPreferences preferences, {
+  ThemeData? theme,
+  TextScaler textScaler = TextScaler.noScaling,
+}) => ProviderScope(
+  overrides: [
+    sharedPreferencesProvider.overrideWithValue(preferences),
+    userSessionProvider.overrideWith((ref) async => _session()),
+    remotePatientMedicalFileProvider.overrideWith((ref, patientId) async {
+      expect(patientId, _patientId);
+      return _medicalFile();
+    }),
+    clinicalRemoteDataSourceProvider.overrideWithValue(
+      _FakeClinicalRemoteDataSource(),
+    ),
+  ],
+  child: MaterialApp(
+    theme: theme ?? AppTheme.dark(),
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+      child: child!,
+    ),
+    home: const CloudMedicalFileHubScreen(patientId: _patientId),
+  ),
+);
+
+RemotePatientMedicalFile _medicalFile() => const RemotePatientMedicalFile(
+  patient: RemotePatient(
+    id: _patientId,
+    hospitalNumber: 'AVR-2026-00001',
+    name: 'Luna',
+    species: 'Cat',
+    status: 'Active',
+    ownerName: 'Ada Okafor',
+    ownerPhone: '08010000000',
+    breed: 'Domestic Shorthair',
+    sex: 'Female',
+  ),
+  summaries: {
+    'consultations': {'count': 0},
+    'vaccinations': {'count': 0},
+    'laboratory': {'count': 0},
+    'hospitalizations': {'count': 0},
+  },
+  timeline: [],
+);
+
+UserSession _session() => UserSession(
+  user: AppUser(
+    userId: 'user-1',
+    clinicId: 'clinic-1',
+    fullName: 'Clinic Administrator',
+    username: 'admin@avera.test',
+    email: 'admin@avera.test',
+    passwordHash: 'not-used',
+    role: 'Clinic Administrator',
+    accountType: AccountTypes.clinicAdministrator,
+    permissions: '[]',
+    invitationStatus: 'Accepted',
+    requiresPasswordChange: false,
+    twoFactorEnabled: false,
+    accountStatus: 'Active',
+    membershipStatus: 'Active',
+    rememberMe: false,
+    sessionTimeoutMinutes: 30,
+    createdAt: DateTime(2026, 1, 1),
+  ),
+  clinic: Clinic(
+    clinicId: 'clinic-1',
+    clinicName: 'Avera Veterinary Clinic',
+    clinicType: 'Veterinary Clinic',
+    currency: 'NGN',
+    timeZone: 'Africa/Lagos',
+    preferredLanguage: 'English',
+    themeColor: '#087F7B',
+    dateRegistered: DateTime(2026, 1, 1),
+    subscriptionPlan: 'Professional',
+    clinicStatus: 'Active',
+    patientNumberSequenceLength: 5,
+    patientNumberResetYearly: true,
+    patientNumberPrefixReviewed: true,
+  ),
+  backendPermissions: const {
+    Permissions.patientsView,
+    Permissions.consultationsView,
+    Permissions.consultationsCreate,
+  },
+);
+
+class _FakeClinicalRemoteDataSource extends ClinicalRemoteDataSource {
+  _FakeClinicalRemoteDataSource()
+    : super(
+        ApiClient(
+          baseUrl: 'https://example.test',
+          tokens: const TokenStore(FlutterSecureStorage()),
+        ),
+      );
+
+  @override
+  Future<RemotePage<Map<String, dynamic>>> patientSection(
+    String patientId,
+    String section, {
+    int page = 1,
+  }) async {
+    expect(patientId, _patientId);
+    return RemotePage(
+      items: const [],
+      page: page,
+      pageSize: 25,
+      total: 0,
+      hasNextPage: false,
+    );
+  }
+}

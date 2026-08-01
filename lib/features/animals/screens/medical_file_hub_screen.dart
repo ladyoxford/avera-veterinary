@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/config/medical_file_quick_access_provider.dart';
+import '../../../core/remote/clinical_remote_data_source.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/security/access_control.dart';
 import 'animal_profile_screen.dart';
 
 class MedicalFileHubScreen extends ConsumerWidget {
@@ -32,36 +35,114 @@ class MedicalFileHubScreen extends ConsumerWidget {
         ),
       ),
       data: (data) => _MedicalFileHubContent(
-        animalId: animalId,
-        profile: data,
-        session: session,
+        patientName: data.animal.animalName,
+        hospitalNumber: data.animal.hospitalNumber,
+        scope: _quickAccessScope(session),
+        onRecordSelected: (record) => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AnimalProfileScreen(
+              animalId: animalId,
+              initialTab: record.tabIndex,
+            ),
+          ),
+        ),
+        onVeraPressed: () => context.push(
+          '/vera?patientId=$animalId&patientName=${Uri.encodeComponent(data.animal.animalName)}',
+        ),
       ),
     );
   }
 }
 
-class _MedicalFileHubContent extends ConsumerWidget {
-  const _MedicalFileHubContent({
-    required this.animalId,
-    required this.profile,
-    required this.session,
-  });
+class CloudMedicalFileHubScreen extends ConsumerWidget {
+  const CloudMedicalFileHubScreen({super.key, required this.patientId});
 
-  final int animalId;
-  final AnimalProfile profile;
-  final UserSession? session;
+  final String patientId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scope = session == null
-        ? null
-        : MedicalFileQuickAccessScope(
-            clinicId: session!.clinic.clinicId,
-            userId: session!.user.userId,
-          );
-    final pinned = scope == null
+    final file = ref.watch(remotePatientMedicalFileProvider(patientId));
+    final session = ref.watch(userSessionProvider).valueOrNull;
+
+    return file.when(
+      loading: () => const _MedicalFileHubLoading(),
+      error: (_, __) => Scaffold(
+        appBar: AppBar(title: const Text('Medical File')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.folder_off_outlined, size: 42),
+                const SizedBox(height: 16),
+                const Text(
+                  'Unable to open this patient medical file.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => ref.invalidate(
+                    remotePatientMedicalFileProvider(patientId),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try Again'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (value) => _MedicalFileHubContent(
+        patientName: value.patient.name,
+        hospitalNumber: value.patient.hospitalNumber,
+        scope: _quickAccessScope(session),
+        onRecordSelected: (record) => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _CloudMedicalRecordScreen(
+              patientId: patientId,
+              file: value,
+              record: record,
+            ),
+          ),
+        ),
+        onVeraPressed: () => context.push(
+          '/vera?patientId=${Uri.encodeQueryComponent(patientId)}&patientName=${Uri.encodeComponent(value.patient.name)}',
+        ),
+      ),
+    );
+  }
+}
+
+MedicalFileQuickAccessScope? _quickAccessScope(UserSession? session) {
+  if (session == null) return null;
+  return MedicalFileQuickAccessScope(
+    clinicId: session.clinic.clinicId,
+    userId: session.user.userId,
+  );
+}
+
+class _MedicalFileHubContent extends ConsumerWidget {
+  const _MedicalFileHubContent({
+    required this.patientName,
+    required this.hospitalNumber,
+    required this.scope,
+    required this.onRecordSelected,
+    required this.onVeraPressed,
+  });
+
+  final String patientName;
+  final String hospitalNumber;
+  final MedicalFileQuickAccessScope? scope;
+  final ValueChanged<_MedicalFileRecord> onRecordSelected;
+  final VoidCallback onVeraPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final quickAccessScope = scope;
+    final pinned = quickAccessScope == null
         ? const AsyncValue<List<String>>.data(defaultMedicalFileQuickAccessIds)
-        : ref.watch(medicalFileQuickAccessProvider(scope));
+        : ref.watch(medicalFileQuickAccessProvider(quickAccessScope));
     final theme = Theme.of(context);
     final selectedRecords =
         pinned.valueOrNull ?? defaultMedicalFileQuickAccessIds;
@@ -81,7 +162,7 @@ class _MedicalFileHubContent extends ConsumerWidget {
             Text('Medical File', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 3),
             Text(
-              '${profile.animal.animalName} • ${profile.animal.hospitalNumber}',
+              '$patientName \u2022 $hospitalNumber',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -94,15 +175,13 @@ class _MedicalFileHubContent extends ConsumerWidget {
           IconButton(
             tooltip: 'Ask Vera about this patient',
             icon: const Icon(Icons.auto_awesome_rounded),
-            onPressed: () => context.push(
-              '/vera?patientId=$animalId&patientName=${Uri.encodeComponent(profile.animal.animalName)}',
-            ),
+            onPressed: onVeraPressed,
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 112),
         children: [
           Row(
             children: [
@@ -113,9 +192,9 @@ class _MedicalFileHubContent extends ConsumerWidget {
                 button: true,
                 label: 'Customize Quick Access records',
                 child: TextButton.icon(
-                  onPressed: scope == null
+                  onPressed: quickAccessScope == null
                       ? null
-                      : () => _openAllRecords(context, scope),
+                      : () => _openAllRecords(context, quickAccessScope),
                   icon: const Icon(Icons.edit_rounded, size: 18),
                   label: const Text('Edit'),
                   style: TextButton.styleFrom(
@@ -133,17 +212,15 @@ class _MedicalFileHubContent extends ConsumerWidget {
           if (pinned.isLoading)
             const _QuickAccessSkeleton()
           else
-            _QuickAccessGrid(
-              records: records,
-              onSelected: (record) => _openRecord(context, record),
-            ),
+            _QuickAccessGrid(records: records, onSelected: onRecordSelected),
           const SizedBox(height: 24),
           SizedBox(
+            key: const Key('medical-file-more-records'),
             height: 54,
             child: OutlinedButton(
-              onPressed: scope == null
+              onPressed: quickAccessScope == null
                   ? null
-                  : () => _openAllRecords(context, scope),
+                  : () => _openAllRecords(context, quickAccessScope),
               style: OutlinedButton.styleFrom(
                 alignment: Alignment.centerLeft,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -166,7 +243,7 @@ class _MedicalFileHubContent extends ConsumerWidget {
               ),
             ),
           ),
-          if (scope != null) ...[
+          if (quickAccessScope != null) ...[
             const SizedBox(height: 14),
             Text(
               "Tap 'More Records' to see all record types and choose which eight stay pinned here.",
@@ -176,17 +253,6 @@ class _MedicalFileHubContent extends ConsumerWidget {
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  void _openRecord(BuildContext context, _MedicalFileRecord record) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AnimalProfileScreen(
-          animalId: animalId,
-          initialTab: record.tabIndex,
-        ),
       ),
     );
   }
@@ -226,10 +292,12 @@ class _AllMedicalRecordsScreenState
     final theme = Theme.of(context);
 
     return Scaffold(
+      key: const Key('medical-file-all-records-screen'),
       appBar: AppBar(
         title: const Text('All Records'),
         actions: [
           TextButton(
+            key: const Key('medical-file-all-records-done'),
             onPressed: _saving ? null : () => _save(pinned),
             child: _saving
                 ? const SizedBox.square(
@@ -278,6 +346,7 @@ class _AllMedicalRecordsScreenState
                     )
                   : null,
               trailing: IconButton(
+                key: Key('medical-file-pin-${record.id}'),
                 tooltip: isPinned
                     ? 'Remove ${record.title} from Quick Access'
                     : 'Pin ${record.title} to Quick Access',
@@ -334,6 +403,477 @@ class _AllMedicalRecordsScreenState
   }
 }
 
+class _CloudMedicalRecordScreen extends ConsumerStatefulWidget {
+  const _CloudMedicalRecordScreen({
+    required this.patientId,
+    required this.file,
+    required this.record,
+  });
+
+  final String patientId;
+  final RemotePatientMedicalFile file;
+  final _MedicalFileRecord record;
+
+  @override
+  ConsumerState<_CloudMedicalRecordScreen> createState() =>
+      _CloudMedicalRecordScreenState();
+}
+
+class _CloudMedicalRecordScreenState
+    extends ConsumerState<_CloudMedicalRecordScreen> {
+  Future<RemotePage<Map<String, dynamic>>>? _records;
+
+  @override
+  void initState() {
+    super.initState();
+    final path = _remoteSectionPath(widget.record.id);
+    if (path != null) {
+      _records = ref
+          .read(clinicalRemoteDataSourceProvider)
+          .patientSection(widget.patientId, path);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final session = ref.watch(userSessionProvider).valueOrNull;
+    return Scaffold(
+      key: ValueKey(
+        'remote-medical-record-${widget.record.id}-${widget.patientId}',
+      ),
+      appBar: AppBar(
+        toolbarHeight: 82,
+        titleSpacing: 20,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(widget.record.title, style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 3),
+            Text(
+              'Medical File \u2022 ${widget.file.patient.name} \u2022 ${widget.file.patient.hospitalNumber}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: _body(),
+      floatingActionButton:
+          widget.record.id == 'consultations' &&
+              session?.can(Permissions.consultationsCreate) == true
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push(
+                '/consultations/new?patientId=${Uri.encodeQueryComponent(widget.patientId)}',
+              ),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Consultation'),
+            )
+          : null,
+    );
+  }
+
+  Widget _body() {
+    switch (widget.record.id) {
+      case 'overview':
+        return _CloudOverviewRecord(file: widget.file);
+      case 'signalment':
+        return _CloudSignalmentRecord(patient: widget.file.patient);
+      case 'owner':
+        return _CloudOwnerRecord(patient: widget.file.patient);
+      case 'medical_history':
+      case 'timeline':
+        return _CloudTimelineRecord(file: widget.file);
+      default:
+        final future = _records;
+        if (future == null) {
+          return _RecordUnavailableState(record: widget.record);
+        }
+        return FutureBuilder<RemotePage<Map<String, dynamic>>>(
+          future: future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return _RecordLoadError(
+                title: widget.record.title,
+                onRetry: _retry,
+              );
+            }
+            final items = snapshot.data?.items ?? const [];
+            if (items.isEmpty) {
+              return _RecordEmptyState(record: widget.record);
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 112),
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) =>
+                  _CloudRecordCard(record: widget.record, value: items[index]),
+            );
+          },
+        );
+    }
+  }
+
+  void _retry() {
+    final path = _remoteSectionPath(widget.record.id);
+    if (path == null) return;
+    setState(() {
+      _records = ref
+          .read(clinicalRemoteDataSourceProvider)
+          .patientSection(widget.patientId, path);
+    });
+  }
+}
+
+class _CloudOverviewRecord extends StatelessWidget {
+  const _CloudOverviewRecord({required this.file});
+
+  final RemotePatientMedicalFile file;
+
+  @override
+  Widget build(BuildContext context) {
+    final patient = file.patient;
+    final summaries = file.summaries.entries
+        .where((entry) => (entry.value['count'] as num? ?? 0) > 0)
+        .toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      children: [
+        _RemoteDetailCard(
+          title: 'Patient details',
+          children: [
+            _RemoteDetailRow('Hospital Number', patient.hospitalNumber),
+            _RemoteDetailRow('Species', patient.species),
+            _RemoteDetailRow('Breed', patient.breed ?? 'Not specified'),
+            _RemoteDetailRow('Sex', patient.sex ?? 'Not specified'),
+            _RemoteDetailRow('Status', patient.status),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _RemoteDetailCard(
+          title: 'Owner details',
+          children: [
+            _RemoteDetailRow('Owner', patient.ownerName),
+            _RemoteDetailRow(
+              'Phone',
+              patient.ownerPhone.isEmpty ? 'Not provided' : patient.ownerPhone,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _RemoteDetailCard(
+          title: 'Clinical summary',
+          children: summaries.isEmpty
+              ? const [
+                  _RemoteDetailRow(
+                    'Records',
+                    'No clinical records have been added yet.',
+                  ),
+                ]
+              : summaries
+                    .map(
+                      (entry) => _RemoteDetailRow(
+                        _recordLabel(entry.key),
+                        '${entry.value['count']} records',
+                      ),
+                    )
+                    .toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _CloudSignalmentRecord extends StatelessWidget {
+  const _CloudSignalmentRecord({required this.patient});
+
+  final RemotePatient patient;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+    children: [
+      _RemoteDetailCard(
+        title: 'Signalment',
+        children: [
+          _RemoteDetailRow('Patient', patient.name),
+          _RemoteDetailRow('Species', patient.species),
+          _RemoteDetailRow('Breed', patient.breed ?? 'Not specified'),
+          _RemoteDetailRow('Sex', patient.sex ?? 'Not specified'),
+        ],
+      ),
+    ],
+  );
+}
+
+class _CloudOwnerRecord extends StatelessWidget {
+  const _CloudOwnerRecord({required this.patient});
+
+  final RemotePatient patient;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+    children: [
+      _RemoteDetailCard(
+        title: 'Owner',
+        children: [
+          _RemoteDetailRow('Full Name', patient.ownerName),
+          _RemoteDetailRow(
+            'Phone',
+            patient.ownerPhone.isEmpty ? 'Not provided' : patient.ownerPhone,
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _CloudTimelineRecord extends StatelessWidget {
+  const _CloudTimelineRecord({required this.file});
+
+  final RemotePatientMedicalFile file;
+
+  @override
+  Widget build(BuildContext context) {
+    if (file.timeline.isEmpty) {
+      return const _RecordMessageState(
+        icon: Icons.history_rounded,
+        title: 'No medical history yet',
+        message: 'Clinical activity for this patient will appear here.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      itemCount: file.timeline.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final event = file.timeline[index];
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.history_rounded),
+            title: Text(event['summary'] as String? ?? 'Clinical record'),
+            subtitle: Text(event['type'] as String? ?? 'Record'),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _RemoteDetailCard extends StatelessWidget {
+  const _RemoteDetailCard({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 14),
+          ...children,
+        ],
+      ),
+    ),
+  );
+}
+
+class _RemoteDetailRow extends StatelessWidget {
+  const _RemoteDetailRow(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text(value)),
+      ],
+    ),
+  );
+}
+
+class _CloudRecordCard extends StatelessWidget {
+  const _CloudRecordCard({required this.record, required this.value});
+
+  final _MedicalFileRecord record;
+  final Map<String, dynamic> value;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      leading: _RecordIcon(record: record, compact: true),
+      title: Text(_remoteRecordTitle(value)),
+      subtitle: Text(_remoteRecordDate(value) ?? 'Date unavailable'),
+    ),
+  );
+}
+
+class _RecordEmptyState extends StatelessWidget {
+  const _RecordEmptyState({required this.record});
+
+  final _MedicalFileRecord record;
+
+  @override
+  Widget build(BuildContext context) => _RecordMessageState(
+    icon: record.icon,
+    title: 'No ${record.title.toLowerCase()} yet',
+    message: 'Records added for this patient will appear here.',
+  );
+}
+
+class _RecordUnavailableState extends StatelessWidget {
+  const _RecordUnavailableState({required this.record});
+
+  final _MedicalFileRecord record;
+
+  @override
+  Widget build(BuildContext context) => _RecordMessageState(
+    icon: record.icon,
+    title: '${record.title} unavailable',
+    message:
+        'This record category is not yet available from the production service.',
+  );
+}
+
+class _RecordLoadError extends StatelessWidget {
+  const _RecordLoadError({required this.title, required this.onRetry});
+
+  final String title;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_outlined, size: 42),
+          const SizedBox(height: 16),
+          Text('Unable to load $title', textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try Again'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _RecordMessageState extends StatelessWidget {
+  const _RecordMessageState({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 46, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+String? _remoteSectionPath(String recordId) => switch (recordId) {
+  'consultations' => 'consultations',
+  'vaccinations' => 'vaccinations',
+  'laboratory' => 'laboratory',
+  'hospitalization' => 'hospitalizations',
+  'surgery' => 'surgeries',
+  'medications' => 'prescriptions',
+  _ => null,
+};
+
+String _recordLabel(String value) => switch (value) {
+  'laboratory' => 'Laboratory',
+  'hospitalizations' => 'Hospitalization',
+  'prescriptions' => 'Medications',
+  _ =>
+    value
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map(
+          (word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1)}',
+        )
+        .join(' '),
+};
+
+String _remoteRecordTitle(Map<String, dynamic> value) =>
+    (value['final_diagnosis'] ??
+            value['vaccine_name'] ??
+            value['test_type'] ??
+            value['diagnosis'] ??
+            value['procedure_name'] ??
+            value['drug_name'] ??
+            'Clinical record')
+        as String;
+
+String? _remoteRecordDate(Map<String, dynamic> value) =>
+    (value['occurred_at'] ??
+            value['administered_at'] ??
+            value['requested_at'] ??
+            value['admitted_at'] ??
+            value['performed_at'] ??
+            value['prescribed_at'])
+        as String?;
+
 class _QuickAccessGrid extends StatelessWidget {
   const _QuickAccessGrid({required this.records, required this.onSelected});
 
@@ -344,14 +884,9 @@ class _QuickAccessGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 700
-            ? 5
-            : constraints.maxWidth >= 490
-            ? 4
-            : constraints.maxWidth >= 360
-            ? 3
-            : 2;
+        final columns = _quickAccessColumns(constraints.maxWidth);
         return GridView.builder(
+          key: const Key('medical-file-quick-access-grid'),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: records.length,
@@ -359,7 +894,7 @@ class _QuickAccessGrid extends StatelessWidget {
             crossAxisCount: columns,
             crossAxisSpacing: 14,
             mainAxisSpacing: 16,
-            childAspectRatio: columns >= 4 ? 0.95 : 1.08,
+            mainAxisExtent: columns == 2 ? 174 : 128,
           ),
           itemBuilder: (context, index) {
             final record = records[index];
@@ -387,6 +922,7 @@ class _QuickAccessTile extends StatelessWidget {
       button: true,
       label: 'Open ${record.title}',
       child: Material(
+        key: Key('medical-file-tile-${record.id}'),
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
@@ -449,34 +985,47 @@ class _QuickAccessSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.surfaceContainerHighest;
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 8,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 16,
-        childAspectRatio: 1.08,
-      ),
-      itemBuilder: (_, __) => Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(20),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = _quickAccessColumns(constraints.maxWidth);
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: 8,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 16,
+            mainAxisExtent: columns == 2 ? 174 : 128,
           ),
-          const SizedBox(height: 10),
-          Container(width: 70, height: 14, color: color),
-        ],
-      ),
+          itemBuilder: (_, __) => Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(width: 70, height: 14, color: color),
+            ],
+          ),
+        );
+      },
     );
   }
 }
+
+int _quickAccessColumns(double width) => width >= 700
+    ? 5
+    : width >= 490
+    ? 4
+    : width >= 360
+    ? 3
+    : 2;
 
 class _MedicalFileHubLoading extends StatelessWidget {
   const _MedicalFileHubLoading();

@@ -16,6 +16,7 @@ const pageSchema = z.object({
 });
 
 const uuidSchema = z.object({ patientId: z.string().uuid() });
+const inventoryUuidSchema = z.object({ inventoryProductId: z.string().uuid() });
 export const createPatientSchema = z.object({
   submissionId: z.string().uuid(),
   name: z.string().trim().min(1).max(160),
@@ -38,6 +39,45 @@ export const createPatientSchema = z.object({
     email: z.string().trim().email().max(254).nullish(),
     address: z.string().trim().max(500).nullish(),
   }),
+});
+
+export const patientStatusSchema = z.object({
+  status: z.enum(['Active', 'Deceased', 'Relocated']),
+  reason: z.string().trim().max(500).nullish(),
+});
+
+export const createConsultationSchema = z.object({
+  submissionId: z.string().uuid(),
+  patientId: z.string().uuid(),
+  chiefComplaint: z.string().trim().min(1).max(4000),
+  history: z.string().trim().max(8000).nullish(),
+  examination: z.string().trim().max(8000).nullish(),
+  diagnosis: z.string().trim().max(4000).nullish(),
+  treatment: z.string().trim().max(8000).nullish(),
+  prescription: z.string().trim().max(8000).nullish(),
+  veterinarian: z.string().trim().max(200).nullish(),
+});
+
+const inventoryFields = {
+  name: z.string().trim().min(1).max(200),
+  categoryId: z.string().trim().regex(/^[a-z0-9_]{2,80}$/),
+  categoryName: z.string().trim().min(1).max(160),
+  quantity: z.number().int().min(0).max(100000000),
+  reorderLevel: z.number().int().min(0).max(100000000),
+  batchNumber: z.string().trim().max(160).nullish(),
+  expiryDate: z.string().date().nullish(),
+  purchasePrice: z.number().min(0).max(1000000000000),
+  sellingPrice: z.number().min(0).max(1000000000000),
+};
+
+export const createInventoryItemSchema = z.object({
+  submissionId: z.string().uuid(),
+  ...inventoryFields,
+});
+
+export const updateInventoryItemSchema = z.object({
+  ...inventoryFields,
+  revision: z.number().int().min(1).optional(),
 });
 
 const patientNumberStopWords = new Set(['VETERINARY', 'VET', 'CLINIC', 'HOSPITAL', 'ANIMAL', 'PET', 'CARE', 'SERVICES']);
@@ -103,6 +143,25 @@ function patientResponse(row) {
     owner_id: row.owner_id,
     owner_name: row.owner_name,
     owner_phone: row.owner_phone,
+  };
+}
+
+function inventoryResponse(row) {
+  return {
+    inventory_product_id: row.inventory_product_id,
+    name: row.name,
+    category: row.category,
+    category_key: row.category_key,
+    batch_number: row.batch_number,
+    expiry_date: row.expiry_date,
+    purchase_price: row.purchase_price,
+    selling_price: row.selling_price,
+    quantity: row.quantity,
+    reorder_level: row.reorder_level,
+    status: row.status,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    revision: row.revision,
   };
 }
 
@@ -196,8 +255,8 @@ const lists = {
 
 const inventoryList = {
   from: 'inventory_products i',
-  select: 'i.inventory_product_id, i.name, i.generic_name, i.category, i.manufacturer, i.supplier, i.batch_number, i.expiry_date, i.purchase_price, i.selling_price, i.quantity, i.reorder_level, i.status',
-  where: `i.clinic_id = $1 AND ($2::text IS NULL OR i.name ILIKE $3 OR i.generic_name ILIKE $3 OR i.batch_number ILIKE $3 OR i.category ILIKE $3)
+  select: 'i.inventory_product_id, i.name, i.generic_name, i.category, i.category_key, i.manufacturer, i.supplier, i.batch_number, i.expiry_date, i.purchase_price, i.selling_price, i.quantity, i.reorder_level, i.status, i.created_at, i.updated_at, i.revision',
+  where: `i.clinic_id = $1 AND i.deleted_at IS NULL AND ($2::text IS NULL OR i.name ILIKE $3 OR i.generic_name ILIKE $3 OR i.batch_number ILIKE $3 OR i.category ILIKE $3)
           AND ($4::text IS NULL OR i.status = $4)`,
   values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.status ?? null],
   order: (query) => orderBy(query.sort, query.direction, { name: 'i.name', expiry: 'i.expiry_date', quantity: 'i.quantity' }, 'i.name'),
@@ -363,6 +422,133 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.patch('/api/v1/patients/:patientId/status', { preHandler: [authenticate, requirePermission(permissions.patientsEdit)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = uuidSchema.safeParse(request.params);
+    const parsed = patientStatusSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Choose a valid patient status.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT patient_id, status
+           FROM patients
+          WHERE clinic_id = $1 AND patient_id = $2 AND deleted_at IS NULL
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.patientId],
+      );
+      if (!current.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The patient was not found in this clinic.' });
+      }
+      const previousStatus = current.rows[0].status;
+      const nextStatus = parsed.data.status;
+      await client.query(
+        `UPDATE patients
+            SET status = $1,
+                deceased_at = CASE WHEN $1 = 'Deceased' THEN coalesce(deceased_at, now()) ELSE NULL END,
+                updated_at = now(), revision = revision + 1
+          WHERE clinic_id = $2 AND patient_id = $3`,
+        [nextStatus, request.auth.clinicId, params.data.patientId],
+      );
+      const patient = await client.query(
+        `SELECT ${patientList.select}
+           FROM ${patientList.from}
+          WHERE p.clinic_id = $1 AND p.patient_id = $2
+            AND p.deleted_at IS NULL AND o.deleted_at IS NULL`,
+        [request.auth.clinicId, params.data.patientId],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Patient',
+        targetId: params.data.patientId,
+        action: 'patient.status_changed',
+        previousSummary: { status: previousStatus },
+        newSummary: { status: nextStatus },
+        reason: parsed.data.reason ?? null,
+        sessionId: request.auth.sessionId,
+      });
+      return { patient: patientResponse(patient.rows[0]) };
+    });
+  });
+
+  app.post('/api/v1/consultations', { preHandler: [authenticate, requirePermission(permissions.consultationsCreate)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = createConsultationSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the consultation information.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const input = parsed.data;
+      const existing = await client.query(
+        `SELECT consultation_id, patient_id, occurred_at, status, chief_complaint,
+                final_diagnosis, treatment, prescription_notes, clinician_name_snapshot, revision
+           FROM consultations
+          WHERE clinic_id = $1 AND submission_id = $2 AND deleted_at IS NULL`,
+        [request.auth.clinicId, input.submissionId],
+      );
+      if (existing.rows[0]) {
+        return { consultation: existing.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
+      }
+      const patient = await client.query(
+        `SELECT patient_id, status
+           FROM patients
+          WHERE clinic_id = $1 AND patient_id = $2 AND deleted_at IS NULL`,
+        [request.auth.clinicId, input.patientId],
+      );
+      if (!patient.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The selected patient was not found in this clinic.' });
+      }
+      if (patient.rows[0].status !== 'Active') {
+        return reply.code(409).send({ error: 'patient_inactive', message: 'Restore this patient to Active before creating a consultation.' });
+      }
+      const inserted = await client.query(
+        `INSERT INTO consultations
+           (clinic_id, patient_id, clinician_id, occurred_at, chief_complaint,
+            history, examination, assessment, final_diagnosis, treatment,
+            prescription_notes, clinician_name_snapshot, status, submission_id,
+            created_at, updated_at)
+         VALUES ($1,$2,$3,now(),$4,$5,$6,$7,$7,$8,$9,$10,'Completed',$11,now(),now())
+         ON CONFLICT (clinic_id, submission_id)
+           WHERE submission_id IS NOT NULL
+         DO NOTHING
+         RETURNING consultation_id, patient_id, occurred_at, status, chief_complaint,
+                   final_diagnosis, treatment, prescription_notes,
+                   clinician_name_snapshot, revision`,
+        [request.auth.clinicId, input.patientId, request.auth.userId,
+          input.chiefComplaint, input.history ?? null, input.examination ?? null,
+          input.diagnosis ?? null, input.treatment ?? null,
+          input.prescription ?? null, input.veterinarian ?? null, input.submissionId],
+      );
+      if (!inserted.rows[0]) {
+        const duplicate = await client.query(
+          `SELECT consultation_id, patient_id, occurred_at, status, chief_complaint,
+                  final_diagnosis, treatment, prescription_notes,
+                  clinician_name_snapshot, revision
+             FROM consultations
+            WHERE clinic_id = $1 AND submission_id = $2`,
+          [request.auth.clinicId, input.submissionId],
+        );
+        return {
+          consultation: duplicate.rows[0],
+          submissionId: input.submissionId,
+          duplicateSubmission: true,
+        };
+      }
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Consultation',
+        targetId: inserted.rows[0].consultation_id,
+        action: 'consultation.created',
+        newSummary: { patientId: input.patientId, chiefComplaint: input.chiefComplaint },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { consultation: inserted.rows[0], submissionId: input.submissionId, duplicateSubmission: false };
+    });
+  });
+
   app.get('/api/v1/patients/:patientId', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     const params = uuidSchema.safeParse(request.params);
@@ -406,6 +592,138 @@ export async function clinicalRoutes(app) {
   ]) app.get(`/api/v1/patients/:patientId/${path}`, { preHandler: [authenticate, requirePermission(permission)] }, (request, reply) => patientSection(request, reply, table, id, permission, order));
 
   for (const [path, list] of Object.entries(lists)) app.get(`/api/v1/${path === 'laboratory' ? 'laboratory-reports' : path}`, { preHandler: [authenticate, requirePermission(list.permission)] }, tenantList(list.config));
+
+  app.post('/api/v1/inventory/products', { preHandler: [authenticate, requirePermission(permissions.inventoryCreate)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = createInventoryItemSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the inventory item information.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const input = parsed.data;
+      const existing = await client.query(
+        `SELECT ${inventoryList.select}
+           FROM inventory_products i
+          WHERE i.clinic_id = $1 AND i.submission_id = $2 AND i.deleted_at IS NULL`,
+        [request.auth.clinicId, input.submissionId],
+      );
+      if (existing.rows[0]) {
+        return { item: inventoryResponse(existing.rows[0]), submissionId: input.submissionId, duplicateSubmission: true };
+      }
+      const inserted = await client.query(
+        `INSERT INTO inventory_products
+           (clinic_id, name, category, category_key, batch_number, expiry_date,
+            purchase_price, selling_price, quantity, reorder_level, status,
+            submission_id, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Active',$11,now(),now())
+         ON CONFLICT (clinic_id, submission_id)
+           WHERE submission_id IS NOT NULL
+         DO NOTHING
+         RETURNING inventory_product_id, name, category, category_key,
+                   batch_number, expiry_date, purchase_price, selling_price,
+                   quantity, reorder_level, status, created_at, updated_at, revision`,
+        [request.auth.clinicId, input.name, input.categoryName, input.categoryId,
+          input.batchNumber ?? null, input.expiryDate ?? null, input.purchasePrice,
+          input.sellingPrice, input.quantity, input.reorderLevel, input.submissionId],
+      );
+      if (!inserted.rows[0]) {
+        const duplicate = await client.query(
+          `SELECT ${inventoryList.select}
+             FROM inventory_products i
+            WHERE i.clinic_id = $1 AND i.submission_id = $2`,
+          [request.auth.clinicId, input.submissionId],
+        );
+        return {
+          item: inventoryResponse(duplicate.rows[0]),
+          submissionId: input.submissionId,
+          duplicateSubmission: true,
+        };
+      }
+      if (input.quantity > 0) {
+        await client.query(
+          `INSERT INTO stock_movements
+             (clinic_id, inventory_product_id, occurred_at, movement_type,
+              quantity_delta, reference)
+           VALUES ($1,$2,now(),'Opening Balance',$3,'Inventory item created')`,
+          [request.auth.clinicId, inserted.rows[0].inventory_product_id, input.quantity],
+        );
+      }
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'InventoryProduct',
+        targetId: inserted.rows[0].inventory_product_id,
+        action: 'inventory.item_created',
+        newSummary: { name: input.name, categoryId: input.categoryId, quantity: input.quantity },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { item: inventoryResponse(inserted.rows[0]), submissionId: input.submissionId, duplicateSubmission: false };
+    });
+  });
+
+  app.patch('/api/v1/inventory/products/:inventoryProductId', { preHandler: [authenticate, requirePermission(permissions.inventoryEdit)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = inventoryUuidSchema.safeParse(request.params);
+    const parsed = updateInventoryItemSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the inventory item information.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT inventory_product_id, name, category_key, quantity, revision
+           FROM inventory_products
+          WHERE clinic_id = $1 AND inventory_product_id = $2 AND deleted_at IS NULL
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.inventoryProductId],
+      );
+      if (!current.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The inventory item was not found in this clinic.' });
+      }
+      const input = parsed.data;
+      const previous = current.rows[0];
+      if (input.revision != null && Number(previous.revision) !== input.revision) {
+        return reply.code(409).send({ error: 'revision_conflict', message: 'This inventory item changed on another device. Refresh and try again.' });
+      }
+      const updated = await client.query(
+        `UPDATE inventory_products
+            SET name = $1, category = $2, category_key = $3, batch_number = $4,
+                expiry_date = $5, purchase_price = $6, selling_price = $7,
+                quantity = $8, reorder_level = $9, updated_at = now(),
+                revision = revision + 1
+          WHERE clinic_id = $10 AND inventory_product_id = $11
+          RETURNING inventory_product_id, name, category, category_key,
+                    batch_number, expiry_date, purchase_price, selling_price,
+                    quantity, reorder_level, status, created_at, updated_at, revision`,
+        [input.name, input.categoryName, input.categoryId, input.batchNumber ?? null,
+          input.expiryDate ?? null, input.purchasePrice, input.sellingPrice,
+          input.quantity, input.reorderLevel, request.auth.clinicId,
+          params.data.inventoryProductId],
+      );
+      const quantityDelta = input.quantity - Number(previous.quantity);
+      if (quantityDelta !== 0) {
+        await client.query(
+          `INSERT INTO stock_movements
+             (clinic_id, inventory_product_id, occurred_at, movement_type,
+              quantity_delta, reference)
+           VALUES ($1,$2,now(),'Manual Adjustment',$3,'Inventory item edited')`,
+          [request.auth.clinicId, params.data.inventoryProductId, quantityDelta],
+        );
+      }
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'InventoryProduct',
+        targetId: params.data.inventoryProductId,
+        action: 'inventory.item_updated',
+        previousSummary: { name: previous.name, categoryId: previous.category_key, quantity: Number(previous.quantity), revision: Number(previous.revision) },
+        newSummary: { name: input.name, categoryId: input.categoryId, quantity: input.quantity, revision: Number(updated.rows[0].revision) },
+        sessionId: request.auth.sessionId,
+      });
+      return { item: inventoryResponse(updated.rows[0]) };
+    });
+  });
+
   app.get('/api/v1/inventory/products', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, tenantList(inventoryList));
   app.get('/api/v1/inventory/movements', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, tenantList(movementsList));
   app.get('/api/v1/invoices', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, tenantList(invoiceList));

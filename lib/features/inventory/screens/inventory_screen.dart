@@ -5,10 +5,14 @@ import 'package:intl/intl.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/inventory_catalog.dart';
+import '../../../core/remote/api_client.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
+import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../widgets/inventory_item_dialog.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key, this.initialStatusFilter});
@@ -56,6 +60,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     }
     final repository = ref.watch(clinicRepositoryProvider);
     final allowed = repository.permittedInventoryCategoryIds(session);
+    final remoteState = BackendConfiguration.isConfigured
+        ? ref.watch(remoteInventoryListProvider)
+        : null;
     return Scaffold(
       floatingActionButton: session.can(Permissions.inventoryCreate)
           ? FloatingActionButton.extended(
@@ -65,117 +72,197 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             )
           : null,
       appBar: AppBar(title: const Text('Inventory')),
-      body: StreamBuilder<List<InventoryItem>>(
-        stream: repository.watchPermittedInventory(
-          session,
-          categoryId: _categoryId,
-        ),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(child: Text('Inventory is unavailable.'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final categoryItems = snapshot.data!;
-          final today = DateTime.now();
-          final low = categoryItems
-              .where((item) => item.quantity <= item.minimumQuantity)
-              .length;
-          final expired = categoryItems
-              .where((item) => item.expiryDate?.isBefore(today) ?? false)
-              .length;
-          final normalizedQuery = _query.trim().toLowerCase();
-          final items = categoryItems
-              .where(
-                (item) => _statusFilter.matches(
-                  quantity: item.quantity,
-                  minimumQuantity: item.minimumQuantity,
-                  expiryDate: item.expiryDate,
-                  now: today,
-                ),
-              )
-              .where(
-                (item) =>
-                    normalizedQuery.isEmpty ||
-                    '${item.drugName} ${item.category} ${item.batchNumber ?? ''}'
-                        .toLowerCase()
-                        .contains(normalizedQuery),
-              )
-              .toList(growable: false);
-          return ListView(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              20,
-              20,
-              AveraSpacing.bottomContentClearance,
-            ),
-            children: [
-              TextField(
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search_rounded),
-                  hintText: 'Search inventory',
-                ),
-                onChanged: (value) => setState(() => _query = value),
+      body: remoteState == null
+          ? StreamBuilder<List<InventoryItem>>(
+              stream: repository.watchPermittedInventory(
+                session,
+                categoryId: _categoryId,
               ),
-              const SizedBox(height: 16),
-              AveraLabeledFieldCard(
-                label: 'Category',
-                child: InkWell(
-                  onTap: () => _selectCategory(context, allowed),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _categoryId == null
-                              ? 'All Categories'
-                              : InventoryCategories.byId(_categoryId)?.name ??
-                                    'Category',
-                          style: averaText(context).fieldValue,
-                        ),
-                      ),
-                      const Icon(Icons.keyboard_arrow_down_rounded),
-                    ],
+              builder: (context, snapshot) => _buildInventoryBody(
+                context,
+                session,
+                allowed,
+                items: (snapshot.data ?? const <InventoryItem>[])
+                    .map(_InventoryDisplayItem.fromLocal)
+                    .toList(),
+                loading: !snapshot.hasData,
+                error: snapshot.error,
+              ),
+            )
+          : _buildInventoryBody(
+              context,
+              session,
+              allowed,
+              items: remoteState.items
+                  .map(_InventoryDisplayItem.fromRemote)
+                  .toList(),
+              loading: remoteState.isLoading,
+              error: remoteState.error,
+              fromCache: remoteState.fromCache,
+              onRetry: () =>
+                  ref.read(remoteInventoryListProvider.notifier).refresh(),
+            ),
+    );
+  }
+
+  Widget _buildInventoryBody(
+    BuildContext context,
+    UserSession session,
+    Set<String> allowed, {
+    required List<_InventoryDisplayItem> items,
+    required bool loading,
+    Object? error,
+    bool fromCache = false,
+    Future<void> Function()? onRetry,
+  }) {
+    if (error != null && items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Inventory is unavailable.'),
+            if (onRetry != null) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => onRetry(),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    if (loading && items.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final categoryItems = items
+        .where((item) => allowed.contains(item.categoryId))
+        .where((item) => _categoryId == null || item.categoryId == _categoryId)
+        .toList();
+    final today = DateTime.now();
+    final low = categoryItems
+        .where((item) => item.quantity <= item.minimumQuantity)
+        .length;
+    final expired = categoryItems
+        .where((item) => item.expiryDate?.isBefore(today) ?? false)
+        .length;
+    final normalizedQuery = _query.trim().toLowerCase();
+    final visibleItems = categoryItems
+        .where(
+          (item) => _statusFilter.matches(
+            quantity: item.quantity,
+            minimumQuantity: item.minimumQuantity,
+            expiryDate: item.expiryDate,
+            now: today,
+          ),
+        )
+        .where(
+          (item) =>
+              normalizedQuery.isEmpty ||
+              '${item.name} ${item.categoryName} ${item.batchNumber ?? ''}'
+                  .toLowerCase()
+                  .contains(normalizedQuery),
+        )
+        .toList(growable: false);
+    return RefreshIndicator(
+      onRefresh: onRetry ?? () async {},
+      child: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          AveraSpacing.bottomContentClearance,
+        ),
+        children: [
+          if (fromCache) ...[
+            Row(
+              children: [
+                const Icon(Icons.cloud_off_outlined, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Showing saved inventory while the server reconnects.',
+                    style: averaText(context).caption,
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              _SummaryStrip(
-                total: categoryItems.length,
-                low: low,
-                expired: expired,
-                selected: _statusFilter,
-                onSelected: _selectStatusFilter,
-              ),
-              const SizedBox(height: 16),
-              _FilterHeading(
-                filter: _statusFilter,
-                visibleCount: items.length,
-                onClear: _statusFilter == InventoryStatusFilter.all
-                    ? null
-                    : () => _selectStatusFilter(InventoryStatusFilter.all),
-              ),
-              const SizedBox(height: 12),
-              if (items.isEmpty)
-                _InventoryMessage(
-                  filter: _statusFilter,
-                  hasSearch: normalizedQuery.isNotEmpty,
-                  onClear: () => _selectStatusFilter(InventoryStatusFilter.all),
-                )
-              else
-                ...items.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _InventoryCard(
-                      item: item,
-                      canSeeCost: session.can(Permissions.inventoryCostView),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          TextField(
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search_rounded),
+              hintText: 'Search inventory',
+            ),
+            onChanged: (value) => setState(() => _query = value),
+          ),
+          const SizedBox(height: 16),
+          AveraLabeledFieldCard(
+            label: 'Category',
+            child: InkWell(
+              onTap: () => _selectCategory(context, allowed),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _categoryId == null
+                          ? 'All Categories'
+                          : InventoryCategories.byId(_categoryId)?.name ??
+                                'Category',
+                      style: averaText(context).fieldValue,
                     ),
                   ),
+                  const Icon(Icons.keyboard_arrow_down_rounded),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _SummaryStrip(
+            total: categoryItems.length,
+            low: low,
+            expired: expired,
+            selected: _statusFilter,
+            onSelected: _selectStatusFilter,
+          ),
+          const SizedBox(height: 16),
+          _FilterHeading(
+            filter: _statusFilter,
+            visibleCount: visibleItems.length,
+            onClear: _statusFilter == InventoryStatusFilter.all
+                ? null
+                : () => _selectStatusFilter(InventoryStatusFilter.all),
+          ),
+          const SizedBox(height: 12),
+          if (visibleItems.isEmpty)
+            _InventoryMessage(
+              filter: _statusFilter,
+              hasSearch: normalizedQuery.isNotEmpty,
+              onClear: () => _selectStatusFilter(InventoryStatusFilter.all),
+            )
+          else
+            ...visibleItems.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _InventoryCard(
+                  item: item,
+                  canSeeCost: session.can(Permissions.inventoryCostView),
+                  onTap:
+                      item.remote != null &&
+                          session.can(Permissions.inventoryEdit)
+                      ? () => _showItemDialog(
+                          context,
+                          ref,
+                          session,
+                          initial: InventoryItemDraft.fromRemote(item.remote!),
+                        )
+                      : null,
                 ),
-            ],
-          );
-        },
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -196,140 +283,60 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Future<void> _showItemDialog(
     BuildContext context,
     WidgetRef ref,
-    UserSession session,
-  ) async {
-    final name = TextEditingController();
-    final quantity = TextEditingController(text: '0');
-    final minimum = TextEditingController(text: '5');
-    final batch = TextEditingController();
-    final selling = TextEditingController(text: '0');
-    final cost = TextEditingController(text: '0');
-    var categoryId = 'drugs';
-    DateTime? expiry;
-    await showDialog<void>(
+    UserSession session, {
+    InventoryItemDraft? initial,
+  }) async {
+    final allowed = ref
+        .read(clinicRepositoryProvider)
+        .permittedInventoryCategoryIds(session);
+    if (allowed.isEmpty) return;
+    final saved = await showInventoryItemDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('New Inventory'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Item name'),
-                ),
-                DropdownButtonFormField<String>(
-                  value: categoryId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Category'),
-                  items: [
-                    for (final category in InventoryCategories.all.where(
-                      (item) => ref
-                          .read(clinicRepositoryProvider)
-                          .permittedInventoryCategoryIds(session)
-                          .contains(item.id),
-                    ))
-                      DropdownMenuItem(
-                        value: category.id,
-                        child: Text(
-                          category.name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => categoryId = value!),
-                ),
-                TextField(
-                  controller: quantity,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Quantity'),
-                ),
-                TextField(
-                  controller: minimum,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Minimum quantity',
-                  ),
-                ),
-                TextField(
-                  controller: batch,
-                  decoration: const InputDecoration(labelText: 'Batch number'),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    expiry == null
-                        ? 'Expiry date'
-                        : DateFormat.yMMMd().format(expiry!),
-                  ),
-                  trailing: const Icon(Icons.calendar_today_outlined),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2100),
-                      initialDate: expiry ?? DateTime.now(),
-                    );
-                    if (picked != null) setDialogState(() => expiry = picked);
-                  },
-                ),
-                TextField(
-                  controller: selling,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Selling price (NGN)',
-                  ),
-                ),
-                if (session.can(Permissions.inventoryCostView))
-                  TextField(
-                    controller: cost,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Cost price (NGN)',
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                try {
-                  await ref
-                      .read(clinicRepositoryProvider)
-                      .saveInventoryItem(
-                        session: session,
-                        name: name.text,
-                        categoryId: categoryId,
-                        quantity: int.tryParse(quantity.text) ?? -1,
-                        minimumQuantity: int.tryParse(minimum.text) ?? -1,
-                        batchNumber: batch.text,
-                        expiryDate: expiry,
-                        sellingPrice: double.tryParse(selling.text) ?? -1,
-                        buyingPrice: session.can(Permissions.inventoryCostView)
-                            ? double.tryParse(cost.text)
-                            : null,
-                      );
-                  if (context.mounted) Navigator.pop(context);
-                } catch (error) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('$error')));
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
+      allowedCategoryIds: allowed,
+      canSeeCost: session.can(Permissions.inventoryCostView),
+      initial: initial,
+      onSubmit: (draft) async {
+        if (BackendConfiguration.isConfigured) {
+          final controller = ref.read(remoteInventoryListProvider.notifier);
+          if (draft.remoteId == null) {
+            await controller.create(draft.toRemotePayload());
+          } else {
+            await controller.update(
+              itemId: draft.remoteId!,
+              payload: draft.toRemotePayload(),
+            );
+          }
+          ref.invalidate(remoteDashboardProvider);
+          return;
+        }
+        await ref
+            .read(clinicRepositoryProvider)
+            .saveInventoryItem(
+              session: session,
+              name: draft.name,
+              categoryId: draft.categoryId,
+              quantity: draft.quantity,
+              minimumQuantity: draft.minimumQuantity,
+              batchNumber: draft.batchNumber,
+              expiryDate: draft.expiryDate,
+              sellingPrice: draft.sellingPrice,
+              buyingPrice: session.can(Permissions.inventoryCostView)
+                  ? draft.buyingPrice
+                  : null,
+            );
+      },
     );
+    if (saved && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            initial == null
+                ? 'Inventory item created.'
+                : 'Inventory item updated.',
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -528,10 +535,75 @@ class _FilterHeading extends StatelessWidget {
   }
 }
 
+class _InventoryDisplayItem {
+  const _InventoryDisplayItem({
+    required this.name,
+    required this.categoryId,
+    required this.categoryName,
+    required this.quantity,
+    required this.minimumQuantity,
+    required this.buyingPrice,
+    required this.sellingPrice,
+    required this.isSellable,
+    this.batchNumber,
+    this.expiryDate,
+    this.remote,
+  });
+
+  final String name;
+  final String categoryId;
+  final String categoryName;
+  final int quantity;
+  final int minimumQuantity;
+  final double buyingPrice;
+  final double sellingPrice;
+  final bool isSellable;
+  final String? batchNumber;
+  final DateTime? expiryDate;
+  final RemoteInventoryItem? remote;
+
+  factory _InventoryDisplayItem.fromLocal(InventoryItem item) =>
+      _InventoryDisplayItem(
+        name: item.drugName,
+        categoryId:
+            item.categoryId ?? InventoryCategories.canonicalId(item.category),
+        categoryName: item.category,
+        quantity: item.quantity,
+        minimumQuantity: item.minimumQuantity,
+        buyingPrice: item.buyingPrice,
+        sellingPrice: item.sellingPrice,
+        isSellable: item.isSellable,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+      );
+
+  factory _InventoryDisplayItem.fromRemote(
+    RemoteInventoryItem item,
+  ) => _InventoryDisplayItem(
+    name: item.name,
+    categoryId: item.categoryId,
+    categoryName:
+        InventoryCategories.byId(item.categoryId)?.name ?? item.categoryName,
+    quantity: item.quantity,
+    minimumQuantity: item.reorderLevel,
+    buyingPrice: item.purchasePrice.toDouble(),
+    sellingPrice: item.sellingPrice.toDouble(),
+    isSellable: InventoryCategories.byId(item.categoryId)?.isSellable ?? true,
+    batchNumber: item.batchNumber,
+    expiryDate: item.expiryDate,
+    remote: item,
+  );
+}
+
 class _InventoryCard extends StatelessWidget {
-  const _InventoryCard({required this.item, required this.canSeeCost});
-  final InventoryItem item;
+  const _InventoryCard({
+    required this.item,
+    required this.canSeeCost,
+    this.onTap,
+  });
+  final _InventoryDisplayItem item;
   final bool canSeeCost;
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
     final expired = item.expiryDate?.isBefore(DateTime.now()) ?? false;
@@ -544,54 +616,68 @@ class _InventoryCard extends StatelessWidget {
         ? 'Low stock'
         : null;
     return AveraSurfaceCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              expired ? Icons.timer_off_outlined : Icons.inventory_2_outlined,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.drugName, style: averaText(context).listItemTitle),
-                Text(
-                  '${item.category} / Qty ${item.quantity} / Min ${item.minimumQuantity}',
-                  style: averaText(context).listItemSubtitle,
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AveraSpacing.cardPadding),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                Text(
-                  'Batch ${item.batchNumber ?? '-'} / Exp ${item.expiryDate == null ? '-' : DateFormat.yMMMd().format(item.expiryDate!)}',
-                  style: averaText(context).caption,
+                child: Icon(
+                  expired
+                      ? Icons.timer_off_outlined
+                      : Icons.inventory_2_outlined,
                 ),
-                if (item.isSellable)
-                  Text(
-                    formatNaira(item.sellingPrice),
-                    style: averaText(context).caption,
-                  ),
-                if (canSeeCost)
-                  Text(
-                    'Cost: ${formatNaira(item.buyingPrice)}',
-                    style: averaText(context).caption,
-                  ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.name, style: averaText(context).listItemTitle),
+                    Text(
+                      '${item.categoryName} / Qty ${item.quantity} / Min ${item.minimumQuantity}',
+                      style: averaText(context).listItemSubtitle,
+                    ),
+                    Text(
+                      'Batch ${item.batchNumber ?? '-'} / Exp ${item.expiryDate == null ? '-' : DateFormat.yMMMd().format(item.expiryDate!)}',
+                      style: averaText(context).caption,
+                    ),
+                    if (item.isSellable)
+                      Text(
+                        formatNaira(item.sellingPrice),
+                        style: averaText(context).caption,
+                      ),
+                    if (canSeeCost)
+                      Text(
+                        'Cost: ${formatNaira(item.buyingPrice)}',
+                        style: averaText(context).caption,
+                      ),
+                  ],
+                ),
+              ),
+              if (status != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Chip(label: Text(status)),
+                ),
+              if (onTap != null && status == null)
+                const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: Icon(Icons.chevron_right_rounded),
+                ),
+            ],
           ),
-          if (status != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Chip(label: Text(status)),
-            ),
-        ],
+        ),
       ),
     );
   }

@@ -3,12 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/models/animal_search_result.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/security/access_control.dart';
 import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
 import 'cloud_patient_screens.dart';
@@ -244,7 +246,12 @@ class _AnimalSearchCard extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
         onTap: () => context.push('/animals/${animal.animalId}'),
-        onLongPress: isArchived ? null : () => _showStatusSheet(context, ref),
+        onLongPress: isArchived
+            ? null
+            : () async {
+                await HapticFeedback.selectionClick();
+                if (context.mounted) await _showStatusSheet(context, ref);
+              },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -342,7 +349,7 @@ class _AnimalSearchCard extends ConsumerWidget {
 
   Future<void> _showStatusSheet(BuildContext context, WidgetRef ref) async {
     final session = await ref.read(userSessionProvider.future);
-    if (!session.can('Manage Animal Status')) {
+    if (!session.can(Permissions.patientsEdit)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_providers.dart';
 import '../repositories/clinic_repository.dart';
 import '../repositories/cloud_cache_repository.dart';
+import '../security/access_control.dart';
 import 'clinical_remote_data_source.dart';
 
 class RemotePatientListState {
@@ -13,12 +14,14 @@ class RemotePatientListState {
     this.isLoading = false,
     this.isLoadingMore = false,
     this.hasNextPage = false,
+    this.fromCache = false,
     this.error,
   });
   final List<RemotePatient> items;
   final bool isLoading;
   final bool isLoadingMore;
   final bool hasNextPage;
+  final bool fromCache;
   final Object? error;
 
   RemotePatientListState copyWith({
@@ -26,6 +29,7 @@ class RemotePatientListState {
     bool? isLoading,
     bool? isLoadingMore,
     bool? hasNextPage,
+    bool? fromCache,
     Object? error,
     bool clearError = false,
   }) => RemotePatientListState(
@@ -33,6 +37,7 @@ class RemotePatientListState {
     isLoading: isLoading ?? this.isLoading,
     isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     hasNextPage: hasNextPage ?? this.hasNextPage,
+    fromCache: fromCache ?? this.fromCache,
     error: clearError ? null : error ?? this.error,
   );
 }
@@ -65,6 +70,31 @@ class RemotePatientListController
     await _loadPage(reset: false);
   }
 
+  Future<RemotePatient> updateStatus({
+    required String patientId,
+    required String status,
+    String? reason,
+  }) async {
+    final session = await _session();
+    if (!session.can(Permissions.patientsEdit)) {
+      throw StateError('You do not have permission to manage patient status.');
+    }
+    final patient = await _source.updatePatientStatus(
+      patientId: patientId,
+      status: status,
+      reason: reason,
+    );
+    await _cache.recordEntity(
+      entityType: 'patient',
+      serverId: patient.id,
+      clinicId: session.clinic.clinicId,
+      revision: patient.revision,
+      serverUpdatedAt: DateTime.now(),
+    );
+    if (mounted) await refresh();
+    return patient;
+  }
+
   Future<void> _loadPage({required bool reset}) async {
     try {
       final session = await _session();
@@ -94,12 +124,14 @@ class RemotePatientListController
           revision: patient.revision,
         );
       }
-      _apply(page, reset: reset);
+      if (!mounted) return;
+      _apply(page, reset: reset, fromCache: false);
     } catch (error) {
       UserSession? session;
       try {
         session = await _session();
       } catch (_) {
+        if (!mounted) return;
         state = state.copyWith(
           isLoading: false,
           isLoadingMore: false,
@@ -109,6 +141,7 @@ class RemotePatientListController
       }
       final key = _cacheKey(session.clinic.clinicId, _nextPage);
       final cached = await _cache.get(key, clinicId: session.clinic.clinicId);
+      if (!mounted) return;
       if (cached != null) {
         final page = RemotePage<RemotePatient>(
           items: (cached['items'] as List<dynamic>)
@@ -123,7 +156,7 @@ class RemotePatientListController
           total: cached['total'] as int,
           hasNextPage: cached['hasNextPage'] == true,
         );
-        _apply(page, reset: reset);
+        _apply(page, reset: reset, fromCache: true);
       } else {
         state = state.copyWith(
           isLoading: false,
@@ -134,7 +167,11 @@ class RemotePatientListController
     }
   }
 
-  void _apply(RemotePage<RemotePatient> page, {required bool reset}) {
+  void _apply(
+    RemotePage<RemotePatient> page, {
+    required bool reset,
+    required bool fromCache,
+  }) {
     final ids = <String>{};
     final items = <RemotePatient>[...(!reset ? state.items : const [])];
     for (final patient in items) {
@@ -144,7 +181,11 @@ class RemotePatientListController
       if (ids.add(patient.id)) items.add(patient);
     }
     _nextPage = page.page + 1;
-    state = RemotePatientListState(items: items, hasNextPage: page.hasNextPage);
+    state = RemotePatientListState(
+      items: items,
+      hasNextPage: page.hasNextPage,
+      fromCache: fromCache,
+    );
   }
 
   String _cacheKey(String clinicId, int page) =>
@@ -169,6 +210,225 @@ final remotePatientListProvider =
         () => ref.read(userSessionProvider.future),
       ),
     );
+
+class RemoteInventoryListState {
+  const RemoteInventoryListState({
+    this.items = const [],
+    this.isLoading = false,
+    this.fromCache = false,
+    this.error,
+  });
+
+  final List<RemoteInventoryItem> items;
+  final bool isLoading;
+  final bool fromCache;
+  final Object? error;
+
+  RemoteInventoryListState copyWith({
+    List<RemoteInventoryItem>? items,
+    bool? isLoading,
+    bool? fromCache,
+    Object? error,
+    bool clearError = false,
+  }) => RemoteInventoryListState(
+    items: items ?? this.items,
+    isLoading: isLoading ?? this.isLoading,
+    fromCache: fromCache ?? this.fromCache,
+    error: clearError ? null : error ?? this.error,
+  );
+}
+
+class RemoteInventoryListController
+    extends StateNotifier<RemoteInventoryListState> {
+  RemoteInventoryListController(this._source, this._cache, this._session)
+    : super(const RemoteInventoryListState()) {
+    unawaited(refresh());
+  }
+
+  final ClinicalRemoteDataSource _source;
+  final CloudCacheRepository _cache;
+  final Future<UserSession> Function() _session;
+  String _search = '';
+
+  Future<void> refresh({String? search}) async {
+    if (search != null) _search = search;
+    state = state.copyWith(isLoading: true, clearError: true);
+    UserSession? session;
+    try {
+      session = await _session();
+      final items = <RemoteInventoryItem>[];
+      var page = 1;
+      var hasNext = true;
+      while (hasNext) {
+        final result = await _source.inventoryProducts(
+          page: page,
+          pageSize: 100,
+          search: _search,
+        );
+        items.addAll(result.items);
+        hasNext = result.hasNextPage;
+        page += 1;
+      }
+      final unique = <String, RemoteInventoryItem>{
+        for (final item in items) item.id: item,
+      }.values.toList()..sort((a, b) => a.name.compareTo(b.name));
+      await _writeCache(session, unique);
+      for (final item in unique) {
+        await _cache.recordEntity(
+          entityType: 'inventory_product',
+          serverId: item.id,
+          clinicId: session.clinic.clinicId,
+          revision: item.revision,
+          serverUpdatedAt: item.updatedAt,
+        );
+      }
+      if (!mounted) return;
+      state = RemoteInventoryListState(items: unique);
+    } catch (error) {
+      session ??= await _safeSession();
+      final cached = session == null
+          ? null
+          : await _cache.get(
+              _cacheKey(session.clinic.clinicId),
+              clinicId: session.clinic.clinicId,
+            );
+      if (!mounted) return;
+      if (cached != null) {
+        state = RemoteInventoryListState(
+          items: (cached['items'] as List<dynamic>? ?? const [])
+              .map(
+                (item) => RemoteInventoryItem.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              .toList(),
+          fromCache: true,
+          error: error,
+        );
+      } else {
+        state = RemoteInventoryListState(error: error);
+      }
+    }
+  }
+
+  Future<RemoteInventoryItem> create(Map<String, dynamic> payload) async {
+    final currentItems = [...state.items];
+    final session = await _session();
+    if (!session.can(Permissions.inventoryCreate)) {
+      throw StateError('You do not have permission to create inventory items.');
+    }
+    final item = await _source.createInventoryItem(payload);
+    await _upsertAndCache(session, item, currentItems);
+    if (mounted) unawaited(refresh());
+    return item;
+  }
+
+  Future<RemoteInventoryItem> update({
+    required String itemId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final currentItems = [...state.items];
+    final session = await _session();
+    if (!session.can(Permissions.inventoryEdit)) {
+      throw StateError('You do not have permission to edit inventory items.');
+    }
+    final item = await _source.updateInventoryItem(
+      inventoryProductId: itemId,
+      payload: payload,
+    );
+    await _upsertAndCache(session, item, currentItems);
+    if (mounted) unawaited(refresh());
+    return item;
+  }
+
+  Future<void> _upsertAndCache(
+    UserSession session,
+    RemoteInventoryItem item,
+    List<RemoteInventoryItem> currentItems,
+  ) async {
+    final items = [...currentItems];
+    final index = items.indexWhere((candidate) => candidate.id == item.id);
+    if (index == -1) {
+      items.add(item);
+    } else {
+      items[index] = item;
+    }
+    items.sort((a, b) => a.name.compareTo(b.name));
+    if (mounted) state = RemoteInventoryListState(items: items);
+    await _writeCache(session, items);
+    await _cache.recordEntity(
+      entityType: 'inventory_product',
+      serverId: item.id,
+      clinicId: session.clinic.clinicId,
+      revision: item.revision,
+      serverUpdatedAt: item.updatedAt,
+    );
+  }
+
+  Future<void> _writeCache(
+    UserSession session,
+    List<RemoteInventoryItem> items,
+  ) => _cache.put(
+    key: _cacheKey(session.clinic.clinicId),
+    clinicId: session.clinic.clinicId,
+    payload: {'items': items.map((item) => item.toJson()).toList()},
+  );
+
+  Future<UserSession?> _safeSession() async {
+    try {
+      return await _session();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _cacheKey(String clinicId) => 'inventory:$clinicId:$_search';
+}
+
+final remoteInventoryListProvider =
+    StateNotifierProvider.autoDispose<
+      RemoteInventoryListController,
+      RemoteInventoryListState
+    >(
+      (ref) => RemoteInventoryListController(
+        ref.watch(clinicalRemoteDataSourceProvider),
+        ref.watch(cloudCacheRepositoryProvider),
+        () => ref.read(userSessionProvider.future),
+      ),
+    );
+
+class RemoteConsultationService {
+  const RemoteConsultationService(this._source, this._cache, this._session);
+
+  final ClinicalRemoteDataSource _source;
+  final CloudCacheRepository _cache;
+  final Future<UserSession> Function() _session;
+
+  Future<RemoteConsultationCreation> create(
+    Map<String, dynamic> payload,
+  ) async {
+    final session = await _session();
+    if (!session.can(Permissions.consultationsCreate)) {
+      throw StateError('You do not have permission to create consultations.');
+    }
+    final consultation = await _source.createConsultation(payload);
+    await _cache.recordEntity(
+      entityType: 'consultation',
+      serverId: consultation.id,
+      clinicId: session.clinic.clinicId,
+      serverUpdatedAt: DateTime.now(),
+    );
+    return consultation;
+  }
+}
+
+final remoteConsultationServiceProvider = Provider<RemoteConsultationService>(
+  (ref) => RemoteConsultationService(
+    ref.watch(clinicalRemoteDataSourceProvider),
+    ref.watch(cloudCacheRepositoryProvider),
+    () => ref.read(userSessionProvider.future),
+  ),
+);
 
 final remoteHospitalNumberPreviewProvider =
     FutureProvider.autoDispose<RemoteHospitalNumberPreview>((ref) async {
@@ -213,6 +473,8 @@ final remotePatientMedicalFileProvider = FutureProvider.autoDispose
       }
     });
 
+final remoteDashboardOfflineProvider = StateProvider<bool>((ref) => false);
+
 final remoteDashboardProvider =
     FutureProvider.autoDispose<RemoteDashboardSummary>((ref) async {
       final session = await ref.watch(userSessionProvider.future);
@@ -223,6 +485,7 @@ final remoteDashboardProvider =
         final dashboard = await ref
             .watch(clinicalRemoteDataSourceProvider)
             .dashboard();
+        ref.read(remoteDashboardOfflineProvider.notifier).state = false;
         await cache.put(
           key: key,
           clinicId: session.clinic.clinicId,
@@ -232,6 +495,7 @@ final remoteDashboardProvider =
       } catch (_) {
         final cached = await cache.get(key, clinicId: session.clinic.clinicId);
         if (cached == null) rethrow;
+        ref.read(remoteDashboardOfflineProvider.notifier).state = true;
         return RemoteDashboardSummary.fromJson(cached);
       }
     });

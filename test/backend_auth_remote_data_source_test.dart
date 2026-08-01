@@ -128,6 +128,105 @@ void main() {
     },
   );
 
+  test('clinical mutations use authenticated production contracts', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'avera_access_token': 'production-access-token',
+    });
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+      expect(
+        request.headers['authorization'],
+        'Bearer production-access-token',
+      );
+      if (request.url.path.endsWith('/status')) {
+        return http.Response(
+          jsonEncode({
+            'patient': {
+              'patient_id': 'cb159739-c0cb-4503-a069-9d64563f47bc',
+              'hospital_number': 'AVR-2026-00001',
+              'name': 'Luna',
+              'species': 'Cat',
+              'status': 'Relocated',
+              'owner_name': 'Luna Owner',
+              'owner_phone': '08000000000',
+              'revision': '2',
+            },
+          }),
+          200,
+        );
+      }
+      if (request.url.path == '/api/v1/consultations') {
+        return http.Response(
+          jsonEncode({
+            'consultation': {
+              'consultation_id': '3f4cd168-ff17-4be6-8fb2-c73e791c2bcc',
+              'patient_id': 'cb159739-c0cb-4503-a069-9d64563f47bc',
+            },
+            'submissionId': 'c0205ff9-bc94-4bfa-aa05-a3527760f488',
+            'duplicateSubmission': false,
+          }),
+          201,
+        );
+      }
+      return http.Response(
+        jsonEncode({
+          'item': {
+            'inventory_product_id': 'db681307-05a9-47ca-b6f6-8a8ba86037da',
+            'name': 'Amoxicillin 250 mg',
+            'category_key': 'drugs',
+            'category': 'Drugs',
+            'quantity': 12,
+            'reorder_level': 5,
+            'purchase_price': '1200.00',
+            'selling_price': '1800.00',
+            'status': 'Active',
+            'revision': request.method == 'PATCH' ? '2' : '1',
+          },
+        }),
+        request.method == 'POST' ? 201 : 200,
+      );
+    });
+    final source = ClinicalRemoteDataSource(
+      ApiClient(
+        baseUrl: BackendConfiguration.productionApiBaseUrl,
+        tokens: const TokenStore(FlutterSecureStorage()),
+        client: client,
+      ),
+    );
+
+    final patient = await source.updatePatientStatus(
+      patientId: 'cb159739-c0cb-4503-a069-9d64563f47bc',
+      status: 'Relocated',
+      reason: 'Owner moved clinic',
+    );
+    final consultation = await source.createConsultation(const {
+      'submissionId': 'c0205ff9-bc94-4bfa-aa05-a3527760f488',
+      'patientId': 'cb159739-c0cb-4503-a069-9d64563f47bc',
+      'chiefComplaint': 'Reduced appetite',
+    });
+    final createdInventory = await source.createInventoryItem(const {
+      'submissionId': '561a66a4-baff-493c-916f-73cf36e36a19',
+      'name': 'Amoxicillin 250 mg',
+    });
+    final updatedInventory = await source.updateInventoryItem(
+      inventoryProductId: 'db681307-05a9-47ca-b6f6-8a8ba86037da',
+      payload: const {'name': 'Amoxicillin 250 mg', 'revision': 1},
+    );
+
+    expect(patient.status, 'Relocated');
+    expect(patient.revision, 2);
+    expect(consultation.patientId, patient.id);
+    expect(createdInventory.revision, 1);
+    expect(updatedInventory.revision, 2);
+    expect(requests.map((request) => '${request.method} ${request.url.path}'), [
+      'PATCH /api/v1/patients/${patient.id}/status',
+      'POST /api/v1/consultations',
+      'POST /api/v1/inventory/products',
+      'PATCH /api/v1/inventory/products/${createdInventory.id}',
+    ]);
+  });
+
   test(
     'ApiClient uses a configurable timeout with a 15-second development default',
     () {

@@ -378,6 +378,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/consultations/new',
           builder: (context, state) => ConsultationScreen(
+            initialRemotePatientId: BackendConfiguration.isConfigured
+                ? state.uri.queryParameters['patientId'] ??
+                      state.uri.queryParameters['animalId']
+                : null,
             initialAnimalId: int.tryParse(
               state.uri.queryParameters['animalId'] ?? '',
             ),

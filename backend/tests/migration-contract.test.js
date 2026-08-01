@@ -3,9 +3,13 @@ import fs from 'node:fs';
 import test from 'node:test';
 import { signInSchema } from '../src/routes/auth-routes.js';
 import {
+  createConsultationSchema,
+  createInventoryItemSchema,
   createPatientSchema,
   formatPatientHospitalNumber,
+  patientStatusSchema,
   suggestedPatientPrefix,
+  updateInventoryItemSchema,
 } from '../src/routes/clinical-routes.js';
 import {
   clinicAdministratorPermissionKeys,
@@ -134,6 +138,86 @@ test('patient detail and medical-file routes build complete SELECT queries', () 
     routes,
     /client\.query\(`\$\{patientList\.select\} FROM \$\{patientList\.from\}/,
   );
+});
+
+test('clinic mutation migration preserves idempotency, revisions, and soft deletion', () => {
+  const mutations = fs.readFileSync(
+    new URL('../migrations/013_clinic_mutation_contracts.sql', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(mutations, /consultations_clinic_submission_unique/);
+  assert.match(mutations, /inventory_clinic_submission_unique/);
+  assert.match(mutations, /submission_id UUID/);
+  assert.match(mutations, /revision BIGINT NOT NULL DEFAULT 1/);
+  assert.match(mutations, /deleted_at TIMESTAMPTZ/);
+  assert.match(mutations, /WHERE submission_id IS NOT NULL/);
+  assert.match(mutations, /UPDATE inventory_products[\s\S]*WHERE category_key IS NULL/);
+});
+
+test('clinic mutation payloads reject unsafe patient, consultation, and inventory values', () => {
+  assert.equal(patientStatusSchema.safeParse({ status: 'Deceased' }).success, true);
+  assert.equal(patientStatusSchema.safeParse({ status: 'Deleted' }).success, false);
+
+  const consultation = {
+    submissionId: 'ab40733b-b109-4587-95cf-ed9264dfe4b8',
+    patientId: '774d6508-e036-442f-80b1-b5a2ac89de66',
+    chiefComplaint: 'Reduced appetite',
+    veterinarian: 'Dr. Chinedu Emmanuel',
+  };
+  assert.equal(createConsultationSchema.safeParse(consultation).success, true);
+  assert.equal(
+    createConsultationSchema.safeParse({ ...consultation, chiefComplaint: ' ' }).success,
+    false,
+  );
+
+  const inventory = {
+    submissionId: 'b695c4c7-c80a-466b-bfdc-a51dac4d40b3',
+    name: 'Amoxicillin 250 mg',
+    categoryId: 'drugs',
+    categoryName: 'Drugs',
+    quantity: 12,
+    reorderLevel: 5,
+    batchNumber: 'AMX-2026-01',
+    expiryDate: '2027-06-30',
+    purchasePrice: 1200,
+    sellingPrice: 1800,
+  };
+  assert.equal(createInventoryItemSchema.safeParse(inventory).success, true);
+  assert.equal(
+    createInventoryItemSchema.safeParse({ ...inventory, quantity: -1 }).success,
+    false,
+  );
+  const { submissionId: _submissionId, ...update } = inventory;
+  assert.equal(updateInventoryItemSchema.safeParse({ ...update, revision: 2 }).success, true);
+  assert.equal(updateInventoryItemSchema.safeParse({ ...update, revision: 0 }).success, false);
+});
+
+test('clinical mutation routes remain permission guarded and clinic scoped', () => {
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+
+  for (const permissionName of [
+    'patientsEdit',
+    'consultationsCreate',
+    'inventoryCreate',
+    'inventoryEdit',
+  ]) {
+    assert.match(
+      routes,
+      new RegExp(`requirePermission\\(permissions\\.${permissionName}\\)`),
+    );
+  }
+  assert.match(routes, /WHERE clinic_id = \$1 AND patient_id = \$2/);
+  assert.match(routes, /WHERE clinic_id = \$1 AND inventory_product_id = \$2/);
+  assert.match(routes, /status = \$1,[\s\S]*revision = revision \+ 1/);
+  assert.equal(
+    routes.match(/ON CONFLICT \(clinic_id, submission_id\)/g)?.length,
+    2,
+  );
+  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 5);
 });
 
 test('demo clinical migration is tenant-scoped and identifies removable demo rows', () => {

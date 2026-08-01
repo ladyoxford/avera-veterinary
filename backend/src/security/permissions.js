@@ -10,7 +10,7 @@ export const permissions = {
   hospitalizationView: 'hospitalization.view', hospitalizationAdd: 'hospitalization.add',
   surgeryView: 'surgery.view', surgeryAdd: 'surgery.add',
   prescriptionsView: 'prescriptions.view', prescriptionsCreate: 'prescriptions.create',
-  inventoryView: 'inventory.view', inventoryManage: 'inventory.manage',
+  inventoryView: 'inventory.view', inventoryCreate: 'inventory.create', inventoryEdit: 'inventory.edit', inventoryManage: 'inventory.manage',
   appointmentsView: 'appointments.view', appointmentsCreate: 'appointments.create',
   billingView: 'billing.view', billingManage: 'billing.manage',
   mediaView: 'media.view',

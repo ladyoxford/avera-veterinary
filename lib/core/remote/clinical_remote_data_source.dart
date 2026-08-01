@@ -78,6 +78,105 @@ class RemotePatient {
   };
 }
 
+class RemoteInventoryItem {
+  const RemoteInventoryItem({
+    required this.id,
+    required this.name,
+    required this.categoryId,
+    required this.categoryName,
+    required this.quantity,
+    required this.reorderLevel,
+    required this.purchasePrice,
+    required this.sellingPrice,
+    required this.status,
+    this.batchNumber,
+    this.expiryDate,
+    this.createdAt,
+    this.updatedAt,
+    this.revision,
+  });
+
+  final String id;
+  final String name;
+  final String categoryId;
+  final String categoryName;
+  final int quantity;
+  final int reorderLevel;
+  final num purchasePrice;
+  final num sellingPrice;
+  final String status;
+  final String? batchNumber;
+  final DateTime? expiryDate;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final int? revision;
+
+  factory RemoteInventoryItem.fromJson(Map<String, dynamic> value) {
+    final categoryName = value['category'] as String? ?? 'Other';
+    return RemoteInventoryItem(
+      id: value['inventory_product_id'] as String,
+      name: value['name'] as String? ?? 'Unnamed item',
+      categoryId:
+          value['category_key'] as String? ??
+          _canonicalInventoryCategory(categoryName),
+      categoryName: categoryName,
+      quantity: _int(value['quantity']),
+      reorderLevel: _int(value['reorder_level']),
+      purchasePrice: _num(value['purchase_price']),
+      sellingPrice: _num(value['selling_price']),
+      status: value['status'] as String? ?? 'Active',
+      batchNumber: value['batch_number'] as String?,
+      expiryDate: _date(value['expiry_date']),
+      createdAt: _date(value['created_at']),
+      updatedAt: _date(value['updated_at']),
+      revision: _nullableInt(value['revision']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'inventory_product_id': id,
+    'name': name,
+    'category_key': categoryId,
+    'category': categoryName,
+    'quantity': quantity,
+    'reorder_level': reorderLevel,
+    'purchase_price': purchasePrice,
+    'selling_price': sellingPrice,
+    'status': status,
+    'batch_number': batchNumber,
+    'expiry_date': expiryDate?.toIso8601String(),
+    'created_at': createdAt?.toIso8601String(),
+    'updated_at': updatedAt?.toIso8601String(),
+    'revision': revision,
+  };
+}
+
+class RemoteConsultationCreation {
+  const RemoteConsultationCreation({
+    required this.id,
+    required this.patientId,
+    required this.submissionId,
+    required this.duplicateSubmission,
+  });
+
+  final String id;
+  final String patientId;
+  final String submissionId;
+  final bool duplicateSubmission;
+
+  factory RemoteConsultationCreation.fromJson(Map<String, dynamic> value) {
+    final consultation = Map<String, dynamic>.from(
+      value['consultation'] as Map,
+    );
+    return RemoteConsultationCreation(
+      id: consultation['consultation_id'] as String,
+      patientId: consultation['patient_id'] as String,
+      submissionId: value['submissionId'] as String,
+      duplicateSubmission: value['duplicateSubmission'] == true,
+    );
+  }
+}
+
 class RemoteDashboardSummary {
   const RemoteDashboardSummary({
     required this.registeredPatients,
@@ -218,6 +317,30 @@ class ClinicalRemoteDataSource {
     return _page(response, RemotePatient.fromJson);
   }
 
+  Future<RemotePatient> updatePatientStatus({
+    required String patientId,
+    required String status,
+    String? reason,
+  }) async {
+    final response = await _client.patch(
+      '/api/v1/patients/$patientId/status',
+      body: {
+        'status': status,
+        if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim(),
+      },
+    );
+    return RemotePatient.fromJson(
+      Map<String, dynamic>.from(response['patient'] as Map),
+    );
+  }
+
+  Future<RemotePatient> patient(String patientId) async {
+    final response = await _client.get('/api/v1/patients/$patientId');
+    return RemotePatient.fromJson(
+      Map<String, dynamic>.from(response['patient'] as Map),
+    );
+  }
+
   Future<RemoteHospitalNumberPreview> patientNumberPreview() async =>
       RemoteHospitalNumberPreview.fromJson(
         await _client.get('/api/v1/patients/number-preview'),
@@ -227,6 +350,16 @@ class ClinicalRemoteDataSource {
     Map<String, dynamic> payload,
   ) async => RemotePatientRegistration.fromJson(
     await _client.post('/api/v1/patients', body: payload, authenticated: true),
+  );
+
+  Future<RemoteConsultationCreation> createConsultation(
+    Map<String, dynamic> payload,
+  ) async => RemoteConsultationCreation.fromJson(
+    await _client.post(
+      '/api/v1/consultations',
+      body: payload,
+      authenticated: true,
+    ),
   );
 
   Future<RemotePatientMedicalFile> medicalFile(String patientId) async {
@@ -289,10 +422,47 @@ class ClinicalRemoteDataSource {
     int page = 1,
     String? search,
   }) => _generic('/api/v1/prescriptions', page: page, search: search);
-  Future<RemotePage<Map<String, dynamic>>> inventoryProducts({
+  Future<RemotePage<RemoteInventoryItem>> inventoryProducts({
     int page = 1,
+    int pageSize = 100,
     String? search,
-  }) => _generic('/api/v1/inventory/products', page: page, search: search);
+  }) async {
+    final response = await _client.get(
+      _path('/api/v1/inventory/products', {
+        'page': '$page',
+        'pageSize': '$pageSize',
+        if (search?.isNotEmpty ?? false) 'search': search!,
+      }),
+    );
+    return _page(response, RemoteInventoryItem.fromJson);
+  }
+
+  Future<RemoteInventoryItem> createInventoryItem(
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _client.post(
+      '/api/v1/inventory/products',
+      body: payload,
+      authenticated: true,
+    );
+    return RemoteInventoryItem.fromJson(
+      Map<String, dynamic>.from(response['item'] as Map),
+    );
+  }
+
+  Future<RemoteInventoryItem> updateInventoryItem({
+    required String inventoryProductId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final response = await _client.patch(
+      '/api/v1/inventory/products/$inventoryProductId',
+      body: payload,
+    );
+    return RemoteInventoryItem.fromJson(
+      Map<String, dynamic>.from(response['item'] as Map),
+    );
+  }
+
   Future<RemotePage<Map<String, dynamic>>> inventoryMovements({
     int page = 1,
     String? search,
@@ -363,5 +533,25 @@ int? _nullableInt(Object? value) {
 }
 
 num _num(Object? value) => value is num ? value : num.tryParse('$value') ?? 0;
+
+String _canonicalInventoryCategory(String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized.contains('vaccine')) return 'vaccines';
+  if (normalized.contains('drug') || normalized.contains('pharmacy')) {
+    return 'drugs';
+  }
+  if (normalized.contains('supplement')) return 'supplements';
+  if (normalized.contains('food')) return 'pet_food';
+  if (normalized.contains('accessor')) return 'pet_accessories';
+  if (normalized.contains('groom')) return 'grooming_supplies';
+  if (normalized.contains('laboratory') && normalized.contains('equipment')) {
+    return 'laboratory_equipment';
+  }
+  if (normalized.contains('laboratory')) return 'laboratory_consumables';
+  if (normalized.contains('surg')) return 'surgical_supplies';
+  if (normalized.contains('consumable')) return 'clinical_consumables';
+  if (normalized.contains('equipment')) return 'general_equipment';
+  return normalized.replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+}
 
 String encodeCloudPayload(Object value) => jsonEncode(value);

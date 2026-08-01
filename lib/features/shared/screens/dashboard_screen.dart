@@ -36,13 +36,28 @@ class DashboardScreen extends ConsumerWidget {
         : ref.watch(dashboardStatsProvider);
     final notifications = ref.watch(notificationsProvider);
     final operatingStatus = ref.watch(clinicOperatingStatusProvider);
+    final showingCachedDashboard =
+        BackendConfiguration.isConfigured &&
+        ref.watch(remoteDashboardOfflineProvider);
 
     return Scaffold(
       appBar: const BrandedAppBar(),
       body: stats.when(
         loading: () => const _DashboardSkeleton(),
-        error: (error, _) =>
-            Center(child: Text('Unable to load dashboard: $error')),
+        error: (_, __) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('The clinic dashboard could not be loaded.'),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => ref.invalidate(remoteDashboardProvider),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry dashboard'),
+              ),
+            ],
+          ),
+        ),
         data: (data) {
           final sessionData = session.valueOrNull;
           final dashboardMode = sessionData == null
@@ -81,6 +96,21 @@ class DashboardScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (showingCachedDashboard) ...[
+                            Row(
+                              children: [
+                                const Icon(Icons.cloud_off_outlined, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Showing saved dashboard data while the server reconnects.',
+                                    style: averaText(context).caption,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                           if (dashboardMode == DashboardMode.administrative)
                             const _AdminConsoleHeader()
                           else

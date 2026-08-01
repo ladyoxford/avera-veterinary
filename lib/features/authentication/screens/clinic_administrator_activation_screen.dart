@@ -30,6 +30,7 @@ class _ClinicAdministratorActivationScreenState
   }
 
   Future<_ActivationDetails?> _loadActivation() async {
+    if (widget.token.trim().isEmpty) return null;
     if (BackendConfiguration.isBackendMode) {
       try {
         final activation = await ref

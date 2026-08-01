@@ -20,9 +20,17 @@ import {
   ActivationEmailDeliveryService,
   ClinicAdministratorActivationService,
 } from './services/clinic-administrator-activation-service.js';
+import { publicAccountRoutes } from './routes/public-account-routes.js';
+import { requestLogSerializer } from './config/request-logging.js';
 
 export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
-  const app = Fastify({ logger: { level: environment.LOG_LEVEL }, trustProxy: environment.NODE_ENV !== 'development' });
+  const app = Fastify({
+    logger: {
+      level: environment.LOG_LEVEL,
+      serializers: { req: requestLogSerializer },
+    },
+    trustProxy: environment.NODE_ENV !== 'development',
+  });
   const databasePool = pool ?? createPool(environment.DATABASE_URL);
   app.decorate('environment', environment);
   app.decorate('pool', databasePool);
@@ -79,6 +87,7 @@ export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
     reply.code(error.statusCode ?? 500).send({ error: 'internal_error', message: 'The request could not be completed.', requestId: request.id });
   });
   await app.register(healthRoutes);
+  await app.register(publicAccountRoutes);
   await app.register(authRoutes);
   await app.register(securityRoutes);
   await app.register(platformRoutes);

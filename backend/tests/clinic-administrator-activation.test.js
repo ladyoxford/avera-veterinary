@@ -9,7 +9,7 @@ import { verifyPassword } from '../src/security/passwords.js';
 
 const environment = {
   ACTIVATION_TOKEN_TTL_MINUTES: 60,
-  AVERA_ACTIVATION_BASE_URL: 'avera://app/activate-clinic-admin',
+  AVERA_ACTIVATION_BASE_URL: 'https://accounts.averavet.sbs/activate-clinic-admin',
 };
 
 function service(pool) {
@@ -232,7 +232,7 @@ test('resend revokes the previous token and issues a different one', async () =>
   });
 
   assert.equal(resent.deliveryMethod, 'manual');
-  assert.match(resent.activationUrl, /^avera:\/\/app\/activate-clinic-admin\?token=/);
+  assert.match(resent.activationUrl, /^https:\/\/accounts\.averavet\.sbs\/activate-clinic-admin\?token=/);
   assert.equal(harness.state.tokenInsertCount, 2);
   assert.notEqual(harness.state.liveToken.token_hash, originalHash);
 });

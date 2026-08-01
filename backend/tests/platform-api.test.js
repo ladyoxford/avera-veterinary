@@ -95,6 +95,6 @@ function testEnvironment() {
     paymentCallbackUrl: 'avera://payments/callback',
     allowedOrigins: ['http://localhost'],
     ACTIVATION_TOKEN_TTL_MINUTES: 60,
-    AVERA_ACTIVATION_BASE_URL: 'avera://app/activate-clinic-admin',
+    AVERA_ACTIVATION_BASE_URL: 'https://accounts.averavet.sbs/activate-clinic-admin',
   };
 }

@@ -18,11 +18,14 @@ run the API as a non-owner PostgreSQL role so Row Level Security applies.
 ## Clinic Administrator activation
 
 Set `ACTIVATION_TOKEN_TTL_MINUTES` and `AVERA_ACTIVATION_BASE_URL` in Render.
-The base URL may be the Flutter deep link
-`avera://app/activate-clinic-admin` until an HTTPS universal-link domain is
-configured. For email delivery, also set `RESEND_API_KEY` and a verified
-`ACTIVATION_EMAIL_FROM` sender. Secrets and activation links must not be placed
-in build logs.
+Use the verified Android App Link:
+`https://accounts.averavet.sbs/activate-clinic-admin`. For email delivery, also
+set `RESEND_API_KEY` and a verified `ACTIVATION_EMAIL_FROM` sender. Secrets and
+activation links must not be placed in build logs.
+
+Point the DNS `accounts` CNAME at the Render service hostname and add
+`accounts.averavet.sbs` as a custom domain on that service. The same Fastify
+service hosts `/.well-known/assetlinks.json` and the token-safe fallback page.
 
 If the email variables are absent, approval and resend return the plaintext
 activation link once to the authenticated Platform Owner response. The

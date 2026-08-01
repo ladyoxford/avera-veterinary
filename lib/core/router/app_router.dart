@@ -13,6 +13,7 @@ import '../remote/api_client.dart';
 import '../../features/authentication/screens/authentication_screen.dart';
 import '../../features/authentication/screens/clinic_registration_screen.dart';
 import '../../features/authentication/screens/clinic_administrator_activation_screen.dart';
+import 'activation_link.dart';
 import '../../features/authentication/screens/password_reset_screens.dart';
 import '../../features/authentication/screens/offline_access_screens.dart';
 import '../../features/authentication/screens/security_auth_screens.dart';
@@ -71,7 +72,7 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/activate-clinic-admin',
       builder: (context, state) => ClinicAdministratorActivationScreen(
-        token: state.uri.queryParameters['token'] ?? '',
+        token: clinicAdministratorActivationToken(state.uri) ?? '',
       ),
     ),
     GoRoute(

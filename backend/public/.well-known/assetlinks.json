@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.avera.vet",
+      "sha256_cert_fingerprints": [
+        "24:1E:7E:3A:D4:D4:59:5F:0C:D8:61:65:39:48:16:69:7E:1D:2A:4D:0E:E6:4E:78:E9:45:35:FD:4B:F7:73:7F"
+      ]
+    }
+  }
+]

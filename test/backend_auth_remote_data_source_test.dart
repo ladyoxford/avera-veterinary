@@ -99,6 +99,8 @@ void main() {
               'status': 'Active',
               'owner_name': 'Luna Owner',
               'owner_phone': '08000000000',
+              // node-postgres serializes PostgreSQL BIGINT columns as strings.
+              'revision': '1',
             },
             'submissionId': '5b8ea5ed-f09b-4ed3-b440-e490f2f4e32d',
             'duplicateSubmission': false,
@@ -122,6 +124,7 @@ void main() {
 
       expect(result.patient.id, 'cb159739-c0cb-4503-a069-9d64563f47bc');
       expect(result.patient.hospitalNumber, 'BIOCAMP-2026-00001');
+      expect(result.patient.revision, 1);
     },
   );
 

@@ -59,7 +59,7 @@ class RemotePatient {
     sex: value['sex'] as String?,
     imagePlaceholder: value['image_placeholder'] as String?,
     registeredAt: _date(value['registered_at']),
-    revision: value['revision'] as int?,
+    revision: _nullableInt(value['revision']),
   );
 
   Map<String, dynamic> toJson() => {
@@ -357,6 +357,11 @@ String _path(String path, Map<String, String> query) =>
 DateTime? _date(Object? value) =>
     value is String ? DateTime.tryParse(value) : null;
 int _int(Object? value) => value is int ? value : int.tryParse('$value') ?? 0;
+int? _nullableInt(Object? value) {
+  if (value == null) return null;
+  return value is int ? value : int.tryParse('$value');
+}
+
 num _num(Object? value) => value is num ? value : num.tryParse('$value') ?? 0;
 
 String encodeCloudPayload(Object value) => jsonEncode(value);

@@ -28,6 +28,7 @@ import '../../features/administration/screens/patient_numbering_screen.dart';
 import '../../features/billing/screens/billing_screen.dart';
 import '../../features/billing/screens/billing_history_screen.dart';
 import '../../features/consultation/screens/consultation_screen.dart';
+import '../../features/consultation/screens/cloud_consultation_detail_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
 import '../../features/reports/screens/reports_screen.dart';
 import '../../features/shared/screens/appointments_screen.dart';
@@ -400,10 +401,17 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/consultations/:consultationId',
-          builder: (context, state) => ConsultationScreen(
-            mode: ConsultationScreenMode.view,
-            consultationId: int.parse(state.pathParameters['consultationId']!),
-          ),
+          builder: (context, state) => BackendConfiguration.isConfigured
+              ? CloudConsultationDetailScreen(
+                  consultationId: state.pathParameters['consultationId']!,
+                  patientId: state.uri.queryParameters['patientId'] ?? '',
+                )
+              : ConsultationScreen(
+                  mode: ConsultationScreenMode.view,
+                  consultationId: int.parse(
+                    state.pathParameters['consultationId']!,
+                  ),
+                ),
         ),
         GoRoute(
           path: '/appointments',

@@ -29,7 +29,11 @@ class RemotePatient {
     required this.ownerPhone,
     this.breed,
     this.sex,
+    this.ownerEmail,
+    this.ownerAddress,
     this.imagePlaceholder,
+    this.dateOfBirth,
+    this.currentWeightKg,
     this.registeredAt,
     this.revision,
   });
@@ -43,7 +47,11 @@ class RemotePatient {
   final String ownerPhone;
   final String? breed;
   final String? sex;
+  final String? ownerEmail;
+  final String? ownerAddress;
   final String? imagePlaceholder;
+  final DateTime? dateOfBirth;
+  final num? currentWeightKg;
   final DateTime? registeredAt;
   final int? revision;
 
@@ -57,7 +65,13 @@ class RemotePatient {
     ownerPhone: value['owner_phone'] as String? ?? '',
     breed: value['breed'] as String?,
     sex: value['sex'] as String?,
+    ownerEmail: value['owner_email'] as String?,
+    ownerAddress: _ownerAddress(value),
     imagePlaceholder: value['image_placeholder'] as String?,
+    dateOfBirth: _date(value['date_of_birth']),
+    currentWeightKg: value['current_weight_kg'] == null
+        ? null
+        : _num(value['current_weight_kg']),
     registeredAt: _date(value['registered_at']),
     revision: _nullableInt(value['revision']),
   );
@@ -72,10 +86,26 @@ class RemotePatient {
     'owner_phone': ownerPhone,
     'breed': breed,
     'sex': sex,
+    'owner_email': ownerEmail,
+    'owner_address': ownerAddress,
     'image_placeholder': imagePlaceholder,
+    'date_of_birth': dateOfBirth?.toIso8601String(),
+    'current_weight_kg': currentWeightKg,
     'registered_at': registeredAt?.toIso8601String(),
     'revision': revision,
   };
+}
+
+String? _ownerAddress(Map<String, dynamic> value) {
+  final parts = <String>[
+    if ((value['owner_address'] as String?)?.trim().isNotEmpty ?? false)
+      (value['owner_address'] as String).trim(),
+    if ((value['owner_city'] as String?)?.trim().isNotEmpty ?? false)
+      (value['owner_city'] as String).trim(),
+    if ((value['owner_state'] as String?)?.trim().isNotEmpty ?? false)
+      (value['owner_state'] as String).trim(),
+  ];
+  return parts.isEmpty ? null : parts.join(', ');
 }
 
 class RemoteInventoryItem {
@@ -361,6 +391,11 @@ class ClinicalRemoteDataSource {
       authenticated: true,
     ),
   );
+
+  Future<Map<String, dynamic>> consultation(String consultationId) async {
+    final response = await _client.get('/api/v1/consultations/$consultationId');
+    return Map<String, dynamic>.from(response['consultation'] as Map);
+  }
 
   Future<RemotePatientMedicalFile> medicalFile(String patientId) async {
     final value = await _client.get('/api/v1/patients/$patientId/medical-file');

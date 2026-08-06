@@ -196,7 +196,8 @@ ClinicActivityTimelineEvent _remoteActivityEvent(
   final occurredAt =
       DateTime.tryParse('${value['occurred_at']}') ??
       DateTime.fromMillisecondsSinceEpoch(0);
-  final relatedEntityId = value['related_entity_id']?.toString();
+  final relatedEntityId = (value['record_id'] ?? value['related_entity_id'])
+      ?.toString();
   return ClinicActivityTimelineEvent(
     id:
         value['id']?.toString() ??
@@ -210,6 +211,7 @@ ClinicActivityTimelineEvent _remoteActivityEvent(
         value['related_entity_type'] as String? ??
         (relatedEntityId == null ? null : type),
     relatedEntityId: relatedEntityId,
+    remotePatientId: value['patient_id']?.toString(),
   );
 }
 
@@ -717,13 +719,23 @@ class _OperationalActivityTile extends StatelessWidget {
 
 void _openActivity(BuildContext context, ClinicActivityTimelineEvent event) {
   final id = event.relatedEntityId;
+  final isConsultation =
+      event.relatedEntityType == 'Consultation' ||
+      event.type.toLowerCase().contains('consultation');
+  if (isConsultation && id != null && id.isNotEmpty) {
+    final patientId = event.remotePatientId;
+    context.push(
+      patientId == null
+          ? '/consultations/$id'
+          : '/consultations/$id?patientId=${Uri.encodeQueryComponent(patientId)}',
+    );
+    return;
+  }
   switch (event.relatedEntityType) {
     case 'Appointment' when id != null:
       context.push('/appointments/$id');
     case 'Vaccination' when id != null:
       context.push('/vaccinations/$id');
-    case 'Consultation' when id != null:
-      context.push('/consultations/$id');
     case 'Patient' when id != null:
       context.push('/animals/$id');
     case 'ClinicalOperation' when id != null:

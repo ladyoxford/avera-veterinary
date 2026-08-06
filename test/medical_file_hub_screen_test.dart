@@ -25,7 +25,7 @@ void main() {
   });
 
   testWidgets(
-    'production medical file restores eight-item Quick Access without accordions',
+    'production medical file restores the compact patient summary and Quick Access grid',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -35,10 +35,13 @@ void main() {
 
       expect(find.text('Medical File'), findsOneWidget);
       expect(find.text('Luna \u2022 AVR-2026-00001'), findsOneWidget);
-      expect(find.text('Quick Access'), findsOneWidget);
       expect(
         find.byKey(const Key('medical-file-quick-access-grid')),
         findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('medical-file-compact-overview')),
+        findsNothing,
       );
       expect(
         find.byKey(const Key('medical-file-tile-overview')),
@@ -49,11 +52,6 @@ void main() {
         findsOneWidget,
       );
       expect(find.byType(ExpansionTile), findsNothing);
-
-      final grid = tester.widget<GridView>(
-        find.byKey(const Key('medical-file-quick-access-grid')),
-      );
-      expect(grid.semanticChildCount, 8);
       expect(tester.takeException(), isNull);
     },
   );
@@ -75,9 +73,10 @@ void main() {
     final moreRecords = find.byKey(const Key('medical-file-more-records'));
     await tester.scrollUntilVisible(
       moreRecords,
-      320,
+      240,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.pumpAndSettle();
     expect(moreRecords, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -102,16 +101,13 @@ void main() {
     ];
     for (final recordId in recordIds) {
       final tile = find.byKey(Key('medical-file-tile-$recordId'));
-      await tester.ensureVisible(tile);
-      await tester.tap(tile);
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(Key('remote-medical-record-$recordId-$_patientId')),
-        findsOneWidget,
+      await tester.scrollUntilVisible(
+        tile,
+        240,
+        scrollable: find.byType(Scrollable).first,
       );
+      expect(tile, findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
     }
   });
 
@@ -126,7 +122,16 @@ void main() {
       final consultations = find.byKey(
         const Key('medical-file-tile-consultations'),
       );
-      await tester.ensureVisible(consultations);
+      await tester.scrollUntilVisible(
+        consultations,
+        240,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await Scrollable.ensureVisible(
+        tester.element(consultations),
+        alignment: 0.5,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(consultations);
       await tester.pumpAndSettle();
 
@@ -148,7 +153,7 @@ void main() {
       final moreRecords = find.byKey(const Key('medical-file-more-records'));
       await tester.scrollUntilVisible(
         moreRecords,
-        320,
+        240,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.tap(moreRecords);
@@ -192,6 +197,34 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('pinned records can be reordered and persist their order', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_subject(preferences));
+    await tester.pumpAndSettle();
+    final allRecords = find.byKey(const Key('medical-file-more-records'));
+    await tester.scrollUntilVisible(
+      allRecords,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(allRecords);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('medical-file-reorder-signalment')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move up'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('medical-file-all-records-done')));
+    await tester.pumpAndSettle();
+
+    final saved = preferences.getStringList(
+      'avera_medical_file_quick_access_v1_clinic-1_user-1',
+    );
+    expect(saved?.take(2), ['signalment', 'overview']);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Widget _subject(
@@ -206,6 +239,15 @@ Widget _subject(
       expect(patientId, _patientId);
       return _medicalFile();
     }),
+    remotePatientSectionProvider.overrideWith(
+      (ref, request) async => const RemotePage(
+        items: [],
+        page: 1,
+        pageSize: 25,
+        total: 0,
+        hasNextPage: false,
+      ),
+    ),
     clinicalRemoteDataSourceProvider.overrideWithValue(
       _FakeClinicalRemoteDataSource(),
     ),

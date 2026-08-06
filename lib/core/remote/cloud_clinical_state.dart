@@ -473,6 +473,65 @@ final remotePatientMedicalFileProvider = FutureProvider.autoDispose
       }
     });
 
+class RemotePatientSectionRequest {
+  const RemotePatientSectionRequest({
+    required this.patientId,
+    required this.section,
+  });
+
+  final String patientId;
+  final String section;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RemotePatientSectionRequest &&
+      other.patientId == patientId &&
+      other.section == section;
+
+  @override
+  int get hashCode => Object.hash(patientId, section);
+}
+
+final remotePatientSectionProvider = FutureProvider.autoDispose
+    .family<RemotePage<Map<String, dynamic>>, RemotePatientSectionRequest>((
+      ref,
+      request,
+    ) async {
+      final session = await ref.watch(userSessionProvider.future);
+      final cache = ref.watch(cloudCacheRepositoryProvider);
+      final key =
+          'medical-file-section:${session.clinic.clinicId}:${request.patientId}:${request.section}';
+      try {
+        final page = await ref
+            .watch(clinicalRemoteDataSourceProvider)
+            .patientSection(request.patientId, request.section);
+        await cache.put(
+          key: key,
+          clinicId: session.clinic.clinicId,
+          payload: {
+            'items': page.items,
+            'page': page.page,
+            'pageSize': page.pageSize,
+            'total': page.total,
+            'hasNextPage': page.hasNextPage,
+          },
+        );
+        return page;
+      } catch (_) {
+        final cached = await cache.get(key, clinicId: session.clinic.clinicId);
+        if (cached == null) rethrow;
+        return RemotePage<Map<String, dynamic>>(
+          items: (cached['items'] as List<dynamic>? ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList(),
+          page: cached['page'] as int? ?? 1,
+          pageSize: cached['pageSize'] as int? ?? 25,
+          total: cached['total'] as int? ?? 0,
+          hasNextPage: cached['hasNextPage'] == true,
+        );
+      }
+    });
+
 final remoteDashboardOfflineProvider = StateProvider<bool>((ref) => false);
 
 final remoteDashboardProvider =

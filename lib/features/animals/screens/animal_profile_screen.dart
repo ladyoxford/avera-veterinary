@@ -12,6 +12,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
+import 'medical_file_navigation.dart';
 
 class AnimalProfileScreen extends ConsumerWidget {
   const AnimalProfileScreen({
@@ -28,7 +29,6 @@ class AnimalProfileScreen extends ConsumerWidget {
     final profile = ref.watch(animalProfileProvider(animalId));
     final session = ref.watch(userSessionProvider).valueOrNull;
     final index = initialTab.clamp(0, _recordTitles.length - 1);
-    final title = _recordTitles[index];
     final action = _medicalFileActions[index];
 
     return Scaffold(
@@ -39,7 +39,10 @@ class AnimalProfileScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(title, style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              'Medical File',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 3),
             profile.maybeWhen(
               data: (data) => Text(
@@ -54,6 +57,23 @@ class AnimalProfileScreen extends ConsumerWidget {
             ),
           ],
         ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: PinnedRecordNavigation(
+            selectedIndex: index,
+            onSelected: (selected) {
+              if (selected == index) return;
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute<void>(
+                  builder: (_) => AnimalProfileScreen(
+                    animalId: animalId,
+                    initialTab: selected,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
       body: profile.when(
         loading: () => const _ProfileSkeleton(),
@@ -62,11 +82,7 @@ class AnimalProfileScreen extends ConsumerWidget {
           title: 'Unable to open medical file',
           message: error.toString(),
         ),
-        data: (data) => _recordContent(
-          index: index,
-          profile: data,
-          clinicName: session?.clinic.clinicName,
-        ),
+        data: (data) => _recordContent(index: index, profile: data),
       ),
       floatingActionButton:
           action == null || session?.can(action.permission) != true
@@ -84,14 +100,10 @@ class AnimalProfileScreen extends ConsumerWidget {
   }
 }
 
-Widget _recordContent({
-  required int index,
-  required AnimalProfile profile,
-  String? clinicName,
-}) {
+Widget _recordContent({required int index, required AnimalProfile profile}) {
   switch (index) {
     case 0:
-      return _OverviewTab(profile: profile, clinicName: clinicName);
+      return _OverviewTab(profile: profile);
     case 1:
       return _SignalmentTab(profile: profile);
     case 2:
@@ -212,9 +224,8 @@ const _medicalFileActions = <int, _MedicalFileAction>{
 };
 
 class _OverviewTab extends ConsumerWidget {
-  const _OverviewTab({required this.profile, this.clinicName});
+  const _OverviewTab({required this.profile});
   final AnimalProfile profile;
-  final String? clinicName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -224,7 +235,6 @@ class _OverviewTab extends ConsumerWidget {
         _SectionLabel('Patient details'),
         _PatientDetailsCard(
           profile: profile,
-          clinicName: clinicName,
           referenceDate: referenceDate,
           onPhotoPressed: () => _changePhoto(context, ref),
         ),
@@ -322,35 +332,16 @@ class _PatientDetailsCard extends StatelessWidget {
   const _PatientDetailsCard({
     required this.profile,
     required this.referenceDate,
-    this.clinicName,
     this.onPhotoPressed,
   });
   final AnimalProfile profile;
   final DateTime referenceDate;
-  final String? clinicName;
   final VoidCallback? onPhotoPressed;
 
   @override
   Widget build(BuildContext context) {
     final animal = profile.animal;
     final theme = Theme.of(context);
-    final lastVisit = profile.visits.isEmpty
-        ? null
-        : profile.visits.reduce(
-            (current, visit) =>
-                visit.visitDate.isAfter(current.visitDate) ? visit : current,
-          );
-    final nextAppointment = profile.appointments
-        .where(
-          (appointment) => appointment.appointmentDate.isAfter(DateTime.now()),
-        )
-        .fold<DateTime?>(
-          null,
-          (current, appointment) =>
-              current == null || appointment.appointmentDate.isBefore(current)
-              ? appointment.appointmentDate
-              : current,
-        );
     return _EmrCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,9 +384,9 @@ class _PatientDetailsCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           const Divider(height: 1),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _InformationGrid(
             items: [
               _InfoItem(
@@ -416,64 +407,14 @@ class _PatientDetailsCard extends StatelessWidget {
                 _currentAge(animal, referenceDate),
               ),
               _InfoItem(
-                Icons.event_outlined,
-                'Date of birth',
-                _birthDate(animal),
-              ),
-              _InfoItem(
                 Icons.monitor_weight_outlined,
                 'Weight',
                 animal.weight == null
                     ? 'Not recorded'
                     : '${animal.weight!.toStringAsFixed(1)} kg',
               ),
-              _InfoItem(
-                Icons.palette_outlined,
-                'Color',
-                animal.color ?? 'Not recorded',
-              ),
-              _InfoItem(
-                Icons.qr_code_rounded,
-                'Microchip',
-                animal.microchipNumber ?? 'Not recorded',
-              ),
-              _InfoItem(
-                Icons.calendar_today_outlined,
-                'Registered',
-                _date(animal.dateRegistered),
-              ),
-              _InfoItem(
-                Icons.business_outlined,
-                'Clinic',
-                clinicName ?? 'Current clinic',
-              ),
-              _InfoItem(
-                Icons.person_outline_rounded,
-                'Owner',
-                profile.owner.fullName,
-              ),
-              _InfoItem(
-                Icons.history_rounded,
-                'Last visit',
-                lastVisit == null
-                    ? 'No visits recorded'
-                    : _date(lastVisit.visitDate),
-              ),
-              _InfoItem(
-                Icons.event_available_outlined,
-                'Next scheduled visit',
-                nextAppointment == null
-                    ? 'None scheduled'
-                    : _date(nextAppointment),
-              ),
             ],
           ),
-          if (animal.notes != null && animal.notes!.trim().isNotEmpty) ...[
-            const SizedBox(height: 20),
-            _SectionLabel('Quick summary'),
-            const SizedBox(height: 8),
-            Text(animal.notes!, style: theme.textTheme.bodyMedium),
-          ],
         ],
       ),
     );

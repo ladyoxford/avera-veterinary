@@ -19,6 +19,8 @@ void main() {
       'recentActivity': [
         {
           'type': 'Consultation',
+          'record_id': 'consultation-1',
+          'patient_id': 'patient-1',
           'summary': 'Annual wellness examination',
           'occurred_at': '2026-08-01T09:30:00.000Z',
         },
@@ -38,6 +40,9 @@ void main() {
     expect(stats.recentActivity, hasLength(1));
     expect(stats.recentActivity.single.clinicId, 'clinic-1');
     expect(stats.recentActivity.single.title, 'Annual wellness examination');
+    expect(stats.recentActivity.single.relatedEntityType, 'Consultation');
+    expect(stats.recentActivity.single.relatedEntityId, 'consultation-1');
+    expect(stats.recentActivity.single.remotePatientId, 'patient-1');
   });
 
   test('preserves genuine production zero and empty states', () {

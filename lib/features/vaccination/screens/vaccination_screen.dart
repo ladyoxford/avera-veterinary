@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/backend_configuration.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/animal_catalogue.dart';
 import '../../../core/models/animal_search_result.dart';
 import '../../../core/models/vaccine_catalogue.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
@@ -306,7 +308,12 @@ class VaccinationDetailScreen extends ConsumerWidget {
               ],
               const SizedBox(height: 20),
               OutlinedButton.icon(
-                onPressed: () => context.push('/animals/${item.animal.id}'),
+                onPressed: () => _openVaccinationPatientFile(
+                  context,
+                  ref,
+                  item.animal.id,
+                  item.animal.hospitalNumber,
+                ),
                 icon: const Icon(Icons.pets_outlined),
                 label: const Text('Open Patient File'),
               ),
@@ -967,6 +974,52 @@ class _VaccineProtocolPickerState extends State<_VaccineProtocolPicker> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+Future<void> _openVaccinationPatientFile(
+  BuildContext context,
+  WidgetRef ref,
+  int localAnimalId,
+  String hospitalNumber,
+) async {
+  if (!BackendConfiguration.isConfigured) {
+    context.push('/animals/$localAnimalId');
+    return;
+  }
+
+  try {
+    final page = await ref
+        .read(clinicalRemoteDataSourceProvider)
+        .patients(search: hospitalNumber, pageSize: 25);
+    String? patientId;
+    for (final patient in page.items) {
+      if (patient.hospitalNumber == hospitalNumber) {
+        patientId = patient.id;
+        break;
+      }
+    }
+    if (!context.mounted) return;
+    if (patientId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This patient has not synchronized yet. Please try again shortly.',
+          ),
+        ),
+      );
+      return;
+    }
+    context.push('/animals/${Uri.encodeComponent(patientId)}');
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Unable to open this patient medical file. Please retry.',
+        ),
       ),
     );
   }

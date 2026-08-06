@@ -5,13 +5,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/backend_configuration.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
+import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/avera_ui.dart';
+import '../widgets/remote_patient_selector.dart';
 
 const _appointmentTypes = <String>[
   'Consultation',
@@ -766,6 +771,8 @@ class _NewAppointmentScreenState extends ConsumerState<NewAppointmentScreen> {
   final _formKey = GlobalKey<FormState>();
   final _notes = TextEditingController();
   Animal? _patient;
+  RemotePatient? _remotePatient;
+  late final String _submissionId = const Uuid().v4();
   AppUser? _vet;
   String _type = _appointmentTypes.first;
   DateTime _dateTime = DateTime.now().add(const Duration(days: 1));
@@ -812,10 +819,12 @@ class _NewAppointmentScreenState extends ConsumerState<NewAppointmentScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      _patient == null
+                      _patient == null && _remotePatient == null
                           ? 'Search an existing patient or add new'
+                          : _remotePatient != null
+                          ? '${_remotePatient!.name} / ${_remotePatient!.hospitalNumber}'
                           : '${_patient!.animalName} / ${_patient!.hospitalNumber}',
-                      style: _patient == null
+                      style: _patient == null && _remotePatient == null
                           ? averaText(context).fieldPlaceholder
                           : averaText(context).fieldValue,
                     ),
@@ -916,6 +925,25 @@ class _NewAppointmentScreenState extends ConsumerState<NewAppointmentScreen> {
   );
 
   Future<void> _selectPatient() async {
+    if (BackendConfiguration.isConfigured) {
+      final result = await showModalBottomSheet<RemotePatient>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (context) => FractionallySizedBox(
+          heightFactor: 0.86,
+          child: RemotePatientSelectorSheet(selectedId: _remotePatient?.id),
+        ),
+      );
+      if (result != null && mounted) {
+        setState(() {
+          _remotePatient = result;
+          _patient = null;
+        });
+      }
+      return;
+    }
     final result = await showModalBottomSheet<Animal>(
       context: context,
       isScrollControlled: true,
@@ -990,7 +1018,7 @@ class _NewAppointmentScreenState extends ConsumerState<NewAppointmentScreen> {
   }
 
   Future<void> _save() async {
-    if (_patient == null) {
+    if (_patient == null && _remotePatient == null) {
       _showMessage(context, 'Select a patient before saving.');
       return;
     }
@@ -998,6 +1026,21 @@ class _NewAppointmentScreenState extends ConsumerState<NewAppointmentScreen> {
     setState(() => _saving = true);
     try {
       final session = await ref.read(userSessionProvider.future);
+      if (BackendConfiguration.isConfigured) {
+        await ref.read(clinicalRemoteDataSourceProvider).createAppointment({
+          'submissionId': _submissionId,
+          'patientId': _remotePatient!.id,
+          'scheduledAt': _dateTime.toUtc().toIso8601String(),
+          'visitType': _type,
+          'assignedStaffId': _vet?.userId,
+          'notes': _notes.text.trim(),
+        });
+        ref
+          ..invalidate(remotePatientMedicalFileProvider(_remotePatient!.id))
+          ..invalidate(remoteDashboardProvider);
+        if (mounted) context.pop();
+        return;
+      }
       final appointment = await ref
           .read(clinicRepositoryProvider)
           .createAppointment(

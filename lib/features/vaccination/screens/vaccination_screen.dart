@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/config/backend_configuration.dart';
@@ -11,10 +12,12 @@ import '../../../core/models/animal_search_result.dart';
 import '../../../core/models/vaccine_catalogue.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
+import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/remote_patient_selector.dart';
 
 enum RecordVaccinationMode { general, scheduledDose }
 
@@ -385,6 +388,8 @@ class RecordVaccinationScreen extends ConsumerStatefulWidget {
 class _RecordVaccinationScreenState
     extends ConsumerState<RecordVaccinationScreen> {
   AnimalProfile? _patient;
+  RemotePatient? _remotePatient;
+  late final String _submissionId = const Uuid().v4();
   VaccineProtocolDefinition? _protocol;
   late DateTime _dateGiven;
   DateTime? _dueDate;
@@ -505,9 +510,8 @@ class _RecordVaccinationScreenState
         ),
       );
     }
-    final species = _patient == null
-        ? null
-        : AnimalCatalogue.speciesForDisplayName(_patient!.animal.species);
+    final patientSpecies = _remotePatient?.species ?? _patient?.animal.species;
+    final species = AnimalCatalogue.speciesForDisplayName(patientSpecies);
     return Scaffold(
       appBar: AppBar(title: const Text('Record Vaccination')),
       body: ListView(
@@ -518,16 +522,16 @@ class _RecordVaccinationScreenState
           AveraSpacing.bottomContentClearance,
         ),
         children: [
-          const AveraPageHeader(
-            title: 'Record Vaccination',
-            subtitle: 'Record a compatible vaccine dose for this patient.',
+          Text(
+            'Record a compatible vaccine dose for this patient.',
+            style: averaText(context).pageSubtitle,
           ),
           const SizedBox(height: 24),
           AveraLabeledFieldCard(
             label: 'Patient',
             child: InkWell(
               onTap: widget.args.locksPatientAndVaccine ? null : _selectPatient,
-              child: _patient == null
+              child: _patient == null && _remotePatient == null
                   ? Row(
                       children: [
                         const Icon(Icons.search_rounded),
@@ -540,13 +544,16 @@ class _RecordVaccinationScreenState
                         const Icon(Icons.chevron_right_rounded),
                       ],
                     )
+                  : _remotePatient != null
+                  ? _RemotePatientSummary(patient: _remotePatient!)
                   : _PatientSummary(
                       profile: _patient!,
                       readOnly: widget.args.locksPatientAndVaccine,
                     ),
             ),
           ),
-          if (_patient != null && species == null) ...[
+          if ((_patient != null || _remotePatient != null) &&
+              species == null) ...[
             const SizedBox(height: 12),
             const _LegacySpeciesWarning(),
           ],
@@ -680,6 +687,27 @@ class _RecordVaccinationScreenState
   }
 
   Future<void> _selectPatient() async {
+    if (BackendConfiguration.isConfigured) {
+      final selected = await showModalBottomSheet<RemotePatient>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => FractionallySizedBox(
+          heightFactor: 0.86,
+          child: RemotePatientSelectorSheet(selectedId: _remotePatient?.id),
+        ),
+      );
+      if (selected == null || !mounted) return;
+      setState(() {
+        _remotePatient = selected;
+        _patient = null;
+        _protocol = null;
+        _route = null;
+        _dueDate = null;
+      });
+      return;
+    }
     final selected = await showModalBottomSheet<AnimalSearchResult>(
       context: context,
       isScrollControlled: true,
@@ -702,7 +730,7 @@ class _RecordVaccinationScreenState
 
   Future<void> _selectProtocol() async {
     final species = AnimalCatalogue.speciesForDisplayName(
-      _patient?.animal.species,
+      _remotePatient?.species ?? _patient?.animal.species,
     );
     if (species == null) return;
     final selected = await showModalBottomSheet<VaccineProtocolDefinition>(
@@ -741,7 +769,7 @@ class _RecordVaccinationScreenState
   }
 
   Future<void> _save(UserSession session) async {
-    if (_patient == null ||
+    if ((_patient == null && _remotePatient == null) ||
         _protocol == null ||
         _route == null ||
         _dueDate == null) {
@@ -750,6 +778,27 @@ class _RecordVaccinationScreenState
     }
     setState(() => _saving = true);
     try {
+      if (BackendConfiguration.isConfigured) {
+        await ref.read(clinicalRemoteDataSourceProvider).createVaccination({
+          'submissionId': _submissionId,
+          'patientId': _remotePatient!.id,
+          'vaccineName': _protocol!.name,
+          'administeredAt': _dateGiven.toUtc().toIso8601String(),
+          'nextDueAt': _dueDate!.toUtc().toIso8601String(),
+          'route': _route!.label,
+          'batchNumber': _batch.text.trim(),
+          'manufacturer': _manufacturer.text.trim(),
+          'dose': _dose.text.trim(),
+          'notes': _notes.text.trim(),
+        });
+        ref
+          ..invalidate(remotePatientMedicalFileProvider(_remotePatient!.id))
+          ..invalidate(remoteDashboardProvider);
+        if (!mounted) return;
+        _message('Vaccination recorded successfully.');
+        Navigator.pop(context);
+        return;
+      }
       await ref
           .read(clinicRepositoryProvider)
           .recordVaccination(
@@ -1142,6 +1191,37 @@ class _PatientSummary extends StatelessWidget {
         ),
       ),
       Icon(readOnly ? Icons.lock_outline_rounded : Icons.chevron_right_rounded),
+    ],
+  );
+}
+
+class _RemotePatientSummary extends StatelessWidget {
+  const _RemotePatientSummary({required this.patient});
+
+  final RemotePatient patient;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      CircleAvatar(child: Text(patient.name.trim()[0].toUpperCase())),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(patient.name, style: averaText(context).fieldValue),
+            Text(
+              '${patient.hospitalNumber} | ${patient.species}${patient.breed == null ? '' : ' | ${patient.breed}'}',
+              style: averaText(context).caption,
+            ),
+            Text(
+              'Owner: ${patient.ownerName}',
+              style: averaText(context).caption,
+            ),
+          ],
+        ),
+      ),
+      const Icon(Icons.chevron_right_rounded),
     ],
   );
 }

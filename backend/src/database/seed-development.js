@@ -35,9 +35,10 @@ try {
   );
   const clinicId = clinic.rows[0]?.clinic_id ?? (await client.query("SELECT clinic_id FROM clinics WHERE name = 'Zevora Veterinary Clinic' LIMIT 1")).rows[0].clinic_id;
   const role = await client.query(
-    `INSERT INTO roles (clinic_id, name, description, is_system_role)
-     VALUES ($1, 'Clinic Administrator', 'Development clinic administrator', true)
-     ON CONFLICT (clinic_id, name) DO UPDATE SET description = EXCLUDED.description
+    `INSERT INTO roles (clinic_id, code, name, description, is_system_role)
+     VALUES ($1, 'clinic_administrator', 'Clinic Administrator', 'Development clinic administrator', true)
+     ON CONFLICT (clinic_id, name) DO UPDATE
+       SET code = EXCLUDED.code, description = EXCLUDED.description
      RETURNING role_id`, [clinicId]);
   const adminRoleId = role.rows[0].role_id;
   await client.query(
@@ -45,7 +46,7 @@ try {
        SELECT $1, permission_id FROM permissions
       WHERE permission_key = ANY($2::text[])
       ON CONFLICT DO NOTHING`,
-    [adminRoleId, ['patients.view', 'patients.create', 'patients.edit', 'consultations.view', 'consultations.create', 'consultations.edit', 'vaccinations.view', 'vaccinations.add', 'laboratory.view', 'laboratory.add', 'inventory.view', 'inventory.edit', 'billing.view', 'billing.manage', 'users.view', 'users.create', 'users.assign_roles', 'clinic_settings.edit', 'audit_logs.view']],
+    [adminRoleId, ['patients.view', 'patients.create', 'patients.edit', 'consultations.view', 'consultations.create', 'consultations.edit', 'vaccinations.view', 'vaccinations.add', 'laboratory.view', 'laboratory.add', 'inventory.view', 'inventory.edit', 'billing.view', 'billing.manage', 'users.view', 'users.create', 'users.assign_roles', 'staff.roles.manage', 'clinic_settings.edit', 'audit_logs.view']],
   );
   const owner = await ensureDevelopmentIdentity(client, {
     email: 'owner@avera.test',

@@ -124,6 +124,7 @@ class Permissions {
   static const usersEdit = 'users.edit';
   static const usersSuspend = 'users.suspend';
   static const usersAssignRoles = 'users.assign_roles';
+  static const staffRolesManage = 'staff.roles.manage';
   static const usersAssignPermissions = 'users.assign_permissions';
   static const clinicSettingsView = 'clinic_settings.view';
   static const clinicSettingsEdit = 'clinic_settings.edit';
@@ -257,6 +258,7 @@ const allPermissions = <String>{
   Permissions.usersEdit,
   Permissions.usersSuspend,
   Permissions.usersAssignRoles,
+  Permissions.staffRolesManage,
   Permissions.usersAssignPermissions,
   Permissions.clinicSettingsView,
   Permissions.clinicSettingsEdit,
@@ -394,6 +396,7 @@ const rolePermissions = <String, Set<String>>{
     Permissions.usersEdit,
     Permissions.usersSuspend,
     Permissions.usersAssignRoles,
+    Permissions.staffRolesManage,
     Permissions.usersAssignPermissions,
     Permissions.clinicSettingsView,
     Permissions.clinicSettingsEdit,

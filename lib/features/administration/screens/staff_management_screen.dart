@@ -7,6 +7,7 @@ import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/inventory_catalog.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/remote/api_client.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
@@ -145,6 +146,11 @@ bool staffManagementCanAddUser(UserSession session, StaffManagementTab tab) =>
     session.isClinicAdministrator &&
     session.can(Permissions.usersCreate);
 
+bool staffManagementCanManageUser(UserSession session, String targetUserId) =>
+    session.isClinicAdministrator &&
+    session.can(Permissions.staffRolesManage) &&
+    targetUserId != session.user.userId;
+
 class StaffManagementScreen extends ConsumerStatefulWidget {
   const StaffManagementScreen({super.key});
 
@@ -158,6 +164,9 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
   late final TabController _tabs = TabController(length: 4, vsync: this);
   StaffManagementTab _selectedTab = StaffManagementTab.active;
   String _search = '';
+  String? _refreshedClinicId;
+  Future<void>? _staffRefresh;
+  bool _roleChangeInProgress = false;
 
   @override
   void initState() {
@@ -191,6 +200,12 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
         if (!session.can(Permissions.usersView)) {
           return const _StaffAccessDenied();
         }
+        if (_refreshedClinicId != session.clinic.clinicId) {
+          _refreshedClinicId = session.clinic.clinicId;
+          _staffRefresh = ref
+              .read(clinicRepositoryProvider)
+              .refreshClinicUsers(session);
+        }
         return Scaffold(
           appBar: AppBar(
             title: const Text('User Management'),
@@ -215,6 +230,27 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
               : null,
           body: Column(
             children: [
+              if (_staffRefresh != null)
+                FutureBuilder<void>(
+                  future: _staffRefresh,
+                  builder: (context, snapshot) => snapshot.hasError
+                      ? MaterialBanner(
+                          content: const Text(
+                            'Unable to refresh staff. Showing saved clinic users.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => setState(() {
+                                _staffRefresh = ref
+                                    .read(clinicRepositoryProvider)
+                                    .refreshClinicUsers(session);
+                              }),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        )
+                      : const SizedBox.shrink(),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: TextField(
@@ -264,7 +300,22 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
   }
 
   Future<void> _manage(AppUser user, UserSession session) async {
-    if (!session.isClinicAdministrator) return;
+    if (!session.isClinicAdministrator ||
+        !session.can(Permissions.staffRolesManage)) {
+      return;
+    }
+    if (user.userId == session.user.userId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The primary Clinic Administrator role cannot be changed here.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     HapticFeedback.selectionClick();
     if (!mounted) return;
     final deletionBlockReason = await ref
@@ -310,28 +361,28 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
   }
 
   Future<void> _changeRole(AppUser user, UserSession session) async {
-    final roles =
-        (await ref
-                .read(clinicRepositoryProvider)
-                .watchClinicRoles(session)
-                .first)
-            .where((role) => !role.isArchived)
-            .map((role) => role.name)
-            .toList();
-    if (!roles.contains('Custom Role')) {
-      roles.add('Custom Role');
+    if (_roleChangeInProgress ||
+        !staffManagementCanManageUser(session, user.userId)) {
+      return;
     }
-    if (!mounted) return;
-    var selected = roles.contains(user.role) ? user.role : 'Custom Role';
+    final roles = await ref
+        .read(clinicRepositoryProvider)
+        .availableClinicRoles(session);
+    if (roles.isEmpty || !mounted) return;
+    var selected = roles.where((role) => role.name == user.role).firstOrNull;
+    selected ??= roles.first;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Change Role'),
-          content: DropdownButtonFormField<String>(
+          content: DropdownButtonFormField<ClinicRoleOption>(
             value: selected,
             items: roles
-                .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                .map(
+                  (role) =>
+                      DropdownMenuItem(value: role, child: Text(role.name)),
+                )
                 .toList(),
             onChanged: (value) =>
                 setDialogState(() => selected = value ?? selected),
@@ -350,16 +401,22 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
       ),
     );
     if (confirmed != true || !mounted) return;
-    await _perform(
-      () => ref
-          .read(clinicRepositoryProvider)
-          .changeClinicUserRole(
-            actingSession: session,
-            targetUserId: user.userId,
-            newRole: selected,
-          ),
-      '${user.fullName}\'s role was updated.',
-    );
+    setState(() => _roleChangeInProgress = true);
+    try {
+      await _perform(
+        () => ref
+            .read(clinicRepositoryProvider)
+            .changeClinicUserRole(
+              actingSession: session,
+              targetUserId: user.userId,
+              newRole: selected!.name,
+              newRoleId: selected!.id,
+            ),
+        '${user.fullName}\'s role was updated.',
+      );
+    } finally {
+      if (mounted) setState(() => _roleChangeInProgress = false);
+    }
   }
 
   Future<void> _configureInventoryAccess(
@@ -595,7 +652,13 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error.toString().replaceFirst('Bad state: ', '')),
+            content: Text(
+              error is ApiException
+                  ? error.statusCode == 403
+                        ? 'You do not have permission to change staff roles.'
+                        : error.message
+                  : error.toString().replaceFirst('Bad state: ', ''),
+            ),
           ),
         );
       }
@@ -662,7 +725,7 @@ class _StaffStatusList extends ConsumerWidget {
             final user = users[index - 1];
             return _StaffRow(
               user: user,
-              canManage: session.isClinicAdministrator,
+              canManage: staffManagementCanManageUser(session, user.userId),
               onManage: () => onManage(user, session),
             );
           },

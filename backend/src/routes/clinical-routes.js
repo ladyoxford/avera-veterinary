@@ -59,6 +59,40 @@ export const createConsultationSchema = z.object({
   veterinarian: z.string().trim().max(200).nullish(),
 });
 
+export const createVaccinationSchema = z.object({
+  submissionId: z.string().uuid(),
+  patientId: z.string().uuid(),
+  vaccineName: z.string().trim().min(1).max(240),
+  administeredAt: z.string().datetime(),
+  nextDueAt: z.string().datetime().nullish(),
+  route: z.string().trim().max(120).nullish(),
+  batchNumber: z.string().trim().max(160).nullish(),
+  manufacturer: z.string().trim().max(200).nullish(),
+  dose: z.string().trim().max(160).nullish(),
+  notes: z.string().trim().max(4000).nullish(),
+});
+
+export const createAppointmentSchema = z.object({
+  submissionId: z.string().uuid(),
+  patientId: z.string().uuid(),
+  scheduledAt: z.string().datetime(),
+  visitType: z.string().trim().min(1).max(200),
+  assignedStaffId: z.string().uuid().nullish(),
+  notes: z.string().trim().max(4000).nullish(),
+});
+
+export const createInvoiceSchema = z.object({
+  submissionId: z.string().uuid(),
+  patientId: z.string().uuid(),
+  status: z.enum(['Draft', 'Paid']),
+  subtotal: z.number().min(0).max(1000000000000),
+  total: z.number().min(0).max(1000000000000),
+  services: z.array(z.object({
+    description: z.string().trim().min(1).max(500),
+    amount: z.number().min(0).max(1000000000000),
+  })).max(100).default([]),
+});
+
 const inventoryFields = {
   name: z.string().trim().min(1).max(200),
   categoryId: z.string().trim().regex(/^[a-z0-9_]{2,80}$/),
@@ -137,6 +171,10 @@ function patientResponse(row) {
     sex: row.sex,
     status: row.status,
     date_of_birth: row.date_of_birth,
+    is_date_of_birth_estimated: row.is_date_of_birth_estimated,
+    original_age_value: row.original_age_value,
+    original_age_unit: row.original_age_unit,
+    age_recorded_at: row.age_recorded_at,
     current_weight_kg: row.current_weight_kg,
     image_placeholder: row.image_placeholder,
     registered_at: row.registered_at,
@@ -215,6 +253,7 @@ function tenantList(config) {
 const patientList = {
   from: 'patients p JOIN owners o ON o.owner_id = p.owner_id',
   select: `p.patient_id, p.hospital_number, p.name, p.species, p.breed, p.sex, p.status, p.date_of_birth,
+           p.is_date_of_birth_estimated, p.original_age_value, p.original_age_unit, p.age_recorded_at,
            p.current_weight_kg, p.image_placeholder, p.registered_at, p.updated_at, p.revision,
            o.owner_id, o.full_name AS owner_name, o.phone AS owner_phone,
            o.email AS owner_email, o.address AS owner_address,
@@ -407,7 +446,9 @@ export async function clinicalRoutes(app) {
             microchip_number, notes, status, registered_at, registration_submission_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now(),$14,$15,$16,$17,'Active',now(),$18)
          RETURNING patient_id, hospital_number, name, species, breed, sex, status,
-                   date_of_birth, current_weight_kg, image_placeholder, registered_at, revision, owner_id`,
+                   date_of_birth, is_date_of_birth_estimated, original_age_value,
+                   original_age_unit, age_recorded_at, current_weight_kg,
+                   image_placeholder, registered_at, revision, owner_id`,
         [request.auth.clinicId, owner.rows[0].owner_id, hospitalNumber, input.name, input.species,
           input.speciesId ?? null, input.breed, input.breedId ?? null, input.sex, input.dateOfBirth,
           input.isDateOfBirthEstimated, input.originalAgeValue ?? null, input.originalAgeUnit ?? null,
@@ -622,6 +663,133 @@ export async function clinicalRoutes(app) {
   ]) app.get(`/api/v1/patients/:patientId/${path}`, { preHandler: [authenticate, requirePermission(permission)] }, (request, reply) => patientSection(request, reply, table, id, permission, order));
 
   for (const [path, list] of Object.entries(lists)) app.get(`/api/v1/${path === 'laboratory' ? 'laboratory-reports' : path}`, { preHandler: [authenticate, requirePermission(list.permission)] }, tenantList(list.config));
+
+  app.post('/api/v1/vaccinations', { preHandler: [authenticate, requirePermission(permissions.vaccinationsAdd)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = createVaccinationSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the vaccination information.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const input = parsed.data;
+      const patient = await client.query(
+        'SELECT patient_id FROM patients WHERE clinic_id=$1 AND patient_id=$2 AND status ILIKE $3 AND deleted_at IS NULL',
+        [request.auth.clinicId, input.patientId, 'active'],
+      );
+      if (!patient.rows[0]) return reply.code(404).send({ error: 'patient_not_found', message: 'The selected active patient was not found in this clinic.' });
+      const inserted = await client.query(
+        `INSERT INTO vaccinations
+           (clinic_id, patient_id, vaccine_name, manufacturer, batch_number,
+            route, dose, administered_at, next_due_at, administered_by,
+            notes, reminder_status, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Pending','Completed')
+         RETURNING vaccination_id, patient_id, vaccine_name, administered_at,
+                   next_due_at, route, manufacturer, batch_number, status`,
+        [request.auth.clinicId, input.patientId, input.vaccineName,
+          input.manufacturer || null, input.batchNumber || null,
+          input.route || null, input.dose || null, input.administeredAt,
+          input.nextDueAt || null, request.auth.userId, input.notes || null],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Vaccination',
+        targetId: inserted.rows[0].vaccination_id,
+        action: 'vaccination.recorded',
+        newSummary: { patientId: input.patientId, vaccineName: input.vaccineName },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { vaccination: inserted.rows[0], submissionId: input.submissionId };
+    });
+  });
+
+  app.post('/api/v1/schedule', { preHandler: [authenticate, requirePermission(permissions.appointmentsCreate)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = createAppointmentSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the appointment information.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const input = parsed.data;
+      const patient = await client.query(
+        'SELECT patient_id, owner_id FROM patients WHERE clinic_id=$1 AND patient_id=$2 AND status ILIKE $3 AND deleted_at IS NULL',
+        [request.auth.clinicId, input.patientId, 'active'],
+      );
+      if (!patient.rows[0]) return reply.code(404).send({ error: 'patient_not_found', message: 'The selected active patient was not found in this clinic.' });
+      if (input.assignedStaffId) {
+        const staff = await client.query(
+          `SELECT 1 FROM clinic_memberships
+            WHERE clinic_id=$1 AND user_id=$2 AND status='Active'`,
+          [request.auth.clinicId, input.assignedStaffId],
+        );
+        if (!staff.rows[0]) return reply.code(400).send({ error: 'invalid_staff', message: 'The selected staff member is not active in this clinic.' });
+      }
+      const inserted = await client.query(
+        `INSERT INTO schedule_entries
+           (clinic_id, patient_id, owner_id, assigned_staff_id, scheduled_at,
+            visit_type, status, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,'Confirmed',$7)
+         RETURNING schedule_entry_id, patient_id, scheduled_at, visit_type,
+                   status, notes, assigned_staff_id`,
+        [request.auth.clinicId, input.patientId, patient.rows[0].owner_id,
+          input.assignedStaffId || null, input.scheduledAt, input.visitType,
+          input.notes || null],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Appointment',
+        targetId: inserted.rows[0].schedule_entry_id,
+        action: 'appointment.created',
+        newSummary: { patientId: input.patientId, scheduledAt: input.scheduledAt, visitType: input.visitType },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { appointment: inserted.rows[0], submissionId: input.submissionId };
+    });
+  });
+
+  app.post('/api/v1/invoices', { preHandler: [authenticate, requirePermission(permissions.billingCreate)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = createInvoiceSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the invoice information.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const input = parsed.data;
+      const patient = await client.query(
+        'SELECT patient_id, owner_id FROM patients WHERE clinic_id=$1 AND patient_id=$2 AND status ILIKE $3 AND deleted_at IS NULL',
+        [request.auth.clinicId, input.patientId, 'active'],
+      );
+      if (!patient.rows[0]) return reply.code(404).send({ error: 'patient_not_found', message: 'The selected active patient was not found in this clinic.' });
+      const invoiceNumber = `INV-${Date.now()}-${input.submissionId.slice(0, 8).toUpperCase()}`;
+      const paid = input.status === 'Paid' ? input.total : 0;
+      const inserted = await client.query(
+        `INSERT INTO invoices
+           (clinic_id, owner_id, patient_id, invoice_number, status, subtotal,
+            tax, discount, total, amount_paid, balance, issued_at)
+         VALUES ($1,$2,$3,$4,$5,$6,0,0,$7,$8,$9,now())
+         RETURNING invoice_id, invoice_number, patient_id, status, subtotal,
+                   total, amount_paid, balance, issued_at`,
+        [request.auth.clinicId, patient.rows[0].owner_id, input.patientId,
+          invoiceNumber, input.status, input.subtotal, input.total, paid,
+          input.total - paid],
+      );
+      if (input.status === 'Paid' && input.total > 0) {
+        await client.query(
+          `INSERT INTO payments (clinic_id, invoice_id, paid_at, amount, method)
+           VALUES ($1,$2,now(),$3,'Clinic Billing')`,
+          [request.auth.clinicId, inserted.rows[0].invoice_id, input.total],
+        );
+      }
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Invoice',
+        targetId: inserted.rows[0].invoice_id,
+        action: input.status === 'Paid' ? 'billing.sale_recorded' : 'billing.draft_created',
+        newSummary: { patientId: input.patientId, total: input.total, serviceCount: input.services.length },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { ...inserted.rows[0], submissionId: input.submissionId };
+    });
+  });
 
   app.post('/api/v1/inventory/products', { preHandler: [authenticate, requirePermission(permissions.inventoryCreate)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;

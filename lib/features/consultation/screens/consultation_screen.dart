@@ -16,6 +16,7 @@ import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/animal_age_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../shared/widgets/remote_patient_selector.dart';
 import '../../shared/widgets/avera_ui.dart';
 
 enum ConsultationScreenMode { create, view, edit }
@@ -513,146 +514,11 @@ class _RemoteConsultationForm extends ConsumerWidget {
       showDragHandle: true,
       builder: (sheetContext) => FractionallySizedBox(
         heightFactor: 0.86,
-        child: _RemotePatientSelectorSheet(selectedId: patient?.id),
+        child: RemotePatientSelectorSheet(selectedId: patient?.id),
       ),
     );
     if (context.mounted && selected != null) onPatientChanged(selected);
   }
-}
-
-class _RemotePatientSelectorSheet extends ConsumerStatefulWidget {
-  const _RemotePatientSelectorSheet({this.selectedId});
-  final String? selectedId;
-
-  @override
-  ConsumerState<_RemotePatientSelectorSheet> createState() =>
-      _RemotePatientSelectorSheetState();
-}
-
-class _RemotePatientSelectorSheetState
-    extends ConsumerState<_RemotePatientSelectorSheet> {
-  final _search = TextEditingController();
-  Timer? _debounce;
-  late Future<List<RemotePatient>> _patients;
-
-  @override
-  void initState() {
-    super.initState();
-    _patients = _load('');
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _search.dispose();
-    super.dispose();
-  }
-
-  Future<List<RemotePatient>> _load(String query) async {
-    final source = ref.read(clinicalRemoteDataSourceProvider);
-    final patients = <String, RemotePatient>{};
-    var page = 1;
-    var hasNext = true;
-    while (hasNext) {
-      final result = await source.patients(
-        page: page,
-        pageSize: 100,
-        search: query,
-        status: 'Active',
-      );
-      for (final patient in result.items) {
-        patients[patient.id] = patient;
-      }
-      hasNext = result.hasNextPage;
-      page += 1;
-    }
-    final result = patients.values.toList()
-      ..sort((a, b) {
-        final byName = a.name.compareTo(b.name);
-        return byName != 0
-            ? byName
-            : a.hospitalNumber.compareTo(b.hospitalNumber);
-      });
-    return result;
-  }
-
-  void _searchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _patients = _load(value.trim()));
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Select Patient', style: averaText(context).sectionTitle),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _search,
-          autofocus: true,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search_rounded),
-            hintText: 'Search name, hospital number, owner or phone',
-          ),
-          onChanged: _searchChanged,
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: FutureBuilder<List<RemotePatient>>(
-            future: _patients,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Patient records could not be loaded.'),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: () => setState(
-                          () => _patients = _load(_search.text.trim()),
-                        ),
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              final items = snapshot.data ?? const <RemotePatient>[];
-              if (items.isEmpty) {
-                return const Center(child: Text('No active patients found.'));
-              }
-              return ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final patient = items[index];
-                  return ListTile(
-                    title: Text(patient.name),
-                    subtitle: Text(
-                      '${patient.hospitalNumber} | ${patient.species}${patient.breed == null ? '' : ' | ${patient.breed}'}',
-                    ),
-                    trailing: patient.id == widget.selectedId
-                        ? const Icon(Icons.check_rounded)
-                        : null,
-                    onTap: () => Navigator.of(context).pop(patient),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _ConsultationForm extends ConsumerWidget {

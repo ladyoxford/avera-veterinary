@@ -206,6 +206,7 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
                 },
               });
           await ref.read(remotePatientListProvider.notifier).refresh();
+          await ref.read(remotePatientDirectoryProvider.notifier).refresh();
           ref
             ..invalidate(remoteDashboardProvider)
             ..invalidate(remoteHospitalNumberPreviewProvider);

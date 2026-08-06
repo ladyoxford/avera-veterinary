@@ -33,6 +33,10 @@ class RemotePatient {
     this.ownerAddress,
     this.imagePlaceholder,
     this.dateOfBirth,
+    this.isDateOfBirthEstimated = false,
+    this.originalAgeValue,
+    this.originalAgeUnit,
+    this.ageRecordedAt,
     this.currentWeightKg,
     this.registeredAt,
     this.revision,
@@ -51,6 +55,10 @@ class RemotePatient {
   final String? ownerAddress;
   final String? imagePlaceholder;
   final DateTime? dateOfBirth;
+  final bool isDateOfBirthEstimated;
+  final int? originalAgeValue;
+  final String? originalAgeUnit;
+  final DateTime? ageRecordedAt;
   final num? currentWeightKg;
   final DateTime? registeredAt;
   final int? revision;
@@ -69,6 +77,11 @@ class RemotePatient {
     ownerAddress: _ownerAddress(value),
     imagePlaceholder: value['image_placeholder'] as String?,
     dateOfBirth: _date(value['date_of_birth']),
+    isDateOfBirthEstimated:
+        value['is_date_of_birth_estimated'] as bool? ?? false,
+    originalAgeValue: _nullableInt(value['original_age_value']),
+    originalAgeUnit: value['original_age_unit'] as String?,
+    ageRecordedAt: _date(value['age_recorded_at']),
     currentWeightKg: value['current_weight_kg'] == null
         ? null
         : _num(value['current_weight_kg']),
@@ -90,6 +103,10 @@ class RemotePatient {
     'owner_address': ownerAddress,
     'image_placeholder': imagePlaceholder,
     'date_of_birth': dateOfBirth?.toIso8601String(),
+    'is_date_of_birth_estimated': isDateOfBirthEstimated,
+    'original_age_value': originalAgeValue,
+    'original_age_unit': originalAgeUnit,
+    'age_recorded_at': ageRecordedAt?.toIso8601String(),
     'current_weight_kg': currentWeightKg,
     'registered_at': registeredAt?.toIso8601String(),
     'revision': revision,
@@ -441,6 +458,16 @@ class ClinicalRemoteDataSource {
     int page = 1,
     String? search,
   }) => _generic('/api/v1/vaccinations', page: page, search: search);
+
+  Future<Map<String, dynamic>> createVaccination(
+    Map<String, dynamic> payload,
+  ) async => Map<String, dynamic>.from(
+    await _client.post(
+      '/api/v1/vaccinations',
+      body: payload,
+      authenticated: true,
+    ),
+  );
   Future<RemotePage<Map<String, dynamic>>> laboratory({
     int page = 1,
     String? search,
@@ -506,10 +533,22 @@ class ClinicalRemoteDataSource {
     int page = 1,
     String? search,
   }) => _generic('/api/v1/schedule', page: page, search: search);
+
+  Future<Map<String, dynamic>> createAppointment(
+    Map<String, dynamic> payload,
+  ) async => Map<String, dynamic>.from(
+    await _client.post('/api/v1/schedule', body: payload, authenticated: true),
+  );
   Future<RemotePage<Map<String, dynamic>>> invoices({
     int page = 1,
     String? search,
   }) => _generic('/api/v1/invoices', page: page, search: search);
+
+  Future<Map<String, dynamic>> createInvoice(
+    Map<String, dynamic> payload,
+  ) async => Map<String, dynamic>.from(
+    await _client.post('/api/v1/invoices', body: payload, authenticated: true),
+  );
   Future<RemotePage<Map<String, dynamic>>> payments({
     int page = 1,
     String? search,

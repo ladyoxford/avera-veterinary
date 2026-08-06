@@ -62,6 +62,7 @@ class ClinicActivityTimelineEvent {
     this.relatedEntityType,
     this.relatedEntityId,
     this.patientId,
+    this.remotePatientId,
     this.module,
     this.metadata,
   });
@@ -76,6 +77,7 @@ class ClinicActivityTimelineEvent {
   final String? relatedEntityType;
   final String? relatedEntityId;
   final int? patientId;
+  final String? remotePatientId;
   final String? module;
   final String? metadata;
 }
@@ -431,6 +433,18 @@ class ClinicRoleAccess {
   final Set<String> permissions;
   final bool isCustom;
   final bool isArchived;
+}
+
+class ClinicRoleOption {
+  const ClinicRoleOption({
+    required this.id,
+    required this.code,
+    required this.name,
+  });
+
+  final String id;
+  final String code;
+  final String name;
 }
 
 class ClinicApplication {
@@ -1249,9 +1263,19 @@ class ClinicRepository {
             ? 'AVERA Platform'
             : 'AVERA Clinic');
     final clinicStatus = remote.clinicStatus ?? 'Active';
-    final role = remote.roleId ?? remote.accountType;
+    final role = _displayRoleForRemoteUser(remote);
     final now = DateTime.now();
     await db.transaction(() async {
+      // Repair clients that cached a role UUID in the display column before
+      // the backend returned separate role metadata.
+      if (remote.roleId != null) {
+        await (db.update(db.appUsers)..where(
+              (user) =>
+                  user.clinicId.equals(clinicId) &
+                  user.roleId.equals(remote.roleId!),
+            ))
+            .write(AppUsersCompanion(role: Value(role), updatedAt: Value(now)));
+      }
       await db
           .into(db.clinics)
           .insertOnConflictUpdate(
@@ -1297,6 +1321,17 @@ class ClinicRepository {
     );
   }
 
+  String _displayRoleForRemoteUser(RemoteCurrentUser remote) {
+    final supplied = remote.roleName?.trim();
+    if (supplied != null && supplied.isNotEmpty) return supplied;
+    return switch (remote.accountType) {
+      AccountTypes.platformOwner => 'Platform Owner',
+      AccountTypes.platformAdministrator => 'Platform Administrator',
+      AccountTypes.clinicAdministrator => 'Clinic Administrator',
+      _ => 'Role unavailable',
+    };
+  }
+
   Stream<List<AppUser>> watchClinicUsers(
     String clinicId, {
     String? membershipStatus,
@@ -1319,6 +1354,110 @@ class ClinicRepository {
     }
     return (query..orderBy([(user) => OrderingTerm.asc(user.fullName)]))
         .watch();
+  }
+
+  Future<void> refreshClinicUsers(UserSession session) async {
+    final client = _apiClient;
+    if (client == null) return;
+    if (!session.can(Permissions.usersView)) {
+      throw StateError('You do not have permission to view clinic users.');
+    }
+    final response = await client.get('/api/v1/users');
+    final users = (response['users'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList(growable: false);
+    final now = DateTime.now();
+    await db.transaction(() async {
+      for (final remote in users) {
+        final userId = remote['userId']?.toString();
+        if (userId == null || userId.isEmpty) continue;
+        final role = remote['role'] as Map<String, dynamic>?;
+        final roleId = remote['roleId']?.toString() ?? role?['id']?.toString();
+        final roleName =
+            remote['roleName']?.toString().trim() ??
+            role?['name']?.toString().trim();
+        final accountType =
+            remote['accountType']?.toString() ?? AccountTypes.clinicStaff;
+        final displayRole = roleName != null && roleName.isNotEmpty
+            ? roleName
+            : accountType == AccountTypes.clinicAdministrator
+            ? 'Clinic Administrator'
+            : 'Role unavailable';
+        final status = remote['status']?.toString() ?? AccountStatuses.active;
+        final membershipStatus =
+            remote['membershipStatus']?.toString() ??
+            (status == AccountStatuses.suspended
+                ? ClinicMembershipStatuses.suspended
+                : ClinicMembershipStatuses.active);
+        await db
+            .into(db.appUsers)
+            .insertOnConflictUpdate(
+              AppUsersCompanion.insert(
+                userId: userId,
+                clinicId: session.clinic.clinicId,
+                fullName:
+                    remote['fullName']?.toString().trim().isNotEmpty == true
+                    ? remote['fullName'].toString().trim()
+                    : 'AVERA User',
+                username: remote['email']?.toString() ?? '',
+                email: remote['email']?.toString() ?? '',
+                phoneNumber: Value(remote['phone']?.toString()),
+                passwordHash: 'backend-managed',
+                role: displayRole,
+                roleId: Value(roleId),
+                accountType: Value(accountType),
+                accountStatus: Value(status),
+                membershipStatus: Value(membershipStatus),
+                createdAt:
+                    DateTime.tryParse(remote['createdAt']?.toString() ?? '') ??
+                    now,
+                updatedAt: Value(now),
+              ),
+            );
+      }
+    });
+  }
+
+  Future<List<ClinicRoleOption>> availableClinicRoles(
+    UserSession session,
+  ) async {
+    final client = _apiClient;
+    if (client == null) {
+      final roles = await watchClinicRoles(session).first;
+      return roles
+          .where((role) => !role.isArchived)
+          .map(
+            (role) => ClinicRoleOption(
+              id: role.name,
+              code: role.name
+                  .toLowerCase()
+                  .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+                  .replaceAll(RegExp(r'^_+|_+$'), ''),
+              name: role.name,
+            ),
+          )
+          .toList(growable: false);
+    }
+    final response = await client.get('/api/v1/roles');
+    return (response['roles'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map((value) {
+          final role = value['role'] as Map<String, dynamic>?;
+          return ClinicRoleOption(
+            id: value['roleId']?.toString() ?? role?['id']?.toString() ?? '',
+            code:
+                value['roleCode']?.toString() ??
+                role?['code']?.toString() ??
+                '',
+            name:
+                value['roleName']?.toString() ??
+                role?['name']?.toString() ??
+                '',
+          );
+        })
+        .where((role) => role.id.isNotEmpty && role.name.isNotEmpty)
+        .toList(growable: false)
+      ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   /// Role templates are scoped to one clinic. Built-in roles retain their
@@ -1562,8 +1701,53 @@ class ClinicRepository {
     required UserSession actingSession,
     required String targetUserId,
     required String newRole,
+    String? newRoleId,
   }) async {
     _requireClinicAdministrator(actingSession, requiresRoleAssignment: true);
+    if (!actingSession.can(Permissions.staffRolesManage)) {
+      throw StateError('You do not have permission to manage staff roles.');
+    }
+    final client = _apiClient;
+    if (client != null) {
+      if (targetUserId == actingSession.user.userId) {
+        throw StateError(
+          'You cannot change your own Clinic Administrator role.',
+        );
+      }
+      final roleId = newRoleId?.trim();
+      if (roleId == null || roleId.isEmpty) {
+        throw StateError('The selected clinic role is unavailable.');
+      }
+      final response = await client.patch(
+        '/api/v1/users/${Uri.encodeComponent(targetUserId)}/role',
+        body: {'roleId': roleId},
+      );
+      final remote = response['user'] as Map<String, dynamic>?;
+      final roleName = remote?['roleName']?.toString().trim();
+      if (remote == null || roleName == null || roleName.isEmpty) {
+        throw StateError('The server returned an invalid role update.');
+      }
+      await (db.update(db.appUsers)..where(
+            (user) =>
+                user.userId.equals(targetUserId) &
+                user.clinicId.equals(actingSession.clinic.clinicId),
+          ))
+          .write(
+            AppUsersCompanion(
+              role: Value(roleName),
+              roleId: Value(remote['roleId']?.toString() ?? roleId),
+              accountType: Value(
+                remote['accountType']?.toString() ??
+                    (remote['roleCode'] == 'clinic_administrator'
+                        ? AccountTypes.clinicAdministrator
+                        : AccountTypes.clinicStaff),
+              ),
+              updatedAt: Value(DateTime.now()),
+            ),
+          );
+      await refreshClinicUsers(actingSession);
+      return;
+    }
     final customRole = await _clinicRolePolicy(
       actingSession.clinic.clinicId,
       newRole,

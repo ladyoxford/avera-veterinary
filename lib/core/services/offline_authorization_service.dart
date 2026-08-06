@@ -27,6 +27,8 @@ class OfflineAuthorizationSnapshot {
     required this.lastOnlineAt,
     required this.expiresAt,
     this.roleId,
+    this.roleCode,
+    this.roleName,
   });
 
   final String userId;
@@ -44,6 +46,8 @@ class OfflineAuthorizationSnapshot {
   final DateTime lastOnlineAt;
   final DateTime expiresAt;
   final String? roleId;
+  final String? roleCode;
+  final String? roleName;
 
   bool get isValid =>
       expiresAt.isAfter(DateTime.now()) &&
@@ -58,6 +62,8 @@ class OfflineAuthorizationSnapshot {
     fullName: fullName,
     email: email,
     roleId: roleId,
+    roleCode: roleCode,
+    roleName: roleName,
     clinicName: clinicName,
     clinicStatus: clinicStatus,
     subscriptionPlan: subscriptionPlan,
@@ -79,6 +85,8 @@ class OfflineAuthorizationSnapshot {
     'lastOnlineAt': lastOnlineAt.toIso8601String(),
     'expiresAt': expiresAt.toIso8601String(),
     'roleId': roleId,
+    'roleCode': roleCode,
+    'roleName': roleName,
   };
 
   factory OfflineAuthorizationSnapshot.fromJson(Map<String, dynamic> json) =>
@@ -98,6 +106,8 @@ class OfflineAuthorizationSnapshot {
         lastOnlineAt: DateTime.parse(json['lastOnlineAt'] as String),
         expiresAt: DateTime.parse(json['expiresAt'] as String),
         roleId: json['roleId'] as String?,
+        roleCode: json['roleCode'] as String?,
+        roleName: json['roleName'] as String?,
       );
 }
 
@@ -142,6 +152,8 @@ class OfflineAuthorizationService {
       lastOnlineAt: now,
       expiresAt: now.add(offlineValidity),
       roleId: user.roleId,
+      roleCode: user.roleCode,
+      roleName: user.roleName,
     );
     await _storage.write(
       key: _snapshotKey,

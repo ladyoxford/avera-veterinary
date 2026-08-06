@@ -36,7 +36,7 @@ removing the temporary UI path.
 After deploying code, run the migration as a Render Shell one-off command:
 
 ```sh
-cd backend && npm run migrate
+cd backend && npm run migrate:container
 ```
 
 Then restart the web service and verify `/health/ready`. Never run

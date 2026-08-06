@@ -24,6 +24,36 @@ void main() {
     preferences = await SharedPreferences.getInstance();
   });
 
+  test('remote patient cache preserves estimated-age metadata', () {
+    final patient = _medicalFile().patient;
+    final restored = RemotePatient.fromJson(patient.toJson());
+
+    expect(restored.dateOfBirth, DateTime(2025, 4, 6));
+    expect(restored.isDateOfBirthEstimated, isTrue);
+    expect(restored.originalAgeValue, 1);
+    expect(restored.originalAgeUnit, 'years');
+    expect(restored.ageRecordedAt, DateTime(2026, 4, 6));
+  });
+
+  testWidgets('estimated Medical File age advances with the reference date', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _subject(preferences, ageReferenceDate: DateTime(2026, 8, 6)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1 year, 4 months'), findsWidgets);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _subject(preferences, ageReferenceDate: DateTime(2027, 8, 6)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('2 years, 4 months'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'production medical file restores the compact patient summary and Quick Access grid',
     (tester) async {
@@ -231,9 +261,13 @@ Widget _subject(
   SharedPreferences preferences, {
   ThemeData? theme,
   TextScaler textScaler = TextScaler.noScaling,
+  DateTime? ageReferenceDate,
 }) => ProviderScope(
   overrides: [
     sharedPreferencesProvider.overrideWithValue(preferences),
+    animalAgeReferenceDateProvider.overrideWith(
+      (ref) => ageReferenceDate ?? DateTime(2026, 8, 6),
+    ),
     userSessionProvider.overrideWith((ref) async => _session()),
     remotePatientMedicalFileProvider.overrideWith((ref, patientId) async {
       expect(patientId, _patientId);
@@ -262,7 +296,7 @@ Widget _subject(
   ),
 );
 
-RemotePatientMedicalFile _medicalFile() => const RemotePatientMedicalFile(
+RemotePatientMedicalFile _medicalFile() => RemotePatientMedicalFile(
   patient: RemotePatient(
     id: _patientId,
     hospitalNumber: 'AVR-2026-00001',
@@ -273,6 +307,11 @@ RemotePatientMedicalFile _medicalFile() => const RemotePatientMedicalFile(
     ownerPhone: '08010000000',
     breed: 'Domestic Shorthair',
     sex: 'Female',
+    dateOfBirth: DateTime(2025, 4, 6),
+    isDateOfBirthEstimated: true,
+    originalAgeValue: 1,
+    originalAgeUnit: 'years',
+    ageRecordedAt: DateTime(2026, 4, 6),
   ),
   summaries: {
     'consultations': {'count': 0},

@@ -8,6 +8,7 @@ import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
+import '../../../core/services/animal_age_service.dart';
 import 'animal_profile_screen.dart';
 
 class MedicalFileHubScreen extends ConsumerWidget {
@@ -63,6 +64,7 @@ class CloudMedicalFileHubScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final file = ref.watch(remotePatientMedicalFileProvider(patientId));
     final session = ref.watch(userSessionProvider).valueOrNull;
+    final ageReferenceDate = ref.watch(animalAgeReferenceDateProvider);
 
     return file.when(
       loading: () => const _MedicalFileHubLoading(),
@@ -97,7 +99,10 @@ class CloudMedicalFileHubScreen extends ConsumerWidget {
         patientName: value.patient.name,
         hospitalNumber: value.patient.hospitalNumber,
         scope: _quickAccessScope(session),
-        summary: _CloudPatientSummary(patient: value.patient),
+        summary: _CloudPatientSummary(
+          patient: value.patient,
+          referenceDate: ageReferenceDate,
+        ),
         onRecordSelected: (record) => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => _CloudMedicalRecordScreen(
@@ -508,7 +513,10 @@ class _CloudMedicalRecordContentState
   Widget build(BuildContext context) {
     switch (widget.record.id) {
       case 'overview':
-        return _CloudOverviewRecord(file: widget.file);
+        return _CloudOverviewRecord(
+          file: widget.file,
+          referenceDate: ref.watch(animalAgeReferenceDateProvider),
+        );
       case 'signalment':
         return _CloudSignalmentRecord(patient: widget.file.patient);
       case 'owner':
@@ -617,7 +625,10 @@ class _CloudMedicalRecordScreenState
   Widget _body() {
     switch (widget.record.id) {
       case 'overview':
-        return _CloudOverviewRecord(file: widget.file);
+        return _CloudOverviewRecord(
+          file: widget.file,
+          referenceDate: ref.watch(animalAgeReferenceDateProvider),
+        );
       case 'signalment':
         return _CloudSignalmentRecord(patient: widget.file.patient);
       case 'owner':
@@ -663,16 +674,18 @@ class _CloudMedicalRecordScreenState
 }
 
 class _CloudPatientSummary extends StatelessWidget {
-  const _CloudPatientSummary({required this.patient});
+  const _CloudPatientSummary({
+    required this.patient,
+    required this.referenceDate,
+  });
 
   final RemotePatient patient;
+  final DateTime referenceDate;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final age = patient.dateOfBirth == null
-        ? 'Not recorded'
-        : _compactAge(patient.dateOfBirth!);
+    final age = _medicalProfileAge(patient, referenceDate);
     return Semantics(
       container: true,
       label: '${patient.name} patient summary',
@@ -748,17 +761,16 @@ class _CloudPatientSummary extends StatelessWidget {
 }
 
 class _CloudOverviewRecord extends StatelessWidget {
-  const _CloudOverviewRecord({required this.file});
+  const _CloudOverviewRecord({required this.file, required this.referenceDate});
 
   final RemotePatientMedicalFile file;
+  final DateTime referenceDate;
 
   @override
   Widget build(BuildContext context) {
     final patient = file.patient;
     final theme = Theme.of(context);
-    final age = patient.dateOfBirth == null
-        ? 'Not recorded'
-        : _compactAge(patient.dateOfBirth!);
+    final age = _medicalProfileAge(patient, referenceDate);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       children: [
@@ -874,18 +886,13 @@ class _CompactDetailGrid extends StatelessWidget {
   );
 }
 
-String _compactAge(DateTime birthDate) {
-  final now = DateTime.now();
-  var years = now.year - birthDate.year;
-  if (now.month < birthDate.month ||
-      (now.month == birthDate.month && now.day < birthDate.day)) {
-    years--;
+String _medicalProfileAge(RemotePatient patient, DateTime referenceDate) {
+  final birthDate = patient.dateOfBirth;
+  if (birthDate == null ||
+      AnimalAgeService.isFutureBirthDate(birthDate, referenceDate)) {
+    return 'Not recorded';
   }
-  if (years > 0) return '$years ${years == 1 ? 'year' : 'years'}';
-  final months = (now.year - birthDate.year) * 12 + now.month - birthDate.month;
-  if (months > 0) return '$months ${months == 1 ? 'month' : 'months'}';
-  final days = now.difference(birthDate).inDays.clamp(0, 365);
-  return '$days ${days == 1 ? 'day' : 'days'}';
+  return AnimalAgeService.formatMedicalProfileAge(birthDate, referenceDate);
 }
 
 class _CloudSignalmentRecord extends StatelessWidget {

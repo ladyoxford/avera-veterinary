@@ -38,12 +38,13 @@ export class ClinicAdministratorActivationService {
     const role = (
       await client.query(
         `INSERT INTO roles
-           (clinic_id, name, description, is_system_role, created_by, updated_by)
+           (clinic_id, code, name, description, is_system_role, created_by, updated_by)
          VALUES
-           ($1, 'Clinic Administrator',
+           ($1, 'clinic_administrator', 'Clinic Administrator',
             'Full clinic administration and operational access.', true, $2, $2)
          ON CONFLICT (clinic_id, name) DO UPDATE
-           SET description = EXCLUDED.description,
+           SET code = EXCLUDED.code,
+               description = EXCLUDED.description,
                is_system_role = true,
                updated_at = now(), updated_by = EXCLUDED.updated_by,
                deleted_at = NULL

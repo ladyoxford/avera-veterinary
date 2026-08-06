@@ -1,11 +1,14 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:avera/core/config/app_providers.dart';
 import 'package:avera/core/database/app_database.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
 import 'package:avera/core/security/access_control.dart';
 import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/features/administration/screens/staff_management_screen.dart';
+import 'package:avera/features/shared/widgets/branded_app_bar.dart';
 
 void main() {
   test('only active clinic administrators can add staff', () async {
@@ -38,7 +41,61 @@ void main() {
       staffManagementCanAddUser(veterinarian, StaffManagementTab.active),
       isFalse,
     );
+    expect(
+      staffManagementCanManageUser(administrator, administrator.user.userId),
+      isFalse,
+    );
+    expect(
+      staffManagementCanManageUser(veterinarian, administrator.user.userId),
+      isFalse,
+    );
   });
+
+  testWidgets(
+    'User Management and account menu show role name, never role UUID',
+    (tester) async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      );
+      expect(session, isNotNull);
+      final administrator = session!;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            userSessionProvider.overrideWith((ref) async => administrator),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: const StaffManagementScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.textContaining('Clinic Administrator | Active'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('9c169399-'), findsNothing);
+
+      expect(
+        accountMenuRoleLabel(
+          administrator.user.role,
+          administrator.clinic.clinicName,
+        ),
+        startsWith('Clinic Administrator  |'),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
 
   for (final size in [
     const Size(320, 640),

@@ -280,16 +280,23 @@ class BackendAuthRemoteDataSource implements AuthRemoteDataSource {
     user: _user(value['user'] as Map<String, dynamic>),
   );
 
-  RemoteCurrentUser _user(Map<String, dynamic> value) => RemoteCurrentUser(
-    userId: value['userId'] as String,
-    clinicId: value['clinicId'] as String?,
-    accountType: value['accountType'] as String,
-    permissions: Set<String>.from(value['permissions'] as List<dynamic>),
-    fullName: value['fullName'] as String? ?? 'AVERA User',
-    email: value['email'] as String? ?? '',
-    roleId: value['roleId'] as String?,
-    clinicName: value['clinicName'] as String?,
-    clinicStatus: value['clinicStatus'] as String?,
-    subscriptionPlan: value['subscriptionPlan'] as String?,
-  );
+  RemoteCurrentUser _user(Map<String, dynamic> value) {
+    final role = value['role'] as Map<String, dynamic>?;
+    return RemoteCurrentUser(
+      userId: value['userId'] as String,
+      clinicId: value['clinicId'] as String?,
+      accountType: value['accountType'] as String,
+      permissions: Set<String>.from(
+        value['permissions'] as List<dynamic>? ?? const [],
+      ),
+      fullName: value['fullName'] as String? ?? 'AVERA User',
+      email: value['email'] as String? ?? '',
+      roleId: value['roleId'] as String? ?? role?['id'] as String?,
+      roleCode: value['roleCode'] as String? ?? role?['code'] as String?,
+      roleName: value['roleName'] as String? ?? role?['name'] as String?,
+      clinicName: value['clinicName'] as String?,
+      clinicStatus: value['clinicStatus'] as String?,
+      subscriptionPlan: value['subscriptionPlan'] as String?,
+    );
+  }
 }

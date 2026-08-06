@@ -93,8 +93,8 @@ async function generateClinics(ctx) {
 
 async function generateStaff(ctx) {
   ctx.logger.phase('staff', ctx.config.staff);
-  const roleRows = ctx.clinics.flatMap((clinic) => roleNames.map((name) => [clinic.clinic_id, name, 'Synthetic demonstration role', false]));
-  await insertMany(ctx.client, 'roles', ['clinic_id','name','description','is_system_role'], roleRows, ctx.config.batchSize);
+  const roleRows = ctx.clinics.flatMap((clinic) => roleNames.map((name) => [clinic.clinic_id, roleCode(name), name, 'Synthetic demonstration role', false]));
+  await insertMany(ctx.client, 'roles', ['clinic_id','code','name','description','is_system_role'], roleRows, ctx.config.batchSize);
   const roles = (await ctx.client.query('SELECT role_id, clinic_id, name FROM roles WHERE clinic_id = ANY($1::uuid[])', [ctx.clinics.map((c) => c.clinic_id)])).rows;
   const rolesByClinic = Map.groupBy(roles, (role) => role.clinic_id);
   const dummyHash = await hashPassword(randomUUID());
@@ -115,6 +115,10 @@ async function generateStaff(ctx) {
   ctx.counts.staff = ctx.staff.length;
 }
 
+function roleCode(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
 const clinicalPermissionDefinitions = [
   ['clinics.view', 'View the active clinic workspace'], ['dashboard.view', 'View clinic dashboard'],
   ['patients.view', 'View patients'], ['patients.create', 'Create patients'], ['patients.edit', 'Edit patients'],
@@ -128,6 +132,7 @@ const clinicalPermissionDefinitions = [
   ['appointments.view', 'View schedule'], ['appointments.create', 'Create schedule entries'],
   ['billing.view', 'View billing'], ['billing.manage', 'Manage billing'], ['media.view', 'View media'],
   ['users.view', 'View users'], ['users.create', 'Create users'], ['users.assign_roles', 'Assign roles'],
+  ['staff.roles.manage', 'Manage clinic staff roles'],
 ];
 
 async function ensureDemoClinicalPermissions(client) {

@@ -140,6 +140,8 @@ class CloudDashboardScreen extends ConsumerWidget {
                             subtitle: Text(
                               entry['type'] as String? ?? 'Record',
                             ),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () => _openActivity(context, entry),
                           ),
                         )
                         .toList(),
@@ -151,5 +153,18 @@ class CloudDashboardScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _openActivity(BuildContext context, Map<String, dynamic> entry) {
+    final type = entry['type']?.toString();
+    final recordId = entry['record_id']?.toString();
+    final patientId = entry['patient_id']?.toString();
+    if (type == 'Consultation' && recordId != null && patientId != null) {
+      context.push(
+        '/consultations/$recordId?patientId=${Uri.encodeQueryComponent(patientId)}',
+      );
+      return;
+    }
+    if (type == 'Schedule') context.push('/appointments');
   }
 }

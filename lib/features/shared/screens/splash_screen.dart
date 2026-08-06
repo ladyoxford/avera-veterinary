@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
-import '../../../core/services/backend_health_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/avera_logo.dart';
 
@@ -92,17 +91,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final connectivity = BackendConfiguration.isBackendMode
-        ? ref.watch(cloudConnectivityProvider)
-        : null;
-    final connectivityLabel = switch (connectivity) {
-      AsyncLoading() => 'Connecting to AVERA Cloud...',
-      AsyncData(
-        value: CloudConnectivityResult(status: CloudConnectivityStatus.waking),
-      ) =>
-        'Connecting to AVERA Cloud...',
-      _ => null,
-    };
     return Scaffold(
       backgroundColor: AppTheme.primary,
       body: SafeArea(
@@ -135,15 +123,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     ),
                   ),
                 ),
-                if (connectivityLabel != null) ...[
-                  const SizedBox(height: 18),
-                  Text(
-                    connectivityLabel,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: .84),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

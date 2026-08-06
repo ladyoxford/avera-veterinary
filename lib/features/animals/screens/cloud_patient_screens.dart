@@ -345,6 +345,7 @@ class _CloudPatientCard extends ConsumerWidget {
             status: status,
             reason: 'Changed from Registered Pets.',
           );
+      await ref.read(remotePatientDirectoryProvider.notifier).refresh();
       ref
         ..invalidate(remotePatientMedicalFileProvider(patient.id))
         ..invalidate(remoteDashboardProvider);

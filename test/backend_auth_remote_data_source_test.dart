@@ -259,6 +259,13 @@ void main() {
               'fullName': 'System Administrator',
               'email': 'admin@avera.test',
               'roleId': 'role-1',
+              'roleCode': 'clinic_administrator',
+              'roleName': 'Clinic Administrator',
+              'role': {
+                'id': 'role-1',
+                'code': 'clinic_administrator',
+                'name': 'Clinic Administrator',
+              },
               'clinicName': 'Zevora Veterinary Clinic',
               'clinicStatus': 'Active',
               'subscriptionPlan': 'Professional',
@@ -291,6 +298,9 @@ void main() {
       expect(session.user.accountType, 'ClinicAdministrator');
       expect(session.user.clinicName, 'Zevora Veterinary Clinic');
       expect(session.user.permissions, {'patients.view'});
+      expect(session.user.roleId, 'role-1');
+      expect(session.user.roleCode, 'clinic_administrator');
+      expect(session.user.roleName, 'Clinic Administrator');
     },
   );
 

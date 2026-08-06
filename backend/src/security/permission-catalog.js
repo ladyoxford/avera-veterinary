@@ -95,6 +95,7 @@ export const clinicAdministratorPermissionKeys = Object.freeze([
   'users.edit',
   'users.suspend',
   'users.assign_roles',
+  'staff.roles.manage',
   'users.assign_permissions',
   'clinic_settings.view',
   'clinic_settings.edit',

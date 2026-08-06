@@ -75,6 +75,41 @@ void main() {
     expect(synchronization.revision, 2);
   });
 
+  test(
+    'patient directory normalizes active status and preserves cache',
+    () async {
+      source.patientsValue = [
+        _patient(status: 'ACTIVE'),
+        RemotePatient(
+          id: 'f597f97e-639a-48dc-af20-d36da83c6bcc',
+          hospitalNumber: 'AVR-2026-00002',
+          name: 'Archived patient',
+          species: 'Dog',
+          status: 'Relocated',
+          ownerName: 'Owner',
+          ownerPhone: '08000000001',
+        ),
+      ];
+      final controller = RemotePatientDirectoryController(
+        source,
+        cache,
+        () async => _session(const {Permissions.patientsView}),
+      );
+      addTearDown(controller.dispose);
+      await controller.refresh();
+
+      expect(controller.state.items.map((item) => item.name), ['Luna']);
+      expect(controller.state.items.single.id, _patientId);
+
+      source.failPatients = true;
+      await controller.refresh();
+
+      expect(controller.state.fromCache, isTrue);
+      expect(controller.state.items.single.id, _patientId);
+      expect(controller.state.error, isNotNull);
+    },
+  );
+
   test('inventory falls back to clinic-scoped Drift cache', () async {
     source.inventoryValue = [_inventoryItem()];
     final controller = RemoteInventoryListController(
@@ -282,6 +317,7 @@ class _FakeClinicalRemoteDataSource extends ClinicalRemoteDataSource {
   List<RemotePatient> patientsValue = const [];
   List<RemoteInventoryItem> inventoryValue = const [];
   bool failInventory = false;
+  bool failPatients = false;
   int patientStatusCalls = 0;
   int inventoryCreateCalls = 0;
   int consultationCreateCalls = 0;
@@ -294,9 +330,14 @@ class _FakeClinicalRemoteDataSource extends ClinicalRemoteDataSource {
     String? search,
     String? status,
   }) async {
+    if (failPatients) throw StateError('Network unavailable');
     final filtered = status == null
         ? patientsValue
-        : patientsValue.where((item) => item.status == status).toList();
+        : patientsValue
+              .where(
+                (item) => item.status.toLowerCase() == status.toLowerCase(),
+              )
+              .toList();
     return RemotePage(
       items: filtered,
       page: page,

@@ -4,8 +4,11 @@ import test from 'node:test';
 import { signInSchema } from '../src/routes/auth-routes.js';
 import {
   createConsultationSchema,
+  createAppointmentSchema,
   createInventoryItemSchema,
+  createInvoiceSchema,
   createPatientSchema,
+  createVaccinationSchema,
   formatPatientHospitalNumber,
   patientStatusSchema,
   suggestedPatientPrefix,
@@ -148,6 +151,10 @@ test('patient detail and medical-file routes build complete SELECT queries', () 
     routes,
     /client\.query\(`\$\{patientList\.select\} FROM \$\{patientList\.from\}/,
   );
+  assert.match(routes, /p\.is_date_of_birth_estimated/);
+  assert.match(routes, /p\.original_age_value/);
+  assert.match(routes, /p\.original_age_unit/);
+  assert.match(routes, /p\.age_recorded_at/);
 });
 
 test('clinic mutation migration preserves idempotency, revisions, and soft deletion', () => {
@@ -214,6 +221,9 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     'consultationsCreate',
     'inventoryCreate',
     'inventoryEdit',
+    'vaccinationsAdd',
+    'appointmentsCreate',
+    'billingCreate',
   ]) {
     assert.match(
       routes,
@@ -250,6 +260,31 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
       routes,
       new RegExp(`\\['${path}',[\\s\\S]*?permissions\\.${permission}`),
     );
+  }
+});
+
+test('patient-linked production mutations require canonical UUIDs', () => {
+  const patientId = 'a6c10dd9-2501-43db-b083-b613faaf8ea4';
+  const submissionId = 'ae12d6d7-ee38-48db-9937-a5de1633f102';
+  assert.equal(createVaccinationSchema.safeParse({
+    submissionId, patientId, vaccineName: 'Rabies',
+    administeredAt: '2026-08-06T10:00:00.000Z',
+  }).success, true);
+  assert.equal(createAppointmentSchema.safeParse({
+    submissionId, patientId, visitType: 'Consultation',
+    scheduledAt: '2026-08-07T10:00:00.000Z',
+  }).success, true);
+  assert.equal(createInvoiceSchema.safeParse({
+    submissionId, patientId, status: 'Draft', subtotal: 5000, total: 5000,
+  }).success, true);
+  for (const schema of [createVaccinationSchema, createAppointmentSchema, createInvoiceSchema]) {
+    const result = schema.safeParse({
+      submissionId, patientId: 'AVR-2026-00001', vaccineName: 'Rabies',
+      administeredAt: '2026-08-06T10:00:00.000Z', visitType: 'Consultation',
+      scheduledAt: '2026-08-07T10:00:00.000Z', status: 'Draft',
+      subtotal: 5000, total: 5000,
+    });
+    assert.equal(result.success, false);
   }
 });
 

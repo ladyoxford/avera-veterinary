@@ -155,7 +155,7 @@ export class AuthService {
   }
 
   async currentUser(user, permissions) {
-    return publicUser(user, permissions, await this.#workspace(user));
+    return this.#publicUser(user, permissions, await this.#workspace(user));
   }
 
   async completeMfaSignIn(client, user, context) {
@@ -207,7 +207,19 @@ export class AuthService {
 
   async #tokenPair({ user, permissions, sessionId, refreshToken }) {
     const accessToken = this.app.jwt.sign({ userId: user.user_id, accountType: user.account_type, clinicId: user.clinic_id, sessionId }, { expiresIn: this.environment.ACCESS_TOKEN_TTL_SECONDS });
-    return { accessToken, refreshToken, expiresIn: this.environment.ACCESS_TOKEN_TTL_SECONDS, user: publicUser(user, permissions, await this.#workspace(user)) };
+    return { accessToken, refreshToken, expiresIn: this.environment.ACCESS_TOKEN_TTL_SECONDS, user: await this.#publicUser(user, permissions, await this.#workspace(user)) };
+  }
+
+  async #publicUser(user, permissions, workspace) {
+    const role = user.role_id ? (await this.pool.query(
+      `SELECT role_id, code, name
+         FROM roles
+        WHERE role_id = $1
+          AND deleted_at IS NULL
+          AND clinic_id IS NOT DISTINCT FROM $2`,
+      [user.role_id, user.clinic_id],
+    )).rows[0] : null;
+    return publicUser(user, permissions, workspace, role);
   }
 
   async #workspace(user) {
@@ -222,6 +234,6 @@ function authenticationFailure(status, code, message, internalReason) {
   return { ok: false, status, code, message, internalReason };
 }
 
-export function publicUser(user, permissions, workspace = {}) {
-  return { userId: user.user_id, clinicId: user.clinic_id, fullName: user.full_name, email: user.email, accountType: user.account_type, status: user.status, roleId: user.role_id, permissions, ...workspace };
+export function publicUser(user, permissions, workspace = {}, role = null) {
+  return { userId: user.user_id, clinicId: user.clinic_id, fullName: user.full_name, email: user.email, accountType: user.account_type, status: user.status, roleId: role?.role_id ?? user.role_id ?? null, roleCode: role?.code ?? null, roleName: role?.name ?? null, role: role ? { id: role.role_id, code: role.code, name: role.name } : null, permissions, ...workspace };
 }

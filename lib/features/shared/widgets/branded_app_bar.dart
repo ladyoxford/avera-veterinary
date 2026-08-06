@@ -7,6 +7,9 @@ import '../../../core/models/alert_destination.dart';
 import '../../../core/remote/api_client.dart';
 import 'avera_logo.dart';
 
+String accountMenuRoleLabel(String roleName, String clinicName) =>
+    '$roleName  |  $clinicName';
+
 class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const BrandedAppBar({super.key, this.title});
 
@@ -120,6 +123,7 @@ class _UserAvatarButton extends StatelessWidget {
     button: true,
     label: 'Open account menu for $name',
     child: InkWell(
+      key: const Key('account-menu-button'),
       borderRadius: BorderRadius.circular(28),
       onTap: () => _showMenu(context),
       child: _UserAvatar(name: name, profilePhoto: profilePhoto),
@@ -129,11 +133,12 @@ class _UserAvatarButton extends StatelessWidget {
   Future<void> _showMenu(BuildContext context) => showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
+    isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
     builder: (sheetContext) => SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -152,7 +157,7 @@ class _UserAvatarButton extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '$role  •  $clinicName',
+                        accountMenuRoleLabel(role, clinicName),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],

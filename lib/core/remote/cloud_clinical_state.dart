@@ -211,6 +211,138 @@ final remotePatientListProvider =
       ),
     );
 
+class RemotePatientDirectoryState {
+  const RemotePatientDirectoryState({
+    this.items = const [],
+    this.isLoading = false,
+    this.fromCache = false,
+    this.error,
+  });
+
+  final List<RemotePatient> items;
+  final bool isLoading;
+  final bool fromCache;
+  final Object? error;
+}
+
+class RemotePatientDirectoryController
+    extends StateNotifier<RemotePatientDirectoryState> {
+  RemotePatientDirectoryController(this._source, this._cache, this._session)
+    : super(const RemotePatientDirectoryState()) {
+    unawaited(refresh());
+  }
+
+  final ClinicalRemoteDataSource _source;
+  final CloudCacheRepository _cache;
+  final Future<UserSession> Function() _session;
+
+  Future<void> refresh() async {
+    final previous = state.items;
+    state = RemotePatientDirectoryState(
+      items: previous,
+      isLoading: previous.isEmpty,
+      fromCache: state.fromCache,
+    );
+    UserSession? session;
+    try {
+      session = await _session();
+      final cached = await _readCache(session);
+      if (mounted && previous.isEmpty && cached.isNotEmpty) {
+        state = RemotePatientDirectoryState(
+          items: cached,
+          isLoading: true,
+          fromCache: true,
+        );
+      }
+
+      final byId = <String, RemotePatient>{};
+      var page = 1;
+      var hasNextPage = true;
+      while (hasNextPage) {
+        final result = await _source.patients(
+          page: page,
+          pageSize: 100,
+          status: 'Active',
+        );
+        for (final patient in result.items) {
+          if (_isActive(patient.status)) byId[patient.id] = patient;
+        }
+        hasNextPage = result.hasNextPage;
+        page += 1;
+      }
+      final patients = _sorted(byId.values);
+      await _cache.put(
+        key: _cacheKey(session.clinic.clinicId),
+        clinicId: session.clinic.clinicId,
+        payload: {'items': patients.map((item) => item.toJson()).toList()},
+      );
+      if (mounted) state = RemotePatientDirectoryState(items: patients);
+    } catch (error) {
+      session ??= await _safeSession();
+      final cached = session == null
+          ? const <RemotePatient>[]
+          : await _readCache(session);
+      if (!mounted) return;
+      state = RemotePatientDirectoryState(
+        items: cached.isNotEmpty ? cached : previous,
+        fromCache: cached.isNotEmpty || previous.isNotEmpty,
+        error: error,
+      );
+    }
+  }
+
+  Future<UserSession?> _safeSession() async {
+    try {
+      return await _session();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<RemotePatient>> _readCache(UserSession session) async {
+    final cached = await _cache.get(
+      _cacheKey(session.clinic.clinicId),
+      clinicId: session.clinic.clinicId,
+    );
+    if (cached == null) return const [];
+    return _sorted(
+      (cached['items'] as List<dynamic>? ?? const [])
+          .map(
+            (item) =>
+                RemotePatient.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
+          .where((patient) => _isActive(patient.status)),
+    );
+  }
+
+  List<RemotePatient> _sorted(Iterable<RemotePatient> patients) {
+    final result = patients.toList()
+      ..sort((a, b) {
+        final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        return byName != 0
+            ? byName
+            : a.hospitalNumber.compareTo(b.hospitalNumber);
+      });
+    return result;
+  }
+
+  bool _isActive(String status) => status.trim().toLowerCase() == 'active';
+
+  String _cacheKey(String clinicId) => 'patient-directory:$clinicId:active';
+}
+
+final remotePatientDirectoryProvider =
+    StateNotifierProvider.autoDispose<
+      RemotePatientDirectoryController,
+      RemotePatientDirectoryState
+    >(
+      (ref) => RemotePatientDirectoryController(
+        ref.watch(clinicalRemoteDataSourceProvider),
+        ref.watch(cloudCacheRepositoryProvider),
+        () => ref.read(userSessionProvider.future),
+      ),
+    );
+
 class RemoteInventoryListState {
   const RemoteInventoryListState({
     this.items = const [],

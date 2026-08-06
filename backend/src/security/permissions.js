@@ -1,6 +1,6 @@
 export const permissions = {
   clinicsView: 'clinics.view', clinicsApprove: 'clinics.approve', clinicsSuspend: 'clinics.suspend',
-  usersView: 'users.view', usersCreate: 'users.create', usersAssignRoles: 'users.assign_roles',
+  usersView: 'users.view', usersCreate: 'users.create', usersAssignRoles: 'users.assign_roles', staffRolesManage: 'staff.roles.manage',
   auditLogsView: 'audit_logs.view', subscriptionsManage: 'subscriptions.manage',
   dashboardView: 'dashboard.view',
   patientsView: 'patients.view', patientsCreate: 'patients.create', patientsEdit: 'patients.edit',
@@ -12,7 +12,7 @@ export const permissions = {
   prescriptionsView: 'prescriptions.view', prescriptionsCreate: 'prescriptions.create',
   inventoryView: 'inventory.view', inventoryCreate: 'inventory.create', inventoryEdit: 'inventory.edit', inventoryManage: 'inventory.manage',
   appointmentsView: 'appointments.view', appointmentsCreate: 'appointments.create',
-  billingView: 'billing.view', billingManage: 'billing.manage',
+  billingView: 'billing.view', billingCreate: 'billing.create', billingManage: 'billing.manage',
   mediaView: 'media.view',
   twoFactorManageSelf: 'security.twoFactor.manageSelf',
 };

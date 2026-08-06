@@ -122,6 +122,8 @@ class RemoteCurrentUser {
     required this.fullName,
     required this.email,
     this.roleId,
+    this.roleCode,
+    this.roleName,
     this.clinicName,
     this.clinicStatus,
     this.subscriptionPlan,
@@ -134,6 +136,8 @@ class RemoteCurrentUser {
   final String fullName;
   final String email;
   final String? roleId;
+  final String? roleCode;
+  final String? roleName;
   final String? clinicName;
   final String? clinicStatus;
   final String? subscriptionPlan;

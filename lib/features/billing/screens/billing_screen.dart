@@ -3,14 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/backend_configuration.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/inventory_catalog.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
+import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/remote_patient_selector.dart';
 
 class BillingScreen extends ConsumerStatefulWidget {
   const BillingScreen({super.key});
@@ -21,6 +26,8 @@ class BillingScreen extends ConsumerStatefulWidget {
 
 class _BillingScreenState extends ConsumerState<BillingScreen> {
   Animal? _patient;
+  RemotePatient? _remotePatient;
+  late final String _submissionId = const Uuid().v4();
   final Map<int, int> _products = {};
   final List<InvoiceServiceDraft> _services = [];
   final _consultationFee = TextEditingController(text: '0');
@@ -98,7 +105,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
               AveraSpacing.bottomContentClearance,
             ),
             children: [
-              _PatientCard(patient: _patient, onChange: _selectPatient),
+              _PatientCard(
+                patientName: _remotePatient?.name ?? _patient?.animalName,
+                hospitalNumber:
+                    _remotePatient?.hospitalNumber ?? _patient?.hospitalNumber,
+                onChange: _selectPatient,
+              ),
               const SizedBox(height: 24),
               _SectionAction(
                 title: 'Products',
@@ -194,6 +206,25 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   }
 
   Future<void> _selectPatient() async {
+    if (BackendConfiguration.isConfigured) {
+      final patient = await showModalBottomSheet<RemotePatient>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (context) => FractionallySizedBox(
+          heightFactor: 0.86,
+          child: RemotePatientSelectorSheet(selectedId: _remotePatient?.id),
+        ),
+      );
+      if (patient != null && mounted) {
+        setState(() {
+          _remotePatient = patient;
+          _patient = null;
+        });
+      }
+      return;
+    }
     final patient = await showModalBottomSheet<Animal>(
       context: context,
       useSafeArea: true,
@@ -305,6 +336,11 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   Future<void> _saveDraft(UserSession session) async {
     setState(() => _busy = true);
     try {
+      if (BackendConfiguration.isConfigured) {
+        await _persistRemoteInvoice(paid: false);
+        _message('Draft saved. Stock was not deducted.');
+        return;
+      }
       await _persistDraft(session);
       _message('Draft saved. Stock was not deducted.');
     } catch (error) {
@@ -317,6 +353,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   Future<void> _pay(UserSession session) async {
     setState(() => _busy = true);
     try {
+      if (BackendConfiguration.isConfigured) {
+        await _persistRemoteInvoice(paid: true);
+        ref.invalidate(remoteDashboardProvider);
+        _message('Sale recorded.');
+        return;
+      }
       final draft = await _persistDraft(session);
       if (draft == null) return;
       await ref
@@ -330,6 +372,39 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _persistRemoteInvoice({required bool paid}) async {
+    final patient = _remotePatient;
+    if (patient == null) {
+      throw StateError('Select a patient before billing.');
+    }
+    if (_products.isNotEmpty) {
+      throw StateError(
+        'Refresh inventory before recording product sales in production.',
+      );
+    }
+    final services = _services.fold<double>(
+      0,
+      (sum, service) => sum + service.amount,
+    );
+    final consultation = _consultationEnabled
+        ? double.tryParse(_consultationFee.text) ?? 0
+        : 0;
+    final home = _homeEnabled ? double.tryParse(_homeFee.text) ?? 0 : 0;
+    final total = services + consultation + home;
+    await ref.read(clinicalRemoteDataSourceProvider).createInvoice({
+      'submissionId': _submissionId,
+      'patientId': patient.id,
+      'status': paid ? 'Paid' : 'Draft',
+      'subtotal': total,
+      'total': total,
+      'services': [
+        for (final service in _services)
+          {'description': service.description, 'amount': service.amount},
+      ],
+    });
+    ref.invalidate(remotePatientMedicalFileProvider(patient.id));
   }
 
   Future<void> _print(UserSession session) async {
@@ -433,8 +508,13 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 }
 
 class _PatientCard extends StatelessWidget {
-  const _PatientCard({required this.patient, required this.onChange});
-  final Animal? patient;
+  const _PatientCard({
+    required this.patientName,
+    required this.hospitalNumber,
+    required this.onChange,
+  });
+  final String? patientName;
+  final String? hospitalNumber;
   final VoidCallback onChange;
   @override
   Widget build(BuildContext context) => AveraSurfaceCard(
@@ -444,15 +524,15 @@ class _PatientCard extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Text(
-            patient == null
+            patientName == null
                 ? 'Select patient'
-                : '${patient!.animalName} / ${patient!.hospitalNumber}',
+                : '$patientName / $hospitalNumber',
             style: averaText(context).fieldValue,
           ),
         ),
         TextButton(
           onPressed: onChange,
-          child: Text(patient == null ? 'Select' : 'Change'),
+          child: Text(patientName == null ? 'Select' : 'Change'),
         ),
       ],
     ),

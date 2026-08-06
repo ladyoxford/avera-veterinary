@@ -66,9 +66,19 @@ test('production permission migration backfills clinic administrators without pl
     new URL('../migrations/010_production_permission_catalog.sql', import.meta.url),
     'utf8',
   );
-  for (const key of clinicAdministratorPermissionKeys) {
+  const roleContractMigration = fs.readFileSync(
+    new URL(
+      '../migrations/014_role_contract_and_administrator_protection.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  for (const key of clinicAdministratorPermissionKeys.filter(
+    (key) => key !== 'staff.roles.manage',
+  )) {
     assert.match(permissionMigration, new RegExp(key.replaceAll('.', '\\.')));
   }
+  assert.match(roleContractMigration, /staff\.roles\.manage/);
   assert.equal(new Set(permissionCatalog).size, permissionCatalog.length);
   for (const required of [
     'dashboard.view',
@@ -218,6 +228,29 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     2,
   );
   assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 5);
+  assert.match(
+    routes,
+    /app\.get\('\/api\/v1\/consultations\/:consultationId'[\s\S]*permissions\.consultationsView/,
+  );
+  assert.match(
+    routes,
+    /WHERE c\.clinic_id = \$1 AND c\.consultation_id = \$2/,
+  );
+  assert.match(
+    routes,
+    /consultation_id AS record_id, patient_id/,
+  );
+  for (const [path, permission] of [
+    ['billing', 'billingView'],
+    ['appointments', 'appointmentsView'],
+    ['documents', 'mediaView'],
+    ['images', 'mediaView'],
+  ]) {
+    assert.match(
+      routes,
+      new RegExp(`\\['${path}',[\\s\\S]*?permissions\\.${permission}`),
+    );
+  }
 });
 
 test('demo clinical migration is tenant-scoped and identifies removable demo rows', () => {

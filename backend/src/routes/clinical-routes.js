@@ -16,6 +16,7 @@ const pageSchema = z.object({
 });
 
 const uuidSchema = z.object({ patientId: z.string().uuid() });
+const consultationUuidSchema = z.object({ consultationId: z.string().uuid() });
 const inventoryUuidSchema = z.object({ inventoryProductId: z.string().uuid() });
 export const createPatientSchema = z.object({
   submissionId: z.string().uuid(),
@@ -143,6 +144,10 @@ function patientResponse(row) {
     owner_id: row.owner_id,
     owner_name: row.owner_name,
     owner_phone: row.owner_phone,
+    owner_email: row.owner_email,
+    owner_address: row.owner_address,
+    owner_city: row.owner_city,
+    owner_state: row.owner_state,
   };
 }
 
@@ -211,7 +216,9 @@ const patientList = {
   from: 'patients p JOIN owners o ON o.owner_id = p.owner_id',
   select: `p.patient_id, p.hospital_number, p.name, p.species, p.breed, p.sex, p.status, p.date_of_birth,
            p.current_weight_kg, p.image_placeholder, p.registered_at, p.updated_at, p.revision,
-           o.owner_id, o.full_name AS owner_name, o.phone AS owner_phone`,
+           o.owner_id, o.full_name AS owner_name, o.phone AS owner_phone,
+           o.email AS owner_email, o.address AS owner_address,
+           o.city AS owner_city, o.state AS owner_state`,
   where: `p.clinic_id = $1 AND p.deleted_at IS NULL AND o.deleted_at IS NULL
           AND ($2::text IS NULL OR p.name ILIKE $3 OR p.hospital_number ILIKE $3 OR o.full_name ILIKE $3 OR o.phone ILIKE $3)
           AND ($4::text IS NULL OR p.status = $4)`,
@@ -549,6 +556,28 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.get('/api/v1/consultations/:consultationId', { preHandler: [authenticate, requirePermission(permissions.consultationsView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = consultationUuidSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'validation_error', message: 'The consultation identifier is invalid.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const result = await client.query(
+        `SELECT c.consultation_id, c.patient_id, c.occurred_at,
+                c.chief_complaint, c.history, c.examination, c.assessment,
+                c.final_diagnosis, c.treatment, c.prescription_notes,
+                c.clinician_name_snapshot, c.status, c.revision,
+                p.name AS patient_name, p.hospital_number
+           FROM consultations c
+           JOIN patients p ON p.patient_id = c.patient_id AND p.clinic_id = c.clinic_id
+          WHERE c.clinic_id = $1 AND c.consultation_id = $2
+            AND c.deleted_at IS NULL AND p.deleted_at IS NULL`,
+        [request.auth.clinicId, params.data.consultationId],
+      );
+      if (!result.rows[0]) return reply.code(404).send({ error: 'not_found', message: 'The consultation was not found in this clinic.' });
+      return { consultation: result.rows[0] };
+    });
+  });
+
   app.get('/api/v1/patients/:patientId', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     const params = uuidSchema.safeParse(request.params);
@@ -589,6 +618,7 @@ export async function clinicalRoutes(app) {
 
   for (const [path, table, id, permission, order] of [
     ['consultations', 'consultations', 'consultation_id', permissions.consultationsView, 'occurred_at'], ['vaccinations', 'vaccinations', 'vaccination_id', permissions.vaccinationsView, 'administered_at'], ['laboratory', 'laboratory_reports', 'laboratory_report_id', permissions.laboratoryView, 'requested_at'], ['hospitalizations', 'hospitalizations', 'hospitalization_id', permissions.hospitalizationView, 'admitted_at'], ['surgeries', 'surgeries', 'surgery_id', permissions.surgeryView, 'performed_at'], ['prescriptions', 'prescriptions', 'prescription_id', permissions.prescriptionsView, 'prescribed_at'],
+    ['billing', 'invoices', 'invoice_id', permissions.billingView, 'issued_at'], ['appointments', 'schedule_entries', 'schedule_entry_id', permissions.appointmentsView, 'scheduled_at'], ['documents', 'media_assets', 'media_asset_id', permissions.mediaView, 'created_at'], ['images', 'media_assets', 'media_asset_id', permissions.mediaView, 'created_at'],
   ]) app.get(`/api/v1/patients/:patientId/${path}`, { preHandler: [authenticate, requirePermission(permission)] }, (request, reply) => patientSection(request, reply, table, id, permission, order));
 
   for (const [path, list] of Object.entries(lists)) app.get(`/api/v1/${path === 'laboratory' ? 'laboratory-reports' : path}`, { preHandler: [authenticate, requirePermission(list.permission)] }, tenantList(list.config));
@@ -748,7 +778,14 @@ export async function clinicalRoutes(app) {
       const [species, revenue, activity] = await Promise.all([
         client.query('SELECT species, count(*)::int AS count FROM patients WHERE clinic_id=$1 AND deleted_at IS NULL GROUP BY species ORDER BY count DESC LIMIT 8', [clinicId]),
         client.query(`SELECT to_char(date_trunc('month', paid_at), 'YYYY-MM') AS month, coalesce(sum(amount),0) AS revenue FROM payments WHERE clinic_id=$1 AND paid_at >= now() - interval '6 months' GROUP BY 1 ORDER BY 1`, [clinicId]),
-        client.query(`SELECT 'Consultation' AS type, occurred_at AS occurred_at, coalesce(final_diagnosis, chief_complaint) AS summary FROM consultations WHERE clinic_id=$1 UNION ALL SELECT 'Schedule', scheduled_at, visit_type FROM schedule_entries WHERE clinic_id=$1 ORDER BY occurred_at DESC LIMIT 10`, [clinicId]),
+        client.query(`SELECT type, record_id, patient_id, occurred_at, summary FROM (
+          SELECT 'Consultation' AS type, consultation_id AS record_id, patient_id,
+                 occurred_at, coalesce(final_diagnosis, chief_complaint) AS summary
+            FROM consultations WHERE clinic_id=$1 AND deleted_at IS NULL
+          UNION ALL
+          SELECT 'Schedule', schedule_entry_id, patient_id, scheduled_at, visit_type
+            FROM schedule_entries WHERE clinic_id=$1
+        ) activity ORDER BY occurred_at DESC LIMIT 10`, [clinicId]),
       ]);
       return { ...result.rows[0], speciesDistribution: species.rows, revenueTrend: revenue.rows, recentActivity: activity.rows };
     });

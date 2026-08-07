@@ -484,6 +484,34 @@ class ClinicalRemoteDataSource {
     int page = 1,
     String? search,
   }) => _generic('/api/v1/prescriptions', page: page, search: search);
+
+  Future<RemotePage<Map<String, dynamic>>> clinicalOperations({
+    required String operationType,
+    int page = 1,
+    String? search,
+    String? status,
+  }) async {
+    final response = await _client.get(
+      _path('/api/v1/clinical-operations', {
+        'page': '$page',
+        'pageSize': '100',
+        'operationType': operationType,
+        if (search?.isNotEmpty ?? false) 'search': search!,
+        if (status?.isNotEmpty ?? false) 'status': status!,
+      }),
+    );
+    return _page(response, (value) => value);
+  }
+
+  Future<Map<String, dynamic>> createClinicalOperation(
+    Map<String, dynamic> payload,
+  ) async => Map<String, dynamic>.from(
+    await _client.post(
+      '/api/v1/clinical-operations',
+      body: payload,
+      authenticated: true,
+    ),
+  );
   Future<RemotePage<RemoteInventoryItem>> inventoryProducts({
     int page = 1,
     int pageSize = 100,

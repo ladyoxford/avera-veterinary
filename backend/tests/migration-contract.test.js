@@ -237,7 +237,7 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     routes.match(/ON CONFLICT \(clinic_id, submission_id\)/g)?.length,
     2,
   );
-  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 5);
+  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 6);
   assert.match(
     routes,
     /app\.get\('\/api\/v1\/consultations\/:consultationId'[\s\S]*permissions\.consultationsView/,
@@ -261,6 +261,23 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
       new RegExp(`\\['${path}',[\\s\\S]*?permissions\\.${permission}`),
     );
   }
+});
+
+test('clinical operations use canonical patients and idempotent tenant storage', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/015_clinical_operations.sql', import.meta.url),
+    'utf8',
+  );
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /patient_id UUID NOT NULL REFERENCES patients/);
+  assert.match(migration, /UNIQUE \(clinic_id, submission_id\)/);
+  assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(routes, /patientExists\(client, request\.auth\.clinicId, input\.patientId\)/);
+  assert.match(routes, /operationPermissions\[input\.operationType\]\.create/);
+  assert.match(routes, /app\.post\('\/api\/v1\/clinical-operations'/);
 });
 
 test('patient-linked production mutations require canonical UUIDs', () => {

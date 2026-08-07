@@ -8,5 +8,10 @@ void main() {
       ClinicalOperationModule.prescriptions.primaryActionLabel,
       'Create Prescription',
     );
+    expect(ClinicalOperationModule.surgery.backendType, 'Surgery');
+    expect(ClinicalOperationModule.prescriptions.backendType, 'Prescription');
+    expect(ClinicalOperationModule.imaging.backendType, 'Imaging');
+    expect(ClinicalOperationModule.documents.backendType, 'Document');
+    expect(ClinicalOperationModule.treatmentBoard.backendType, 'Treatment');
   });
 }

@@ -5,14 +5,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/backend_configuration.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
+import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/feature_gate_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/avera_ui.dart';
+import '../widgets/remote_patient_selector.dart';
 
 enum ClinicalOperationModule {
   surgery,
@@ -28,6 +33,14 @@ enum ClinicalOperationModule {
     ClinicalOperationModule.imaging => ClinicalOperationTypes.imaging,
     ClinicalOperationModule.documents => ClinicalOperationTypes.document,
     ClinicalOperationModule.treatmentBoard => ClinicalOperationTypes.treatment,
+  };
+
+  String get backendType => switch (this) {
+    ClinicalOperationModule.surgery => 'Surgery',
+    ClinicalOperationModule.prescriptions => 'Prescription',
+    ClinicalOperationModule.imaging => 'Imaging',
+    ClinicalOperationModule.documents => 'Document',
+    ClinicalOperationModule.treatmentBoard => 'Treatment',
   };
 
   String get title => switch (this) {
@@ -193,13 +206,25 @@ class _ClinicalOperationScreenState
   String _query = '';
   String _filter = 'All';
   bool _openedInitialRecord = false;
+  Future<RemotePage<Map<String, dynamic>>>? _remoteRecords;
 
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(
-      () => ref.read(clinicRepositoryProvider).seedClinicalOperationDemoData(),
-    );
+    if (BackendConfiguration.isBackendMode) {
+      _reloadRemote();
+    } else {
+      Future<void>.microtask(
+        () =>
+            ref.read(clinicRepositoryProvider).seedClinicalOperationDemoData(),
+      );
+    }
+  }
+
+  void _reloadRemote() {
+    _remoteRecords = ref
+        .read(clinicalRemoteDataSourceProvider)
+        .clinicalOperations(operationType: widget.module.backendType);
   }
 
   @override
@@ -225,90 +250,228 @@ class _ClinicalOperationScreenState
               label: Text(widget.module.addLabel),
             )
           : null,
-      body: StreamBuilder<List<ClinicOperationRecord>>(
-        stream: ref
-            .read(clinicRepositoryProvider)
-            .watchClinicalOperationRecords(widget.module.recordType),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return _OperationState(
-              icon: Icons.error_outline_rounded,
-              title: 'Unable to load ${widget.module.title.toLowerCase()}',
-              message: 'Please try again.',
-              action: FilledButton(
-                onPressed: () => setState(() {}),
-                child: const Text('Retry'),
-              ),
-            );
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          _openInitialRecord(snapshot.data!, session);
-          final records = snapshot.data!.where(_matches).toList();
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AveraSpacing.pageHorizontalPadding,
-              AveraSpacing.pageTopPadding,
-              AveraSpacing.pageHorizontalPadding,
-              AveraSpacing.bottomContentClearance,
+      body: BackendConfiguration.isBackendMode
+          ? _remoteBody(canCreate)
+          : StreamBuilder<List<ClinicOperationRecord>>(
+              stream: ref
+                  .read(clinicRepositoryProvider)
+                  .watchClinicalOperationRecords(widget.module.recordType),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return _OperationState(
+                    icon: Icons.error_outline_rounded,
+                    title:
+                        'Unable to load ${widget.module.title.toLowerCase()}',
+                    message: 'Please try again.',
+                    action: FilledButton(
+                      onPressed: () => setState(() {}),
+                      child: const Text('Retry'),
+                    ),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                _openInitialRecord(snapshot.data!, session);
+                final records = snapshot.data!.where(_matches).toList();
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    AveraSpacing.pageHorizontalPadding,
+                    AveraSpacing.pageTopPadding,
+                    AveraSpacing.pageHorizontalPadding,
+                    AveraSpacing.bottomContentClearance,
+                  ),
+                  children: [
+                    Text(
+                      widget.module.subtitle,
+                      style: Theme.of(
+                        context,
+                      ).extension<AveraTextStyles>()!.pageSubtitle,
+                    ),
+                    const SizedBox(height: AveraSpacing.subtitleToContentGap),
+                    TextField(
+                      onChanged: (value) => setState(() => _query = value),
+                      decoration: const InputDecoration(
+                        hintText: 'Search patient, owner, or record',
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: AveraSpacing.compactRowGap),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: ['All', ...widget.module.dashboardStatuses]
+                            .map(
+                              (status) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text(status),
+                                  selected: _filter == status,
+                                  onSelected: (_) =>
+                                      setState(() => _filter = status),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    const SizedBox(height: AveraSpacing.cardGap),
+                    if (records.isEmpty)
+                      _OperationState(
+                        icon: widget.module.icon,
+                        title: 'No matching records',
+                        message: canCreate
+                            ? 'Create a patient-linked ${widget.module.title.toLowerCase()} record to begin.'
+                            : 'No records match the selected filters.',
+                      ),
+                    for (final record in records) ...[
+                      _OperationRecordCard(
+                        record: record,
+                        module: widget.module,
+                        onTap: () => _openDetails(record, session),
+                      ),
+                      const SizedBox(height: AveraSpacing.cardGap),
+                    ],
+                  ],
+                );
+              },
             ),
-            children: [
-              Text(
-                widget.module.subtitle,
-                style: Theme.of(
-                  context,
-                ).extension<AveraTextStyles>()!.pageSubtitle,
-              ),
-              const SizedBox(height: AveraSpacing.subtitleToContentGap),
-              TextField(
-                onChanged: (value) => setState(() => _query = value),
-                decoration: const InputDecoration(
-                  hintText: 'Search patient, owner, or record',
-                  prefixIcon: Icon(Icons.search_rounded),
-                ),
-              ),
-              const SizedBox(height: AveraSpacing.compactRowGap),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: ['All', ...widget.module.dashboardStatuses]
-                      .map(
-                        (status) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(status),
-                            selected: _filter == status,
-                            onSelected: (_) => setState(() => _filter = status),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              if (records.isEmpty)
-                _OperationState(
-                  icon: widget.module.icon,
-                  title: 'No matching records',
-                  message: canCreate
-                      ? 'Create a patient-linked ${widget.module.title.toLowerCase()} record to begin.'
-                      : 'No records match the selected filters.',
-                ),
-              for (final record in records) ...[
-                _OperationRecordCard(
-                  record: record,
-                  module: widget.module,
-                  onTap: () => _openDetails(record, session),
-                ),
-                const SizedBox(height: AveraSpacing.cardGap),
-              ],
-            ],
-          );
-        },
-      ),
     );
   }
+
+  Widget _remoteBody(
+    bool canCreate,
+  ) => FutureBuilder<RemotePage<Map<String, dynamic>>>(
+    future: _remoteRecords,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return _OperationState(
+          icon: Icons.error_outline_rounded,
+          title: 'Unable to load ${widget.module.title.toLowerCase()}',
+          message: 'The clinic records could not be loaded.',
+          action: FilledButton(
+            onPressed: () => setState(_reloadRemote),
+            child: const Text('Retry'),
+          ),
+        );
+      }
+      if (!snapshot.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final query = _query.trim().toLowerCase();
+      final records = snapshot.data!.items
+          .where((record) {
+            if (_filter != 'All' && record['status'] != _filter) return false;
+            if (query.isEmpty) return true;
+            return [
+              record['title'],
+              record['description'],
+              record['patient_name'],
+              record['hospital_number'],
+              record['owner_name'],
+            ].whereType<Object>().join(' ').toLowerCase().contains(query);
+          })
+          .toList(growable: false);
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AveraSpacing.pageHorizontalPadding,
+          AveraSpacing.pageTopPadding,
+          AveraSpacing.pageHorizontalPadding,
+          AveraSpacing.bottomContentClearance,
+        ),
+        children: [
+          Text(widget.module.subtitle, style: averaText(context).pageSubtitle),
+          const SizedBox(height: AveraSpacing.subtitleToContentGap),
+          TextField(
+            onChanged: (value) => setState(() => _query = value),
+            decoration: const InputDecoration(
+              hintText: 'Search patient, owner, or record',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+          ),
+          const SizedBox(height: AveraSpacing.compactRowGap),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['All', ...widget.module.dashboardStatuses]
+                  .map(
+                    (status) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(status),
+                        selected: _filter == status,
+                        onSelected: (_) => setState(() => _filter = status),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: AveraSpacing.cardGap),
+          if (records.isEmpty)
+            _OperationState(
+              icon: widget.module.icon,
+              title: 'No matching records',
+              message: canCreate
+                  ? 'Create a patient-linked ${widget.module.title.toLowerCase()} record to begin.'
+                  : 'No records match the selected filters.',
+            ),
+          for (final record in records) ...[
+            AveraSurfaceCard(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(widget.module.icon),
+                title: Text(
+                  '${record['title']}',
+                  style: averaText(context).listItemTitle,
+                ),
+                subtitle: Text(
+                  '${record['patient_name']} - ${record['hospital_number']}\n${record['owner_name'] ?? ''}',
+                  style: averaText(context).listItemSubtitle,
+                ),
+                isThreeLine: true,
+                trailing: _StatusPill('${record['status']}'),
+                onTap: () => _showRemoteDetails(record),
+              ),
+            ),
+            const SizedBox(height: AveraSpacing.cardGap),
+          ],
+        ],
+      );
+    },
+  );
+
+  Future<void> _showRemoteDetails(Map<String, dynamic> record) =>
+      showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (context) => Padding(
+          padding: const EdgeInsets.all(AveraSpacing.largeCardPadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${record['title']}',
+                style: averaText(context).sectionTitle,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${record['patient_name']} - ${record['hospital_number']}',
+                style: averaText(context).listItemSubtitle,
+              ),
+              const SizedBox(height: AveraSpacing.cardGap),
+              Text(
+                '${record['description'] ?? 'No additional clinical notes.'}',
+                style: averaText(context).fieldValue,
+              ),
+              const SizedBox(height: AveraSpacing.cardGap),
+              _StatusPill('${record['status']}'),
+            ],
+          ),
+        ),
+      );
 
   void _openInitialRecord(
     List<ClinicOperationRecord> records,
@@ -371,6 +534,9 @@ class _ClinicalOperationScreenState
       builder: (sheetContext) =>
           ClinicalOperationFormSheet(module: widget.module, session: session),
     );
+    if (mounted && BackendConfiguration.isBackendMode) {
+      setState(_reloadRemote);
+    }
   }
 }
 
@@ -1426,6 +1592,7 @@ class ClinicalOperationFormSheet extends ConsumerStatefulWidget {
 class _CreateClinicalOperationSheetState
     extends ConsumerState<ClinicalOperationFormSheet> {
   final _formKey = GlobalKey<FormState>();
+  final _submissionId = const Uuid().v4();
   final _title = TextEditingController();
   final _description = TextEditingController();
   final _assignee = TextEditingController();
@@ -1451,6 +1618,7 @@ class _CreateClinicalOperationSheetState
   final _duration = TextEditingController();
   final _refills = TextEditingController(text: '0');
   int? _animalId;
+  RemotePatient? _remotePatient;
   int? _inventoryItemId;
   String _priority = 'Routine';
   String _surgeryType = 'Elective';
@@ -1554,28 +1722,31 @@ class _CreateClinicalOperationSheetState
                         subtitle: _formSubtitle,
                       ),
                       const SizedBox(height: AveraSpacing.subtitleToContentGap),
-                      AveraLabeledDropdownField<int>(
-                        label: 'Patient',
-                        hintText: 'Select a patient',
-                        value: animals.containsKey(_animalId)
-                            ? _animalId
-                            : null,
-                        items: [
-                          for (final animal in orderedAnimals)
-                            DropdownMenuItem(
-                              value: animal.id,
-                              child: Text(
-                                '${animal.animalName} - ${animal.hospitalNumber}',
-                                overflow: TextOverflow.ellipsis,
+                      if (BackendConfiguration.isBackendMode)
+                        _remotePatientField()
+                      else
+                        AveraLabeledDropdownField<int>(
+                          label: 'Patient',
+                          hintText: 'Select a patient',
+                          value: animals.containsKey(_animalId)
+                              ? _animalId
+                              : null,
+                          items: [
+                            for (final animal in orderedAnimals)
+                              DropdownMenuItem(
+                                value: animal.id,
+                                child: Text(
+                                  '${animal.animalName} - ${animal.hospitalNumber}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                            ),
-                        ],
-                        onChanged: _saving
-                            ? null
-                            : (value) => _update(() => _animalId = value),
-                        validator: (value) =>
-                            value == null ? 'Select a patient.' : null,
-                      ),
+                          ],
+                          onChanged: _saving
+                              ? null
+                              : (value) => _update(() => _animalId = value),
+                          validator: (value) =>
+                              value == null ? 'Select a patient.' : null,
+                        ),
                       const SizedBox(height: AveraSpacing.cardGap),
                       ..._moduleFields(inventory),
                       const SizedBox(height: AveraSpacing.subtitleToContentGap),
@@ -1624,10 +1795,74 @@ class _CreateClinicalOperationSheetState
   };
 
   bool get _documentReady =>
-      _animalId != null &&
+      (BackendConfiguration.isBackendMode
+          ? _remotePatient != null
+          : _animalId != null) &&
       _title.text.trim().isNotEmpty &&
       _documentCategory.isNotEmpty &&
       _documentPath != null;
+
+  Widget _remotePatientField() => FormField<String>(
+    initialValue: _remotePatient?.id,
+    validator: (_) => _remotePatient == null ? 'Select a patient.' : null,
+    builder: (field) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AveraLabeledFieldCard(
+          label: 'Patient',
+          child: InkWell(
+            onTap: _saving ? null : () => _selectRemotePatient(field),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                minHeight: AveraSpacing.minimumTapTarget,
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search_rounded),
+                  const SizedBox(width: AveraSpacing.compactRowGap),
+                  Expanded(
+                    child: Text(
+                      _remotePatient == null
+                          ? 'Select a registered patient'
+                          : '${_remotePatient!.name} - ${_remotePatient!.hospitalNumber}',
+                      style: _remotePatient == null
+                          ? averaText(context).fieldPlaceholder
+                          : averaText(context).fieldValue,
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (field.errorText != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            field.errorText!,
+            style: averaText(
+              context,
+            ).caption.copyWith(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+      ],
+    ),
+  );
+
+  Future<void> _selectRemotePatient(FormFieldState<String> field) async {
+    final selected = await showModalBottomSheet<RemotePatient>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => SizedBox(
+        height: MediaQuery.sizeOf(context).height * .82,
+        child: RemotePatientSelectorSheet(selectedId: _remotePatient?.id),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    _update(() => _remotePatient = selected);
+    field.didChange(selected.id);
+  }
 
   List<Widget> _moduleFields(List<InventoryItem> inventory) =>
       switch (widget.module) {
@@ -2232,6 +2467,87 @@ class _CreateClinicalOperationSheetState
     }
     setState(() => _saving = true);
     try {
+      if (BackendConfiguration.isBackendMode) {
+        final patient = _remotePatient!;
+        await ref
+            .read(clinicalRemoteDataSourceProvider)
+            .createClinicalOperation({
+              'submissionId': _submissionId,
+              'patientId': patient.id,
+              'operationType': widget.module.backendType,
+              'title': _title.text.trim(),
+              'description': _description.text.trim(),
+              'assignedTo': _assignee.text.trim(),
+              'scheduledAt': _scheduledAt.toUtc().toIso8601String(),
+              'status': switch (widget.module) {
+                ClinicalOperationModule.prescriptions => 'Draft',
+                ClinicalOperationModule.treatmentBoard => 'Due',
+                ClinicalOperationModule.surgery => 'Scheduled',
+                ClinicalOperationModule.imaging => 'Requested',
+                ClinicalOperationModule.documents => 'Available',
+              },
+              'priority': _priority,
+              'estimatedAmount': double.tryParse(_amount.text.trim()),
+              'details': {
+                'indication': _indication.text.trim(),
+                'assistant': _assistant.text.trim(),
+                'anaesthetist': _anaesthetist.text.trim(),
+                'instructions': _instructions.text.trim(),
+                'clinicalHistory': _clinicalHistory.text.trim(),
+                'anatomicalArea': _anatomicalArea.text.trim(),
+                'suspectedDiagnosis': _suspectedDiagnosis.text.trim(),
+                'providerType': _providerType,
+                'provider': _provider.text.trim(),
+                'sedationRequired': _sedationRequired,
+                'surgeryType': _surgeryType,
+                'imagingType': _imagingType,
+                'documentCategory': _documentCategory,
+                'relatedClinicalRecord': _relatedRecord.text.trim(),
+                'sensitiveDocument': _sensitiveDocument,
+                'orderedBy': _orderedBy.text.trim(),
+                'ward': _ward.text.trim(),
+                'refillAllowance': int.tryParse(_refills.text.trim()) ?? 0,
+                if (_documentFileName != null) 'fileName': _documentFileName,
+                if (_documentFileSize != null) 'fileSize': _documentFileSize,
+                if (_documentMimeType != null) 'mimeType': _documentMimeType,
+              },
+              'items':
+                  {
+                    ClinicalOperationModule.prescriptions,
+                    ClinicalOperationModule.treatmentBoard,
+                  }.contains(widget.module)
+                  ? [
+                      {
+                        'name': _medicationName.text.trim(),
+                        'strength': _strength.text.trim(),
+                        'quantity': double.tryParse(_quantity.text.trim()),
+                        'dose': _dose.text.trim(),
+                        'doseUnit': _doseUnit.text.trim(),
+                        'route': _route.text.trim(),
+                        'frequency': _frequency.text.trim(),
+                        'duration': _duration.text.trim(),
+                        'instructions': _instructions.text.trim(),
+                        'isHighRisk': _highRisk,
+                      },
+                    ]
+                  : const <Map<String, dynamic>>[],
+            });
+        ref.invalidate(remotePatientMedicalFileProvider(patient.id));
+        for (final section in _affectedRemoteSections) {
+          ref.invalidate(
+            remotePatientSectionProvider(
+              RemotePatientSectionRequest(
+                patientId: patient.id,
+                section: section,
+              ),
+            ),
+          );
+        }
+        if (!context.mounted) return;
+        _dirty = false;
+        Navigator.of(context).pop();
+        return;
+      }
       final operationId = await ref
           .read(clinicRepositoryProvider)
           .createClinicalOperation(
@@ -2326,6 +2642,14 @@ class _CreateClinicalOperationSheetState
       );
     }
   }
+
+  List<String> get _affectedRemoteSections => switch (widget.module) {
+    ClinicalOperationModule.surgery => const ['surgeries'],
+    ClinicalOperationModule.prescriptions => const ['prescriptions'],
+    ClinicalOperationModule.imaging => const ['images'],
+    ClinicalOperationModule.documents => const ['documents'],
+    ClinicalOperationModule.treatmentBoard => const <String>[],
+  };
 }
 
 class _DetailLine extends StatelessWidget {

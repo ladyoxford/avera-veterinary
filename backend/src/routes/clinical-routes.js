@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { withTenantTransaction } from '../database/pool.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
-import { permissions } from '../security/permissions.js';
+import { hasPermission, permissions } from '../security/permissions.js';
 import { writeAudit } from '../audit/audit-service.js';
 
 const pageSchema = z.object({
@@ -92,6 +92,30 @@ export const createInvoiceSchema = z.object({
     amount: z.number().min(0).max(1000000000000),
   })).max(100).default([]),
 });
+
+const clinicalOperationTypes = ['Surgery', 'Prescription', 'Imaging', 'Document', 'Treatment'];
+export const createClinicalOperationSchema = z.object({
+  submissionId: z.string().uuid(),
+  patientId: z.string().uuid(),
+  operationType: z.enum(clinicalOperationTypes),
+  title: z.string().trim().min(1).max(500),
+  description: z.string().trim().max(8000).nullish(),
+  assignedTo: z.string().trim().max(240).nullish(),
+  scheduledAt: z.string().datetime(),
+  status: z.string().trim().min(1).max(100),
+  priority: z.enum(['Routine', 'Urgent', 'Emergency']).default('Routine'),
+  estimatedAmount: z.number().min(0).max(1000000000000).nullish(),
+  details: z.record(z.unknown()).default({}),
+  items: z.array(z.record(z.unknown())).max(100).default([]),
+});
+
+const operationPermissions = {
+  Surgery: { view: permissions.surgeryView, create: permissions.surgeryCreate },
+  Prescription: { view: permissions.prescriptionsView, create: permissions.prescriptionsCreate },
+  Imaging: { view: permissions.imagingView, create: permissions.imagingRequest },
+  Document: { view: permissions.documentsView, create: permissions.documentsUpload },
+  Treatment: { view: permissions.treatmentBoardView, create: permissions.treatmentBoardCreate },
+};
 
 const inventoryFields = {
   name: z.string().trim().min(1).max(200),
@@ -663,6 +687,129 @@ export async function clinicalRoutes(app) {
   ]) app.get(`/api/v1/patients/:patientId/${path}`, { preHandler: [authenticate, requirePermission(permission)] }, (request, reply) => patientSection(request, reply, table, id, permission, order));
 
   for (const [path, list] of Object.entries(lists)) app.get(`/api/v1/${path === 'laboratory' ? 'laboratory-reports' : path}`, { preHandler: [authenticate, requirePermission(list.permission)] }, tenantList(list.config));
+
+  app.get('/api/v1/clinical-operations', { preHandler: [authenticate] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const query = parsePage(request, reply);
+    const operationType = typeof request.query?.operationType === 'string'
+      ? request.query.operationType
+      : null;
+    if (!query || !clinicalOperationTypes.includes(operationType)) {
+      return reply.code(400).send({ error: 'validation_error', message: 'A valid clinical operation type is required.' });
+    }
+    if (!hasPermission(request, operationPermissions[operationType].view)) {
+      return reply.code(403).send({ error: 'permission_denied', message: 'Permission required for this clinical operation.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const offset = (query.page - 1) * query.pageSize;
+      const search = `%${query.search ?? ''}%`;
+      const values = [request.auth.clinicId, operationType, query.search ?? null, search, query.status ?? null];
+      const where = `r.clinic_id=$1 AND r.operation_type=$2
+        AND ($3::text IS NULL OR r.title ILIKE $4 OR r.description ILIKE $4 OR p.name ILIKE $4 OR o.full_name ILIKE $4)
+        AND ($5::text IS NULL OR r.status=$5)`;
+      const [rows, count] = await Promise.all([
+        client.query(
+          `SELECT r.operation_id, r.patient_id, r.operation_type, r.title,
+                  r.description, r.assigned_to, r.scheduled_at, r.status,
+                  r.priority, r.estimated_amount, r.details, r.items,
+                  r.created_at, p.name AS patient_name, p.hospital_number,
+                  o.full_name AS owner_name
+             FROM clinical_operation_records r
+             JOIN patients p ON p.patient_id=r.patient_id
+             JOIN owners o ON o.owner_id=p.owner_id
+            WHERE ${where}
+            ORDER BY r.scheduled_at DESC, r.created_at DESC
+            LIMIT $6 OFFSET $7`,
+          [...values, query.pageSize, offset],
+        ),
+        client.query(`SELECT count(*)::int AS total FROM clinical_operation_records r JOIN patients p ON p.patient_id=r.patient_id JOIN owners o ON o.owner_id=p.owner_id WHERE ${where}`, values),
+      ]);
+      const total = count.rows[0].total;
+      return { items: rows.rows, page: query.page, pageSize: query.pageSize, total, hasNextPage: offset + rows.rowCount < total };
+    });
+  });
+
+  app.post('/api/v1/clinical-operations', { preHandler: [authenticate] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = createClinicalOperationSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the clinical operation information.' });
+    }
+    const input = parsed.data;
+    if (!hasPermission(request, operationPermissions[input.operationType].create)) {
+      return reply.code(403).send({ error: 'permission_denied', message: 'Permission required to create this clinical operation.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const existing = await client.query(
+        `SELECT operation_id, patient_id, operation_type, title, status, scheduled_at
+           FROM clinical_operation_records WHERE clinic_id=$1 AND submission_id=$2`,
+        [request.auth.clinicId, input.submissionId],
+      );
+      if (existing.rows[0]) return { operation: existing.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
+      if (!await patientExists(client, request.auth.clinicId, input.patientId)) {
+        return reply.code(404).send({ error: 'patient_not_found', message: 'The selected active patient was not found in this clinic.' });
+      }
+      const inserted = await client.query(
+        `INSERT INTO clinical_operation_records
+           (clinic_id, patient_id, operation_type, title, description,
+            assigned_to, scheduled_at, status, priority, estimated_amount,
+            details, items, created_by, submission_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         RETURNING operation_id, patient_id, operation_type, title, status, scheduled_at`,
+        [request.auth.clinicId, input.patientId, input.operationType, input.title,
+          input.description ?? null, input.assignedTo ?? null, input.scheduledAt,
+          input.status, input.priority, input.estimatedAmount ?? null,
+          input.details, input.items, request.auth.userId, input.submissionId],
+      );
+      const operation = inserted.rows[0];
+
+      if (input.operationType === 'Surgery') {
+        await client.query(
+          `INSERT INTO surgeries (clinic_id, patient_id, performed_at, procedure_name,
+             surgeon_id, anaesthesia_protocol, complication_notes, recovery_notes, cost)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [request.auth.clinicId, input.patientId, input.scheduledAt, input.title,
+            request.auth.userId, input.details.anaesthetist || null,
+            input.description ?? null, input.details.instructions || null,
+            input.estimatedAmount ?? 0],
+        );
+      } else if (input.operationType === 'Prescription' && input.items.length > 0) {
+        const item = input.items[0];
+        await client.query(
+          `INSERT INTO prescriptions (clinic_id, patient_id, prescribed_at, drug_name,
+             concentration, dose, route, frequency, duration_days, quantity,
+             instructions, prescriber_id, refill_status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [request.auth.clinicId, input.patientId, input.scheduledAt,
+            item.name || input.title, item.strength || null, item.dose || null,
+            item.route || null, item.frequency || null,
+            Number.parseInt(item.duration, 10) || null, Number(item.quantity) || null,
+            item.instructions || input.description || null, request.auth.userId, input.status],
+        );
+      } else if (input.operationType === 'Document' || input.operationType === 'Imaging') {
+        await client.query(
+          `INSERT INTO media_assets (clinic_id, patient_id, category, file_type,
+             file_size_bytes, placeholder_key, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,now())`,
+          [request.auth.clinicId, input.patientId, input.operationType,
+            input.details.mimeType || 'metadata', Number(input.details.fileSize) || 0,
+            input.details.fileName || operation.operation_id],
+        );
+      }
+
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: input.operationType,
+        targetId: operation.operation_id,
+        action: 'clinical_operation.created',
+        newSummary: { patientId: input.patientId, operationType: input.operationType, title: input.title },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { operation, submissionId: input.submissionId, duplicateSubmission: false };
+    });
+  });
 
   app.post('/api/v1/vaccinations', { preHandler: [authenticate, requirePermission(permissions.vaccinationsAdd)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;

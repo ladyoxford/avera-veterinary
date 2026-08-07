@@ -11,15 +11,15 @@ class PinnedRecordNavigation extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
 
-  static const labels = <String>[
-    'Overview',
-    'Signalment',
-    'Owner',
-    'Medical History',
-    'Consultations',
-    'Vaccinations',
-    'Laboratory',
-    'Hospitalization',
+  static const records = <(int, String)>[
+    (1, 'Signalment'),
+    (2, 'Owner'),
+    (3, 'Medical History'),
+    (4, 'Consultations'),
+    (5, 'Vaccinations'),
+    (6, 'Laboratory'),
+    (8, 'Surgery'),
+    (7, 'Hospitalization'),
   ];
 
   @override
@@ -30,14 +30,15 @@ class PinnedRecordNavigation extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
         scrollDirection: Axis.horizontal,
-        itemCount: labels.length,
+        itemCount: records.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final selected = index == selectedIndex;
+          final record = records[index];
+          final selected = record.$1 == selectedIndex;
           return ChoiceChip(
-            label: Text(labels[index]),
+            label: Text(record.$2),
             selected: selected,
-            onSelected: (_) => onSelected(index),
+            onSelected: (_) => onSelected(record.$1),
             selectedColor: scheme.primaryContainer,
             labelStyle: TextStyle(
               color: selected

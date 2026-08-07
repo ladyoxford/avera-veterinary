@@ -268,7 +268,8 @@ class _MedicalFileHubContentState
           if (quickAccessScope != null) ...[
             const SizedBox(height: 14),
             Text(
-              "Tap 'More Records' to see all record types and choose which eight stay pinned here.",
+              'Includes Medications, Billing, Appointments, Documents, '
+              'Images & AI, and Timeline.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -512,13 +513,11 @@ class _CloudMedicalRecordContentState
   @override
   Widget build(BuildContext context) {
     switch (widget.record.id) {
-      case 'overview':
-        return _CloudOverviewRecord(
-          file: widget.file,
+      case 'signalment':
+        return _CloudSignalmentRecord(
+          patient: widget.file.patient,
           referenceDate: ref.watch(animalAgeReferenceDateProvider),
         );
-      case 'signalment':
-        return _CloudSignalmentRecord(patient: widget.file.patient);
       case 'owner':
         return _CloudOwnerRecord(patient: widget.file.patient);
       case 'medical_history':
@@ -624,13 +623,11 @@ class _CloudMedicalRecordScreenState
 
   Widget _body() {
     switch (widget.record.id) {
-      case 'overview':
-        return _CloudOverviewRecord(
-          file: widget.file,
+      case 'signalment':
+        return _CloudSignalmentRecord(
+          patient: widget.file.patient,
           referenceDate: ref.watch(animalAgeReferenceDateProvider),
         );
-      case 'signalment':
-        return _CloudSignalmentRecord(patient: widget.file.patient);
       case 'owner':
         return _CloudOwnerRecord(patient: widget.file.patient);
       case 'medical_history':
@@ -738,152 +735,26 @@ class _CloudPatientSummary extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           const Divider(height: 1),
-          const SizedBox(height: 16),
-          _CompactDetailGrid(
-            values: [
-              ('Hospital number', patient.hospitalNumber),
-              ('Species', patient.species),
-              ('Breed', patient.breed ?? 'Not recorded'),
-              ('Sex', patient.sex ?? 'Not recorded'),
-              ('Age', age),
-              (
-                'Weight',
-                patient.currentWeightKg == null
-                    ? 'Not recorded'
-                    : '${patient.currentWeightKg} kg',
-              ),
-            ],
+          const SizedBox(height: 12),
+          Text(
+            [
+              patient.hospitalNumber,
+              patient.currentWeightKg == null
+                  ? 'Weight not recorded'
+                  : '${patient.currentWeightKg} kg',
+            ].join(' • '),
+            key: const Key('medical-file-patient-facts'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
     );
   }
-}
-
-class _CloudOverviewRecord extends StatelessWidget {
-  const _CloudOverviewRecord({required this.file, required this.referenceDate});
-
-  final RemotePatientMedicalFile file;
-  final DateTime referenceDate;
-
-  @override
-  Widget build(BuildContext context) {
-    final patient = file.patient;
-    final theme = Theme.of(context);
-    final age = _medicalProfileAge(patient, referenceDate);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-      children: [
-        Card(
-          key: const Key('medical-file-compact-overview'),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 34,
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Text(
-                        patient.name.trim().isEmpty
-                            ? '?'
-                            : patient.name.trim()[0].toUpperCase(),
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(patient.name, style: theme.textTheme.titleLarge),
-                          const SizedBox(height: 4),
-                          Text(
-                            [
-                              patient.species,
-                              patient.breed,
-                              patient.sex,
-                              age,
-                            ].whereType<String>().join(' • '),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Chip(
-                            visualDensity: VisualDensity.compact,
-                            label: Text(patient.status),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(height: 1),
-                const SizedBox(height: 14),
-                _CompactDetailGrid(
-                  values: [
-                    ('Hospital number', patient.hospitalNumber),
-                    ('Species', patient.species),
-                    ('Breed', patient.breed ?? 'Not recorded'),
-                    ('Sex', patient.sex ?? 'Not recorded'),
-                    ('Age', age),
-                    (
-                      'Weight',
-                      patient.currentWeightKg == null
-                          ? 'Not recorded'
-                          : '${patient.currentWeightKg} kg',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CompactDetailGrid extends StatelessWidget {
-  const _CompactDetailGrid({required this.values});
-
-  final List<(String, String)> values;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final width = (constraints.maxWidth - 12) / 2;
-      return Wrap(
-        spacing: 12,
-        runSpacing: 14,
-        children: [
-          for (final value in values)
-            SizedBox(
-              width: width,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value.$1,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(value.$2, style: Theme.of(context).textTheme.bodyLarge),
-                ],
-              ),
-            ),
-        ],
-      );
-    },
-  );
 }
 
 String _medicalProfileAge(RemotePatient patient, DateTime referenceDate) {
@@ -896,9 +767,13 @@ String _medicalProfileAge(RemotePatient patient, DateTime referenceDate) {
 }
 
 class _CloudSignalmentRecord extends StatelessWidget {
-  const _CloudSignalmentRecord({required this.patient});
+  const _CloudSignalmentRecord({
+    required this.patient,
+    required this.referenceDate,
+  });
 
   final RemotePatient patient;
+  final DateTime referenceDate;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -911,6 +786,15 @@ class _CloudSignalmentRecord extends StatelessWidget {
           _RemoteDetailRow('Species', patient.species),
           _RemoteDetailRow('Breed', patient.breed ?? 'Not specified'),
           _RemoteDetailRow('Sex', patient.sex ?? 'Not specified'),
+          _RemoteDetailRow('Age', _medicalProfileAge(patient, referenceDate)),
+          _RemoteDetailRow(
+            'Weight',
+            patient.currentWeightKg == null
+                ? 'Not recorded'
+                : '${patient.currentWeightKg} kg',
+          ),
+          _RemoteDetailRow('Hospital number', patient.hospitalNumber),
+          _RemoteDetailRow('Status', patient.status),
         ],
       ),
     ],
@@ -1209,9 +1093,9 @@ class _QuickAccessGrid extends StatelessWidget {
           itemCount: records.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 16,
-            mainAxisExtent: columns == 2 ? 174 : 150,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 116,
           ),
           itemBuilder: (context, index) {
             final record = records[index];
@@ -1251,13 +1135,13 @@ class _QuickAccessTile extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _RecordIcon(record: record),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   record.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.labelLarge?.copyWith(
+                  style: theme.textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1279,18 +1163,18 @@ class _RecordIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final size = compact ? 48.0 : 72.0;
+    final size = compact ? 48.0 : 56.0;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(compact ? 14 : 20),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Icon(
         record.icon,
         color: scheme.onPrimaryContainer,
-        size: compact ? 24 : 31,
+        size: compact ? 24 : 26,
       ),
     );
   }
@@ -1311,19 +1195,19 @@ class _QuickAccessSkeleton extends StatelessWidget {
           itemCount: 8,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 16,
-            mainAxisExtent: columns == 2 ? 174 : 150,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 116,
           ),
           itemBuilder: (_, __) => Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 72,
-                height: 72,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
                   color: color,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               const SizedBox(height: 10),
@@ -1336,13 +1220,7 @@ class _QuickAccessSkeleton extends StatelessWidget {
   }
 }
 
-int _quickAccessColumns(double width) => width >= 700
-    ? 5
-    : width >= 490
-    ? 4
-    : width >= 360
-    ? 3
-    : 2;
+int _quickAccessColumns(double width) => width >= 700 ? 5 : 4;
 
 class _MedicalFileHubLoading extends StatelessWidget {
   const _MedicalFileHubLoading();
@@ -1385,7 +1263,6 @@ class _MedicalFileRecord {
 }
 
 const _medicalFileRecords = <_MedicalFileRecord>[
-  _MedicalFileRecord('overview', 'Overview', Icons.dashboard_outlined, 0),
   _MedicalFileRecord('signalment', 'Signalment', Icons.pets_outlined, 1),
   _MedicalFileRecord('owner', 'Owner', Icons.person_outline_rounded, 2),
   _MedicalFileRecord(
@@ -1407,13 +1284,13 @@ const _medicalFileRecords = <_MedicalFileRecord>[
     5,
   ),
   _MedicalFileRecord('laboratory', 'Laboratory', Icons.science_outlined, 6),
+  _MedicalFileRecord('surgery', 'Surgery', Icons.medical_services_outlined, 8),
   _MedicalFileRecord(
     'hospitalization',
     'Hospitalization',
     Icons.local_hospital_outlined,
     7,
   ),
-  _MedicalFileRecord('surgery', 'Surgery', Icons.medical_services_outlined, 8),
   _MedicalFileRecord(
     'medications',
     'Medications',
@@ -1423,7 +1300,7 @@ const _medicalFileRecords = <_MedicalFileRecord>[
   _MedicalFileRecord('billing', 'Billing', Icons.receipt_long_outlined, 10),
   _MedicalFileRecord(
     'appointments',
-    'Schedule',
+    'Appointments',
     Icons.calendar_month_outlined,
     11,
   ),

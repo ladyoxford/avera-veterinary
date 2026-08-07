@@ -42,7 +42,7 @@ void main() {
       _subject(preferences, ageReferenceDate: DateTime(2026, 8, 6)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('1 year, 4 months'), findsWidgets);
+    expect(find.textContaining('1 year, 4 months'), findsWidgets);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -50,7 +50,7 @@ void main() {
       _subject(preferences, ageReferenceDate: DateTime(2027, 8, 6)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('2 years, 4 months'), findsWidgets);
+    expect(find.textContaining('2 years, 4 months'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -65,6 +65,15 @@ void main() {
 
       expect(find.text('Medical File'), findsOneWidget);
       expect(find.text('Luna \u2022 AVR-2026-00001'), findsOneWidget);
+      expect(find.textContaining('1 year, 4 months'), findsOneWidget);
+      expect(find.textContaining('AVR-2026-00001'), findsWidgets);
+      expect(find.textContaining('15.0 kg'), findsOneWidget);
+      expect(
+        find.byKey(const Key('medical-file-patient-facts')),
+        findsOneWidget,
+      );
+      expect(find.text('Hospital number'), findsNothing);
+      expect(find.text('Species'), findsNothing);
       expect(
         find.byKey(const Key('medical-file-quick-access-grid')),
         findsOneWidget,
@@ -73,13 +82,42 @@ void main() {
         find.byKey(const Key('medical-file-compact-overview')),
         findsNothing,
       );
+      expect(find.byKey(const Key('medical-file-tile-overview')), findsNothing);
       expect(
-        find.byKey(const Key('medical-file-tile-overview')),
+        find.byKey(const Key('medical-file-tile-surgery')),
         findsOneWidget,
       );
       expect(
         find.byKey(const Key('medical-file-tile-hospitalization')),
         findsOneWidget,
+      );
+      final quickAccessTiles = find.byWidgetPredicate(
+        (widget) =>
+            widget.key is ValueKey<String> &&
+            (widget.key! as ValueKey<String>).value.startsWith(
+              'medical-file-tile-',
+            ),
+      );
+      expect(quickAccessTiles, findsNWidgets(8));
+
+      final firstRow = [
+        'signalment',
+        'owner',
+        'medical_history',
+        'consultations',
+      ].map((id) => tester.getCenter(find.byKey(Key('medical-file-tile-$id'))));
+      final secondRow = [
+        'vaccinations',
+        'laboratory',
+        'surgery',
+        'hospitalization',
+      ].map((id) => tester.getCenter(find.byKey(Key('medical-file-tile-$id'))));
+      expect(firstRow.map((point) => point.dy).toSet().length, 1);
+      expect(secondRow.map((point) => point.dy).toSet().length, 1);
+      expect(secondRow.first.dy, greaterThan(firstRow.first.dy));
+      expect(
+        firstRow.map((point) => point.dx).toList(),
+        orderedEquals(firstRow.map((point) => point.dx).toList()..sort()),
       );
       expect(find.byType(ExpansionTile), findsNothing);
       expect(tester.takeException(), isNull);
@@ -120,13 +158,13 @@ void main() {
     await tester.pumpAndSettle();
 
     const recordIds = [
-      'overview',
       'signalment',
       'owner',
       'medical_history',
       'consultations',
       'vaccinations',
       'laboratory',
+      'surgery',
       'hospitalization',
     ];
     for (final recordId in recordIds) {
@@ -140,6 +178,79 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
+
+  testWidgets('Signalment retains detailed demographics and dynamic age', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_subject(preferences));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('medical-file-tile-signalment')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hospital number'), findsOneWidget);
+    expect(find.text('Species'), findsOneWidget);
+    expect(find.text('Breed'), findsOneWidget);
+    expect(find.text('Sex'), findsOneWidget);
+    expect(find.text('Age'), findsOneWidget);
+    expect(find.text('Weight'), findsOneWidget);
+    expect(find.text('1 year, 4 months'), findsOneWidget);
+    expect(find.text('15.0 kg'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('All Records does not expose the removed Overview destination', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_subject(preferences));
+    await tester.pumpAndSettle();
+    final moreRecords = find.byKey(const Key('medical-file-more-records'));
+    await tester.scrollUntilVisible(
+      moreRecords,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(moreRecords);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('medical-file-pin-overview')), findsNothing);
+    expect(find.text('Overview'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'legacy Overview preference migrates to the eight current modules',
+    (tester) async {
+      const preferenceKey =
+          'avera_medical_file_quick_access_v1_clinic-1_user-1';
+      await preferences.setStringList(preferenceKey, const [
+        'overview',
+        'signalment',
+        'owner',
+        'medical_history',
+        'consultations',
+        'vaccinations',
+        'laboratory',
+        'hospitalization',
+      ]);
+
+      await tester.pumpWidget(_subject(preferences));
+      await tester.pumpAndSettle();
+
+      final saved = preferences.getStringList(preferenceKey);
+      expect(saved, hasLength(8));
+      expect(saved, isNot(contains('overview')));
+      expect(saved, contains('surgery'));
+      expect(find.byKey(const Key('medical-file-tile-overview')), findsNothing);
+      expect(
+        find.byKey(const Key('medical-file-tile-surgery')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'empty production category opens a professional state with contextual action',
@@ -193,27 +304,27 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.byKey(const Key('medical-file-pin-overview')));
+      await tester.tap(find.byKey(const Key('medical-file-pin-signalment')));
       await tester.pump();
-      final surgeryPin = find.byKey(const Key('medical-file-pin-surgery'));
-      await tester.scrollUntilVisible(
-        surgeryPin,
-        260,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(surgeryPin);
-      await tester.pump();
-      expect(find.text('PINNED'), findsWidgets);
-
       final medicationsPin = find.byKey(
         const Key('medical-file-pin-medications'),
       );
       await tester.scrollUntilVisible(
         medicationsPin,
-        180,
+        260,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.tap(medicationsPin);
+      await tester.pump();
+      expect(find.text('PINNED'), findsWidgets);
+
+      final billingPin = find.byKey(const Key('medical-file-pin-billing'));
+      await tester.scrollUntilVisible(
+        billingPin,
+        180,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(billingPin);
       await tester.pump();
       expect(find.text('You can pin up to 8 records.'), findsOneWidget);
 
@@ -221,7 +332,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('medical-file-tile-overview')), findsNothing);
       expect(
-        find.byKey(const Key('medical-file-tile-surgery')),
+        find.byKey(const Key('medical-file-tile-signalment')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('medical-file-tile-medications')),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
@@ -242,7 +357,7 @@ void main() {
     await tester.tap(allRecords);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('medical-file-reorder-signalment')));
+    await tester.tap(find.byKey(const Key('medical-file-reorder-owner')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Move up'));
     await tester.pump();
@@ -252,7 +367,7 @@ void main() {
     final saved = preferences.getStringList(
       'avera_medical_file_quick_access_v1_clinic-1_user-1',
     );
-    expect(saved?.take(2), ['signalment', 'overview']);
+    expect(saved?.take(2), ['owner', 'signalment']);
     expect(tester.takeException(), isNull);
   });
 }
@@ -312,6 +427,7 @@ RemotePatientMedicalFile _medicalFile() => RemotePatientMedicalFile(
     originalAgeValue: 1,
     originalAgeUnit: 'years',
     ageRecordedAt: DateTime(2026, 4, 6),
+    currentWeightKg: 15.0,
   ),
   summaries: {
     'consultations': {'count': 0},

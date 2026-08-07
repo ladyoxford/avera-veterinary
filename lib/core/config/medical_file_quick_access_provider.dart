@@ -4,13 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/theme_controller.dart';
 
 const defaultMedicalFileQuickAccessIds = <String>[
-  'overview',
   'signalment',
   'owner',
   'medical_history',
   'consultations',
   'vaccinations',
   'laboratory',
+  'surgery',
   'hospitalization',
 ];
 
@@ -62,6 +62,9 @@ class MedicalFileQuickAccessController
     try {
       final saved = _preferences.getStringList(_scope.preferenceKey);
       final selection = _sanitize(saved);
+      if (saved != null && !_sameSelection(saved, selection)) {
+        await _preferences.setStringList(_scope.preferenceKey, selection);
+      }
       state = AsyncValue.data(selection);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
@@ -89,18 +92,31 @@ class MedicalFileQuickAccessController
 
   List<String> _sanitize(List<String>? values) {
     final unique = <String>[];
+    final removedOverview = values?.contains('overview') == true;
     for (final value in values ?? defaultMedicalFileQuickAccessIds) {
-      if (defaultMedicalFileQuickAccessIds.contains(value) ||
-          _supportedRecordIds.contains(value)) {
+      if (_supportedRecordIds.contains(value)) {
         if (!unique.contains(value) && unique.length < 8) unique.add(value);
+      }
+    }
+    if (removedOverview) {
+      for (final value in defaultMedicalFileQuickAccessIds) {
+        if (unique.length == 8) break;
+        if (!unique.contains(value)) unique.add(value);
       }
     }
     return unique.isEmpty ? List.of(defaultMedicalFileQuickAccessIds) : unique;
   }
+
+  bool _sameSelection(List<String> first, List<String> second) {
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
+  }
 }
 
 const _supportedRecordIds = <String>{
-  'overview',
   'signalment',
   'owner',
   'medical_history',

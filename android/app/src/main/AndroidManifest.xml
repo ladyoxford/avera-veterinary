@@ -52,6 +52,15 @@
                     android:host="accounts.averavet.sbs"
                     android:pathPrefix="/activate-clinic-admin" />
             </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="accounts.averavet.sbs"
+                    android:pathPrefix="/activate-staff" />
+            </intent-filter>
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

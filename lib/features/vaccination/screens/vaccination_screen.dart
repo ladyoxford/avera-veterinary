@@ -26,17 +26,35 @@ class RecordVaccinationArgs {
     : patientId = null,
       vaccinationScheduleId = null,
       vaccineProtocolId = null,
+      remotePatientId = null,
+      remoteVaccinationId = null,
+      remoteVaccineName = null,
       mode = RecordVaccinationMode.general;
 
   const RecordVaccinationArgs.scheduledDose({
     required this.patientId,
     required this.vaccinationScheduleId,
     required this.vaccineProtocolId,
-  }) : mode = RecordVaccinationMode.scheduledDose;
+  }) : remotePatientId = null,
+       remoteVaccinationId = null,
+       remoteVaccineName = null,
+       mode = RecordVaccinationMode.scheduledDose;
+
+  const RecordVaccinationArgs.remoteScheduledDose({
+    required this.remotePatientId,
+    required this.remoteVaccinationId,
+    required this.remoteVaccineName,
+  }) : patientId = null,
+       vaccinationScheduleId = null,
+       vaccineProtocolId = null,
+       mode = RecordVaccinationMode.scheduledDose;
 
   final int? patientId;
   final int? vaccinationScheduleId;
   final String? vaccineProtocolId;
+  final String? remotePatientId;
+  final String? remoteVaccinationId;
+  final String? remoteVaccineName;
   final RecordVaccinationMode mode;
 
   bool get locksPatientAndVaccine =>
@@ -75,6 +93,9 @@ class _VaccineScheduleScreenState extends ConsumerState<VaccineScheduleScreen> {
           child: Text('You do not have access to the vaccine schedule.'),
         ),
       );
+    }
+    if (BackendConfiguration.isConfigured) {
+      return _buildRemoteSchedule(session);
     }
     final repository = ref.watch(clinicRepositoryProvider);
     return Scaffold(
@@ -158,6 +179,113 @@ class _VaccineScheduleScreenState extends ConsumerState<VaccineScheduleScreen> {
                 else
                   for (final record in records) ...[
                     _VaccineScheduleCard(record: record, today: today),
+                    const SizedBox(height: 12),
+                  ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRemoteSchedule(UserSession session) {
+    final schedule = ref.watch(remoteVaccinationScheduleProvider);
+    return Scaffold(
+      floatingActionButton: session.can(Permissions.vaccinationsAdd)
+          ? FloatingActionButton.extended(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const RecordVaccinationScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Record Vaccination'),
+            )
+          : null,
+      body: SafeArea(
+        child: schedule.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.cloud_off_outlined, size: 40),
+                  const SizedBox(height: 12),
+                  const Text('Unable to load the vaccine schedule.'),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        ref.invalidate(remoteVaccinationScheduleProvider),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Try Again'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          data: (page) {
+            final today = DateTime.now();
+            final query = _query.trim().toLowerCase();
+            final records = page.items
+                .where((record) {
+                  final search = [
+                    record.patientName,
+                    record.hospitalNumber,
+                    record.ownerName,
+                    record.ownerPhone,
+                    record.vaccineName,
+                  ].whereType<String>().join(' ').toLowerCase();
+                  return _matchesRemoteFilter(record, _filter, today) &&
+                      search.contains(query);
+                })
+                .toList(growable: false);
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                AveraSpacing.bottomContentClearance,
+              ),
+              children: [
+                const AveraPageHeader(
+                  title: 'Vaccine Schedule',
+                  subtitle: 'Track due, upcoming and completed vaccinations.',
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: const InputDecoration(
+                    hintText: 'Search patients or vaccines',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Row(
+                    children: [
+                      for (final filter in VaccineScheduleFilter.values)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(_filterLabel(filter)),
+                            selected: _filter == filter,
+                            onSelected: (_) => setState(() => _filter = filter),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (records.isEmpty)
+                  _ScheduleEmpty(filter: _filter, hasSearch: query.isNotEmpty)
+                else
+                  for (final record in records) ...[
+                    _RemoteVaccineScheduleCard(record: record, today: today),
                     const SizedBox(height: 12),
                   ],
               ],
@@ -406,8 +534,43 @@ class _RecordVaccinationScreenState
   void initState() {
     super.initState();
     _dateGiven = DateTime.now();
-    if (widget.args.locksPatientAndVaccine) {
+    if (widget.args.remotePatientId != null) {
+      _initializeRemoteScheduledDose();
+    } else if (widget.args.locksPatientAndVaccine) {
       _initializeScheduledDose();
+    }
+  }
+
+  Future<void> _initializeRemoteScheduledDose() async {
+    setState(() => _initializing = true);
+    try {
+      final patient = await ref
+          .read(clinicalRemoteDataSourceProvider)
+          .patient(widget.args.remotePatientId!);
+      final protocol = VaccineCatalogue.protocols
+          .where((item) => item.name == widget.args.remoteVaccineName)
+          .firstOrNull;
+      final species = AnimalCatalogue.speciesForDisplayName(patient.species);
+      if (protocol == null ||
+          species == null ||
+          protocol.speciesId != species.id ||
+          !VaccineCatalogue.isCompatible(
+            speciesId: species.id,
+            vaccineName: protocol.name,
+          )) {
+        throw StateError('The configured vaccine protocol is unavailable.');
+      }
+      if (!mounted) return;
+      setState(() {
+        _remotePatient = patient;
+        _protocol = protocol;
+        _route = protocol.defaultRoute;
+        _dueDate = protocol.suggestedDueDate(_dateGiven);
+      });
+    } catch (error) {
+      if (mounted) setState(() => _initializationError = '$error');
+    } finally {
+      if (mounted) setState(() => _initializing = false);
     }
   }
 
@@ -793,7 +956,16 @@ class _RecordVaccinationScreenState
         });
         ref
           ..invalidate(remotePatientMedicalFileProvider(_remotePatient!.id))
-          ..invalidate(remoteDashboardProvider);
+          ..invalidate(remoteDashboardProvider)
+          ..invalidate(remoteVaccinationScheduleProvider)
+          ..invalidate(
+            remotePatientSectionProvider(
+              RemotePatientSectionRequest(
+                patientId: _remotePatient!.id,
+                section: 'vaccinations',
+              ),
+            ),
+          );
         if (!mounted) return;
         _message('Vaccination recorded successfully.');
         Navigator.pop(context);
@@ -1160,6 +1332,94 @@ class _VaccineScheduleCard extends StatelessWidget {
   }
 }
 
+class _RemoteVaccineScheduleCard extends StatelessWidget {
+  const _RemoteVaccineScheduleCard({required this.record, required this.today});
+
+  final RemoteVaccinationRecord record;
+  final DateTime today;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _remoteVaccinationStatus(record, today);
+    final format = DateFormat.yMMMd();
+    final patientDetails = [
+      record.hospitalNumber,
+      record.species,
+      record.breed,
+    ].whereType<String>().where((value) => value.isNotEmpty).join(' | ');
+    final ownerDetails = [
+      record.ownerName,
+      record.ownerPhone,
+    ].whereType<String>().where((value) => value.isNotEmpty).join(' | ');
+    return AveraSurfaceCard(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
+        onTap: () =>
+            context.push('/vaccinations/${Uri.encodeComponent(record.id)}'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  child: Text(
+                    record.patientName.trim().isEmpty
+                        ? '?'
+                        : record.patientName.trim()[0].toUpperCase(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        record.patientName,
+                        style: averaText(context).listItemTitle,
+                      ),
+                      if (patientDetails.isNotEmpty)
+                        Text(
+                          patientDetails,
+                          style: averaText(context).listItemSubtitle,
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _StatusPill(status: status),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(record.vaccineName, style: averaText(context).fieldValue),
+            if (ownerDetails.isNotEmpty)
+              Text(
+                'Owner: $ownerDetails',
+                style: averaText(context).listItemSubtitle,
+              ),
+            const SizedBox(height: 8),
+            Text(
+              'Last given: ${format.format(record.administeredAt.toLocal())}',
+              style: averaText(context).caption,
+            ),
+            Text(
+              record.nextDueAt == null
+                  ? 'No due date recorded'
+                  : 'Due: ${format.format(record.nextDueAt!.toLocal())}',
+              style: averaText(context).caption,
+            ),
+            if ((record.batchNumber ?? '').isNotEmpty)
+              Text(
+                'Batch: ${record.batchNumber} | ${record.manufacturer ?? 'Manufacturer not recorded'}',
+                style: averaText(context).caption,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PatientSummary extends StatelessWidget {
   const _PatientSummary({required this.profile, this.readOnly = false});
   final AnimalProfile profile;
@@ -1398,6 +1658,37 @@ bool _matchesFilter(
       vaccination.nextDueDate != null &&
           status != 'Overdue' &&
           status != 'Completed',
+    VaccineScheduleFilter.completed => status == 'Completed',
+  };
+}
+
+String _remoteVaccinationStatus(
+  RemoteVaccinationRecord vaccination,
+  DateTime now,
+) {
+  final due = vaccination.nextDueAt?.toLocal();
+  final start = DateTime(now.year, now.month, now.day);
+  if (due == null) return 'Completed';
+  if (due.isBefore(start)) return 'Overdue';
+  if (due.isBefore(start.add(const Duration(days: 1)))) return 'Due Today';
+  return 'Upcoming';
+}
+
+bool _matchesRemoteFilter(
+  RemoteVaccinationRecord vaccination,
+  VaccineScheduleFilter filter,
+  DateTime now,
+) {
+  final status = _remoteVaccinationStatus(vaccination, now);
+  return switch (filter) {
+    VaccineScheduleFilter.all => true,
+    VaccineScheduleFilter.dueNow =>
+      status == 'Overdue' || status == 'Due Today',
+    VaccineScheduleFilter.dueToday => status == 'Due Today',
+    VaccineScheduleFilter.upcoming => status == 'Upcoming',
+    VaccineScheduleFilter.overdue => status == 'Overdue',
+    VaccineScheduleFilter.followUp =>
+      vaccination.nextDueAt != null && status != 'Completed',
     VaccineScheduleFilter.completed => status == 'Completed',
   };
 }

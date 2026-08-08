@@ -27,6 +27,7 @@ const schema = z.object({
   PAYSTACK_ENTERPRISE_ANNUAL_PLAN_CODE: z.string().optional(),
   ACTIVATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(1440),
   AVERA_ACTIVATION_BASE_URL: z.string().min(1).default('https://accounts.averavet.sbs/activate-clinic-admin'),
+  AVERA_STAFF_ACTIVATION_BASE_URL: z.string().min(1).default('https://accounts.averavet.sbs/activate-staff'),
   RESEND_API_KEY: z.string().min(1).optional(),
   ACTIVATION_EMAIL_FROM: z.string().min(3).optional(),
   LOG_LEVEL: z.string().default('info'),

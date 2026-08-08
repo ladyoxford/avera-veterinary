@@ -119,6 +119,25 @@ void main() {
         firstRow.map((point) => point.dx).toList(),
         orderedEquals(firstRow.map((point) => point.dx).toList()..sort()),
       );
+      final firstRowIconTops =
+          ['signalment', 'owner', 'medical_history', 'consultations'].map(
+            (id) =>
+                tester.getTopLeft(find.byKey(Key('medical-file-icon-$id'))).dy,
+          );
+      final secondRowIconTops =
+          ['vaccinations', 'laboratory', 'surgery', 'hospitalization'].map(
+            (id) =>
+                tester.getTopLeft(find.byKey(Key('medical-file-icon-$id'))).dy,
+          );
+      expect(firstRowIconTops.toSet().length, 1);
+      expect(secondRowIconTops.toSet().length, 1);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('medical-file-label-consultations')),
+          matching: find.text('Consultations'),
+        ),
+        findsOneWidget,
+      );
       expect(find.byType(ExpansionTile), findsNothing);
       expect(tester.takeException(), isNull);
     },

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/remote/api_client.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
@@ -298,6 +299,19 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
             role: _role,
           );
       if (mounted) {
+        if (BackendConfiguration.isBackendMode) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                link == 'email-sent'
+                    ? 'Invitation sent. The staff member can create a password from the email link.'
+                    : 'Invitation created, but email delivery is not configured. Ask the platform owner to review email delivery.',
+              ),
+            ),
+          );
+          context.pop();
+          return;
+        }
         await Clipboard.setData(ClipboardData(text: link));
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -309,9 +323,15 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is ApiException
+                  ? error.message
+                  : error.toString().replaceFirst('Bad state: ', ''),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);

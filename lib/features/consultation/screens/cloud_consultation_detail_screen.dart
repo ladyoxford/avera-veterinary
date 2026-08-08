@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/config/app_providers.dart';
+import '../../../core/security/access_control.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
 import '../../shared/widgets/avera_ui.dart';
 
@@ -39,7 +42,27 @@ class _CloudConsultationDetailScreenState
   @override
   Widget build(BuildContext context) => Scaffold(
     key: ValueKey('cloud-consultation-${widget.consultationId}'),
-    appBar: AppBar(title: const Text('Consultation')),
+    appBar: AppBar(
+      title: const Text('Consultation'),
+      actions: [
+        if (ref
+                .watch(userSessionProvider)
+                .valueOrNull
+                ?.can(Permissions.consultationsEdit) ==
+            true)
+          IconButton(
+            tooltip: 'Edit consultation',
+            icon: const Icon(Icons.edit_rounded),
+            onPressed: () async {
+              final updated = await context.push<bool>(
+                '/consultations/${widget.consultationId}/edit'
+                '?patientId=${Uri.encodeQueryComponent(widget.patientId)}',
+              );
+              if (updated == true && mounted) setState(_load);
+            },
+          ),
+      ],
+    ),
     body: FutureBuilder<Map<String, dynamic>>(
       future: _consultation,
       builder: (context, snapshot) {

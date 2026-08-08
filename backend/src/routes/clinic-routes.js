@@ -5,6 +5,14 @@ import { permissions } from '../security/permissions.js';
 import { z } from 'zod';
 
 const changeRoleSchema = z.object({ roleId: z.string().uuid() });
+const inviteStaffSchema = z.object({
+  fullName: z.string().trim().min(1).max(160),
+  email: z.string().trim().email().max(254),
+  phone: z.string().trim().max(80).nullish(),
+  professionalTitle: z.string().trim().max(160).nullish(),
+  staffNumber: z.string().trim().max(80).nullish(),
+  roleName: z.string().trim().min(1).max(160),
+});
 
 const clinicUserSelect = `
   SELECT u.user_id AS "userId", u.full_name AS "fullName", u.email, u.phone,
@@ -139,6 +147,48 @@ export async function changeClinicUserRole(client, context) {
 }
 
 export async function clinicRoutes(app) {
+  app.post('/api/v1/users/invitations', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } }, preHandler: [authenticate, requirePermission(permissions.usersCreate)] }, async (request, reply) => {
+    if (!request.auth.clinicId) return clinicContextRequired(reply);
+    if (request.auth.accountType !== 'ClinicAdministrator') {
+      return reply.code(403).send({ error: 'staff_invitation_forbidden', message: 'Only a Clinic Administrator may invite staff.' });
+    }
+    const parsed = inviteStaffSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the staff invitation.' });
+    try {
+      const invitation = await app.activationService.inviteStaff({
+        ...parsed.data, clinicId: request.auth.clinicId,
+        actorUserId: request.auth.userId, sessionId: request.auth.sessionId,
+        ipAddress: request.ip,
+      });
+      reply.code(201);
+      return { invitation };
+    } catch (error) {
+      return reply.code(error.statusCode ?? 500).send({
+        error: error.code ?? 'staff_invitation_failed',
+        message: error.statusCode ? error.message : 'The staff invitation could not be created.',
+      });
+    }
+  });
+
+  app.post('/api/v1/users/:userId/invitation/resend', { config: { rateLimit: { max: 5, timeWindow: '1 hour' } }, preHandler: [authenticate, requirePermission(permissions.usersCreate)] }, async (request, reply) => {
+    if (!request.auth.clinicId) return clinicContextRequired(reply);
+    if (request.auth.accountType !== 'ClinicAdministrator') {
+      return reply.code(403).send({ error: 'staff_invitation_forbidden', message: 'Only a Clinic Administrator may resend staff invitations.' });
+    }
+    try {
+      return { invitation: await app.activationService.resendStaff({
+        targetUserId: request.params.userId, clinicId: request.auth.clinicId,
+        actorUserId: request.auth.userId, sessionId: request.auth.sessionId,
+        ipAddress: request.ip,
+      }) };
+    } catch (error) {
+      return reply.code(error.statusCode ?? 500).send({
+        error: error.code ?? 'staff_invitation_resend_failed',
+        message: error.statusCode ? error.message : 'The staff invitation could not be resent.',
+      });
+    }
+  });
+
   app.get('/api/v1/users', { preHandler: [authenticate, requirePermission(permissions.usersView)] }, async (request, reply) => {
     if (!request.auth.clinicId) return clinicContextRequired(reply);
     const users = await withTenantTransaction(app.pool, request.auth, async (client) => (

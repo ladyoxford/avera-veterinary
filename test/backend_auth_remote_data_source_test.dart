@@ -227,6 +227,54 @@ void main() {
     ]);
   });
 
+  test('vaccination schedule loads typed production records', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'avera_access_token': 'production-access-token',
+    });
+    final client = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/v1/vaccinations');
+      expect(request.url.queryParameters['pageSize'], '100');
+      return http.Response(
+        jsonEncode({
+          'items': [
+            {
+              'vaccination_id': '0715d24f-4c3d-4ebd-b617-f3c7a99ef415',
+              'patient_id': 'cb159739-c0cb-4503-a069-9d64563f47bc',
+              'patient_name': 'Luna',
+              'hospital_number': 'BIOCAMP-2026-00001',
+              'owner_name': 'Luna Owner',
+              'vaccine_name': 'Rabies',
+              'status': 'Completed',
+              'administered_at': '2026-08-06T10:00:00.000Z',
+              'next_due_at': '2027-08-06T10:00:00.000Z',
+            },
+          ],
+          'page': 1,
+          'pageSize': 100,
+          'total': 1,
+          'hasNextPage': false,
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final source = ClinicalRemoteDataSource(
+      ApiClient(
+        baseUrl: BackendConfiguration.productionApiBaseUrl,
+        tokens: const TokenStore(FlutterSecureStorage()),
+        client: client,
+      ),
+    );
+
+    final page = await source.vaccinationSchedule();
+
+    expect(page.items, hasLength(1));
+    expect(page.items.single.patientName, 'Luna');
+    expect(page.items.single.vaccineName, 'Rabies');
+    expect(page.items.single.nextDueAt, DateTime.utc(2027, 8, 6, 10));
+  });
+
   test(
     'ApiClient uses a configurable timeout with a 15-second development default',
     () {

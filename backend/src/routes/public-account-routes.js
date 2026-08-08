@@ -29,4 +29,16 @@ export async function publicAccountRoutes(app) {
       )
       .send(await activationPage);
   });
+  app.get('/activate-staff', async (_, reply) => {
+    return reply
+      .type('text/html; charset=utf-8')
+      .header('Cache-Control', 'no-store, max-age=0')
+      .header('Referrer-Policy', 'no-referrer')
+      .header('X-Robots-Tag', 'noindex, nofollow')
+      .header(
+        'Content-Security-Policy',
+        "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      )
+      .send(await activationPage);
+  });
 }

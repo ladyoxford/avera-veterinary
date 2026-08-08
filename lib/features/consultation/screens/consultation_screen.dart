@@ -255,6 +255,7 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
   };
 
   Future<void> _save() async {
+    if (_saving) return;
     if (BackendConfiguration.isConfigured && widget.isNew) {
       if (remotePatient == null) return;
     } else if (animalId == null) {
@@ -270,27 +271,40 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
     try {
       final session = await ref.read(userSessionProvider.future);
       if (BackendConfiguration.isConfigured && widget.isNew) {
-        await ref.read(remoteConsultationServiceProvider).create({
-          'submissionId': _submissionId,
-          'patientId': remotePatient!.id,
-          'chiefComplaint': complaint.text.trim(),
-          'history': history.text.trim(),
-          'examination': signs.text.trim(),
-          'diagnosis': diagnosis.text.trim(),
-          'treatment': treatment.text.trim(),
-          'prescription': prescription.text.trim(),
-          'veterinarian': vet.text.trim(),
-        });
+        final patientId = remotePatient!.id;
+        final created = await ref
+            .read(remoteConsultationServiceProvider)
+            .create({
+              'submissionId': _submissionId,
+              'patientId': patientId,
+              'chiefComplaint': complaint.text.trim(),
+              'history': history.text.trim(),
+              'examination': signs.text.trim(),
+              'diagnosis': diagnosis.text.trim(),
+              'treatment': treatment.text.trim(),
+              'prescription': prescription.text.trim(),
+              'veterinarian': vet.text.trim(),
+            });
         ref
           ..invalidate(remoteDashboardProvider)
-          ..invalidate(remotePatientMedicalFileProvider(remotePatient!.id));
+          ..invalidate(remotePatientMedicalFileProvider(patientId))
+          ..invalidate(
+            remotePatientSectionProvider(
+              RemotePatientSectionRequest(
+                patientId: patientId,
+                section: 'consultations',
+              ),
+            ),
+          );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Consultation saved to the medical file.'),
           ),
         );
-        context.pop();
+        context.pushReplacement(
+          '/consultations/${created.id}?patientId=${Uri.encodeQueryComponent(patientId)}',
+        );
         return;
       }
       final values = VisitsCompanion(

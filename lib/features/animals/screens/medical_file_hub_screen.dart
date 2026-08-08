@@ -205,7 +205,7 @@ class _MedicalFileHubContentState
           Row(
             children: [
               Expanded(
-                child: Text('Quick Access', style: theme.textTheme.titleLarge),
+                child: Text('Quick Access', style: theme.textTheme.titleMedium),
               ),
               Semantics(
                 button: true,
@@ -692,7 +692,7 @@ class _CloudPatientSummary extends StatelessWidget {
           Row(
             children: [
               CircleAvatar(
-                radius: 32,
+                radius: 28,
                 backgroundColor: theme.colorScheme.primaryContainer,
                 child: Text(
                   patient.name.trim().isEmpty
@@ -708,7 +708,7 @@ class _CloudPatientSummary extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(patient.name, style: theme.textTheme.titleLarge),
+                    Text(patient.name, style: theme.textTheme.titleMedium),
                     const SizedBox(height: 4),
                     Text(
                       [
@@ -719,7 +719,7 @@ class _CloudPatientSummary extends StatelessWidget {
                       ].whereType<String>().join(' \u2022 '),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                      style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
@@ -1132,17 +1132,25 @@ class _QuickAccessTile extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 _RecordIcon(record: record),
                 const SizedBox(height: 8),
-                Text(
-                  record.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                SizedBox(
+                  key: Key('medical-file-label-${record.id}'),
+                  width: double.infinity,
+                  height: 24,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.topCenter,
+                    child: Text(
+                      record.title,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1165,6 +1173,7 @@ class _RecordIcon extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final size = compact ? 48.0 : 56.0;
     return Container(
+      key: Key('medical-file-icon-${record.id}'),
       width: size,
       height: size,
       decoration: BoxDecoration(

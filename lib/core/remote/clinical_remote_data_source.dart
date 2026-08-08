@@ -224,6 +224,77 @@ class RemoteConsultationCreation {
   }
 }
 
+class RemoteVaccinationRecord {
+  const RemoteVaccinationRecord({
+    required this.id,
+    required this.patientId,
+    required this.patientName,
+    required this.hospitalNumber,
+    required this.vaccineName,
+    required this.status,
+    required this.administeredAt,
+    this.nextDueAt,
+    this.species,
+    this.breed,
+    this.ownerName,
+    this.ownerPhone,
+    this.manufacturer,
+    this.batchNumber,
+  });
+
+  final String id;
+  final String patientId;
+  final String patientName;
+  final String hospitalNumber;
+  final String vaccineName;
+  final String status;
+  final DateTime administeredAt;
+  final DateTime? nextDueAt;
+  final String? species;
+  final String? breed;
+  final String? ownerName;
+  final String? ownerPhone;
+  final String? manufacturer;
+  final String? batchNumber;
+
+  factory RemoteVaccinationRecord.fromJson(Map<String, dynamic> value) =>
+      RemoteVaccinationRecord(
+        id: value['vaccination_id'] as String,
+        patientId: value['patient_id'] as String,
+        patientName: value['patient_name']?.toString() ?? 'Patient',
+        hospitalNumber: value['hospital_number']?.toString() ?? '',
+        vaccineName: value['vaccine_name']?.toString() ?? 'Vaccination',
+        status: value['status']?.toString() ?? 'Completed',
+        administeredAt:
+            _date(value['administered_at']) ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+        nextDueAt: _date(value['next_due_at']),
+        species: value['species']?.toString(),
+        breed: value['breed']?.toString(),
+        ownerName: value['owner_name']?.toString(),
+        ownerPhone: value['owner_phone']?.toString(),
+        manufacturer: value['manufacturer']?.toString(),
+        batchNumber: value['batch_number']?.toString(),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'vaccination_id': id,
+    'patient_id': patientId,
+    'patient_name': patientName,
+    'hospital_number': hospitalNumber,
+    'vaccine_name': vaccineName,
+    'status': status,
+    'administered_at': administeredAt.toIso8601String(),
+    'next_due_at': nextDueAt?.toIso8601String(),
+    'species': species,
+    'breed': breed,
+    'owner_name': ownerName,
+    'owner_phone': ownerPhone,
+    'manufacturer': manufacturer,
+    'batch_number': batchNumber,
+  };
+}
+
 class RemoteDashboardSummary {
   const RemoteDashboardSummary({
     required this.registeredPatients,
@@ -459,6 +530,21 @@ class ClinicalRemoteDataSource {
     String? search,
   }) => _generic('/api/v1/vaccinations', page: page, search: search);
 
+  Future<RemotePage<RemoteVaccinationRecord>> vaccinationSchedule({
+    int page = 1,
+    int pageSize = 100,
+    String? search,
+  }) async {
+    final response = await _client.get(
+      _path('/api/v1/vaccinations', {
+        'page': '$page',
+        'pageSize': '$pageSize',
+        if (search?.isNotEmpty ?? false) 'search': search!,
+      }),
+    );
+    return _page(response, RemoteVaccinationRecord.fromJson);
+  }
+
   Future<Map<String, dynamic>> createVaccination(
     Map<String, dynamic> payload,
   ) async => Map<String, dynamic>.from(
@@ -468,6 +554,11 @@ class ClinicalRemoteDataSource {
       authenticated: true,
     ),
   );
+
+  Future<Map<String, dynamic>> vaccination(String vaccinationId) async =>
+      Map<String, dynamic>.from(
+        await _client.get('/api/v1/vaccinations/$vaccinationId'),
+      );
   Future<RemotePage<Map<String, dynamic>>> laboratory({
     int page = 1,
     String? search,
@@ -566,6 +657,13 @@ class ClinicalRemoteDataSource {
     Map<String, dynamic> payload,
   ) async => Map<String, dynamic>.from(
     await _client.post('/api/v1/schedule', body: payload, authenticated: true),
+  );
+
+  Future<Map<String, dynamic>> updateConsultation({
+    required String consultationId,
+    required Map<String, dynamic> payload,
+  }) async => Map<String, dynamic>.from(
+    await _client.patch('/api/v1/consultations/$consultationId', body: payload),
   );
   Future<RemotePage<Map<String, dynamic>>> invoices({
     int page = 1,

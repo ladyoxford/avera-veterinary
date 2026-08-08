@@ -29,6 +29,7 @@ import '../../features/billing/screens/billing_screen.dart';
 import '../../features/billing/screens/billing_history_screen.dart';
 import '../../features/consultation/screens/consultation_screen.dart';
 import '../../features/consultation/screens/cloud_consultation_detail_screen.dart';
+import '../../features/consultation/screens/cloud_consultation_edit_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
 import '../../features/reports/screens/reports_screen.dart';
 import '../../features/shared/screens/appointments_screen.dart';
@@ -47,6 +48,7 @@ import '../../features/farm/screens/farm_daily_record_editor_screen.dart';
 import '../../features/shared/widgets/app_scaffold.dart';
 import '../../features/shared/widgets/feature_gate.dart';
 import '../../features/vaccination/screens/vaccination_screen.dart';
+import '../../features/vaccination/screens/cloud_vaccination_detail_screen.dart';
 import '../../features/vera/screens/vera_screen.dart';
 import '../services/feature_gate_service.dart';
 
@@ -73,6 +75,13 @@ final appRouter = GoRouter(
       path: '/activate-clinic-admin',
       builder: (context, state) => ClinicAdministratorActivationScreen(
         token: clinicAdministratorActivationToken(state.uri) ?? '',
+      ),
+    ),
+    GoRoute(
+      path: '/activate-staff',
+      builder: (context, state) => ClinicAdministratorActivationScreen(
+        token: staffActivationToken(state.uri) ?? '',
+        staffActivation: true,
       ),
     ),
     GoRoute(
@@ -394,10 +403,17 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/consultations/:consultationId/edit',
-          builder: (context, state) => ConsultationScreen(
-            mode: ConsultationScreenMode.edit,
-            consultationId: int.parse(state.pathParameters['consultationId']!),
-          ),
+          builder: (context, state) => BackendConfiguration.isConfigured
+              ? CloudConsultationEditScreen(
+                  consultationId: state.pathParameters['consultationId']!,
+                  patientId: state.uri.queryParameters['patientId'] ?? '',
+                )
+              : ConsultationScreen(
+                  mode: ConsultationScreenMode.edit,
+                  consultationId: int.parse(
+                    state.pathParameters['consultationId']!,
+                  ),
+                ),
         ),
         GoRoute(
           path: '/consultations/:consultationId',
@@ -446,6 +462,11 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/vaccinations/record',
           builder: (context, state) {
+            final remotePatientId =
+                state.uri.queryParameters['remotePatientId'];
+            final remoteVaccinationId =
+                state.uri.queryParameters['remoteVaccinationId'];
+            final remoteVaccineName = state.uri.queryParameters['vaccineName'];
             final patientId = int.tryParse(
               state.uri.queryParameters['patientId'] ?? '',
             );
@@ -454,7 +475,15 @@ final appRouter = GoRouter(
             );
             final protocolId = state.uri.queryParameters['protocolId'];
             final args =
-                patientId != null && scheduleId != null && protocolId != null
+                remotePatientId != null &&
+                    remoteVaccinationId != null &&
+                    remoteVaccineName != null
+                ? RecordVaccinationArgs.remoteScheduledDose(
+                    remotePatientId: remotePatientId,
+                    remoteVaccinationId: remoteVaccinationId,
+                    remoteVaccineName: remoteVaccineName,
+                  )
+                : patientId != null && scheduleId != null && protocolId != null
                 ? RecordVaccinationArgs.scheduledDose(
                     patientId: patientId,
                     vaccinationScheduleId: scheduleId,
@@ -466,9 +495,15 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/vaccinations/:vaccinationId',
-          builder: (context, state) => VaccinationDetailScreen(
-            vaccinationId: int.parse(state.pathParameters['vaccinationId']!),
-          ),
+          builder: (context, state) => BackendConfiguration.isConfigured
+              ? CloudVaccinationDetailScreen(
+                  vaccinationId: state.pathParameters['vaccinationId']!,
+                )
+              : VaccinationDetailScreen(
+                  vaccinationId: int.parse(
+                    state.pathParameters['vaccinationId']!,
+                  ),
+                ),
         ),
         GoRoute(
           path: '/notifications',

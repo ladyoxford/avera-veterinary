@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:avera/core/config/app_providers.dart';
 import 'package:avera/core/database/app_database.dart';
 import 'package:avera/core/remote/api_client.dart';
 import 'package:avera/core/remote/clinical_remote_data_source.dart';
@@ -9,6 +10,7 @@ import 'package:avera/core/repositories/cloud_cache_repository.dart';
 import 'package:avera/core/security/access_control.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -234,11 +236,76 @@ void main() {
     )..where((row) => row.serverId.equals(created.id))).getSingle();
     expect(synchronization.entityType, 'consultation');
   });
+
+  test(
+    'confirmed consultation is returned even when cache bookkeeping fails',
+    () async {
+      final service = RemoteConsultationService(
+        source,
+        _FailingCloudCacheRepository(database),
+        () async => _session(const {
+          Permissions.consultationsView,
+          Permissions.consultationsCreate,
+        }),
+      );
+
+      final created = await service.create(const {
+        'submissionId': 'c0205ff9-bc94-4bfa-aa05-a3527760f488',
+        'patientId': _patientId,
+        'chiefComplaint': 'Reduced appetite',
+      });
+
+      expect(created.patientId, _patientId);
+      expect(source.consultationCreateCalls, 1);
+    },
+  );
+
+  test(
+    'remote vaccination schedule remains available when cache write fails',
+    () async {
+      source.vaccinationsValue = [_vaccination()];
+      final container = ProviderContainer(
+        overrides: [
+          userSessionProvider.overrideWith(
+            (ref) async => _session(const {Permissions.vaccinationsView}),
+          ),
+          clinicalRemoteDataSourceProvider.overrideWithValue(source),
+          cloudCacheRepositoryProvider.overrideWithValue(
+            _FailingCloudCacheRepository(database),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final page = await container.read(
+        remoteVaccinationScheduleProvider.future,
+      );
+
+      expect(page.items, hasLength(1));
+      expect(page.items.single.patientName, 'Luna');
+      expect(source.vaccinationScheduleCalls, 1);
+    },
+  );
+}
+
+class _FailingCloudCacheRepository extends CloudCacheRepository {
+  _FailingCloudCacheRepository(super.database);
+
+  @override
+  Future<void> recordEntity({
+    required String entityType,
+    required String serverId,
+    required String clinicId,
+    int? revision,
+    DateTime? serverUpdatedAt,
+    bool deleted = false,
+  }) => Future<void>.error(StateError('Cache unavailable'));
 }
 
 const _clinicId = '4fe1dc83-56af-4a36-b3c9-34c93029a537';
 const _patientId = '1d919db7-68c4-4c73-a6c9-04c04b4f3795';
 const _inventoryId = 'db681307-05a9-47ca-b6f6-8a8ba86037da';
+const _vaccinationId = '0715d24f-4c3d-4ebd-b617-f3c7a99ef415';
 
 UserSession _session(Set<String> permissions) => UserSession(
   clinic: Clinic(
@@ -305,6 +372,18 @@ RemoteInventoryItem _inventoryItem() => RemoteInventoryItem(
   updatedAt: DateTime(2026, 8, 1),
 );
 
+RemoteVaccinationRecord _vaccination() => RemoteVaccinationRecord(
+  id: _vaccinationId,
+  patientId: _patientId,
+  patientName: 'Luna',
+  hospitalNumber: 'AVR-2026-00001',
+  vaccineName: 'Rabies',
+  status: 'Completed',
+  administeredAt: DateTime.utc(2026, 8, 6),
+  nextDueAt: DateTime.utc(2027, 8, 6),
+  ownerName: 'Luna Owner',
+);
+
 class _FakeClinicalRemoteDataSource extends ClinicalRemoteDataSource {
   _FakeClinicalRemoteDataSource()
     : super(
@@ -321,6 +400,7 @@ class _FakeClinicalRemoteDataSource extends ClinicalRemoteDataSource {
   int patientStatusCalls = 0;
   int inventoryCreateCalls = 0;
   int consultationCreateCalls = 0;
+  int vaccinationScheduleCalls = 0;
   Completer<RemoteInventoryItem>? inventoryCreateCompletion;
 
   @override
@@ -398,6 +478,24 @@ class _FakeClinicalRemoteDataSource extends ClinicalRemoteDataSource {
       patientId: _patientId,
       submissionId: 'c0205ff9-bc94-4bfa-aa05-a3527760f488',
       duplicateSubmission: false,
+    );
+  }
+
+  List<RemoteVaccinationRecord> vaccinationsValue = const [];
+
+  @override
+  Future<RemotePage<RemoteVaccinationRecord>> vaccinationSchedule({
+    int page = 1,
+    int pageSize = 100,
+    String? search,
+  }) async {
+    vaccinationScheduleCalls += 1;
+    return RemotePage(
+      items: vaccinationsValue,
+      page: page,
+      pageSize: pageSize,
+      total: vaccinationsValue.length,
+      hasNextPage: false,
     );
   }
 }

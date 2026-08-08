@@ -10,6 +10,7 @@ import { verifyPassword } from '../src/security/passwords.js';
 const environment = {
   ACTIVATION_TOKEN_TTL_MINUTES: 60,
   AVERA_ACTIVATION_BASE_URL: 'https://accounts.averavet.sbs/activate-clinic-admin',
+  AVERA_STAFF_ACTIVATION_BASE_URL: 'https://accounts.averavet.sbs/activate-staff',
 };
 
 function service(pool) {
@@ -149,6 +150,71 @@ function tokenHarness({ expired = false, used = false } = {}) {
   };
 }
 
+function staffHarness({ expired = false, used = false, revoked = false } = {}) {
+  const rawToken = 'secure-staff-activation-token-with-more-than-32-characters';
+  const state = {
+    calls: [],
+    userStatus: 'PendingActivation',
+    membershipStatus: 'Invited',
+    passwordHash: null,
+    usedAt: used ? new Date() : null,
+    revokedAt: revoked ? new Date() : null,
+    tokenInsertCount: 0,
+  };
+  const client = {
+    async query(sql, parameters = []) {
+      state.calls.push({ sql, parameters });
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql.includes("set_config('avera.")) return { rows: [] };
+      if (sql.includes('SELECT r.code FROM clinic_memberships')) return { rows: [{ code: 'clinic_administrator' }] };
+      if (sql.includes('SELECT role_id, name, code FROM roles')) return { rows: [{ role_id: 'role-vet', name: 'Veterinarian', code: 'veterinarian' }] };
+      if (sql.includes('SELECT * FROM users WHERE email')) return { rows: [] };
+      if (sql.includes('INSERT INTO users')) return { rows: [{ user_id: 'staff-1', clinic_id: 'clinic-1', full_name: parameters[1], email: parameters[2], status: 'PendingActivation' }] };
+      if (sql.includes('INSERT INTO clinic_memberships') || sql.includes('INSERT INTO staff_profiles')) return { rows: [] };
+      if (sql.includes('SELECT name FROM clinics')) return { rows: [{ name: 'Ada Veterinary Clinic' }] };
+      if (sql.includes('UPDATE activation_tokens SET revoked_at')) {
+        state.revokedAt = new Date();
+        return { rows: [] };
+      }
+      if (sql.includes('INSERT INTO activation_tokens')) {
+        state.tokenInsertCount += 1;
+        return { rows: [{ token_id: `staff-token-${state.tokenInsertCount}` }] };
+      }
+      if (sql.includes('FROM activation_tokens t')) {
+        if (parameters[0] !== hashToken(rawToken)) return { rows: [] };
+        return { rows: [{
+          token_id: 'staff-token-existing', user_id: 'staff-1', clinic_id: 'clinic-1',
+          expires_at: expired ? new Date(Date.now() - 1000) : new Date(Date.now() + 60000),
+          used_at: state.usedAt, revoked_at: state.revokedAt,
+          full_name: 'Jane Vet', email: 'jane@example.com',
+          user_status: state.userStatus, membership_status: state.membershipStatus,
+          clinic_name: 'Ada Veterinary Clinic', clinic_status: 'Active', role_name: 'Veterinarian',
+        }] };
+      }
+      if (sql.includes('UPDATE users SET password_hash')) {
+        state.passwordHash = parameters[1];
+        state.userStatus = 'Active';
+        return { rows: [] };
+      }
+      if (sql.includes("UPDATE clinic_memberships SET membership_status='Active'")) {
+        state.membershipStatus = 'Active';
+        return { rows: [] };
+      }
+      if (sql.includes('UPDATE activation_tokens') && sql.includes('used_at=CASE')) {
+        state.usedAt = parameters[2];
+        return { rows: [] };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      throw new Error(`Unexpected staff activation query: ${sql}`);
+    },
+    release() {},
+  };
+  return {
+    rawToken,
+    state,
+    pool: { connect: async () => client, query: (...arguments_) => client.query(...arguments_) },
+  };
+}
+
 test('approval provisions exactly one passwordless pending administrator and is idempotent', async () => {
   const harness = approvalHarness();
   const activation = service(harness.pool);
@@ -215,6 +281,40 @@ test('successful activation stores bcrypt only, enables login credentials, and p
     }),
     /already been used/i,
   );
+});
+
+test('staff invitation is passwordless, token-hashed, tenant-scoped, and pending activation', async () => {
+  const harness = staffHarness();
+  const result = await service(harness.pool).inviteStaff({
+    clinicId: 'clinic-1', actorUserId: 'admin-1', fullName: 'Jane Vet',
+    email: 'jane@example.com', roleName: 'Veterinarian', ipAddress: '127.0.0.1',
+  });
+  assert.equal(result.status, 'PendingActivation');
+  assert.equal(result.delivery.status, 'DeliveryUnavailable');
+  const userInsert = harness.state.calls.find((call) => call.sql.includes('INSERT INTO users'));
+  assert.match(userInsert.sql, /NULL,'ClinicStaff','PendingActivation'/);
+  const tokenInsert = harness.state.calls.find((call) => call.sql.includes('INSERT INTO activation_tokens'));
+  assert.equal(typeof tokenInsert.parameters[3], 'string');
+  assert.equal(JSON.stringify(harness.state.calls).includes('secure-staff-activation-token'), false);
+});
+
+test('staff activation hashes the password, activates membership, and rejects expired or reused links', async () => {
+  const harness = staffHarness();
+  const password = 'SecureStaff#2026';
+  const result = await service(harness.pool).activateStaff({
+    rawToken: harness.rawToken, password, confirmPassword: password,
+  });
+  assert.equal(result.activated, true);
+  assert.equal(harness.state.userStatus, 'Active');
+  assert.equal(harness.state.membershipStatus, 'Active');
+  assert.notEqual(harness.state.passwordHash, password);
+  assert.equal(await verifyPassword(password, harness.state.passwordHash), true);
+  await assert.rejects(service(harness.pool).activateStaff({
+    rawToken: harness.rawToken, password, confirmPassword: password,
+  }), /already been used/i);
+  await assert.rejects(service(staffHarness({ expired: true }).pool).inspectStaff(
+    staffHarness({ expired: true }).rawToken,
+  ), /invalid|expired/i);
 });
 
 test('resend revokes the previous token and issues a different one', async () => {

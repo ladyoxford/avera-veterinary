@@ -18,6 +18,12 @@ abstract class AuthRemoteDataSource {
     required String password,
     required String confirmPassword,
   });
+  Future<RemoteStaffActivation> inspectStaffActivation(String token);
+  Future<RemoteClinicAdministratorActivationResult> activateStaff({
+    required String token,
+    required String password,
+    required String confirmPassword,
+  });
   Future<RemoteAuthSession> verifyMfa({
     required String challengeToken,
     String? code,
@@ -71,6 +77,21 @@ class RemoteClinicAdministratorActivationResult {
 
   final String email;
   final bool mfaEnrollmentRecommended;
+}
+
+class RemoteStaffActivation {
+  const RemoteStaffActivation({
+    required this.clinicName,
+    required this.staffName,
+    required this.email,
+    required this.roleName,
+    required this.expiresAt,
+  });
+  final String clinicName;
+  final String staffName;
+  final String email;
+  final String roleName;
+  final DateTime expiresAt;
 }
 
 class MfaRequiredException implements Exception {

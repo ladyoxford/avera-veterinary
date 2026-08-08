@@ -8,8 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_providers.dart';
-import '../../../core/config/backend_configuration.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/remote/api_client.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/repositories/clinic_repository.dart';
@@ -34,6 +34,9 @@ class AppointmentsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (BackendConfiguration.isBackendMode) {
+      return const _RemoteAppointmentsScreen();
+    }
     final repository = ref.watch(clinicRepositoryProvider);
     final session = ref.watch(userSessionProvider).valueOrNull;
     return Scaffold(
@@ -115,6 +118,96 @@ class AppointmentsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _RemoteAppointmentsScreen extends ConsumerWidget {
+  const _RemoteAppointmentsScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(userSessionProvider).valueOrNull;
+    final schedule = ref.watch(remoteAppointmentScheduleProvider);
+    return Scaffold(
+      floatingActionButton: session?.can(Permissions.appointmentsCreate) == true
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/appointments/new'),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Appointment'),
+            )
+          : null,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: () =>
+              ref.refresh(remoteAppointmentScheduleProvider.future),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 112),
+            children: [
+              const AveraPageHeader(
+                title: 'Schedule',
+                subtitle: 'Scheduled clinic visits',
+              ),
+              const SizedBox(height: 24),
+              schedule.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, __) => const _MessageCard(
+                  icon: Icons.cloud_off_outlined,
+                  title: 'Schedule unavailable',
+                  message:
+                      'Pull down to retry. Cached appointments remain available when present.',
+                ),
+                data: (page) => page.items.isEmpty
+                    ? const _MessageCard(
+                        icon: Icons.calendar_month_outlined,
+                        title: 'No scheduled visits',
+                        message:
+                            'Create an appointment to begin planning the clinic day.',
+                      )
+                    : AveraSurfaceCard(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          children: [
+                            for (
+                              var index = 0;
+                              index < page.items.length;
+                              index++
+                            ) ...[
+                              ListTile(
+                                minTileHeight: 76,
+                                leading: const Icon(
+                                  Icons.calendar_month_rounded,
+                                ),
+                                title: Text(
+                                  page.items[index]['patient_name']
+                                          ?.toString() ??
+                                      'Patient',
+                                  style: averaText(context).listItemTitle,
+                                ),
+                                subtitle: Text(
+                                  '${page.items[index]['visit_type'] ?? 'Visit'} | ${_remoteAppointmentDate(page.items[index]['scheduled_at'])}',
+                                  style: averaText(context).listItemSubtitle,
+                                ),
+                              ),
+                              if (index != page.items.length - 1)
+                                const Divider(height: 1, indent: 72),
+                            ],
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _remoteAppointmentDate(Object? value) {
+  final date = DateTime.tryParse('$value')?.toLocal();
+  return date == null
+      ? 'Date unavailable'
+      : DateFormat.yMMMd().add_jm().format(date);
 }
 
 class AppointmentDetailScreen extends ConsumerWidget {
@@ -1037,8 +1130,12 @@ class _NewAppointmentScreenState extends ConsumerState<NewAppointmentScreen> {
         });
         ref
           ..invalidate(remotePatientMedicalFileProvider(_remotePatient!.id))
-          ..invalidate(remoteDashboardProvider);
-        if (mounted) context.pop();
+          ..invalidate(remoteDashboardProvider)
+          ..invalidate(remoteAppointmentScheduleProvider);
+        if (mounted) {
+          _showMessage(context, 'Appointment saved.');
+          context.pop();
+        }
         return;
       }
       final appointment = await ref
@@ -1061,11 +1158,35 @@ class _NewAppointmentScreenState extends ConsumerState<NewAppointmentScreen> {
       ref.invalidate(appointmentDetailProvider(appointment.id));
       if (mounted) context.replace('/appointments/${appointment.id}');
     } catch (error) {
-      if (mounted) _showMessage(context, '$error');
+      if (mounted) _showMessage(context, _appointmentErrorMessage(error));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
+}
+
+String _appointmentErrorMessage(Object error) {
+  if (error is! ApiException) {
+    return 'The appointment could not be saved right now.';
+  }
+  return switch (error.code) {
+    'validation_error' => 'Please check the appointment details.',
+    'session_expired' ||
+    'invalid_session' => 'Your session has expired. Please sign in again.',
+    'permission_denied' ||
+    'forbidden' => 'You do not have permission to create appointments.',
+    'patient_not_found' => 'The selected patient could not be found.',
+    'invalid_staff' ||
+    'staff_not_found' => 'The assigned staff member could not be found.',
+    'conflict' ||
+    'duplicate' => 'This appointment conflicts with an existing record.',
+    'network_unavailable' || 'request_timeout' =>
+      'The appointment could not be sent. Your entries are still available.',
+    _ =>
+      error.statusCode != null && error.statusCode! >= 500
+          ? 'The appointment could not be saved right now.'
+          : error.message,
+  };
 }
 
 class _PatientPickerSheet extends ConsumerStatefulWidget {

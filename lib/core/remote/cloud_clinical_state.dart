@@ -544,11 +544,18 @@ class RemoteConsultationService {
       throw StateError('You do not have permission to create consultations.');
     }
     final consultation = await _source.createConsultation(payload);
-    await _cache.recordEntity(
-      entityType: 'consultation',
-      serverId: consultation.id,
-      clinicId: session.clinic.clinicId,
-      serverUpdatedAt: DateTime.now(),
+    unawaited(
+      _cache
+          .recordEntity(
+            entityType: 'consultation',
+            serverId: consultation.id,
+            clinicId: session.clinic.clinicId,
+            serverUpdatedAt: DateTime.now(),
+          )
+          .catchError((Object _) {
+            // The backend commit is authoritative. Cache bookkeeping must never
+            // turn a confirmed consultation into a false save failure.
+          }),
     );
     return consultation;
   }
@@ -647,6 +654,92 @@ final remotePatientSectionProvider = FutureProvider.autoDispose
             'total': page.total,
             'hasNextPage': page.hasNextPage,
           },
+        );
+        return page;
+      } catch (_) {
+        final cached = await cache.get(key, clinicId: session.clinic.clinicId);
+        if (cached == null) rethrow;
+        return RemotePage<Map<String, dynamic>>(
+          items: (cached['items'] as List<dynamic>? ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList(),
+          page: cached['page'] as int? ?? 1,
+          pageSize: cached['pageSize'] as int? ?? 25,
+          total: cached['total'] as int? ?? 0,
+          hasNextPage: cached['hasNextPage'] == true,
+        );
+      }
+    });
+
+final remoteVaccinationScheduleProvider =
+    FutureProvider.autoDispose<RemotePage<RemoteVaccinationRecord>>((
+      ref,
+    ) async {
+      final session = await ref.watch(userSessionProvider.future);
+      final cache = ref.watch(cloudCacheRepositoryProvider);
+      final key = 'vaccination-schedule:${session.clinic.clinicId}';
+      try {
+        final page = await ref
+            .watch(clinicalRemoteDataSourceProvider)
+            .vaccinationSchedule();
+        unawaited(
+          cache
+              .put(
+                key: key,
+                clinicId: session.clinic.clinicId,
+                payload: {
+                  'items': page.items.map((item) => item.toJson()).toList(),
+                  'page': page.page,
+                  'pageSize': page.pageSize,
+                  'total': page.total,
+                  'hasNextPage': page.hasNextPage,
+                },
+              )
+              .catchError((Object _) {}),
+        );
+        return page;
+      } catch (_) {
+        final cached = await cache.get(key, clinicId: session.clinic.clinicId);
+        if (cached == null) rethrow;
+        return RemotePage<RemoteVaccinationRecord>(
+          items: (cached['items'] as List<dynamic>? ?? const [])
+              .map(
+                (item) => RemoteVaccinationRecord.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              .toList(),
+          page: cached['page'] as int? ?? 1,
+          pageSize: cached['pageSize'] as int? ?? 100,
+          total: cached['total'] as int? ?? 0,
+          hasNextPage: cached['hasNextPage'] == true,
+        );
+      }
+    });
+
+final remoteAppointmentScheduleProvider =
+    FutureProvider.autoDispose<RemotePage<Map<String, dynamic>>>((ref) async {
+      final session = await ref.watch(userSessionProvider.future);
+      final cache = ref.watch(cloudCacheRepositoryProvider);
+      final key = 'appointment-schedule:${session.clinic.clinicId}';
+      try {
+        final page = await ref
+            .watch(clinicalRemoteDataSourceProvider)
+            .schedule();
+        unawaited(
+          cache
+              .put(
+                key: key,
+                clinicId: session.clinic.clinicId,
+                payload: {
+                  'items': page.items,
+                  'page': page.page,
+                  'pageSize': page.pageSize,
+                  'total': page.total,
+                  'hasNextPage': page.hasNextPage,
+                },
+              )
+              .catchError((Object _) {}),
         );
         return page;
       } catch (_) {

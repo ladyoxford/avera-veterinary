@@ -13,6 +13,7 @@ import {
   patientStatusSchema,
   suggestedPatientPrefix,
   updateInventoryItemSchema,
+  updateConsultationSchema,
 } from '../src/routes/clinical-routes.js';
 import {
   clinicAdministratorPermissionKeys,
@@ -172,6 +173,19 @@ test('clinic mutation migration preserves idempotency, revisions, and soft delet
   assert.match(mutations, /UPDATE inventory_products[\s\S]*WHERE category_key IS NULL/);
 });
 
+test('production workflow migration adds idempotent vaccination, appointment, and staff invitation contracts', () => {
+  const workflows = fs.readFileSync(
+    new URL('../migrations/016_production_workflow_completion.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(workflows, /ALTER TABLE vaccinations/);
+  assert.match(workflows, /ALTER TABLE schedule_entries/);
+  assert.match(workflows, /vaccinations_clinic_submission_idx/);
+  assert.match(workflows, /schedule_entries_clinic_submission_idx/);
+  assert.match(workflows, /activation_tokens_one_live_staff_token_idx/);
+  assert.match(workflows, /purpose = 'StaffInvitation'/);
+});
+
 test('clinic mutation payloads reject unsafe patient, consultation, and inventory values', () => {
   assert.equal(patientStatusSchema.safeParse({ status: 'Deceased' }).success, true);
   assert.equal(patientStatusSchema.safeParse({ status: 'Deleted' }).success, false);
@@ -187,6 +201,21 @@ test('clinic mutation payloads reject unsafe patient, consultation, and inventor
     createConsultationSchema.safeParse({ ...consultation, chiefComplaint: ' ' }).success,
     false,
   );
+  assert.equal(updateConsultationSchema.safeParse({
+    revision: 1,
+    chiefComplaint: 'Reduced appetite',
+    history: 'Two days',
+    diagnosis: 'Gastroenteritis',
+  }).success, true);
+  assert.equal(updateConsultationSchema.safeParse({
+    revision: 0,
+    chiefComplaint: 'Reduced appetite',
+  }).success, false);
+  assert.equal(updateConsultationSchema.safeParse({
+    revision: 1,
+    chiefComplaint: 'Reduced appetite',
+    patientId: 'a6c10dd9-2501-43db-b083-b613faaf8ea4',
+  }).success, false);
 
   const inventory = {
     submissionId: 'b695c4c7-c80a-466b-bfdc-a51dac4d40b3',
@@ -219,6 +248,7 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
   for (const permissionName of [
     'patientsEdit',
     'consultationsCreate',
+    'consultationsEdit',
     'inventoryCreate',
     'inventoryEdit',
     'vaccinationsAdd',
@@ -235,13 +265,24 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
   assert.match(routes, /status = \$1,[\s\S]*revision = revision \+ 1/);
   assert.equal(
     routes.match(/ON CONFLICT \(clinic_id, submission_id\)/g)?.length,
-    2,
+    4,
   );
-  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 6);
+  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 10);
   assert.match(
     routes,
     /app\.get\('\/api\/v1\/consultations\/:consultationId'[\s\S]*permissions\.consultationsView/,
   );
+  assert.match(
+    routes,
+    /app\.patch\('\/api\/v1\/consultations\/:consultationId'[\s\S]*permissions\.consultationsEdit/,
+  );
+  assert.match(routes, /revision_conflict/);
+  assert.match(
+    routes,
+    /app\.get\('\/api\/v1\/vaccinations\/:vaccinationId'[\s\S]*permissions\.vaccinationsView/,
+  );
+  assert.match(routes, /membership_status='Active'/);
+  assert.doesNotMatch(routes, /clinic_memberships[\s\S]{0,120}\.status='Active'/);
   assert.match(
     routes,
     /WHERE c\.clinic_id = \$1 AND c\.consultation_id = \$2/,

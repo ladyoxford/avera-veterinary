@@ -34,6 +34,20 @@ test('fallback page contains no browser password form and never renders the acti
   assert.equal(response.headers['referrer-policy'], 'no-referrer');
 });
 
+test('staff activation fallback is token-safe and contains no browser password form', async (context) => {
+  const app = await buildApp({ environment: testEnvironment(), pool: unusedPool() });
+  context.after(() => app.close());
+  const secret = 'staff-activation-secret-that-must-not-be-rendered';
+  const response = await app.inject({
+    method: 'GET',
+    url: `/activate-staff?token=${secret}`,
+  });
+  assert.equal(response.statusCode, 200);
+  assert.match(response.body, /Opening AVERA/);
+  assert.doesNotMatch(response.body, new RegExp(secret));
+  assert.doesNotMatch(response.body, /type=["']password/i);
+});
+
 test('activation query tokens are removed from application request logs', () => {
   const secret = 'do-not-log-this-token';
   const sanitized = sanitizeRequestUrl(`/activate-clinic-admin?token=${secret}`);
@@ -51,6 +65,7 @@ test('Android manifest and production environment use the verified account domai
   assert.match(manifest, /android:scheme="https"/);
   assert.match(manifest, /android:host="accounts\.averavet\.sbs"/);
   assert.match(manifest, /android:pathPrefix="\/activate-clinic-admin"/);
+  assert.match(manifest, /android:pathPrefix="\/activate-staff"/);
 });
 
 function unusedPool() {

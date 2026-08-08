@@ -63,6 +63,33 @@ export async function authRoutes(app) {
     }
   });
 
+  app.post('/api/v1/auth/staff-activation/status', {
+    config: { rateLimit: { max: 20, timeWindow: '15 minutes' } },
+  }, async (request, reply) => {
+    const parsed = activationTokenSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'A valid activation token is required.' });
+    try {
+      return { activation: await app.activationService.inspectStaff(parsed.data.token) };
+    } catch (error) {
+      return reply.code(error.statusCode ?? 400).send({ error: error.code ?? 'activation_invalid', message: error.message });
+    }
+  });
+
+  app.post('/api/v1/auth/activate-staff', {
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+  }, async (request, reply) => {
+    const parsed = activationSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Provide a valid token and matching strong passwords.' });
+    try {
+      return await app.activationService.activateStaff({
+        rawToken: parsed.data.token, password: parsed.data.password,
+        confirmPassword: parsed.data.confirmPassword, ipAddress: request.ip,
+      });
+    } catch (error) {
+      return reply.code(error.statusCode ?? 400).send({ error: error.code ?? 'activation_failed', message: error.message });
+    }
+  });
+
   app.post('/api/v1/auth/refresh', async (request, reply) => {
     const parsed = refreshSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'A refresh token is required.' });

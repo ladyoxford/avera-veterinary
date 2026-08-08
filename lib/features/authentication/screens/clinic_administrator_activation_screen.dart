@@ -7,8 +7,13 @@ import '../../../core/remote/api_client.dart';
 import '../../shared/widgets/avera_logo.dart';
 
 class ClinicAdministratorActivationScreen extends ConsumerStatefulWidget {
-  const ClinicAdministratorActivationScreen({super.key, required this.token});
+  const ClinicAdministratorActivationScreen({
+    super.key,
+    required this.token,
+    this.staffActivation = false,
+  });
   final String token;
+  final bool staffActivation;
 
   @override
   ConsumerState<ClinicAdministratorActivationScreen> createState() =>
@@ -33,6 +38,18 @@ class _ClinicAdministratorActivationScreenState
     if (widget.token.trim().isEmpty) return null;
     if (BackendConfiguration.isBackendMode) {
       try {
+        if (widget.staffActivation) {
+          final activation = await ref
+              .read(authenticationRepositoryProvider)
+              .inspectStaffActivation(widget.token);
+          return _ActivationDetails(
+            clinicName: activation.clinicName,
+            administratorName: activation.staffName,
+            email: activation.email,
+            role: activation.roleName,
+            plan: null,
+          );
+        }
         final activation = await ref
             .read(authenticationRepositoryProvider)
             .inspectClinicAdministratorActivation(widget.token);
@@ -88,13 +105,20 @@ class _ClinicAdministratorActivationScreenState
     setState(() => _submitting = true);
     try {
       if (BackendConfiguration.isBackendMode) {
-        await ref
-            .read(authenticationRepositoryProvider)
-            .activateClinicAdministrator(
-              token: widget.token,
-              password: _password.text,
-              confirmPassword: _confirm.text,
-            );
+        final repository = ref.read(authenticationRepositoryProvider);
+        if (widget.staffActivation) {
+          await repository.activateStaff(
+            token: widget.token,
+            password: _password.text,
+            confirmPassword: _confirm.text,
+          );
+        } else {
+          await repository.activateClinicAdministrator(
+            token: widget.token,
+            password: _password.text,
+            confirmPassword: _confirm.text,
+          );
+        }
       } else {
         await ref
             .read(clinicRepositoryProvider)
@@ -109,7 +133,7 @@ class _ClinicAdministratorActivationScreenState
           builder: (dialogContext) => AlertDialog(
             title: const Text('Account activated'),
             content: const Text(
-              'Your AVERA administrator account is active. Sign in with your approved email and new password, then enable two-factor authentication from Security Settings.',
+              'Your AVERA account is active. Sign in with your email and new password, then enable two-factor authentication from Security Settings.',
             ),
             actions: [
               FilledButton(
@@ -189,7 +213,9 @@ class _ClinicAdministratorActivationScreenState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _detail(
-                                'Administrator',
+                                widget.staffActivation
+                                    ? 'Staff member'
+                                    : 'Administrator',
                                 activation.administratorName,
                               ),
                               _detail('Email', activation.email),

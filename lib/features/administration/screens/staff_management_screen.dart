@@ -334,6 +334,20 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
       ),
       builder: (sheetContext) => _ManageStaffSheet(
         user: user,
+        onResendInvitation: user.accountStatus == 'PendingActivation'
+            ? () async {
+                Navigator.pop(sheetContext);
+                await _perform(
+                  () => ref
+                      .read(clinicRepositoryProvider)
+                      .resendClinicUserInvitation(
+                        actingSession: session,
+                        targetUserId: user.userId,
+                      ),
+                  'A new activation invitation was sent to ${user.email}.',
+                );
+              }
+            : null,
         onChangeRole: () async {
           Navigator.pop(sheetContext);
           await _changeRole(user, session);
@@ -796,6 +810,7 @@ class _ManageStaffSheet extends StatelessWidget {
     required this.onConfigureInventoryAccess,
     required this.onStatus,
     required this.onViewHistory,
+    this.onResendInvitation,
     this.onDeletePermanently,
   });
   final AppUser user;
@@ -803,6 +818,7 @@ class _ManageStaffSheet extends StatelessWidget {
   final Future<void> Function() onConfigureInventoryAccess;
   final Future<void> Function(String status) onStatus;
   final Future<void> Function() onViewHistory;
+  final Future<void> Function()? onResendInvitation;
   final Future<void> Function()? onDeletePermanently;
 
   @override
@@ -827,11 +843,19 @@ class _ManageStaffSheet extends StatelessWidget {
                 style: averaText(context).listItemTitle,
               ),
               subtitle: Text(
-                '${user.email}\n${user.role} | $status',
+                '${user.email}\n${user.role} | ${user.accountStatus == 'PendingActivation' ? 'Pending Activation' : status}',
                 style: averaText(context).listItemSubtitle,
               ),
             ),
             const Divider(),
+            if (onResendInvitation != null)
+              _ManagementAction(
+                icon: Icons.mark_email_unread_outlined,
+                title: 'Resend Invitation',
+                subtitle:
+                    'Revoke the previous link and send a new activation email.',
+                onTap: onResendInvitation!,
+              ),
             if (status == ClinicMembershipStatuses.active) ...[
               _ManagementAction(
                 icon: Icons.swap_horiz_rounded,
@@ -1119,7 +1143,12 @@ String _staffRowStatus(AppUser user) {
     ClinicMembershipStatuses.archived => user.archivedAt,
     _ => null,
   };
-  final parts = <String>[user.role, user.membershipStatus];
+  final parts = <String>[
+    user.role,
+    user.accountStatus == 'PendingActivation'
+        ? 'Pending Activation'
+        : user.membershipStatus,
+  ];
   if (date != null) {
     parts.add(date.toLocal().toIso8601String().split('T').first);
   }

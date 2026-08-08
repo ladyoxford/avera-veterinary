@@ -1389,6 +1389,9 @@ class ClinicRepository {
             (status == AccountStatuses.suspended
                 ? ClinicMembershipStatuses.suspended
                 : ClinicMembershipStatuses.active);
+        final visibleMembershipStatus = membershipStatus == 'Invited'
+            ? ClinicMembershipStatuses.active
+            : membershipStatus;
         await db
             .into(db.appUsers)
             .insertOnConflictUpdate(
@@ -1407,7 +1410,7 @@ class ClinicRepository {
                 roleId: Value(roleId),
                 accountType: Value(accountType),
                 accountStatus: Value(status),
-                membershipStatus: Value(membershipStatus),
+                membershipStatus: Value(visibleMembershipStatus),
                 createdAt:
                     DateTime.tryParse(remote['createdAt']?.toString() ?? '') ??
                     now,
@@ -2598,6 +2601,29 @@ class ClinicRepository {
     if (!actingSession.can(Permissions.usersCreate)) {
       throw StateError('You do not have permission to invite users.');
     }
+    final client = _apiClient;
+    if (client != null) {
+      final response = await client.post(
+        '/api/v1/users/invitations',
+        authenticated: true,
+        body: {
+          'fullName': fullName.trim(),
+          'email': email.trim().toLowerCase(),
+          'phone': phoneNumber?.trim(),
+          'professionalTitle': professionalTitle?.trim(),
+          'staffNumber': staffNumber?.trim(),
+          'roleName': role,
+        },
+      );
+      final invitation = Map<String, dynamic>.from(
+        response['invitation'] as Map,
+      );
+      await refreshClinicUsers(actingSession);
+      return invitation['delivery'] is Map &&
+              (invitation['delivery'] as Map)['status'] == 'EmailSent'
+          ? 'email-sent'
+          : 'delivery-unavailable';
+    }
     final normalizedEmail = email.trim().toLowerCase();
     final duplicate =
         await (db.select(db.appUsers)
@@ -2666,6 +2692,27 @@ class ClinicRepository {
           );
     });
     return '/activate-clinic-admin?token=$token';
+  }
+
+  Future<void> resendClinicUserInvitation({
+    required UserSession actingSession,
+    required String targetUserId,
+  }) async {
+    if (!actingSession.isClinicAdministrator ||
+        !actingSession.can(Permissions.usersCreate)) {
+      throw StateError('You do not have permission to resend invitations.');
+    }
+    final client = _apiClient;
+    if (client == null) {
+      throw StateError(
+        'Invitation resend requires the configured production backend.',
+      );
+    }
+    await client.post(
+      '/api/v1/users/$targetUserId/invitation/resend',
+      authenticated: true,
+    );
+    await refreshClinicUsers(actingSession);
   }
 
   Future<void> updateClinicBranding({

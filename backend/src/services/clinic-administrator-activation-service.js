@@ -6,6 +6,7 @@ import { hashToken } from '../security/tokens.js';
 import { clinicAdministratorPermissionKeys } from '../security/permission-catalog.js';
 
 const purpose = 'ClinicAdministratorActivation';
+const staffPurpose = 'StaffInvitation';
 const clinicAdministratorPermissions = new Set(
   clinicAdministratorPermissionKeys,
 );
@@ -320,6 +321,177 @@ export class ClinicAdministratorActivationService {
     return this.deliverIssuedToken(issued);
   }
 
+  async inviteStaff(context) {
+    const issued = await withTenantTransaction(this.pool, {
+      clinicId: context.clinicId,
+      userId: context.actorUserId,
+      isPlatformOwner: false,
+    }, async (client) => {
+      const actor = (await client.query(
+        `SELECT r.code FROM clinic_memberships cm
+           JOIN roles r ON r.role_id=cm.role_id AND r.clinic_id=cm.clinic_id
+          WHERE cm.clinic_id=$1 AND cm.user_id=$2
+            AND cm.membership_status='Active' AND cm.deleted_at IS NULL`,
+        [context.clinicId, context.actorUserId],
+      )).rows[0];
+      if (actor?.code !== 'clinic_administrator') {
+        throw serviceError('staff_invitation_forbidden', 'Only an active Clinic Administrator can invite staff.', 403);
+      }
+      const role = (await client.query(
+        `SELECT role_id, name, code FROM roles
+          WHERE clinic_id=$1 AND lower(name)=lower($2)
+            AND deleted_at IS NULL`,
+        [context.clinicId, context.roleName],
+      )).rows[0];
+      if (!role || role.code === 'clinic_administrator') {
+        throw serviceError('invalid_clinic_role', 'Choose a valid staff role for this clinic.', 400);
+      }
+      const email = context.email.trim().toLowerCase();
+      const existing = (await client.query(
+        'SELECT * FROM users WHERE email=$1 AND deleted_at IS NULL FOR UPDATE',
+        [email],
+      )).rows[0];
+      if (existing) {
+        throw serviceError('email_in_use', 'An AVERA account already uses this email address.', 409);
+      }
+      const user = (await client.query(
+        `INSERT INTO users
+           (clinic_id, full_name, email, phone, password_hash, account_type,
+            status, role_id, created_by, updated_by)
+         VALUES ($1,$2,$3,$4,NULL,'ClinicStaff','PendingActivation',$5,$6,$6)
+         RETURNING *`,
+        [context.clinicId, context.fullName.trim(), email,
+          context.phone || null, role.role_id, context.actorUserId],
+      )).rows[0];
+      await client.query(
+        `INSERT INTO clinic_memberships
+           (user_id, clinic_id, role_id, membership_status, invited_at,
+            created_by, updated_by)
+         VALUES ($1,$2,$3,'Invited',now(),$4,$4)`,
+        [user.user_id, context.clinicId, role.role_id, context.actorUserId],
+      );
+      await client.query(
+        `INSERT INTO staff_profiles
+           (user_id, professional_title, staff_number, created_at, updated_at)
+         VALUES ($1,$2,$3,now(),now())`,
+        [user.user_id, context.professionalTitle || null,
+          context.staffNumber || null],
+      );
+      const clinic = (await client.query(
+        'SELECT name FROM clinics WHERE clinic_id=$1 AND deleted_at IS NULL',
+        [context.clinicId],
+      )).rows[0];
+      const token = await this.#issueStaffToken(client, {
+        clinicId: context.clinicId,
+        user,
+        clinicName: clinic.name,
+        actorUserId: context.actorUserId,
+        ipAddress: context.ipAddress,
+      });
+      await writeAudit(client, {
+        clinicId: context.clinicId,
+        actingUserId: context.actorUserId,
+        targetType: 'User', targetId: user.user_id,
+        action: 'staff.invited',
+        newSummary: { email, roleId: role.role_id, status: 'PendingActivation' },
+        sessionId: context.sessionId, ipAddress: context.ipAddress,
+      });
+      return token;
+    });
+    const delivery = await this.deliverStaffToken(issued);
+    return { userId: issued.userId, status: 'PendingActivation', delivery };
+  }
+
+  async resendStaff(context) {
+    const issued = await withTenantTransaction(this.pool, {
+      clinicId: context.clinicId,
+      userId: context.actorUserId,
+      isPlatformOwner: false,
+    }, async (client) => {
+      const actor = (await client.query(
+        `SELECT r.code FROM clinic_memberships cm
+           JOIN roles r ON r.role_id=cm.role_id AND r.clinic_id=cm.clinic_id
+          WHERE cm.clinic_id=$1 AND cm.user_id=$2
+            AND cm.membership_status='Active' AND cm.deleted_at IS NULL`,
+        [context.clinicId, context.actorUserId],
+      )).rows[0];
+      if (actor?.code !== 'clinic_administrator') {
+        throw serviceError('staff_invitation_forbidden', 'Only an active Clinic Administrator can resend staff invitations.', 403);
+      }
+      const target = (await client.query(
+        `SELECT u.*, c.name AS clinic_name
+           FROM users u JOIN clinics c ON c.clinic_id=u.clinic_id
+          WHERE u.user_id=$1 AND u.clinic_id=$2
+            AND u.account_type='ClinicStaff' AND u.status='PendingActivation'
+            AND u.deleted_at IS NULL FOR UPDATE OF u`,
+        [context.targetUserId, context.clinicId],
+      )).rows[0];
+      if (!target) throw serviceError('activation_not_required', 'This staff invitation cannot be resent.', 409);
+      const token = await this.#issueStaffToken(client, {
+        clinicId: context.clinicId, user: target,
+        clinicName: target.clinic_name, actorUserId: context.actorUserId,
+        ipAddress: context.ipAddress,
+      });
+      await writeAudit(client, {
+        clinicId: context.clinicId, actingUserId: context.actorUserId,
+        targetType: 'User', targetId: target.user_id,
+        action: 'staff.invitation_resent', newSummary: { expiresAt: token.expiresAt },
+        sessionId: context.sessionId, ipAddress: context.ipAddress,
+      });
+      return token;
+    });
+    return this.deliverStaffToken(issued);
+  }
+
+  async inspectStaff(rawToken) {
+    return withTenantTransaction(this.pool, { isPlatformOwner: true }, async (client) => {
+      const row = await this.#staffTokenRecord(rawToken, false, client);
+      this.#assertStaffUsable(row);
+      return { clinicName: row.clinic_name, staffName: row.full_name,
+        email: row.email, roleName: row.role_name, expiresAt: row.expires_at };
+    });
+  }
+
+  async activateStaff({ rawToken, password, confirmPassword, ipAddress }) {
+    if (password !== confirmPassword) throw serviceError('password_mismatch', 'Passwords do not match.', 400);
+    const passwordError = validatePassword(password);
+    if (passwordError) throw serviceError('weak_password', passwordError, 400);
+    return withTenantTransaction(this.pool, { isPlatformOwner: true }, async (client) => {
+      const row = await this.#staffTokenRecord(rawToken, true, client);
+      this.#assertStaffUsable(row);
+      const now = new Date();
+      await client.query(
+        `UPDATE users SET password_hash=$2, status='Active',
+                requires_password_change=false,
+                email_verified_at=coalesce(email_verified_at,$3),
+                failed_login_count=0, locked_until=NULL,
+                updated_at=$3, revision=revision+1
+          WHERE user_id=$1`,
+        [row.user_id, await hashPassword(password), now],
+      );
+      await client.query(
+        `UPDATE clinic_memberships SET membership_status='Active', activated_at=$2,
+                updated_at=$2, revision=revision+1
+          WHERE user_id=$1 AND clinic_id=$3 AND deleted_at IS NULL`,
+        [row.user_id, now, row.clinic_id],
+      );
+      await client.query(
+        `UPDATE activation_tokens
+            SET used_at=CASE WHEN token_id=$2 THEN $3 ELSE used_at END,
+                revoked_at=CASE WHEN token_id<>$2 AND used_at IS NULL THEN $3 ELSE revoked_at END
+          WHERE user_id=$1 AND purpose=$4`,
+        [row.user_id, row.token_id, now, staffPurpose],
+      );
+      await writeAudit(client, {
+        clinicId: row.clinic_id, actingUserId: row.user_id,
+        targetType: 'User', targetId: row.user_id, action: 'staff.activated',
+        previousSummary: { status: 'PendingActivation' },
+        newSummary: { status: 'Active' }, ipAddress,
+      });
+      return { activated: true, email: row.email, mfaEnrollmentRecommended: true };
+    });
+  }
+
   async inspect(rawToken) {
     return withTenantTransaction(
       this.pool,
@@ -402,6 +574,89 @@ export class ClinicAdministratorActivationService {
         };
       },
     );
+  }
+
+  async deliverStaffToken(issued) {
+    if (!this.deliveryService.configured) {
+      return { status: 'DeliveryUnavailable', expiresAt: issued.expiresAt };
+    }
+    try {
+      const delivery = await this.deliveryService.sendStaffActivation({
+        to: issued.email, staffName: issued.fullName,
+        clinicName: issued.clinicName,
+        activationUrl: this.#staffActivationUrl(issued.rawToken),
+        expiresAt: issued.expiresAt,
+        idempotencyKey: `staff-activation-${issued.tokenId}`,
+      });
+      await this.pool.query(
+        `UPDATE activation_tokens SET delivery_method='email',
+                delivered_at=now(), delivery_reference=$2 WHERE token_id=$1`,
+        [issued.tokenId, delivery.reference],
+      );
+      return { status: 'EmailSent', expiresAt: issued.expiresAt };
+    } catch (_) {
+      await this.pool.query(
+        `UPDATE activation_tokens SET delivery_method='email_failed' WHERE token_id=$1`,
+        [issued.tokenId],
+      );
+      return { status: 'DeliveryFailed', expiresAt: issued.expiresAt };
+    }
+  }
+
+  async #issueStaffToken(client, context) {
+    const now = new Date();
+    await client.query(
+      `UPDATE activation_tokens SET revoked_at=$3
+        WHERE user_id=$1 AND purpose=$2 AND used_at IS NULL AND revoked_at IS NULL`,
+      [context.user.user_id, staffPurpose, now],
+    );
+    const rawToken = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(now.getTime() + this.environment.ACTIVATION_TOKEN_TTL_MINUTES * 60_000);
+    const inserted = (await client.query(
+      `INSERT INTO activation_tokens
+         (user_id, clinic_id, purpose, token_hash, expires_at,
+          requested_from_ip, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6,jsonb_build_object('issuedBy',$7::text))
+       RETURNING token_id`,
+      [context.user.user_id, context.clinicId, staffPurpose,
+        hashToken(rawToken), expiresAt, context.ipAddress ?? null,
+        context.actorUserId],
+    )).rows[0];
+    return { tokenId: inserted.token_id, userId: context.user.user_id,
+      rawToken, expiresAt, email: context.user.email,
+      fullName: context.user.full_name, clinicName: context.clinicName };
+  }
+
+  async #staffTokenRecord(rawToken, forUpdate, client) {
+    return (await client.query(
+      `SELECT t.*, u.full_name, u.email, u.status AS user_status,
+              c.name AS clinic_name, c.status AS clinic_status,
+              r.name AS role_name, cm.membership_status
+         FROM activation_tokens t
+         JOIN users u ON u.user_id=t.user_id
+         JOIN clinics c ON c.clinic_id=t.clinic_id
+         JOIN clinic_memberships cm ON cm.user_id=u.user_id AND cm.clinic_id=t.clinic_id
+         LEFT JOIN roles r ON r.role_id=cm.role_id
+        WHERE t.token_hash=$1 AND t.purpose=$2
+        ${forUpdate ? 'FOR UPDATE OF t, u, cm' : ''}`,
+      [hashToken(rawToken), staffPurpose],
+    )).rows[0];
+  }
+
+  #assertStaffUsable(row) {
+    if (!row) throw serviceError('activation_invalid', 'This activation link is invalid.', 400);
+    if (row.used_at) throw serviceError('activation_used', 'This activation link has already been used.', 409);
+    if (row.revoked_at) throw serviceError('activation_revoked', 'This activation link is no longer valid.', 409);
+    if (new Date(row.expires_at) <= new Date()) throw serviceError('activation_expired', 'This activation link has expired.', 410);
+    if (row.user_status !== 'PendingActivation' || row.membership_status !== 'Invited' || row.clinic_status !== 'Active') {
+      throw serviceError('activation_unavailable', 'This account is not available for activation.', 409);
+    }
+  }
+
+  #staffActivationUrl(rawToken) {
+    const url = new URL(this.environment.AVERA_STAFF_ACTIVATION_BASE_URL);
+    url.searchParams.set('token', rawToken);
+    return url.toString();
   }
 
   async #issueToken(client, context) {
@@ -533,6 +788,28 @@ export class ActivationEmailDeliveryService {
     const body = await response.json();
     return { reference: body.id ?? null };
   }
+
+  async sendStaffActivation(message) {
+    if (!this.configured) throw new Error('Activation email is not configured.');
+    const response = await this.fetchImpl('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.environment.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'AVERA-Backend/1.0',
+        'Idempotency-Key': message.idempotencyKey,
+      },
+      body: JSON.stringify({
+        from: this.environment.ACTIVATION_EMAIL_FROM,
+        to: [message.to],
+        subject: `Activate your ${message.clinicName} staff account`,
+        text: staffActivationEmailText(message),
+      }),
+    });
+    if (!response.ok) throw new Error('Activation email delivery failed.');
+    const body = await response.json();
+    return { reference: body.id ?? null };
+  }
 }
 
 function activationEmailText(message) {
@@ -545,6 +822,17 @@ function activationEmailText(message) {
     '',
     `This link expires at ${new Date(message.expiresAt).toISOString()}.`,
     'If you did not submit this clinic application, contact AVERA support.',
+  ].join('\n');
+}
+
+function staffActivationEmailText(message) {
+  return [
+    `Hello ${message.staffName},`, '',
+    `${message.clinicName} invited you to join its team on AVERA.`,
+    'Create your password using this secure single-use link:',
+    message.activationUrl, '',
+    `This link expires at ${new Date(message.expiresAt).toISOString()}.`,
+    'If you were not expecting this invitation, ignore this email.',
   ].join('\n');
 }
 

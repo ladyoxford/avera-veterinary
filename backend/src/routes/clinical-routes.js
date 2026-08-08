@@ -17,6 +17,7 @@ const pageSchema = z.object({
 
 const uuidSchema = z.object({ patientId: z.string().uuid() });
 const consultationUuidSchema = z.object({ consultationId: z.string().uuid() });
+const vaccinationUuidSchema = z.object({ vaccinationId: z.string().uuid() });
 const inventoryUuidSchema = z.object({ inventoryProductId: z.string().uuid() });
 export const createPatientSchema = z.object({
   submissionId: z.string().uuid(),
@@ -58,6 +59,16 @@ export const createConsultationSchema = z.object({
   prescription: z.string().trim().max(8000).nullish(),
   veterinarian: z.string().trim().max(200).nullish(),
 });
+
+export const updateConsultationSchema = z.object({
+  revision: z.number().int().min(1),
+  chiefComplaint: z.string().trim().min(1).max(4000),
+  history: z.string().trim().max(8000).nullish(),
+  examination: z.string().trim().max(8000).nullish(),
+  diagnosis: z.string().trim().max(4000).nullish(),
+  treatment: z.string().trim().max(8000).nullish(),
+  prescription: z.string().trim().max(8000).nullish(),
+}).strict();
 
 export const createVaccinationSchema = z.object({
   submissionId: z.string().uuid(),
@@ -643,6 +654,57 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.patch('/api/v1/consultations/:consultationId', { preHandler: [authenticate, requirePermission(permissions.consultationsEdit)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = consultationUuidSchema.safeParse(request.params);
+    const parsed = updateConsultationSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the consultation information.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT consultation_id, patient_id, revision
+           FROM consultations
+          WHERE clinic_id=$1 AND consultation_id=$2 AND deleted_at IS NULL
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.consultationId],
+      );
+      if (!current.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The consultation was not found in this clinic.' });
+      }
+      if (Number(current.rows[0].revision) !== parsed.data.revision) {
+        return reply.code(409).send({ error: 'revision_conflict', message: 'This consultation was updated elsewhere. Reload it before saving.' });
+      }
+      const input = parsed.data;
+      const updated = await client.query(
+        `UPDATE consultations
+            SET chief_complaint=$3, history=$4, examination=$5,
+                assessment=$6, final_diagnosis=$6, treatment=$7,
+                prescription_notes=$8, updated_at=now(), revision=revision+1
+          WHERE clinic_id=$1 AND consultation_id=$2
+          RETURNING consultation_id, patient_id, occurred_at, status,
+                    chief_complaint, history, examination, assessment,
+                    final_diagnosis, treatment, prescription_notes,
+                    clinician_name_snapshot, revision`,
+        [request.auth.clinicId, params.data.consultationId,
+          input.chiefComplaint, input.history ?? null, input.examination ?? null,
+          input.diagnosis ?? null, input.treatment ?? null,
+          input.prescription ?? null],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Consultation',
+        targetId: params.data.consultationId,
+        action: 'consultation.updated',
+        previousSummary: { revision: current.rows[0].revision },
+        newSummary: { revision: updated.rows[0].revision, changedFields: ['chiefComplaint', 'history', 'examination', 'diagnosis', 'treatment', 'prescription'] },
+        sessionId: request.auth.sessionId,
+      });
+      return { consultation: updated.rows[0] };
+    });
+  });
+
   app.get('/api/v1/patients/:patientId', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     const params = uuidSchema.safeParse(request.params);
@@ -811,12 +873,57 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.get('/api/v1/vaccinations/:vaccinationId', { preHandler: [authenticate, requirePermission(permissions.vaccinationsView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = vaccinationUuidSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'validation_error', message: 'The vaccination identifier is invalid.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const record = await client.query(
+        `SELECT v.vaccination_id, v.patient_id, v.vaccine_name, v.manufacturer,
+                v.batch_number, v.route, v.dose, v.administered_at,
+                v.next_due_at, v.status, v.notes, v.revision,
+                p.name AS patient_name, p.hospital_number, p.species, p.breed,
+                p.date_of_birth, p.is_date_of_birth_estimated,
+                o.full_name AS owner_name, o.phone AS owner_phone,
+                u.full_name AS administered_by_name
+           FROM vaccinations v
+           JOIN patients p ON p.patient_id=v.patient_id AND p.clinic_id=v.clinic_id
+           JOIN owners o ON o.owner_id=p.owner_id AND o.clinic_id=v.clinic_id
+           LEFT JOIN users u ON u.user_id=v.administered_by
+          WHERE v.clinic_id=$1 AND v.vaccination_id=$2`,
+        [request.auth.clinicId, params.data.vaccinationId],
+      );
+      if (!record.rows[0]) return reply.code(404).send({ error: 'not_found', message: 'The vaccination was not found in this clinic.' });
+      const item = record.rows[0];
+      const history = await client.query(
+        `SELECT v.vaccination_id, v.patient_id, v.vaccine_name, v.manufacturer,
+                v.batch_number, v.route, v.dose, v.administered_at,
+                v.next_due_at, v.status, u.full_name AS administered_by_name
+           FROM vaccinations v
+           LEFT JOIN users u ON u.user_id=v.administered_by
+          WHERE v.clinic_id=$1 AND v.patient_id=$2
+            AND lower(v.vaccine_name)=lower($3)
+          ORDER BY v.administered_at DESC, v.vaccination_id DESC`,
+        [request.auth.clinicId, item.patient_id, item.vaccine_name],
+      );
+      return { vaccination: item, history: history.rows };
+    });
+  });
+
   app.post('/api/v1/vaccinations', { preHandler: [authenticate, requirePermission(permissions.vaccinationsAdd)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     const parsed = createVaccinationSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the vaccination information.' });
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const input = parsed.data;
+      const existing = await client.query(
+        `SELECT vaccination_id, patient_id, vaccine_name, administered_at,
+                next_due_at, route, manufacturer, batch_number, status
+           FROM vaccinations
+          WHERE clinic_id=$1 AND submission_id=$2`,
+        [request.auth.clinicId, input.submissionId],
+      );
+      if (existing.rows[0]) return { vaccination: existing.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
       const patient = await client.query(
         'SELECT patient_id FROM patients WHERE clinic_id=$1 AND patient_id=$2 AND status ILIKE $3 AND deleted_at IS NULL',
         [request.auth.clinicId, input.patientId, 'active'],
@@ -826,15 +933,27 @@ export async function clinicalRoutes(app) {
         `INSERT INTO vaccinations
            (clinic_id, patient_id, vaccine_name, manufacturer, batch_number,
             route, dose, administered_at, next_due_at, administered_by,
-            notes, reminder_status, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Pending','Completed')
+            notes, reminder_status, status, submission_id, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Pending','Completed',$12,now(),now())
+         ON CONFLICT (clinic_id, submission_id) WHERE submission_id IS NOT NULL
+         DO NOTHING
          RETURNING vaccination_id, patient_id, vaccine_name, administered_at,
                    next_due_at, route, manufacturer, batch_number, status`,
         [request.auth.clinicId, input.patientId, input.vaccineName,
           input.manufacturer || null, input.batchNumber || null,
           input.route || null, input.dose || null, input.administeredAt,
-          input.nextDueAt || null, request.auth.userId, input.notes || null],
+          input.nextDueAt || null, request.auth.userId, input.notes || null,
+          input.submissionId],
       );
+      if (!inserted.rows[0]) {
+        const duplicate = await client.query(
+          `SELECT vaccination_id, patient_id, vaccine_name, administered_at,
+                  next_due_at, route, manufacturer, batch_number, status
+             FROM vaccinations WHERE clinic_id=$1 AND submission_id=$2`,
+          [request.auth.clinicId, input.submissionId],
+        );
+        return { vaccination: duplicate.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
+      }
       await writeAudit(client, {
         clinicId: request.auth.clinicId,
         actingUserId: request.auth.userId,
@@ -845,7 +964,7 @@ export async function clinicalRoutes(app) {
         sessionId: request.auth.sessionId,
       });
       reply.code(201);
-      return { vaccination: inserted.rows[0], submissionId: input.submissionId };
+      return { vaccination: inserted.rows[0], submissionId: input.submissionId, duplicateSubmission: false };
     });
   });
 
@@ -855,6 +974,14 @@ export async function clinicalRoutes(app) {
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the appointment information.' });
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const input = parsed.data;
+      const existing = await client.query(
+        `SELECT schedule_entry_id, patient_id, scheduled_at, visit_type,
+                status, notes, assigned_staff_id, revision
+           FROM schedule_entries
+          WHERE clinic_id=$1 AND submission_id=$2`,
+        [request.auth.clinicId, input.submissionId],
+      );
+      if (existing.rows[0]) return { appointment: existing.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
       const patient = await client.query(
         'SELECT patient_id, owner_id FROM patients WHERE clinic_id=$1 AND patient_id=$2 AND status ILIKE $3 AND deleted_at IS NULL',
         [request.auth.clinicId, input.patientId, 'active'],
@@ -863,7 +990,8 @@ export async function clinicalRoutes(app) {
       if (input.assignedStaffId) {
         const staff = await client.query(
           `SELECT 1 FROM clinic_memberships
-            WHERE clinic_id=$1 AND user_id=$2 AND status='Active'`,
+            WHERE clinic_id=$1 AND user_id=$2
+              AND membership_status='Active' AND deleted_at IS NULL`,
           [request.auth.clinicId, input.assignedStaffId],
         );
         if (!staff.rows[0]) return reply.code(400).send({ error: 'invalid_staff', message: 'The selected staff member is not active in this clinic.' });
@@ -871,14 +999,25 @@ export async function clinicalRoutes(app) {
       const inserted = await client.query(
         `INSERT INTO schedule_entries
            (clinic_id, patient_id, owner_id, assigned_staff_id, scheduled_at,
-            visit_type, status, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,'Confirmed',$7)
+            visit_type, status, notes, submission_id, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,'Confirmed',$7,$8,now(),now())
+         ON CONFLICT (clinic_id, submission_id) WHERE submission_id IS NOT NULL
+         DO NOTHING
          RETURNING schedule_entry_id, patient_id, scheduled_at, visit_type,
-                   status, notes, assigned_staff_id`,
+                   status, notes, assigned_staff_id, revision`,
         [request.auth.clinicId, input.patientId, patient.rows[0].owner_id,
           input.assignedStaffId || null, input.scheduledAt, input.visitType,
-          input.notes || null],
+          input.notes || null, input.submissionId],
       );
+      if (!inserted.rows[0]) {
+        const duplicate = await client.query(
+          `SELECT schedule_entry_id, patient_id, scheduled_at, visit_type,
+                  status, notes, assigned_staff_id, revision
+             FROM schedule_entries WHERE clinic_id=$1 AND submission_id=$2`,
+          [request.auth.clinicId, input.submissionId],
+        );
+        return { appointment: duplicate.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
+      }
       await writeAudit(client, {
         clinicId: request.auth.clinicId,
         actingUserId: request.auth.userId,
@@ -889,7 +1028,7 @@ export async function clinicalRoutes(app) {
         sessionId: request.auth.sessionId,
       });
       reply.code(201);
-      return { appointment: inserted.rows[0], submissionId: input.submissionId };
+      return { appointment: inserted.rows[0], submissionId: input.submissionId, duplicateSubmission: false };
     });
   });
 

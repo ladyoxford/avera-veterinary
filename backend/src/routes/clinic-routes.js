@@ -13,12 +13,23 @@ const inviteStaffSchema = z.object({
   professionalTitle: z.string().trim().min(1).max(160),
   roleId: z.string().uuid(),
 });
+const selfProfileSchema = z.object({
+  fullName: z.string().trim().min(1).max(160),
+  phone: z.string().trim().max(80).nullish(),
+  veterinaryLicenseNumber: z.string().trim().max(120).nullish(),
+});
+const profilePhotoSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png']),
+  data: z.string().min(1),
+});
 
 const clinicUserSelect = `
   SELECT u.user_id AS "userId", u.full_name AS "fullName", u.email, u.phone,
          u.account_type AS "accountType", u.status,
          u.role_id AS "roleId", r.code AS "roleCode", r.name AS "roleName",
          sp.professional_title AS "professionalTitle",
+         sp.veterinary_license_number AS "veterinaryLicenseNumber",
+         sp.profile_photo_path AS "profilePhotoPath",
          sp.staff_number AS "staffNumber",
          CASE WHEN r.role_id IS NULL THEN NULL ELSE
            json_build_object('id', r.role_id, 'code', r.code, 'name', r.name)
@@ -150,6 +161,65 @@ export async function changeClinicUserRole(client, context) {
 }
 
 export async function clinicRoutes(app) {
+  app.get('/api/v1/me/profile', { preHandler: [authenticate] }, async (request, reply) => {
+    const profile = (await app.pool.query(
+      `${clinicUserSelect} WHERE u.user_id = $1 AND u.deleted_at IS NULL`,
+      [request.auth.userId],
+    )).rows[0];
+    if (!profile) return reply.code(404).send({ error: 'profile_not_found', message: 'Your profile could not be found.' });
+    const profilePhotoUrl = await app.profilePhotoStorage.signedUrl(profile.profilePhotoPath);
+    delete profile.profilePhotoPath;
+    return { profile: { ...profile, clinicName: request.auth.clinicId ? (await app.pool.query('SELECT name FROM clinics WHERE clinic_id = $1', [request.auth.clinicId])).rows[0]?.name : 'AVERA Platform', profilePhotoUrl } };
+  });
+
+  app.patch('/api/v1/me/profile', { preHandler: [authenticate] }, async (request, reply) => {
+    const parsed = selfProfileSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Review your name and phone number.' });
+    const value = parsed.data;
+    await withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = (await client.query('SELECT full_name, phone FROM users WHERE user_id = $1 FOR UPDATE', [request.auth.userId])).rows[0];
+      if (!current) throw Object.assign(new Error('Profile not found'), { statusCode: 404, code: 'profile_not_found' });
+      await client.query('UPDATE users SET full_name = $1, phone = $2, updated_at = now(), updated_by = $3 WHERE user_id = $3', [value.fullName, value.phone || null, request.auth.userId]);
+      if (request.auth.clinicId) {
+        await client.query(
+          `INSERT INTO staff_profiles (user_id, clinic_id, veterinary_license_number)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (user_id) DO UPDATE SET veterinary_license_number = EXCLUDED.veterinary_license_number, updated_at = now()`,
+          [request.auth.userId, request.auth.clinicId, value.veterinaryLicenseNumber || null],
+        );
+      }
+      await writeAudit(client, { clinicId: request.auth.clinicId, actingUserId: request.auth.userId, targetType: 'User', targetId: request.auth.userId, action: 'profile.updated', previousSummary: { fullName: current.full_name, phone: current.phone }, newSummary: { fullName: value.fullName, phone: value.phone || null }, sessionId: request.auth.sessionId, ipAddress: request.ip });
+    });
+    return { user: await app.authService.currentUser((await app.pool.query('SELECT * FROM users WHERE user_id = $1', [request.auth.userId])).rows[0], request.auth.permissions) };
+  });
+
+  app.post('/api/v1/me/profile-photo', { preHandler: [authenticate] }, async (request, reply) => {
+    const parsed = profilePhotoSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid_profile_photo', message: 'Choose a JPEG or PNG image.' });
+    let bytes;
+    try { bytes = Buffer.from(parsed.data.data, 'base64'); } catch (_) { return reply.code(400).send({ error: 'invalid_profile_photo', message: 'The selected image could not be read.' }); }
+    try {
+      const previousPath = (await app.pool.query('SELECT profile_photo_path FROM staff_profiles WHERE user_id = $1', [request.auth.userId])).rows[0]?.profile_photo_path;
+      const path = await app.profilePhotoStorage.upload({ clinicId: request.auth.clinicId, userId: request.auth.userId, contentType: parsed.data.contentType, bytes });
+      await app.pool.query(
+        `INSERT INTO staff_profiles (user_id, clinic_id, profile_photo_path)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE SET profile_photo_path = EXCLUDED.profile_photo_path, updated_at = now()`,
+        [request.auth.userId, request.auth.clinicId, path],
+      );
+      if (previousPath && previousPath !== path) await app.profilePhotoStorage.remove(previousPath);
+      return { profilePhotoUrl: await app.profilePhotoStorage.signedUrl(path) };
+    } catch (error) {
+      return reply.code(error.statusCode ?? 500).send({ error: error.code ?? 'profile_photo_upload_failed', message: error.statusCode ? error.message : 'The profile photo could not be uploaded.' });
+    }
+  });
+
+  app.delete('/api/v1/me/profile-photo', { preHandler: [authenticate] }, async (request) => {
+    const current = (await app.pool.query('SELECT profile_photo_path FROM staff_profiles WHERE user_id = $1', [request.auth.userId])).rows[0]?.profile_photo_path;
+    await app.pool.query('UPDATE staff_profiles SET profile_photo_path = NULL, updated_at = now() WHERE user_id = $1', [request.auth.userId]);
+    await app.profilePhotoStorage.remove(current);
+    return {};
+  });
   app.post('/api/v1/users/invitations', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } }, preHandler: [authenticate, requirePermission(permissions.usersCreate)] }, async (request, reply) => {
     if (!request.auth.clinicId) return clinicContextRequired(reply);
     if (request.auth.accountType !== 'ClinicAdministrator') {
@@ -202,7 +272,11 @@ export async function clinicRoutes(app) {
         [request.auth.clinicId],
       )
     )).rows;
-    return { users };
+    return { users: await Promise.all(users.map(async (user) => {
+      const profilePhotoUrl = await app.profilePhotoStorage.signedUrl(user.profilePhotoPath);
+      delete user.profilePhotoPath;
+      return { ...user, profilePhotoUrl };
+    })) };
   });
 
   app.get('/api/v1/users/:userId', { preHandler: [authenticate, requirePermission(permissions.usersView)] }, async (request, reply) => {
@@ -215,7 +289,9 @@ export async function clinicRoutes(app) {
       )
     )).rows[0];
     if (!user) return reply.code(404).send({ error: 'staff_not_found', message: 'Staff member was not found in this clinic.' });
-    return { user };
+    const profilePhotoUrl = await app.profilePhotoStorage.signedUrl(user.profilePhotoPath);
+    delete user.profilePhotoPath;
+    return { user: { ...user, profilePhotoUrl } };
   });
 
   app.get('/api/v1/roles', { preHandler: [authenticate, requirePermission(permissions.usersView)] }, async (request, reply) => {

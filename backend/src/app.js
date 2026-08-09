@@ -22,6 +22,7 @@ import {
 } from './services/clinic-administrator-activation-service.js';
 import { publicAccountRoutes } from './routes/public-account-routes.js';
 import { requestLogSerializer } from './config/request-logging.js';
+import { ProfilePhotoStorageService } from './services/profile-photo-storage-service.js';
 
 export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
   const app = Fastify({
@@ -51,6 +52,10 @@ export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
   await app.register(cors, { origin: environment.allowedOrigins, credentials: false });
   await app.register(rateLimit, { global: true, max: 100, timeWindow: '1 minute' });
   await app.register(jwt, { secret: environment.JWT_ACCESS_SECRET });
+  app.decorate(
+    'profilePhotoStorage',
+    new ProfilePhotoStorageService({ environment }),
+  );
   const authService = new AuthService({ pool: databasePool, environment, app });
   const mfaService = new MfaService({ pool: databasePool, environment, authService });
   authService.setMfaService(mfaService);

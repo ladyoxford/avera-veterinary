@@ -148,6 +148,10 @@ class RemoteCurrentUser {
     this.clinicName,
     this.clinicStatus,
     this.subscriptionPlan,
+    this.phoneNumber,
+    this.professionalTitle,
+    this.veterinaryLicenseNumber,
+    this.profilePhotoUrl,
   });
 
   final String userId;
@@ -162,6 +166,10 @@ class RemoteCurrentUser {
   final String? clinicName;
   final String? clinicStatus;
   final String? subscriptionPlan;
+  final String? phoneNumber;
+  final String? professionalTitle;
+  final String? veterinaryLicenseNumber;
+  final String? profilePhotoUrl;
 }
 
 class RemoteSession {

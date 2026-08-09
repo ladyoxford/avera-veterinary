@@ -334,6 +334,10 @@ class BackendAuthRemoteDataSource implements AuthRemoteDataSource {
       clinicName: value['clinicName'] as String?,
       clinicStatus: value['clinicStatus'] as String?,
       subscriptionPlan: value['subscriptionPlan'] as String?,
+      phoneNumber: value['phone'] as String?,
+      professionalTitle: value['professionalTitle'] as String?,
+      veterinaryLicenseNumber: value['veterinaryLicenseNumber'] as String?,
+      profilePhotoUrl: value['profilePhotoUrl'] as String?,
     );
   }
 }

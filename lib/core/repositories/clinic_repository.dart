@@ -1310,6 +1310,10 @@ class ClinicRepository {
               fullName: remote.fullName,
               username: remote.email,
               email: remote.email,
+              phoneNumber: Value(remote.phoneNumber),
+              professionalTitle: Value(remote.professionalTitle),
+              veterinaryLicenseNumber: Value(remote.veterinaryLicenseNumber),
+              profilePhoto: Value(remote.profilePhotoUrl),
               passwordHash: 'backend-managed',
               role: role,
               roleId: Value(remote.roleId),
@@ -1332,6 +1336,87 @@ class ClinicRepository {
       user: user,
       clinic: clinic,
       backendPermissions: remote.permissions,
+    );
+  }
+
+  Future<void> updateOwnProfile({
+    required UserSession session,
+    required String fullName,
+    required String? phoneNumber,
+    required String? veterinaryLicenseNumber,
+  }) async {
+    final normalizedName = fullName.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalizedName.isEmpty) {
+      throw ArgumentError('Enter your full name.');
+    }
+    final phone = phoneNumber?.trim();
+    final license = veterinaryLicenseNumber?.trim();
+    if (_apiClient != null) {
+      await _apiClient.patch(
+        '/api/v1/me/profile',
+        body: {
+          'fullName': normalizedName,
+          'phone': phone?.isEmpty == true ? null : phone,
+          'veterinaryLicenseNumber': license?.isEmpty == true ? null : license,
+        },
+      );
+    }
+    await (db.update(
+      db.appUsers,
+    )..where((row) => row.userId.equals(session.user.userId))).write(
+      AppUsersCompanion(
+        fullName: Value(normalizedName),
+        phoneNumber: Value(phone?.isEmpty == true ? null : phone),
+        veterinaryLicenseNumber: Value(
+          license?.isEmpty == true ? null : license,
+        ),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateOwnProfilePhoto({
+    required UserSession session,
+    required String localPath,
+    required String contentType,
+    required String base64Data,
+  }) async {
+    String reference = localPath;
+    if (_apiClient != null) {
+      final response = await _apiClient.post(
+        '/api/v1/me/profile-photo',
+        authenticated: true,
+        body: {'contentType': contentType, 'data': base64Data},
+      );
+      reference = response['profilePhotoUrl']?.toString() ?? '';
+      if (reference.isEmpty) {
+        throw const ApiException(
+          'profile_photo_upload_failed',
+          'The profile photo could not be uploaded.',
+        );
+      }
+    }
+    await (db.update(
+      db.appUsers,
+    )..where((row) => row.userId.equals(session.user.userId))).write(
+      AppUsersCompanion(
+        profilePhoto: Value(reference),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> removeOwnProfilePhoto(UserSession session) async {
+    if (_apiClient != null) {
+      await _apiClient.delete('/api/v1/me/profile-photo');
+    }
+    await (db.update(
+      db.appUsers,
+    )..where((row) => row.userId.equals(session.user.userId))).write(
+      AppUsersCompanion(
+        profilePhoto: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
     );
   }
 
@@ -1419,8 +1504,12 @@ class ClinicRepository {
                 username: remote['email']?.toString() ?? '',
                 email: remote['email']?.toString() ?? '',
                 phoneNumber: Value(remote['phone']?.toString()),
+                profilePhoto: Value(remote['profilePhotoUrl']?.toString()),
                 professionalTitle: Value(
                   remote['professionalTitle']?.toString(),
+                ),
+                veterinaryLicenseNumber: Value(
+                  remote['veterinaryLicenseNumber']?.toString(),
                 ),
                 staffNumber: Value(remote['staffNumber']?.toString()),
                 passwordHash: 'backend-managed',

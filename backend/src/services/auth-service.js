@@ -219,7 +219,18 @@ export class AuthService {
           AND clinic_id IS NOT DISTINCT FROM $2`,
       [user.role_id, user.clinic_id],
     )).rows[0] : null;
-    return publicUser(user, permissions, workspace, role);
+    const profile = (await this.pool.query(
+      `SELECT professional_title, veterinary_license_number, profile_photo_path
+         FROM staff_profiles
+        WHERE user_id = $1`,
+      [user.user_id],
+    )).rows[0] ?? {};
+    const profilePhotoUrl = await this.app.profilePhotoStorage.signedUrl(profile.profile_photo_path);
+    return publicUser(user, permissions, workspace, role, {
+      professionalTitle: profile.professional_title ?? null,
+      veterinaryLicenseNumber: profile.veterinary_license_number ?? null,
+      profilePhotoUrl,
+    });
   }
 
   async #workspace(user) {
@@ -234,6 +245,6 @@ function authenticationFailure(status, code, message, internalReason) {
   return { ok: false, status, code, message, internalReason };
 }
 
-export function publicUser(user, permissions, workspace = {}, role = null) {
-  return { userId: user.user_id, clinicId: user.clinic_id, fullName: user.full_name, email: user.email, accountType: user.account_type, status: user.status, roleId: role?.role_id ?? user.role_id ?? null, roleCode: role?.code ?? null, roleName: role?.name ?? null, role: role ? { id: role.role_id, code: role.code, name: role.name } : null, permissions, ...workspace };
+export function publicUser(user, permissions, workspace = {}, role = null, profile = {}) {
+  return { userId: user.user_id, clinicId: user.clinic_id, fullName: user.full_name, email: user.email, phone: user.phone ?? null, accountType: user.account_type, status: user.status, roleId: role?.role_id ?? user.role_id ?? null, roleCode: role?.code ?? null, roleName: role?.name ?? null, role: role ? { id: role.role_id, code: role.code, name: role.name } : null, permissions, ...profile, ...workspace };
 }

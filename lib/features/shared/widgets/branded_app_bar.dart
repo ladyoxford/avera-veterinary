@@ -6,9 +6,11 @@ import '../../../core/config/app_providers.dart';
 import '../../../core/models/alert_destination.dart';
 import '../../../core/remote/api_client.dart';
 import 'avera_logo.dart';
+import 'identity_avatar.dart';
 
 String accountMenuRoleLabel(String roleName, String clinicName) =>
     '$roleName  |  $clinicName';
+const accountProfileRoute = '/profile';
 
 class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const BrandedAppBar({super.key, this.title});
@@ -126,158 +128,104 @@ class _UserAvatarButton extends StatelessWidget {
       key: const Key('account-menu-button'),
       borderRadius: BorderRadius.circular(28),
       onTap: () => _showMenu(context),
-      child: _UserAvatar(name: name, profilePhoto: profilePhoto),
+      child: AveraIdentityAvatar(name: name, photoReference: profilePhoto),
     ),
   );
 
-  Future<void> _showMenu(BuildContext context) => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
-    builder: (sheetContext) => SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                _UserAvatar(name: name, profilePhoto: profilePhoto, size: 52),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        accountMenuRoleLabel(role, clinicName),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+  Future<void> _showMenu(BuildContext context) async {
+    final router = GoRouter.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  AveraIdentityAvatar(
+                    name: name,
+                    photoReference: profilePhoto,
+                    size: 52,
+                    onTap: () => _openProfile(sheetContext, router),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.person_outline_rounded),
-              title: const Text('My Profile'),
-              onTap: () => Navigator.of(sheetContext).pop(),
-            ),
-            ListTile(
-              leading: const Icon(Icons.manage_accounts_outlined),
-              title: const Text('Account Settings'),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                context.push('/settings');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.dark_mode_outlined),
-              title: const Text('Theme'),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                context.push('/settings');
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout_rounded),
-              title: const Text('Log out'),
-              onTap: () async {
-                if (BackendConfiguration.isLocalMode) {
-                  await ref.read(localSessionStoreProvider).clear();
-                } else {
-                  await ref.read(authenticationRepositoryProvider).signOut();
-                }
-                await ref.read(biometricAuthServiceProvider).clear();
-                ref.invalidate(biometricEnrollmentProvider);
-                ref.invalidate(userSessionProvider);
-                if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                if (context.mounted) context.go('/login');
-              },
-            ),
-          ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          accountMenuRoleLabel(role, clinicName),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                key: const Key('account-menu-profile'),
+                leading: const Icon(Icons.person_outline_rounded),
+                title: const Text('My Profile'),
+                onTap: () => _openProfile(sheetContext, router),
+              ),
+              ListTile(
+                leading: const Icon(Icons.manage_accounts_outlined),
+                title: const Text('Account Settings'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.push('/settings');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.dark_mode_outlined),
+                title: const Text('Theme'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.push('/settings');
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded),
+                title: const Text('Log out'),
+                onTap: () async {
+                  if (BackendConfiguration.isLocalMode) {
+                    await ref.read(localSessionStoreProvider).clear();
+                  } else {
+                    await ref.read(authenticationRepositoryProvider).signOut();
+                  }
+                  await ref.read(biometricAuthServiceProvider).clear();
+                  ref.invalidate(biometricEnrollmentProvider);
+                  ref.invalidate(userSessionProvider);
+                  if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                  if (context.mounted) context.go('/login');
+                },
+              ),
+            ],
+          ),
         ),
-      ),
-    ),
-  );
-}
-
-class _UserAvatar extends StatelessWidget {
-  const _UserAvatar({
-    required this.name,
-    required this.profilePhoto,
-    this.size = 46,
-  });
-  final String name;
-  final String? profilePhoto;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _avatarColors[name.hashCode.abs() % _avatarColors.length];
-    final initials = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .take(2)
-        .map((part) => part[0])
-        .join()
-        .toUpperCase();
-    final remotePhoto = profilePhoto?.startsWith('http') ?? false;
-    return Container(
-      width: size,
-      height: size,
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: .6),
-        ),
-      ),
-      child: ClipOval(
-        child: remotePhoto
-            ? Image.network(
-                profilePhoto!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    _Initials(initials: initials, color: color),
-              )
-            : _Initials(initials: initials, color: color),
       ),
     );
   }
-}
 
-class _Initials extends StatelessWidget {
-  const _Initials({required this.initials, required this.color});
-  final String initials;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: color,
-    child: Center(
-      child: Text(
-        initials,
-        style: Theme.of(
-          context,
-        ).textTheme.labelLarge?.copyWith(color: Colors.white),
-      ),
-    ),
-  );
+  void _openProfile(BuildContext sheetContext, GoRouter router) {
+    Navigator.of(sheetContext).pop();
+    Future<void>.delayed(
+      const Duration(milliseconds: 200),
+      () => router.go(accountProfileRoute),
+    );
+  }
 }
-
-const _avatarColors = [
-  Color(0xFF397D83),
-  Color(0xFF4A6FA5),
-  Color(0xFF7B6699),
-  Color(0xFF7D7050),
-  Color(0xFF4B7D62),
-];

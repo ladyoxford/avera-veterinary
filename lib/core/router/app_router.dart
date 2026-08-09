@@ -40,6 +40,7 @@ import '../../features/shared/screens/dashboard_screen.dart';
 import '../../features/shared/screens/activity_history_screen.dart';
 import '../../features/shared/screens/notifications_screen.dart';
 import '../../features/shared/screens/settings_screen.dart';
+import '../../features/shared/screens/my_profile_screen.dart';
 import '../../features/shared/screens/splash_screen.dart';
 import '../../features/farm/screens/farm_records_screen.dart';
 import '../../features/farm/screens/farm_profile_editor_screen.dart';
@@ -215,6 +216,10 @@ final appRouter = GoRouter(
           ),
         ),
         GoRoute(path: '/more', builder: (context, state) => const MoreScreen()),
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) => const MyProfileScreen(),
+        ),
         GoRoute(
           path: '/farm-records',
           builder: (context, state) => const FarmRecordsScreen(),

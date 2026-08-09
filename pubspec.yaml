@@ -55,6 +55,7 @@ dependencies:
   qr_flutter: ^4.1.0
   http: ^1.2.2
   image_picker: ^1.2.1
+  image_cropper: ^11.0.0
   camera: ^0.11.2+1
   permission_handler: ^12.0.3
   responsive_framework: ^1.5.1

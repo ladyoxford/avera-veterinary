@@ -11,6 +11,7 @@ import '../../../core/remote/api_client.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/identity_avatar.dart';
 
 class FormerStaffDetailsDialog extends StatefulWidget {
   const FormerStaffDetailsDialog({super.key});
@@ -773,7 +774,10 @@ class _StaffRow extends StatelessWidget {
         padding: const EdgeInsets.all(AveraSpacing.cardPadding),
         child: Row(
           children: [
-            CircleAvatar(child: Text(_initials(user.fullName))),
+            AveraIdentityAvatar(
+              name: user.fullName,
+              photoReference: user.profilePhoto,
+            ),
             const SizedBox(width: AveraSpacing.compactRowGap),
             Expanded(
               child: Column(
@@ -834,9 +838,10 @@ class _ManageStaffSheet extends StatelessWidget {
             const SizedBox(height: 16),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                radius: 26,
-                child: Text(_initials(user.fullName)),
+              leading: AveraIdentityAvatar(
+                name: user.fullName,
+                photoReference: user.profilePhoto,
+                size: 52,
               ),
               title: Text(
                 user.fullName,
@@ -1119,15 +1124,6 @@ class _StaffAccessDenied extends StatelessWidget {
     ),
   );
 }
-
-String _initials(String value) => value
-    .trim()
-    .split(RegExp(r'\s+'))
-    .where((part) => part.isNotEmpty)
-    .take(2)
-    .map((part) => part[0])
-    .join()
-    .toUpperCase();
 
 String _staffStatusLabel(String status) => switch (status) {
   ClinicMembershipStatuses.active => 'active staff members',

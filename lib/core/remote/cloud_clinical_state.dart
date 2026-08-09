@@ -757,6 +757,33 @@ final remoteAppointmentScheduleProvider =
       }
     });
 
+final remoteAppointmentDetailProvider = FutureProvider.autoDispose
+    .family<RemoteAppointmentDetail, String>((ref, appointmentId) async {
+      final session = await ref.watch(userSessionProvider.future);
+      final cache = ref.watch(cloudCacheRepositoryProvider);
+      final key =
+          'appointment-detail:${session.clinic.clinicId}:$appointmentId';
+      try {
+        final detail = await ref
+            .watch(clinicalRemoteDataSourceProvider)
+            .appointment(appointmentId);
+        unawaited(
+          cache
+              .put(
+                key: key,
+                clinicId: session.clinic.clinicId,
+                payload: detail.toJson(),
+              )
+              .catchError((Object _) {}),
+        );
+        return detail;
+      } catch (_) {
+        final cached = await cache.get(key, clinicId: session.clinic.clinicId);
+        if (cached == null) rethrow;
+        return RemoteAppointmentDetail.fromJson(cached);
+      }
+    });
+
 final remoteDashboardOfflineProvider = StateProvider<bool>((ref) => false);
 
 final remoteDashboardProvider =

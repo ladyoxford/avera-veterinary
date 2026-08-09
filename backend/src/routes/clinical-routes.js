@@ -18,6 +18,7 @@ const pageSchema = z.object({
 const uuidSchema = z.object({ patientId: z.string().uuid() });
 const consultationUuidSchema = z.object({ consultationId: z.string().uuid() });
 const vaccinationUuidSchema = z.object({ vaccinationId: z.string().uuid() });
+const appointmentUuidSchema = z.object({ appointmentId: z.string().uuid() });
 const inventoryUuidSchema = z.object({ inventoryProductId: z.string().uuid() });
 export const createPatientSchema = z.object({
   submissionId: z.string().uuid(),
@@ -91,6 +92,18 @@ export const createAppointmentSchema = z.object({
   assignedStaffId: z.string().uuid().nullish(),
   notes: z.string().trim().max(4000).nullish(),
 });
+
+export const updateAppointmentSchema = z.object({
+  revision: z.number().int().min(1),
+  scheduledAt: z.string().datetime(),
+  visitType: z.string().trim().min(1).max(200),
+  assignedStaffId: z.string().uuid().nullish(),
+  notes: z.string().trim().max(4000).nullish(),
+}).strict();
+
+export const cancelAppointmentSchema = z.object({
+  revision: z.number().int().min(1),
+}).strict();
 
 export const createInvoiceSchema = z.object({
   submissionId: z.string().uuid(),
@@ -308,7 +321,7 @@ const ownerList = {
   order: (query) => orderBy(query.sort, query.direction, { name: 'o.full_name', registeredAt: 'o.registered_at', updatedAt: 'o.updated_at' }, 'o.registered_at'),
 };
 
-function clinicalList({ table, alias, id, permission, select, dateColumn, searchColumns = [], statusColumn = 'status' }) {
+function clinicalList({ table, alias, id, permission, select, dateColumn, searchColumns = [], statusColumn = 'status', extraWhere = '' }) {
   const search = searchColumns.length ? `($2::text IS NULL OR ${searchColumns.map((column) => `${column} ILIKE $3`).join(' OR ')})` : 'true';
   const status = statusColumn ? `AND ($4::text IS NULL OR ${alias}.${statusColumn} = $4)` : '';
   const dates = dateColumn ? `AND ($5::timestamptz IS NULL OR ${alias}.${dateColumn} >= $5) AND ($6::timestamptz IS NULL OR ${alias}.${dateColumn} <= $6)` : '';
@@ -317,7 +330,7 @@ function clinicalList({ table, alias, id, permission, select, dateColumn, search
     config: {
       from: `${table} ${alias} LEFT JOIN patients p ON p.patient_id = ${alias}.patient_id LEFT JOIN owners o ON o.owner_id = p.owner_id`,
       select: `${alias}.${id}, ${alias}.clinic_id, ${alias}.patient_id, ${select}, p.name AS patient_name, p.hospital_number, o.full_name AS owner_name`,
-      where: `${alias}.clinic_id = $1 AND ${search} ${status} ${dates}`,
+      where: `${alias}.clinic_id = $1 AND ${search} ${status} ${dates} ${extraWhere}`,
       values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.status ?? null, query.from ?? null, query.to ?? null],
       order: (query) => orderBy(query.sort, query.direction, { date: `${alias}.${dateColumn}`, patient: 'p.name', status: `${alias}.${statusColumn}` }, `${alias}.${dateColumn}`),
     },
@@ -331,7 +344,7 @@ const lists = {
   hospitalizations: clinicalList({ table: 'hospitalizations', alias: 'h', id: 'hospitalization_id', permission: permissions.hospitalizationView, dateColumn: 'admitted_at', select: 'h.admitted_at, h.discharged_at, h.ward, h.cage_or_pen, h.reason, h.diagnosis, h.outcome, h.cost', searchColumns: ['p.name', 'h.diagnosis', 'h.reason'], statusColumn: 'outcome' }),
   surgeries: clinicalList({ table: 'surgeries', alias: 's', id: 'surgery_id', permission: permissions.surgeryView, dateColumn: 'performed_at', select: 's.performed_at, s.procedure_name, s.anaesthesia_protocol, s.complication_notes, s.recovery_notes, s.follow_up_at, s.cost', searchColumns: ['p.name', 's.procedure_name'], statusColumn: null }),
   prescriptions: clinicalList({ table: 'prescriptions', alias: 'r', id: 'prescription_id', permission: permissions.prescriptionsView, dateColumn: 'prescribed_at', select: 'r.prescribed_at, r.drug_name, r.concentration, r.dose, r.route, r.frequency, r.duration_days, r.quantity, r.refill_status', searchColumns: ['p.name', 'r.drug_name'], statusColumn: 'refill_status' }),
-  schedule: clinicalList({ table: 'schedule_entries', alias: 's', id: 'schedule_entry_id', permission: permissions.appointmentsView, dateColumn: 'scheduled_at', select: 's.scheduled_at, s.visit_type, s.status, s.notes, s.assigned_staff_id', searchColumns: ['p.name', 's.visit_type', 'o.full_name'] }),
+  schedule: clinicalList({ table: 'schedule_entries', alias: 's', id: 'schedule_entry_id', permission: permissions.appointmentsView, dateColumn: 'scheduled_at', select: 's.scheduled_at, s.visit_type, s.status, s.notes, s.assigned_staff_id, s.revision, s.updated_at', searchColumns: ['p.name', 's.visit_type', 'o.full_name'], extraWhere: "AND lower(s.status) <> 'cancelled'" }),
 };
 
 const inventoryList = {
@@ -749,6 +762,171 @@ export async function clinicalRoutes(app) {
   ]) app.get(`/api/v1/patients/:patientId/${path}`, { preHandler: [authenticate, requirePermission(permission)] }, (request, reply) => patientSection(request, reply, table, id, permission, order));
 
   for (const [path, list] of Object.entries(lists)) app.get(`/api/v1/${path === 'laboratory' ? 'laboratory-reports' : path}`, { preHandler: [authenticate, requirePermission(list.permission)] }, tenantList(list.config));
+
+  app.get('/api/v1/schedule/:appointmentId', { preHandler: [authenticate, requirePermission(permissions.appointmentsView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = appointmentUuidSchema.safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'The appointment identifier is invalid.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const result = await client.query(
+        `SELECT s.schedule_entry_id, s.patient_id, s.scheduled_at,
+                s.visit_type, s.status, s.notes, s.assigned_staff_id,
+                s.created_at, s.updated_at, s.revision,
+                p.name AS patient_name, p.hospital_number, p.species,
+                p.breed, p.sex, p.status AS patient_status,
+                p.date_of_birth, p.is_date_of_birth_estimated,
+                p.original_age_value, p.original_age_unit, p.age_recorded_at,
+                p.current_weight_kg, p.image_placeholder, p.registered_at,
+                o.full_name AS owner_name, o.phone AS owner_phone,
+                o.email AS owner_email, o.address AS owner_address,
+                o.city AS owner_city, o.state AS owner_state,
+                u.full_name AS assigned_staff_name,
+                sp.professional_title AS assigned_staff_title
+           FROM schedule_entries s
+           LEFT JOIN patients p
+             ON p.patient_id = s.patient_id
+            AND p.clinic_id = s.clinic_id
+            AND p.deleted_at IS NULL
+           LEFT JOIN owners o
+             ON o.owner_id = s.owner_id
+            AND o.clinic_id = s.clinic_id
+            AND o.deleted_at IS NULL
+           LEFT JOIN users u
+             ON u.user_id = s.assigned_staff_id
+            AND u.deleted_at IS NULL
+           LEFT JOIN staff_profiles sp ON sp.user_id = u.user_id
+          WHERE s.clinic_id = $1 AND s.schedule_entry_id = $2`,
+        [request.auth.clinicId, params.data.appointmentId],
+      );
+      if (!result.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The appointment was not found in this clinic.' });
+      }
+      return { appointment: result.rows[0] };
+    });
+  });
+
+  app.patch('/api/v1/schedule/:appointmentId', { preHandler: [authenticate, requirePermission(permissions.appointmentsEdit)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = appointmentUuidSchema.safeParse(request.params);
+    const parsed = updateAppointmentSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the appointment information.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT schedule_entry_id, patient_id, scheduled_at, visit_type,
+                status, notes, assigned_staff_id, revision
+           FROM schedule_entries
+          WHERE clinic_id = $1 AND schedule_entry_id = $2
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.appointmentId],
+      );
+      if (!current.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The appointment was not found in this clinic.' });
+      }
+      if (Number(current.rows[0].revision) !== parsed.data.revision) {
+        return reply.code(409).send({ error: 'revision_conflict', message: 'This appointment was updated elsewhere. Reload it before saving.' });
+      }
+      if (['cancelled', 'completed'].includes(String(current.rows[0].status).toLowerCase())) {
+        return reply.code(409).send({ error: 'appointment_closed', message: 'A completed or cancelled appointment cannot be rescheduled.' });
+      }
+      const input = parsed.data;
+      if (input.assignedStaffId) {
+        const staff = await client.query(
+          `SELECT 1 FROM clinic_memberships
+            WHERE clinic_id = $1 AND user_id = $2
+              AND membership_status = 'Active' AND deleted_at IS NULL`,
+          [request.auth.clinicId, input.assignedStaffId],
+        );
+        if (!staff.rows[0]) {
+          return reply.code(400).send({ error: 'invalid_staff', message: 'The selected staff member is not active in this clinic.' });
+        }
+      }
+      const updated = await client.query(
+        `UPDATE schedule_entries
+            SET scheduled_at = $3, visit_type = $4, assigned_staff_id = $5,
+                notes = $6, updated_at = now(), revision = revision + 1
+          WHERE clinic_id = $1 AND schedule_entry_id = $2
+          RETURNING schedule_entry_id, patient_id, scheduled_at, visit_type,
+                    status, notes, assigned_staff_id, revision, updated_at`,
+        [request.auth.clinicId, params.data.appointmentId, input.scheduledAt,
+          input.visitType, input.assignedStaffId ?? null, input.notes ?? null],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Appointment',
+        targetId: params.data.appointmentId,
+        action: 'appointment.rescheduled',
+        previousSummary: {
+          scheduledAt: current.rows[0].scheduled_at,
+          visitType: current.rows[0].visit_type,
+          assignedStaffId: current.rows[0].assigned_staff_id,
+          revision: current.rows[0].revision,
+        },
+        newSummary: {
+          scheduledAt: updated.rows[0].scheduled_at,
+          visitType: updated.rows[0].visit_type,
+          assignedStaffId: updated.rows[0].assigned_staff_id,
+          revision: updated.rows[0].revision,
+        },
+        sessionId: request.auth.sessionId,
+      });
+      return { appointment: updated.rows[0] };
+    });
+  });
+
+  app.post('/api/v1/schedule/:appointmentId/cancel', { preHandler: [authenticate, requirePermission(permissions.appointmentsCancel)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = appointmentUuidSchema.safeParse(request.params);
+    const parsed = cancelAppointmentSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'The appointment cancellation request is invalid.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT schedule_entry_id, patient_id, scheduled_at, visit_type,
+                status, revision
+           FROM schedule_entries
+          WHERE clinic_id = $1 AND schedule_entry_id = $2
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.appointmentId],
+      );
+      if (!current.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The appointment was not found in this clinic.' });
+      }
+      if (Number(current.rows[0].revision) !== parsed.data.revision) {
+        return reply.code(409).send({ error: 'revision_conflict', message: 'This appointment was updated elsewhere. Reload it before cancelling.' });
+      }
+      if (String(current.rows[0].status).toLowerCase() === 'cancelled') {
+        return { appointment: current.rows[0], alreadyCancelled: true };
+      }
+      if (String(current.rows[0].status).toLowerCase() === 'completed') {
+        return reply.code(409).send({ error: 'appointment_completed', message: 'A completed appointment cannot be cancelled.' });
+      }
+      const updated = await client.query(
+        `UPDATE schedule_entries
+            SET status = 'Cancelled', updated_at = now(), revision = revision + 1
+          WHERE clinic_id = $1 AND schedule_entry_id = $2
+          RETURNING schedule_entry_id, patient_id, scheduled_at, visit_type,
+                    status, notes, assigned_staff_id, revision, updated_at`,
+        [request.auth.clinicId, params.data.appointmentId],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Appointment',
+        targetId: params.data.appointmentId,
+        action: 'appointment.cancelled',
+        previousSummary: { status: current.rows[0].status, revision: current.rows[0].revision },
+        newSummary: { status: updated.rows[0].status, revision: updated.rows[0].revision },
+        sessionId: request.auth.sessionId,
+      });
+      return { appointment: updated.rows[0], alreadyCancelled: false };
+    });
+  });
 
   app.get('/api/v1/clinical-operations', { preHandler: [authenticate] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;

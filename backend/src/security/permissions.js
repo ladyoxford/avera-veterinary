@@ -15,6 +15,8 @@ export const permissions = {
   treatmentBoardView: 'treatment_board.view', treatmentBoardCreate: 'treatment_board.create',
   inventoryView: 'inventory.view', inventoryCreate: 'inventory.create', inventoryEdit: 'inventory.edit', inventoryManage: 'inventory.manage',
   appointmentsView: 'appointments.view', appointmentsCreate: 'appointments.create',
+  appointmentsEdit: 'appointments.edit', appointmentsCancel: 'appointments.cancel',
+  appointmentsStartConsultation: 'appointments.start_consultation',
   billingView: 'billing.view', billingCreate: 'billing.create', billingManage: 'billing.manage',
   mediaView: 'media.view',
   twoFactorManageSelf: 'security.twoFactor.manageSelf',

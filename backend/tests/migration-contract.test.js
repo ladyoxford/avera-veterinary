@@ -12,6 +12,8 @@ import {
   formatPatientHospitalNumber,
   patientStatusSchema,
   suggestedPatientPrefix,
+  cancelAppointmentSchema,
+  updateAppointmentSchema,
   updateInventoryItemSchema,
   updateConsultationSchema,
 } from '../src/routes/clinical-routes.js';
@@ -253,6 +255,8 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     'inventoryEdit',
     'vaccinationsAdd',
     'appointmentsCreate',
+    'appointmentsEdit',
+    'appointmentsCancel',
     'billingCreate',
   ]) {
     assert.match(
@@ -281,6 +285,21 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     routes,
     /app\.get\('\/api\/v1\/vaccinations\/:vaccinationId'[\s\S]*permissions\.vaccinationsView/,
   );
+  assert.match(
+    routes,
+    /app\.get\('\/api\/v1\/schedule\/:appointmentId'[\s\S]*permissions\.appointmentsView/,
+  );
+  assert.match(
+    routes,
+    /app\.patch\('\/api\/v1\/schedule\/:appointmentId'[\s\S]*permissions\.appointmentsEdit/,
+  );
+  assert.match(
+    routes,
+    /app\.post\('\/api\/v1\/schedule\/:appointmentId\/cancel'[\s\S]*permissions\.appointmentsCancel/,
+  );
+  assert.match(routes, /appointment\.rescheduled/);
+  assert.match(routes, /appointment\.cancelled/);
+  assert.match(routes, /lower\(s\.status\) <> 'cancelled'/);
   assert.match(routes, /membership_status='Active'/);
   assert.doesNotMatch(routes, /clinic_memberships[\s\S]{0,120}\.status='Active'/);
   assert.match(
@@ -302,6 +321,30 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
       new RegExp(`\\['${path}',[\\s\\S]*?permissions\\.${permission}`),
     );
   }
+});
+
+test('appointment update contracts are revision-safe and reject identity changes', () => {
+  const update = {
+    revision: 2,
+    scheduledAt: '2026-08-12T09:30:00.000Z',
+    visitType: 'Follow-up',
+    assignedStaffId: null,
+    notes: 'Review appetite and hydration.',
+  };
+  assert.equal(updateAppointmentSchema.safeParse(update).success, true);
+  assert.equal(
+    updateAppointmentSchema.safeParse({ ...update, revision: 0 }).success,
+    false,
+  );
+  assert.equal(
+    updateAppointmentSchema.safeParse({ ...update, patientId: 'patient-other' }).success,
+    false,
+  );
+  assert.equal(cancelAppointmentSchema.safeParse({ revision: 2 }).success, true);
+  assert.equal(
+    cancelAppointmentSchema.safeParse({ revision: 2, clinicId: 'clinic-other' }).success,
+    false,
+  );
 });
 
 test('clinical operations use canonical patients and idempotent tenant storage', () => {

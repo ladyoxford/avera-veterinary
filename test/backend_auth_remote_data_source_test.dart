@@ -276,6 +276,88 @@ void main() {
   });
 
   test(
+    'appointment detail, reschedule and cancellation use exact UUID routes',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'avera_access_token': 'production-access-token',
+      });
+      const appointmentId = '92a4ce80-f37d-4d87-9293-5525fcc46493';
+      const patientId = 'cb159739-c0cb-4503-a069-9d64563f47bc';
+      final requests = <http.Request>[];
+      final client = MockClient((request) async {
+        requests.add(request);
+        expect(
+          request.headers['authorization'],
+          'Bearer production-access-token',
+        );
+        final revision = request.method == 'GET' ? 1 : 2;
+        return http.Response(
+          jsonEncode({
+            'appointment': {
+              'schedule_entry_id': appointmentId,
+              'patient_id': patientId,
+              'patient_name': 'Bassy',
+              'hospital_number': 'BIOCAMP-2026-00002',
+              'species': 'Ferret',
+              'breed': 'Champagne',
+              'sex': 'Female',
+              'patient_status': 'Active',
+              'owner_name': 'Danny Okafor',
+              'owner_phone': '07060000000',
+              'scheduled_at': '2026-08-12T09:30:00.000Z',
+              'visit_type': 'Grooming',
+              'status': request.url.path.endsWith('/cancel')
+                  ? 'Cancelled'
+                  : 'Confirmed',
+              'revision': revision,
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final source = ClinicalRemoteDataSource(
+        ApiClient(
+          baseUrl: BackendConfiguration.productionApiBaseUrl,
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: client,
+        ),
+      );
+
+      final detail = await source.appointment(appointmentId);
+      final updated = await source.updateAppointment(
+        appointmentId: appointmentId,
+        payload: const {
+          'revision': 1,
+          'scheduledAt': '2026-08-12T09:30:00.000Z',
+          'visitType': 'Grooming',
+          'assignedStaffId': null,
+          'notes': null,
+        },
+      );
+      final cancelled = await source.cancelAppointment(
+        appointmentId: appointmentId,
+        revision: 2,
+      );
+
+      expect(detail.id, appointmentId);
+      expect(detail.patient?.id, patientId);
+      expect(updated.revision, 2);
+      expect(cancelled.status, 'Cancelled');
+      expect(
+        requests.map((request) => '${request.method} ${request.url.path}'),
+        [
+          'GET /api/v1/schedule/$appointmentId',
+          'PATCH /api/v1/schedule/$appointmentId',
+          'POST /api/v1/schedule/$appointmentId/cancel',
+        ],
+      );
+      expect(jsonDecode(requests[1].body), containsPair('revision', 1));
+      expect(jsonDecode(requests[2].body), {'revision': 2});
+    },
+  );
+
+  test(
     'ApiClient uses a configurable timeout with a 15-second development default',
     () {
       expect(

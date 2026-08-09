@@ -443,9 +443,15 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/appointments/:appointmentId',
-          builder: (context, state) => AppointmentDetailScreen(
-            appointmentId: int.parse(state.pathParameters['appointmentId']!),
-          ),
+          builder: (context, state) => BackendConfiguration.isConfigured
+              ? CloudAppointmentDetailScreen(
+                  appointmentId: state.pathParameters['appointmentId']!,
+                )
+              : AppointmentDetailScreen(
+                  appointmentId: int.parse(
+                    state.pathParameters['appointmentId']!,
+                  ),
+                ),
         ),
         GoRoute(
           path: '/vaccinations',

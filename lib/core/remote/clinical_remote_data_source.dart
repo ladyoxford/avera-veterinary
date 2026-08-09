@@ -113,6 +113,86 @@ class RemotePatient {
   };
 }
 
+class RemoteAppointmentDetail {
+  const RemoteAppointmentDetail({
+    required this.id,
+    required this.patientId,
+    required this.scheduledAt,
+    required this.visitType,
+    required this.status,
+    required this.revision,
+    this.patient,
+    this.notes,
+    this.assignedStaffId,
+    this.assignedStaffName,
+    this.assignedStaffTitle,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String patientId;
+  final DateTime scheduledAt;
+  final String visitType;
+  final String status;
+  final int revision;
+  final RemotePatient? patient;
+  final String? notes;
+  final String? assignedStaffId;
+  final String? assignedStaffName;
+  final String? assignedStaffTitle;
+  final DateTime? updatedAt;
+
+  bool get hasPatient => patient != null;
+
+  factory RemoteAppointmentDetail.fromJson(Map<String, dynamic> value) {
+    final appointment = value['appointment'] is Map
+        ? Map<String, dynamic>.from(value['appointment'] as Map)
+        : value;
+    final patientName = appointment['patient_name'] as String?;
+    return RemoteAppointmentDetail(
+      id: appointment['schedule_entry_id'] as String,
+      patientId: appointment['patient_id'] as String,
+      scheduledAt:
+          _date(appointment['scheduled_at']) ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      visitType: appointment['visit_type'] as String? ?? 'Appointment',
+      status: appointment['status'] as String? ?? 'Confirmed',
+      revision: _nullableInt(appointment['revision']) ?? 1,
+      patient: patientName == null
+          ? null
+          : RemotePatient.fromJson({
+              ...appointment,
+              'name': patientName,
+              'status': appointment['patient_status'] ?? 'Active',
+            }),
+      notes: appointment['notes'] as String?,
+      assignedStaffId: appointment['assigned_staff_id'] as String?,
+      assignedStaffName: appointment['assigned_staff_name'] as String?,
+      assignedStaffTitle: appointment['assigned_staff_title'] as String?,
+      updatedAt: _date(appointment['updated_at']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'schedule_entry_id': id,
+    'patient_id': patientId,
+    'scheduled_at': scheduledAt.toIso8601String(),
+    'visit_type': visitType,
+    'status': status,
+    'revision': revision,
+    'notes': notes,
+    'assigned_staff_id': assignedStaffId,
+    'assigned_staff_name': assignedStaffName,
+    'assigned_staff_title': assignedStaffTitle,
+    'updated_at': updatedAt?.toIso8601String(),
+    if (patient != null) ...{
+      ...patient!.toJson(),
+      'patient_name': patient!.name,
+      'patient_status': patient!.status,
+    },
+  };
+}
+
 String? _ownerAddress(Map<String, dynamic> value) {
   final parts = <String>[
     if ((value['owner_address'] as String?)?.trim().isNotEmpty ?? false)
@@ -653,10 +733,33 @@ class ClinicalRemoteDataSource {
     String? search,
   }) => _generic('/api/v1/schedule', page: page, search: search);
 
+  Future<RemoteAppointmentDetail> appointment(String appointmentId) async {
+    final response = await _client.get('/api/v1/schedule/$appointmentId');
+    return RemoteAppointmentDetail.fromJson(response);
+  }
+
   Future<Map<String, dynamic>> createAppointment(
     Map<String, dynamic> payload,
   ) async => Map<String, dynamic>.from(
     await _client.post('/api/v1/schedule', body: payload, authenticated: true),
+  );
+
+  Future<RemoteAppointmentDetail> updateAppointment({
+    required String appointmentId,
+    required Map<String, dynamic> payload,
+  }) async => RemoteAppointmentDetail.fromJson(
+    await _client.patch('/api/v1/schedule/$appointmentId', body: payload),
+  );
+
+  Future<RemoteAppointmentDetail> cancelAppointment({
+    required String appointmentId,
+    required int revision,
+  }) async => RemoteAppointmentDetail.fromJson(
+    await _client.post(
+      '/api/v1/schedule/$appointmentId/cancel',
+      body: {'revision': revision},
+      authenticated: true,
+    ),
   );
 
   Future<Map<String, dynamic>> updateConsultation({

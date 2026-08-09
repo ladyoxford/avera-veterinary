@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -172,21 +173,9 @@ class _RemoteAppointmentsScreen extends ConsumerWidget {
                               index < page.items.length;
                               index++
                             ) ...[
-                              ListTile(
-                                minTileHeight: 76,
-                                leading: const Icon(
-                                  Icons.calendar_month_rounded,
-                                ),
-                                title: Text(
-                                  page.items[index]['patient_name']
-                                          ?.toString() ??
-                                      'Patient',
-                                  style: averaText(context).listItemTitle,
-                                ),
-                                subtitle: Text(
-                                  '${page.items[index]['visit_type'] ?? 'Visit'} | ${_remoteAppointmentDate(page.items[index]['scheduled_at'])}',
-                                  style: averaText(context).listItemSubtitle,
-                                ),
+                              RemoteAppointmentScheduleRow(
+                                appointment: page.items[index],
+                                session: session,
                               ),
                               if (index != page.items.length - 1)
                                 const Divider(height: 1, indent: 72),
@@ -208,6 +197,762 @@ String _remoteAppointmentDate(Object? value) {
   return date == null
       ? 'Date unavailable'
       : DateFormat.yMMMd().add_jm().format(date);
+}
+
+@visibleForTesting
+class RemoteAppointmentScheduleRow extends ConsumerWidget {
+  const RemoteAppointmentScheduleRow({
+    super.key,
+    required this.appointment,
+    required this.session,
+  });
+
+  final Map<String, dynamic> appointment;
+  final UserSession? session;
+
+  String? get _appointmentId =>
+      appointment['schedule_entry_id']?.toString().trim();
+  String? get _patientId => appointment['patient_id']?.toString().trim();
+  bool get _hasPatient =>
+      _patientId?.isNotEmpty == true &&
+      appointment['patient_name']?.toString().trim().isNotEmpty == true;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appointmentId = _appointmentId;
+    return ListTile(
+      minTileHeight: 76,
+      leading: const Icon(Icons.calendar_month_rounded),
+      title: Text(
+        _hasPatient
+            ? appointment['patient_name'].toString()
+            : 'Patient record unavailable',
+        style: averaText(context).listItemTitle,
+      ),
+      subtitle: Text(
+        '${appointment['visit_type'] ?? 'Visit'} | ${_remoteAppointmentDate(appointment['scheduled_at'])}',
+        style: averaText(context).listItemSubtitle,
+      ),
+      onTap: appointmentId?.isNotEmpty == true
+          ? () => context.push('/appointments/$appointmentId')
+          : null,
+      onLongPress: appointmentId?.isNotEmpty == true
+          ? () async {
+              unawaited(HapticFeedback.selectionClick());
+              await _showRemoteAppointmentActions(
+                context,
+                ref,
+                appointment: appointment,
+                session: session,
+              );
+            }
+          : null,
+    );
+  }
+}
+
+class CloudAppointmentDetailScreen extends ConsumerWidget {
+  const CloudAppointmentDetailScreen({super.key, required this.appointmentId});
+
+  final String appointmentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final result = ref.watch(remoteAppointmentDetailProvider(appointmentId));
+    final session = ref.watch(userSessionProvider).valueOrNull;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Appointment')),
+      body: result.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.event_busy_outlined, size: 40),
+                const SizedBox(height: 12),
+                Text(
+                  'Appointment unavailable',
+                  style: averaText(context).sectionTitle,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'This appointment could not be loaded for the active clinic.',
+                  textAlign: TextAlign.center,
+                  style: averaText(context).sectionSubtitle,
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () => ref.invalidate(
+                    remoteAppointmentDetailProvider(appointmentId),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        data: (detail) =>
+            _RemoteAppointmentDetailBody(detail: detail, session: session),
+      ),
+    );
+  }
+}
+
+class _RemoteAppointmentDetailBody extends ConsumerWidget {
+  const _RemoteAppointmentDetailBody({
+    required this.detail,
+    required this.session,
+  });
+
+  final RemoteAppointmentDetail detail;
+  final UserSession? session;
+
+  bool get _isClosed => const {
+    'cancelled',
+    'completed',
+  }.contains(detail.status.trim().toLowerCase());
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canStart =
+        !_isClosed &&
+        detail.hasPatient &&
+        session?.can(Permissions.appointmentsStartConsultation) == true;
+    final canEdit =
+        !_isClosed && session?.can(Permissions.appointmentsEdit) == true;
+    final canCancel =
+        !_isClosed && session?.can(Permissions.appointmentsCancel) == true;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AveraSpacing.pageHorizontalPadding,
+        AveraSpacing.pageTopPadding,
+        AveraSpacing.pageHorizontalPadding,
+        AveraSpacing.bottomContentClearance,
+      ),
+      children: [
+        _StatusChip(status: detail.status),
+        const SizedBox(height: AveraSpacing.cardGap),
+        _RemoteAppointmentPatientCard(detail: detail, session: session),
+        const SizedBox(height: AveraSpacing.sectionGap),
+        const AveraSectionHeader(title: 'Appointment Details'),
+        const SizedBox(height: 12),
+        AveraSurfaceCard(
+          child: Column(
+            children: [
+              _KeyValueRow(
+                label: 'Date',
+                value: DateFormat.yMMMMd().format(detail.scheduledAt.toLocal()),
+              ),
+              _KeyValueRow(
+                label: 'Time',
+                value: DateFormat.jm().format(detail.scheduledAt.toLocal()),
+              ),
+              _KeyValueRow(label: 'Type', value: detail.visitType),
+              _KeyValueRow(
+                label: 'Assigned vet',
+                value: detail.assignedStaffName ?? 'Not assigned',
+              ),
+              _KeyValueRow(
+                label: 'Status',
+                value: detail.status,
+                showDivider: false,
+              ),
+            ],
+          ),
+        ),
+        if (detail.notes?.trim().isNotEmpty == true) ...[
+          const SizedBox(height: AveraSpacing.sectionGap),
+          const AveraSectionHeader(title: 'Notes'),
+          const SizedBox(height: 12),
+          AveraSurfaceCard(
+            child: Text(
+              detail.notes!.trim(),
+              style: averaText(context).fieldValue,
+            ),
+          ),
+        ],
+        const SizedBox(height: AveraSpacing.sectionGap),
+        const AveraSectionHeader(
+          title: 'Reminders',
+          subtitle: 'On-device notifications',
+        ),
+        const SizedBox(height: 12),
+        AveraSurfaceCard(
+          child: Center(
+            child: Text(
+              'No reminders enabled.',
+              style: averaText(context).fieldPlaceholder,
+            ),
+          ),
+        ),
+        if (canStart || canEdit || canCancel) ...[
+          const SizedBox(height: AveraSpacing.sectionGap),
+          if (canStart)
+            AveraPrimaryActionButton(
+              label: 'Start Consultation',
+              icon: Icons.medical_services_outlined,
+              onPressed: () => _startRemoteConsultation(context, ref, detail),
+            ),
+          if (canStart && (canEdit || canCancel)) const SizedBox(height: 12),
+          if (canEdit)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    _rescheduleRemoteAppointment(context, ref, detail),
+                icon: const Icon(Icons.edit_calendar_rounded),
+                label: const Text('Reschedule'),
+              ),
+            ),
+          if (canEdit && canCancel) const SizedBox(height: 12),
+          if (canCancel)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => _cancelRemoteAppointment(context, ref, detail),
+                icon: const Icon(Icons.event_busy_rounded),
+                label: const Text('Cancel Visit'),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RemoteAppointmentPatientCard extends StatelessWidget {
+  const _RemoteAppointmentPatientCard({
+    required this.detail,
+    required this.session,
+  });
+
+  final RemoteAppointmentDetail detail;
+  final UserSession? session;
+
+  @override
+  Widget build(BuildContext context) {
+    final patient = detail.patient;
+    if (patient == null) {
+      return const _MessageCard(
+        icon: Icons.person_off_outlined,
+        title: 'Patient record unavailable',
+        message:
+            'Appointment details remain available, but patient actions are disabled.',
+      );
+    }
+    return AveraSurfaceCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: session?.can(Permissions.patientsView) == true
+            ? () => context.push('/animals/${patient.id}')
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.all(AveraSpacing.cardPadding),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                child: Text(patient.name.characters.first.toUpperCase()),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(patient.name, style: averaText(context).listItemTitle),
+                    Text(
+                      '${patient.species}${patient.breed?.trim().isNotEmpty == true ? ' / ${patient.breed}' : ''}${patient.sex?.trim().isNotEmpty == true ? ' / ${patient.sex}' : ''}',
+                      style: averaText(context).listItemSubtitle,
+                    ),
+                    Text(
+                      'Owner: ${patient.ownerName}',
+                      style: averaText(context).listItemSubtitle,
+                    ),
+                    if (patient.ownerPhone.trim().isNotEmpty)
+                      Text(
+                        patient.ownerPhone,
+                        style: averaText(context).caption,
+                      ),
+                    if (patient.hospitalNumber.trim().isNotEmpty)
+                      Text(
+                        patient.hospitalNumber,
+                        style: averaText(context).caption,
+                      ),
+                  ],
+                ),
+              ),
+              if (session?.can(Permissions.patientsView) == true)
+                const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _showRemoteAppointmentActions(
+  BuildContext context,
+  WidgetRef ref, {
+  required Map<String, dynamic> appointment,
+  required UserSession? session,
+}) async {
+  final appointmentId = appointment['schedule_entry_id']?.toString().trim();
+  if (appointmentId == null || appointmentId.isEmpty) return;
+  final patientAvailable =
+      appointment['patient_id']?.toString().trim().isNotEmpty == true &&
+      appointment['patient_name']?.toString().trim().isNotEmpty == true;
+  final status = appointment['status']?.toString().trim().toLowerCase() ?? '';
+  final open = status != 'cancelled' && status != 'completed';
+  final canStart =
+      open &&
+      patientAvailable &&
+      session?.can(Permissions.appointmentsStartConsultation) == true;
+  final canEdit = open && session?.can(Permissions.appointmentsEdit) == true;
+  final canCancel =
+      open && session?.can(Permissions.appointmentsCancel) == true;
+  final parentContext = context;
+
+  Future<void> run(
+    BuildContext sheetContext,
+    Future<void> Function(RemoteAppointmentDetail) action,
+  ) async {
+    Navigator.of(sheetContext).pop();
+    await Future<void>.delayed(Duration.zero);
+    if (!parentContext.mounted) return;
+    final detail = await _loadRemoteAppointment(
+      parentContext,
+      ref,
+      appointmentId,
+    );
+    if (detail != null && parentContext.mounted) await action(detail);
+  }
+
+  await showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            appointment['patient_name']?.toString().trim().isNotEmpty == true
+                ? appointment['patient_name'].toString()
+                : 'Patient record unavailable',
+            style: averaText(sheetContext).sectionTitle,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${appointment['visit_type'] ?? 'Visit'} • ${_remoteAppointmentDate(appointment['scheduled_at'])}',
+            style: averaText(sheetContext).sectionSubtitle,
+          ),
+          const SizedBox(height: 16),
+          if (!patientAvailable)
+            const _MessageCard(
+              icon: Icons.person_off_outlined,
+              title: 'Patient record unavailable',
+              message: 'Patient-specific consultation actions are disabled.',
+            ),
+          if (canStart)
+            ListTile(
+              leading: const Icon(Icons.medical_services_outlined),
+              title: const Text('Start New Consultation'),
+              subtitle: const Text('Open a consultation for this patient.'),
+              onTap: () => run(
+                sheetContext,
+                (detail) =>
+                    _startRemoteConsultation(parentContext, ref, detail),
+              ),
+            ),
+          if (canEdit)
+            ListTile(
+              leading: const Icon(Icons.edit_calendar_rounded),
+              title: const Text('Reschedule'),
+              subtitle: const Text('Update this appointment date or details.'),
+              onTap: () => run(
+                sheetContext,
+                (detail) =>
+                    _rescheduleRemoteAppointment(parentContext, ref, detail),
+              ),
+            ),
+          if (canCancel)
+            ListTile(
+              iconColor: Theme.of(sheetContext).colorScheme.error,
+              textColor: Theme.of(sheetContext).colorScheme.error,
+              leading: const Icon(Icons.event_busy_rounded),
+              title: const Text('Cancel Visit'),
+              subtitle: const Text(
+                'Cancel this appointment after confirmation.',
+              ),
+              onTap: () => run(
+                sheetContext,
+                (detail) =>
+                    _cancelRemoteAppointment(parentContext, ref, detail),
+              ),
+            ),
+          if (!canStart && !canEdit && !canCancel && patientAvailable)
+            const _MessageCard(
+              icon: Icons.lock_outline_rounded,
+              title: 'No appointment actions available',
+              message: 'Your clinic role does not allow changes to this visit.',
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<RemoteAppointmentDetail?> _loadRemoteAppointment(
+  BuildContext context,
+  WidgetRef ref,
+  String appointmentId,
+) async {
+  try {
+    return await ref.read(
+      remoteAppointmentDetailProvider(appointmentId).future,
+    );
+  } catch (error) {
+    if (context.mounted) {
+      _showMessage(context, _appointmentActionErrorMessage(error));
+    }
+    return null;
+  }
+}
+
+Future<void> _startRemoteConsultation(
+  BuildContext context,
+  WidgetRef ref,
+  RemoteAppointmentDetail detail,
+) async {
+  final patient = detail.patient;
+  if (patient == null) {
+    _showMessage(
+      context,
+      'The patient record is unavailable, so a consultation cannot be started.',
+    );
+    return;
+  }
+  await context.push(
+    '/consultations/new?patientId=${Uri.encodeQueryComponent(patient.id)}&appointmentId=${Uri.encodeQueryComponent(detail.id)}&complaint=${Uri.encodeQueryComponent(detail.visitType)}&veterinarian=${Uri.encodeQueryComponent(detail.assignedStaffName ?? '')}',
+  );
+  ref
+    ..invalidate(remoteAppointmentDetailProvider(detail.id))
+    ..invalidate(remoteAppointmentScheduleProvider)
+    ..invalidate(remotePatientMedicalFileProvider(patient.id))
+    ..invalidate(remoteDashboardProvider);
+}
+
+Future<void> _rescheduleRemoteAppointment(
+  BuildContext context,
+  WidgetRef ref,
+  RemoteAppointmentDetail detail,
+) async {
+  final changed = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => _RemoteRescheduleAppointmentSheet(detail: detail),
+  );
+  if (changed != true) return;
+  ref
+    ..invalidate(remoteAppointmentDetailProvider(detail.id))
+    ..invalidate(remoteAppointmentScheduleProvider)
+    ..invalidate(remotePatientMedicalFileProvider(detail.patientId))
+    ..invalidate(remoteDashboardProvider);
+  if (context.mounted) {
+    _showMessage(context, 'Appointment rescheduled successfully.');
+  }
+}
+
+Future<void> _cancelRemoteAppointment(
+  BuildContext context,
+  WidgetRef ref,
+  RemoteAppointmentDetail detail,
+) async {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Cancel Visit?'),
+      content: const Text('Are you sure you want to cancel this appointment?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Keep Appointment'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Cancel Visit'),
+        ),
+      ],
+    ),
+  );
+  if (confirm != true) return;
+  try {
+    await ref
+        .read(clinicalRemoteDataSourceProvider)
+        .cancelAppointment(appointmentId: detail.id, revision: detail.revision);
+    ref
+      ..invalidate(remoteAppointmentDetailProvider(detail.id))
+      ..invalidate(remoteAppointmentScheduleProvider)
+      ..invalidate(remotePatientMedicalFileProvider(detail.patientId))
+      ..invalidate(remoteDashboardProvider);
+    if (context.mounted) _showMessage(context, 'Visit cancelled.');
+  } catch (error) {
+    if (context.mounted) {
+      _showMessage(context, _appointmentActionErrorMessage(error));
+    }
+  }
+}
+
+class _RemoteRescheduleAppointmentSheet extends ConsumerStatefulWidget {
+  const _RemoteRescheduleAppointmentSheet({required this.detail});
+
+  final RemoteAppointmentDetail detail;
+
+  @override
+  ConsumerState<_RemoteRescheduleAppointmentSheet> createState() =>
+      _RemoteRescheduleAppointmentSheetState();
+}
+
+class _RemoteRescheduleAppointmentSheetState
+    extends ConsumerState<_RemoteRescheduleAppointmentSheet> {
+  late DateTime _scheduledAt;
+  late String _type;
+  late String? _assignedStaffId;
+  late String? _assignedStaffName;
+  late final TextEditingController _notes;
+  late Future<List<AppUser>> _eligibleStaff;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduledAt = widget.detail.scheduledAt.toLocal();
+    _type = widget.detail.visitType;
+    _assignedStaffId = widget.detail.assignedStaffId;
+    _assignedStaffName = widget.detail.assignedStaffName;
+    _notes = TextEditingController(text: widget.detail.notes ?? '');
+    _eligibleStaff = ref
+        .read(clinicRepositoryProvider)
+        .eligibleAppointmentStaff();
+  }
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: .86,
+      minChildSize: .55,
+      maxChildSize: .96,
+      builder: (context, controller) => ListView(
+        controller: controller,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        children: [
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(99),
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text('Reschedule Appointment', style: averaText(context).pageTitle),
+          const SizedBox(height: 20),
+          AveraLabeledFieldCard(
+            label: 'Patient',
+            child: Text(
+              widget.detail.patient?.name ?? 'Patient record unavailable',
+              style: averaText(context).fieldValue,
+            ),
+          ),
+          const SizedBox(height: AveraSpacing.cardGap),
+          _DateTimeCard(
+            label: 'New date',
+            value: DateFormat.yMMMMd().format(_scheduledAt),
+            onTap: _selectDate,
+          ),
+          const SizedBox(height: AveraSpacing.cardGap),
+          _DateTimeCard(
+            label: 'New time',
+            value: DateFormat.jm().format(_scheduledAt),
+            onTap: _selectTime,
+          ),
+          const SizedBox(height: AveraSpacing.cardGap),
+          FutureBuilder<List<AppUser>>(
+            future: _eligibleStaff,
+            builder: (context, snapshot) => _ChoiceCard(
+              label: 'Assigned veterinarian',
+              value: _assignedStaffName ?? 'Not assigned',
+              onTap: snapshot.hasData ? () => _selectVet(snapshot.data!) : null,
+            ),
+          ),
+          const SizedBox(height: AveraSpacing.cardGap),
+          _ChoiceCard(
+            label: 'Appointment type',
+            value: _type,
+            onTap: _selectType,
+          ),
+          const SizedBox(height: AveraSpacing.cardGap),
+          AveraLabeledFieldCard(
+            label: 'Notes',
+            child: TextField(
+              controller: _notes,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Appointment notes',
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          AveraPrimaryActionButton(
+            label: 'Save New Schedule',
+            icon: Icons.save_outlined,
+            loading: _saving,
+            onPressed: _saving ? null : _save,
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Future<void> _selectDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _scheduledAt.isBefore(DateTime.now())
+          ? DateTime.now()
+          : _scheduledAt,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+    if (date != null && mounted) {
+      setState(
+        () => _scheduledAt = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          _scheduledAt.hour,
+          _scheduledAt.minute,
+        ),
+      );
+    }
+  }
+
+  Future<void> _selectTime() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_scheduledAt),
+    );
+    if (time != null && mounted) {
+      setState(
+        () => _scheduledAt = DateTime(
+          _scheduledAt.year,
+          _scheduledAt.month,
+          _scheduledAt.day,
+          time.hour,
+          time.minute,
+        ),
+      );
+    }
+  }
+
+  Future<void> _selectVet(List<AppUser> staff) async {
+    final selected = await showModalBottomSheet<AppUser>(
+      context: context,
+      useSafeArea: true,
+      builder: (_) => _SimpleSelectionSheet<AppUser>(
+        title: 'Assign veterinarian',
+        items: staff,
+        label: (user) => user.fullName,
+        isSelected: (user) => user.userId == _assignedStaffId,
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() {
+        _assignedStaffId = selected.userId;
+        _assignedStaffName = selected.fullName;
+      });
+    }
+  }
+
+  Future<void> _selectType() async {
+    final selected = await _choiceSheet(
+      context,
+      title: 'Appointment type',
+      values: _appointmentTypes,
+      current: _type,
+    );
+    if (selected != null && mounted) setState(() => _type = selected);
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(clinicalRemoteDataSourceProvider)
+          .updateAppointment(
+            appointmentId: widget.detail.id,
+            payload: {
+              'revision': widget.detail.revision,
+              'scheduledAt': _scheduledAt.toUtc().toIso8601String(),
+              'visitType': _type,
+              'assignedStaffId': _assignedStaffId,
+              'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+            },
+          );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(context, _appointmentActionErrorMessage(error));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+}
+
+String _appointmentActionErrorMessage(Object error) {
+  if (error is! ApiException) {
+    return 'The appointment could not be updated right now.';
+  }
+  return switch (error.code) {
+    'revision_conflict' =>
+      'This appointment changed elsewhere. Reload it and try again.',
+    'appointment_closed' ||
+    'appointment_completed' => 'This appointment can no longer be changed.',
+    'permission_denied' ||
+    'forbidden' => 'You do not have permission to change this appointment.',
+    'not_found' => 'This appointment could not be found.',
+    'invalid_staff' => 'The assigned staff member is no longer available.',
+    'network_unavailable' || 'request_timeout' =>
+      'The appointment could not be updated. Please check your connection.',
+    _ =>
+      error.statusCode != null && error.statusCode! >= 500
+          ? 'The appointment could not be updated right now.'
+          : error.message,
+  };
 }
 
 class AppointmentDetailScreen extends ConsumerWidget {

@@ -447,6 +447,20 @@ class ClinicRoleOption {
   final String name;
 }
 
+class StaffInvitationResult {
+  const StaffInvitationResult({
+    required this.deliveryStatus,
+    required this.staffNumber,
+    this.activationLink,
+  });
+
+  final String deliveryStatus;
+  final String staffNumber;
+  final String? activationLink;
+
+  bool get emailSent => deliveryStatus == 'EmailSent';
+}
+
 class ClinicApplication {
   const ClinicApplication({
     required this.clinicName,
@@ -1405,6 +1419,10 @@ class ClinicRepository {
                 username: remote['email']?.toString() ?? '',
                 email: remote['email']?.toString() ?? '',
                 phoneNumber: Value(remote['phone']?.toString()),
+                professionalTitle: Value(
+                  remote['professionalTitle']?.toString(),
+                ),
+                staffNumber: Value(remote['staffNumber']?.toString()),
                 passwordHash: 'backend-managed',
                 role: displayRole,
                 roleId: Value(roleId),
@@ -2588,14 +2606,13 @@ class ClinicRepository {
     });
   }
 
-  Future<String> inviteClinicUser({
+  Future<StaffInvitationResult> inviteClinicUser({
     required UserSession actingSession,
     required String fullName,
     required String email,
     required ClinicRoleOption role,
     String? phoneNumber,
     String? professionalTitle,
-    String? staffNumber,
     Set<String> permissionOverrides = const {},
   }) async {
     if (!actingSession.can(Permissions.usersCreate)) {
@@ -2611,7 +2628,6 @@ class ClinicRepository {
           'email': email.trim().toLowerCase(),
           'phone': phoneNumber?.trim(),
           'professionalTitle': professionalTitle?.trim(),
-          'staffNumber': staffNumber?.trim(),
           'roleId': role.id,
         },
       );
@@ -2619,10 +2635,13 @@ class ClinicRepository {
         response['invitation'] as Map,
       );
       await refreshClinicUsers(actingSession);
-      return invitation['delivery'] is Map &&
-              (invitation['delivery'] as Map)['status'] == 'EmailSent'
-          ? 'email-sent'
-          : 'delivery-unavailable';
+      final delivery = invitation['delivery'] is Map
+          ? Map<String, dynamic>.from(invitation['delivery'] as Map)
+          : const <String, dynamic>{};
+      return StaffInvitationResult(
+        deliveryStatus: delivery['status'] as String? ?? 'DeliveryUnavailable',
+        staffNumber: invitation['staffNumber'] as String? ?? '',
+      );
     }
     final normalizedEmail = email.trim().toLowerCase();
     final duplicate =
@@ -2635,6 +2654,21 @@ class ClinicRepository {
     final now = DateTime.now();
     final userId = _uuid.v4();
     final token = _newActivationToken();
+    final existingStaff =
+        await (db.select(db.appUsers)..where(
+              (user) => user.clinicId.equals(actingSession.clinic.clinicId),
+            ))
+            .get();
+    final nextStaffNumber =
+        existingStaff
+            .map((user) => int.tryParse(user.staffNumber ?? ''))
+            .whereType<int>()
+            .fold<int>(
+              0,
+              (highest, value) => value > highest ? value : highest,
+            ) +
+        1;
+    final allocatedStaffNumber = nextStaffNumber.toString().padLeft(3, '0');
     await db.transaction(() async {
       await db
           .into(db.appUsers)
@@ -2666,11 +2700,7 @@ class ClinicRepository {
                     ? null
                     : professionalTitle!.trim(),
               ),
-              staffNumber: Value(
-                staffNumber?.trim().isEmpty ?? true
-                    ? null
-                    : staffNumber!.trim(),
-              ),
+              staffNumber: Value(allocatedStaffNumber),
               permissions: Value(jsonEncode(permissionOverrides.toList())),
               createdBy: Value(actingSession.user.userId),
               createdAt: now,
@@ -2691,7 +2721,11 @@ class ClinicRepository {
             ),
           );
     });
-    return '/activate-clinic-admin?token=$token';
+    return StaffInvitationResult(
+      deliveryStatus: 'DevelopmentLink',
+      staffNumber: allocatedStaffNumber,
+      activationLink: '/activate-staff?token=$token',
+    );
   }
 
   Future<void> resendClinicUserInvitation({

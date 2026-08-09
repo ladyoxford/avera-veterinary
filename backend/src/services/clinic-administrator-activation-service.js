@@ -4,6 +4,8 @@ import { withTenantTransaction } from '../database/pool.js';
 import { hashPassword, validatePassword } from '../security/passwords.js';
 import { hashToken } from '../security/tokens.js';
 import { clinicAdministratorPermissionKeys } from '../security/permission-catalog.js';
+import { ensureDefaultClinicRoles } from '../security/default-clinic-roles.js';
+import { allocateClinicStaffNumber } from '../security/staff-number.js';
 
 const purpose = 'ClinicAdministratorActivation';
 const staffPurpose = 'StaffInvitation';
@@ -67,6 +69,10 @@ export class ClinicAdministratorActivationService {
         [role.role_id, clinicPermissionIds],
       );
     }
+    await ensureDefaultClinicRoles(client, {
+      clinicId: context.clinicId,
+      actorUserId: context.actorUserId,
+    });
 
     const normalizedEmail = String(application.administrator_email).toLowerCase();
     let user = (
@@ -360,6 +366,10 @@ export class ClinicAdministratorActivationService {
         }
         throw serviceError('email_in_use', 'An AVERA account already uses this email address.', 409);
       }
+      const staffNumber = await allocateClinicStaffNumber(
+        client,
+        context.clinicId,
+      );
       const user = (await client.query(
         `INSERT INTO users
            (clinic_id, full_name, email, phone, password_hash, account_type,
@@ -378,10 +388,10 @@ export class ClinicAdministratorActivationService {
       );
       await client.query(
         `INSERT INTO staff_profiles
-           (user_id, professional_title, staff_number, created_at, updated_at)
-         VALUES ($1,$2,$3,now(),now())`,
-        [user.user_id, context.professionalTitle || null,
-          context.staffNumber || null],
+           (user_id, clinic_id, professional_title, staff_number,
+            created_at, updated_at)
+         VALUES ($1,$2,$3,$4,now(),now())`,
+        [user.user_id, context.clinicId, context.professionalTitle, staffNumber],
       );
       const clinic = (await client.query(
         'SELECT name FROM clinics WHERE clinic_id=$1 AND deleted_at IS NULL',
@@ -392,6 +402,8 @@ export class ClinicAdministratorActivationService {
         user,
         clinicName: clinic.name,
         roleName: role.name,
+        professionalTitle: context.professionalTitle,
+        staffNumber,
         actorUserId: context.actorUserId,
         ipAddress: context.ipAddress,
       });
@@ -400,13 +412,24 @@ export class ClinicAdministratorActivationService {
         actingUserId: context.actorUserId,
         targetType: 'User', targetId: user.user_id,
         action: 'staff.invited',
-        newSummary: { email, roleId: role.role_id, status: 'PendingActivation' },
+        newSummary: {
+          email,
+          roleId: role.role_id,
+          professionalTitle: context.professionalTitle,
+          staffNumber,
+          status: 'PendingActivation',
+        },
         sessionId: context.sessionId, ipAddress: context.ipAddress,
       });
       return token;
     });
     const delivery = await this.deliverStaffToken(issued);
-    return { userId: issued.userId, status: 'PendingActivation', delivery };
+    return {
+      userId: issued.userId,
+      status: 'PendingActivation',
+      staffNumber: issued.staffNumber,
+      delivery,
+    };
   }
 
   async resendStaff(context) {
@@ -426,9 +449,11 @@ export class ClinicAdministratorActivationService {
         throw serviceError('staff_invitation_forbidden', 'Only an active Clinic Administrator can resend staff invitations.', 403);
       }
       const target = (await client.query(
-        `SELECT u.*, c.name AS clinic_name, r.name AS role_name
+        `SELECT u.*, c.name AS clinic_name, r.name AS role_name,
+                sp.professional_title, sp.staff_number
            FROM users u JOIN clinics c ON c.clinic_id=u.clinic_id
            JOIN roles r ON r.role_id=u.role_id AND r.clinic_id=u.clinic_id
+           JOIN staff_profiles sp ON sp.user_id=u.user_id
           WHERE u.user_id=$1 AND u.clinic_id=$2
             AND u.account_type='ClinicStaff' AND u.status='PendingActivation'
             AND u.deleted_at IS NULL FOR UPDATE OF u`,
@@ -438,6 +463,8 @@ export class ClinicAdministratorActivationService {
       const token = await this.#issueStaffToken(client, {
         clinicId: context.clinicId, user: target,
         clinicName: target.clinic_name, roleName: target.role_name,
+        professionalTitle: target.professional_title,
+        staffNumber: target.staff_number,
         actorUserId: context.actorUserId,
         ipAddress: context.ipAddress,
       });
@@ -594,6 +621,8 @@ export class ClinicAdministratorActivationService {
         to: issued.email, staffName: issued.fullName,
         clinicName: issued.clinicName,
         roleName: issued.roleName,
+        professionalTitle: issued.professionalTitle,
+        staffNumber: issued.staffNumber,
         activationUrl: this.#staffActivationUrl(issued.rawToken),
         expiresAt: issued.expiresAt,
         idempotencyKey: `staff-activation-${issued.tokenId}`,
@@ -635,7 +664,9 @@ export class ClinicAdministratorActivationService {
     return { tokenId: inserted.token_id, userId: context.user.user_id,
       rawToken, expiresAt, email: context.user.email,
       fullName: context.user.full_name, clinicName: context.clinicName,
-      roleName: context.roleName };
+      roleName: context.roleName,
+      professionalTitle: context.professionalTitle,
+      staffNumber: context.staffNumber };
   }
 
   async #staffTokenRecord(rawToken, forUpdate, client) {
@@ -841,6 +872,8 @@ function staffActivationEmailText(message) {
     `Hello ${message.staffName},`, '',
     `${message.clinicName} invited you to join its team on AVERA.`,
     `Assigned role: ${message.roleName}.`,
+    `Professional title: ${message.professionalTitle}.`,
+    `Staff number: ${message.staffNumber}.`,
     'Create your password using this secure single-use link:',
     message.activationUrl, '',
     `This link expires at ${new Date(message.expiresAt).toISOString()}.`,

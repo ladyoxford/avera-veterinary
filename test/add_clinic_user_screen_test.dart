@@ -5,6 +5,7 @@ import 'package:avera/core/database/app_database.dart';
 import 'package:avera/core/remote/auth_remote_data_source.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
 import 'package:avera/core/security/access_control.dart';
+import 'package:avera/core/staff/professional_title_catalog.dart';
 import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/features/administration/screens/administration_screens.dart';
 import 'package:avera/features/shared/widgets/avera_ui.dart';
@@ -41,13 +42,45 @@ void main() {
 
   tearDown(() => database.close());
 
+  test(
+    'professional title catalogue covers every assignable standard role',
+    () {
+      const roles = [
+        'veterinarian',
+        'veterinary_nurse',
+        'receptionist',
+        'laboratory_staff',
+        'pharmacist',
+        'cashier',
+        'practice_manager',
+        'inventory_officer',
+        'sales_representative',
+      ];
+      expect(professionalTitleCatalogueCovers(roles), isTrue);
+      for (final code in roles) {
+        final titles = professionalTitlesForRole(
+          ClinicRoleOption(id: code, code: code, name: code),
+        );
+        expect(titles.last, otherProfessionalTitle);
+        expect(titles.toSet().length, titles.length);
+      }
+    },
+  );
+
   testWidgets(
     'production Add User uses shared fields and inline role validation',
     (tester) async {
       await _pumpScreen(tester, repository, session);
 
       expect(find.byType(AveraLabeledTextField), findsWidgets);
-      expect(find.byType(AveraLabeledDropdownField<String>), findsOneWidget);
+      expect(find.byType(AveraLabeledDropdownField<String>), findsNWidgets(2));
+      final titleDropdown = tester.widget<DropdownButtonFormField<String>>(
+        find.descendant(
+          of: find.byKey(const Key('add-user-professional-title')),
+          matching: find.byType(DropdownButtonFormField<String>),
+        ),
+      );
+      expect(titleDropdown.onChanged, isNull);
       expect(
         find.textContaining('Invitations are recorded locally for development'),
         findsNothing,
@@ -65,10 +98,15 @@ void main() {
       expect(find.text('Please select a valid staff role.'), findsOneWidget);
       expect(repository.invitationCount, 0);
 
-      final roleField = find.byType(AveraLabeledDropdownField<String>);
+      final roleField = find.byKey(const Key('add-user-role'));
       await _centerInViewport(tester, roleField);
-      await _selectRole(tester, 'role-vet');
+      await _selectDropdown(tester, roleField, 'role-vet');
       expect(find.text('Please select a valid staff role.'), findsNothing);
+      await _selectDropdown(
+        tester,
+        find.byKey(const Key('add-user-professional-title')),
+        'Veterinary Surgeon',
+      );
     },
   );
 
@@ -79,9 +117,14 @@ void main() {
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'Jane Vet');
     await tester.enterText(fields.at(1), 'jane@example.test');
-    final roleField = find.byType(AveraLabeledDropdownField<String>);
+    final roleField = find.byKey(const Key('add-user-role'));
     await _centerInViewport(tester, roleField);
-    await _selectRole(tester, 'role-pharmacist');
+    await _selectDropdown(tester, roleField, 'role-pharmacist');
+    await _selectDropdown(
+      tester,
+      find.byKey(const Key('add-user-professional-title')),
+      'Pharmacist',
+    );
 
     final submit = find.text('Create Invitation');
     await tester.scrollUntilVisible(
@@ -94,6 +137,7 @@ void main() {
     await tester.pump();
     expect(repository.invitationCount, 1);
     expect(repository.selectedRole?.id, 'role-pharmacist');
+    expect(repository.professionalTitle, 'Pharmacist');
 
     await tester.runAsync(() async {
       repository.completeInvitation();
@@ -126,6 +170,61 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('changing role clears title and Other submits custom title', (
+    tester,
+  ) async {
+    await _pumpScreen(tester, repository, session);
+    final roleField = find.byKey(const Key('add-user-role'));
+    final titleField = find.byKey(const Key('add-user-professional-title'));
+    await tester.enterText(find.byType(TextFormField).at(0), 'Jane Vet');
+    await tester.enterText(
+      find.byType(TextFormField).at(1),
+      'jane@example.test',
+    );
+
+    await _selectDropdown(tester, roleField, 'role-vet');
+    await _selectDropdown(tester, titleField, 'Veterinary Surgeon');
+    await _selectDropdown(tester, roleField, 'role-pharmacist');
+    final changedTitle = tester.widget<DropdownButtonFormField<String>>(
+      find.descendant(
+        of: titleField,
+        matching: find.byType(DropdownButtonFormField<String>),
+      ),
+    );
+    expect(changedTitle.initialValue, isNull);
+
+    await _selectDropdown(tester, titleField, 'Other');
+    await tester.drag(find.byType(ListView), const Offset(0, -320));
+    await tester.pumpAndSettle();
+    expect(find.text('SPECIFY PROFESSIONAL TITLE'), findsOneWidget);
+    await tester.enterText(
+      find.byType(TextFormField).last,
+      '  Equine Pharmacist  ',
+    );
+    await tester.scrollUntilVisible(
+      find.text('Create Invitation'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Create Invitation'));
+    await tester.pump();
+    expect(repository.professionalTitle, 'Equine Pharmacist');
+  });
+
+  testWidgets('staff number is system assigned and not editable', (
+    tester,
+  ) async {
+    await _pumpScreen(tester, repository, session);
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(find.text('STAFF NUMBER'), findsOneWidget);
+    expect(find.text('Auto-assigned'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextFormField, 'Enter staff number'),
+      findsNothing,
+    );
+  });
 }
 
 Future<void> _centerInViewport(WidgetTester tester, Finder finder) async {
@@ -137,11 +236,18 @@ Future<void> _centerInViewport(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
-Future<void> _selectRole(WidgetTester tester, String roleId) async {
-  final finder = find.byType(DropdownButtonFormField<String>);
+Future<void> _selectDropdown(
+  WidgetTester tester,
+  Finder field,
+  String value,
+) async {
+  final finder = find.descendant(
+    of: field,
+    matching: find.byType(DropdownButtonFormField<String>),
+  );
   final dropdown = tester.widget<DropdownButtonFormField<String>>(finder);
-  tester.state<FormFieldState<String>>(finder).didChange(roleId);
-  dropdown.onChanged?.call(roleId);
+  tester.state<FormFieldState<String>>(finder).didChange(value);
+  dropdown.onChanged?.call(value);
   await tester.pump();
 }
 
@@ -172,6 +278,7 @@ class _InvitationRepository extends ClinicRepository {
   final Completer<Map<String, dynamic>> _invitation = Completer();
   int invitationCount = 0;
   ClinicRoleOption? selectedRole;
+  String? professionalTitle;
 
   void completeInvitation() {
     if (!_invitation.isCompleted) {
@@ -196,19 +303,22 @@ class _InvitationRepository extends ClinicRepository {
   ];
 
   @override
-  Future<String> inviteClinicUser({
+  Future<StaffInvitationResult> inviteClinicUser({
     required UserSession actingSession,
     required String fullName,
     required String email,
     required ClinicRoleOption role,
     String? phoneNumber,
     String? professionalTitle,
-    String? staffNumber,
     Set<String> permissionOverrides = const {},
   }) async {
     invitationCount += 1;
     selectedRole = role;
+    this.professionalTitle = professionalTitle;
     await _invitation.future;
-    return 'email-sent';
+    return const StaffInvitationResult(
+      deliveryStatus: 'EmailSent',
+      staffNumber: '004',
+    );
   }
 }

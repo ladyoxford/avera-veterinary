@@ -40,7 +40,11 @@ function approvalHarness() {
       state.calls.push({ sql, parameters });
       if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql.includes("set_config('avera.")) return { rows: [] };
       if (sql.includes('FROM clinic_applications') && sql.includes('FOR UPDATE')) return { rows: [state.application] };
-      if (sql.includes('INSERT INTO roles')) return { rows: [{ role_id: 'role-admin' }] };
+      if (sql.includes('SELECT role_id') && sql.includes('FROM roles')) return { rows: [] };
+      if (sql.includes('INSERT INTO roles')) return { rows: [{ role_id: parameters[1] === 'clinic_administrator' ? 'role-admin' : `role-${parameters[1]}` }] };
+      if (sql.includes('SELECT permission_id, permission_key') && sql.includes('ANY')) {
+        return { rows: parameters[0].map((key, index) => ({ permission_id: `permission-${index}`, permission_key: key })) };
+      }
       if (sql.includes('SELECT permission_id, permission_key')) return { rows: [{ permission_id: 'permission-1', permission_key: 'patients.view' }] };
       if (sql.includes('INSERT INTO role_permissions')) return { rows: [] };
       if (sql.includes('SELECT * FROM users WHERE email')) return { rows: state.user ? [state.user] : [] };
@@ -160,6 +164,7 @@ function staffHarness({ expired = false, used = false, revoked = false, existing
     usedAt: used ? new Date() : null,
     revokedAt: revoked ? new Date() : null,
     tokenInsertCount: 0,
+    staffSequence: 0,
   };
   const client = {
     async query(sql, parameters = []) {
@@ -172,6 +177,11 @@ function staffHarness({ expired = false, used = false, revoked = false, existing
           : { rows: [] };
       }
       if (sql.includes('SELECT * FROM users WHERE email')) return { rows: existingUser ? [existingUser] : [] };
+      if (sql.includes('INSERT INTO clinic_staff_number_sequences')) return { rows: [] };
+      if (sql.includes('UPDATE clinic_staff_number_sequences')) {
+        state.staffSequence += 1;
+        return { rows: [{ current_value: state.staffSequence }] };
+      }
       if (sql.includes('INSERT INTO users')) return { rows: [{ user_id: 'staff-1', clinic_id: 'clinic-1', full_name: parameters[1], email: parameters[2], status: 'PendingActivation' }] };
       if (sql.includes('INSERT INTO clinic_memberships') || sql.includes('INSERT INTO staff_profiles')) return { rows: [] };
       if (sql.includes('SELECT name FROM clinics')) return { rows: [{ name: 'Ada Veterinary Clinic' }] };
@@ -292,9 +302,11 @@ test('staff invitation is passwordless, token-hashed, tenant-scoped, and pending
   const harness = staffHarness();
   const result = await service(harness.pool).inviteStaff({
     clinicId: 'clinic-1', actorUserId: 'admin-1', fullName: 'Jane Vet',
-    email: 'jane@example.com', roleId: 'role-vet', ipAddress: '127.0.0.1',
+    email: 'jane@example.com', roleId: 'role-vet',
+    professionalTitle: 'Veterinary Surgeon', ipAddress: '127.0.0.1',
   });
   assert.equal(result.status, 'PendingActivation');
+  assert.equal(result.staffNumber, '001');
   assert.equal(result.delivery.status, 'DeliveryUnavailable');
   const userInsert = harness.state.calls.find((call) => call.sql.includes('INSERT INTO users'));
   assert.match(userInsert.sql, /NULL,'ClinicStaff','PendingActivation'/);
@@ -317,11 +329,14 @@ test('staff invitation emails the selected role and rejects stale role IDs', asy
   };
   const result = await service(harness.pool, deliveryService).inviteStaff({
     clinicId: 'clinic-1', actorUserId: 'admin-1', fullName: 'Jane Vet',
-    email: 'jane@example.com', roleId: 'role-vet', ipAddress: '127.0.0.1',
+    email: 'jane@example.com', roleId: 'role-vet',
+    professionalTitle: 'Veterinary Surgeon', ipAddress: '127.0.0.1',
   });
   assert.equal(result.delivery.status, 'EmailSent');
   assert.equal(delivered.to, 'jane@example.com');
   assert.equal(delivered.roleName, 'Veterinarian');
+  assert.equal(delivered.professionalTitle, 'Veterinary Surgeon');
+  assert.equal(delivered.staffNumber, '001');
   assert.match(delivered.activationUrl, /^https:\/\/accounts\.averavet\.sbs\/activate-staff\?token=/);
 
   await assert.rejects(
@@ -330,6 +345,56 @@ test('staff invitation emails the selected role and rejects stale role IDs', asy
       email: 'stale@example.com', roleId: 'role-from-another-clinic',
     }),
     (error) => error.code === 'invalid_clinic_role' && error.statusCode === 400,
+  );
+});
+
+test('staff invitation resend preserves role, title, and staff number', async () => {
+  const harness = staffHarness();
+  let delivered;
+  const deliveryService = {
+    configured: true,
+    async sendStaffActivation(message) {
+      delivered = message;
+      return { reference: 'resend-message-2' };
+    },
+  };
+  const originalQuery = harness.pool.query;
+  harness.pool.query = originalQuery;
+  const client = await harness.pool.connect();
+  const originalClientQuery = client.query.bind(client);
+  client.query = async (sql, parameters = []) => {
+    if (sql.includes('SELECT u.*, c.name AS clinic_name')) {
+      return {
+        rows: [{
+          user_id: 'staff-1',
+          clinic_id: 'clinic-1',
+          full_name: 'Jane Vet',
+          email: 'jane@example.com',
+          status: 'PendingActivation',
+          clinic_name: 'Ada Veterinary Clinic',
+          role_name: 'Veterinarian',
+          professional_title: 'Veterinary Surgeon',
+          staff_number: '007',
+        }],
+      };
+    }
+    return originalClientQuery(sql, parameters);
+  };
+
+  const result = await service(harness.pool, deliveryService).resendStaff({
+    clinicId: 'clinic-1',
+    actorUserId: 'admin-1',
+    targetUserId: 'staff-1',
+  });
+
+  assert.equal(result.status, 'EmailSent');
+  assert.equal(delivered.roleName, 'Veterinarian');
+  assert.equal(delivered.professionalTitle, 'Veterinary Surgeon');
+  assert.equal(delivered.staffNumber, '007');
+  assert.equal(
+    harness.state.calls.some(({ sql }) =>
+      sql.includes('UPDATE clinic_staff_number_sequences')),
+    false,
   );
 });
 

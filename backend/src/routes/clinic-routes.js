@@ -2,6 +2,7 @@ import { writeAudit } from '../audit/audit-service.js';
 import { withTenantTransaction } from '../database/pool.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { permissions } from '../security/permissions.js';
+import { ensureDefaultClinicRoles } from '../security/default-clinic-roles.js';
 import { z } from 'zod';
 
 const changeRoleSchema = z.object({ roleId: z.string().uuid() });
@@ -9,8 +10,7 @@ const inviteStaffSchema = z.object({
   fullName: z.string().trim().min(1).max(160),
   email: z.string().trim().email().max(254),
   phone: z.string().trim().max(80).nullish(),
-  professionalTitle: z.string().trim().max(160).nullish(),
-  staffNumber: z.string().trim().max(80).nullish(),
+  professionalTitle: z.string().trim().min(1).max(160),
   roleId: z.string().uuid(),
 });
 
@@ -18,6 +18,8 @@ const clinicUserSelect = `
   SELECT u.user_id AS "userId", u.full_name AS "fullName", u.email, u.phone,
          u.account_type AS "accountType", u.status,
          u.role_id AS "roleId", r.code AS "roleCode", r.name AS "roleName",
+         sp.professional_title AS "professionalTitle",
+         sp.staff_number AS "staffNumber",
          CASE WHEN r.role_id IS NULL THEN NULL ELSE
            json_build_object('id', r.role_id, 'code', r.code, 'name', r.name)
          END AS role,
@@ -31,7 +33,8 @@ const clinicUserSelect = `
     LEFT JOIN clinic_memberships cm
       ON cm.user_id = u.user_id
      AND cm.clinic_id = u.clinic_id
-     AND cm.deleted_at IS NULL`;
+     AND cm.deleted_at IS NULL
+    LEFT JOIN staff_profiles sp ON sp.user_id = u.user_id`;
 
 export async function changeClinicUserRole(client, context) {
   const actor = (
@@ -217,17 +220,23 @@ export async function clinicRoutes(app) {
 
   app.get('/api/v1/roles', { preHandler: [authenticate, requirePermission(permissions.usersView)] }, async (request, reply) => {
     if (!request.auth.clinicId) return clinicContextRequired(reply);
-    const roles = await withTenantTransaction(app.pool, request.auth, async (client) => (
-      await client.query(
+    const roles = await withTenantTransaction(app.pool, request.auth, async (client) => {
+      await ensureDefaultClinicRoles(client, {
+        clinicId: request.auth.clinicId,
+        actorUserId: request.auth.userId,
+      });
+      return (await client.query(
         `SELECT role_id AS "roleId", code AS "roleCode", name AS "roleName",
                 json_build_object('id', role_id, 'code', code, 'name', name) AS role,
                 description, is_system_role AS "isSystemRole"
            FROM roles
-          WHERE clinic_id = $1 AND deleted_at IS NULL
+          WHERE clinic_id = $1
+            AND code <> 'clinic_administrator'
+            AND deleted_at IS NULL
           ORDER BY name`,
         [request.auth.clinicId],
-      )
-    )).rows;
+      )).rows;
+    });
     return { roles };
   });
 

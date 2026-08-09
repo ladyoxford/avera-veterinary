@@ -145,7 +145,8 @@ void main() {
         role: veterinarian,
       );
 
-      expect(result, 'email-sent');
+      expect(result.emailSent, isTrue);
+      expect(result.staffNumber, '004');
       expect(api.postPath, '/api/v1/users/invitations');
       expect(api.postBody?['roleId'], 'role-vet');
       expect(api.postBody, isNot(contains('roleName')));
@@ -292,6 +293,7 @@ class _RoleApiClient extends ApiClient {
         'invitation': {
           'userId': 'staff-invited',
           'status': 'PendingActivation',
+          'staffNumber': '004',
           'delivery': {'status': 'EmailSent'},
         },
       };

@@ -55,6 +55,19 @@ test('authentication security migration protects MFA and revocation state', () =
   assert.match(security, /security\.twoFactor\.manageSelf/);
 });
 
+test('staff numbering migration is clinic scoped and concurrency safe', () => {
+  const staffNumbering = fs.readFileSync(
+    new URL('../migrations/017_clinic_staff_number_sequences.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(staffNumbering, /ADD COLUMN IF NOT EXISTS clinic_id UUID/);
+  assert.match(staffNumbering, /duplicate clinic staff numbers require review/);
+  assert.match(staffNumbering, /staff_profiles_clinic_staff_number_unique/);
+  assert.match(staffNumbering, /clinic_staff_number_sequences/);
+  assert.match(staffNumbering, /PRIMARY KEY REFERENCES clinics\(clinic_id\)/);
+  assert.match(staffNumbering, /staff_number ~ '\^\[0-9\]\+\$'/);
+});
+
 test('clinic administrator activation migration preserves passwordless pending accounts and one live token', () => {
   const activation = fs.readFileSync(
     new URL('../migrations/009_clinic_administrator_activation.sql', import.meta.url),

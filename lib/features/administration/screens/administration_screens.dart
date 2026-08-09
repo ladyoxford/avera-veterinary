@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
+import '../../../core/staff/professional_title_catalog.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 
@@ -181,9 +183,9 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _phone = TextEditingController();
-  final _title = TextEditingController();
-  final _staffNumber = TextEditingController();
+  final _customTitle = TextEditingController();
   String? _selectedRoleId;
+  String? _selectedProfessionalTitle;
   String? _submissionError;
   bool _saving = false;
 
@@ -192,8 +194,7 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
     _name.dispose();
     _email.dispose();
     _phone.dispose();
-    _title.dispose();
-    _staffNumber.dispose();
+    _customTitle.dispose();
     super.dispose();
   }
 
@@ -248,13 +249,6 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: AveraSpacing.cardGap),
-            AveraLabeledTextField(
-              label: 'Professional Title',
-              controller: _title,
-              hintText: 'Enter professional title',
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: AveraSpacing.cardGap),
             roles.when(
               loading: () => const AveraLabeledDropdownField<String>(
                 label: 'Role',
@@ -281,43 +275,87 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
                   ],
                 ),
               ),
-              data: (items) => AveraLabeledDropdownField<String>(
-                label: 'Role',
-                hintText: 'Select a clinic role',
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                value: items.any((role) => role.id == _selectedRoleId)
-                    ? _selectedRoleId
-                    : null,
-                items: items
-                    .map(
-                      (role) => DropdownMenuItem<String>(
-                        value: role.id,
-                        child: Text(
-                          role.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+              data: (items) => items.isEmpty
+                  ? AveraLabeledFieldCard(
+                      label: 'Role',
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'No assignable clinic roles are available.',
+                              style: averaText(context).fieldPlaceholder,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () =>
+                                ref.invalidate(assignableClinicRolesProvider),
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Retry'),
+                          ),
+                        ],
                       ),
                     )
-                    .toList(growable: false),
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() {
-                        _selectedRoleId = value;
-                        _submissionError = null;
-                      }),
-                validator: (value) =>
-                    value == null || !items.any((role) => role.id == value)
-                    ? 'Please select a valid staff role.'
-                    : null,
-              ),
+                  : AveraLabeledDropdownField<String>(
+                      key: const Key('add-user-role'),
+                      label: 'Role',
+                      hintText: 'Select a clinic role',
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      value: items.any((role) => role.id == _selectedRoleId)
+                          ? _selectedRoleId
+                          : null,
+                      items: items
+                          .map(
+                            (role) => DropdownMenuItem<String>(
+                              value: role.id,
+                              child: Text(
+                                role.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: _saving
+                          ? null
+                          : (value) => setState(() {
+                              _selectedRoleId = value;
+                              _selectedProfessionalTitle = null;
+                              _customTitle.clear();
+                              _submissionError = null;
+                            }),
+                      validator: (value) =>
+                          value == null ||
+                              !items.any((role) => role.id == value)
+                          ? 'Please select a valid staff role.'
+                          : null,
+                    ),
             ),
             const SizedBox(height: AveraSpacing.cardGap),
-            AveraLabeledTextField(
-              label: 'Staff Number (optional)',
-              controller: _staffNumber,
-              hintText: 'Enter staff number',
-              textInputAction: TextInputAction.done,
+            _professionalTitleField(roles.valueOrNull ?? const []),
+            if (_selectedProfessionalTitle == otherProfessionalTitle) ...[
+              const SizedBox(height: AveraSpacing.cardGap),
+              AveraLabeledTextField(
+                label: 'Specify Professional Title',
+                controller: _customTitle,
+                hintText: 'Enter professional title',
+                textInputAction: TextInputAction.done,
+                validator: _required,
+              ),
+            ],
+            const SizedBox(height: AveraSpacing.cardGap),
+            AveraLabeledFieldCard(
+              label: 'Staff Number',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Auto-assigned', style: averaText(context).fieldValue),
+                  const SizedBox(height: AveraSpacing.compactRowGap),
+                  Text(
+                    'The next clinic staff number is assigned securely when the invitation is created.',
+                    style: averaText(context).caption,
+                  ),
+                ],
+              ),
             ),
             if (_submissionError != null) ...[
               const SizedBox(height: AveraSpacing.cardGap),
@@ -348,7 +386,7 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
               label: 'Create Invitation',
               icon: Icons.send_outlined,
               loading: _saving,
-              onPressed: roles.hasValue ? _invite : null,
+              onPressed: roles.valueOrNull?.isNotEmpty == true ? _invite : null,
             ),
             if (!widget.isBackendMode) ...[
               const SizedBox(height: AveraSpacing.compactRowGap),
@@ -360,6 +398,43 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _professionalTitleField(List<ClinicRoleOption> roles) {
+    final selectedRole = roles
+        .where((role) => role.id == _selectedRoleId)
+        .firstOrNull;
+    final titles = selectedRole == null
+        ? const <String>[]
+        : professionalTitlesForRole(selectedRole);
+    return AveraLabeledDropdownField<String>(
+      key: const Key('add-user-professional-title'),
+      label: 'Professional Title',
+      hintText: selectedRole == null
+          ? 'Select a role first'
+          : 'Select professional title',
+      value: titles.contains(_selectedProfessionalTitle)
+          ? _selectedProfessionalTitle
+          : null,
+      items: titles
+          .map(
+            (title) => DropdownMenuItem<String>(
+              value: title,
+              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: selectedRole == null || _saving
+          ? null
+          : (value) => setState(() {
+              _selectedProfessionalTitle = value;
+              if (value != otherProfessionalTitle) _customTitle.clear();
+              _submissionError = null;
+            }),
+      validator: (value) => selectedRole == null || !titles.contains(value)
+          ? 'Please select a professional title.'
+          : null,
     );
   }
 
@@ -378,15 +453,18 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
     }
     setState(() => _saving = true);
     try {
-      final link = await ref
+      final professionalTitle =
+          _selectedProfessionalTitle == otherProfessionalTitle
+          ? _customTitle.text.trim()
+          : _selectedProfessionalTitle!;
+      final invitation = await ref
           .read(clinicRepositoryProvider)
           .inviteClinicUser(
             actingSession: session,
             fullName: _name.text,
             email: _email.text,
             phoneNumber: _phone.text,
-            professionalTitle: _title.text,
-            staffNumber: _staffNumber.text,
+            professionalTitle: professionalTitle,
             role: selectedRole,
           );
       if (mounted) {
@@ -395,12 +473,12 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
             context: context,
             builder: (dialogContext) => AlertDialog(
               title: Text(
-                link == 'email-sent' ? 'Invitation sent' : 'Invitation created',
+                invitation.emailSent ? 'Invitation sent' : 'Invitation created',
               ),
               content: Text(
-                link == 'email-sent'
-                    ? 'An activation email has been sent to ${_email.text.trim().toLowerCase()}. The staff member can use it to create their password.'
-                    : 'The staff account is pending activation, but the email could not be delivered. Check email delivery before resending the invitation.',
+                invitation.emailSent
+                    ? 'Staff number ${invitation.staffNumber} was assigned. An activation email has been sent to ${_email.text.trim().toLowerCase()}.'
+                    : 'Staff number ${invitation.staffNumber} was assigned, but the activation email could not be delivered. Check email delivery before resending.',
               ),
               actions: [
                 FilledButton(
@@ -414,14 +492,19 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
           context.pop();
           return;
         }
-        await Clipboard.setData(ClipboardData(text: link));
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('DEVELOPMENT ONLY: staff activation link copied.'),
-          ),
-        );
-        context.push(link);
+        final activationLink = invitation.activationLink;
+        if (activationLink != null) {
+          await Clipboard.setData(ClipboardData(text: activationLink));
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Staff number ${invitation.staffNumber} assigned. Development activation link copied.',
+              ),
+            ),
+          );
+          context.push(activationLink);
+        }
       }
     } catch (error) {
       if (mounted) {

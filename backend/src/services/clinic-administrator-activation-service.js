@@ -339,9 +339,9 @@ export class ClinicAdministratorActivationService {
       }
       const role = (await client.query(
         `SELECT role_id, name, code FROM roles
-          WHERE clinic_id=$1 AND lower(name)=lower($2)
+          WHERE clinic_id=$1 AND role_id=$2
             AND deleted_at IS NULL`,
-        [context.clinicId, context.roleName],
+        [context.clinicId, context.roleId],
       )).rows[0];
       if (!role || role.code === 'clinic_administrator') {
         throw serviceError('invalid_clinic_role', 'Choose a valid staff role for this clinic.', 400);
@@ -352,6 +352,12 @@ export class ClinicAdministratorActivationService {
         [email],
       )).rows[0];
       if (existing) {
+        if (existing.clinic_id === context.clinicId && existing.status === 'PendingActivation') {
+          throw serviceError('invitation_pending', 'An invitation is already pending for this email.', 409);
+        }
+        if (existing.clinic_id === context.clinicId && existing.status === 'Active') {
+          throw serviceError('email_in_use', 'This email already belongs to an active staff account.', 409);
+        }
         throw serviceError('email_in_use', 'An AVERA account already uses this email address.', 409);
       }
       const user = (await client.query(
@@ -385,6 +391,7 @@ export class ClinicAdministratorActivationService {
         clinicId: context.clinicId,
         user,
         clinicName: clinic.name,
+        roleName: role.name,
         actorUserId: context.actorUserId,
         ipAddress: context.ipAddress,
       });
@@ -419,8 +426,9 @@ export class ClinicAdministratorActivationService {
         throw serviceError('staff_invitation_forbidden', 'Only an active Clinic Administrator can resend staff invitations.', 403);
       }
       const target = (await client.query(
-        `SELECT u.*, c.name AS clinic_name
+        `SELECT u.*, c.name AS clinic_name, r.name AS role_name
            FROM users u JOIN clinics c ON c.clinic_id=u.clinic_id
+           JOIN roles r ON r.role_id=u.role_id AND r.clinic_id=u.clinic_id
           WHERE u.user_id=$1 AND u.clinic_id=$2
             AND u.account_type='ClinicStaff' AND u.status='PendingActivation'
             AND u.deleted_at IS NULL FOR UPDATE OF u`,
@@ -429,7 +437,8 @@ export class ClinicAdministratorActivationService {
       if (!target) throw serviceError('activation_not_required', 'This staff invitation cannot be resent.', 409);
       const token = await this.#issueStaffToken(client, {
         clinicId: context.clinicId, user: target,
-        clinicName: target.clinic_name, actorUserId: context.actorUserId,
+        clinicName: target.clinic_name, roleName: target.role_name,
+        actorUserId: context.actorUserId,
         ipAddress: context.ipAddress,
       });
       await writeAudit(client, {
@@ -584,6 +593,7 @@ export class ClinicAdministratorActivationService {
       const delivery = await this.deliveryService.sendStaffActivation({
         to: issued.email, staffName: issued.fullName,
         clinicName: issued.clinicName,
+        roleName: issued.roleName,
         activationUrl: this.#staffActivationUrl(issued.rawToken),
         expiresAt: issued.expiresAt,
         idempotencyKey: `staff-activation-${issued.tokenId}`,
@@ -624,7 +634,8 @@ export class ClinicAdministratorActivationService {
     )).rows[0];
     return { tokenId: inserted.token_id, userId: context.user.user_id,
       rawToken, expiresAt, email: context.user.email,
-      fullName: context.user.full_name, clinicName: context.clinicName };
+      fullName: context.user.full_name, clinicName: context.clinicName,
+      roleName: context.roleName };
   }
 
   async #staffTokenRecord(rawToken, forUpdate, client) {
@@ -829,6 +840,7 @@ function staffActivationEmailText(message) {
   return [
     `Hello ${message.staffName},`, '',
     `${message.clinicName} invited you to join its team on AVERA.`,
+    `Assigned role: ${message.roleName}.`,
     'Create your password using this secure single-use link:',
     message.activationUrl, '',
     `This link expires at ${new Date(message.expiresAt).toISOString()}.`,

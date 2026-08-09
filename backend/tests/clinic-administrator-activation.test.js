@@ -13,11 +13,11 @@ const environment = {
   AVERA_STAFF_ACTIVATION_BASE_URL: 'https://accounts.averavet.sbs/activate-staff',
 };
 
-function service(pool) {
+function service(pool, deliveryService = new ActivationEmailDeliveryService({ environment })) {
   return new ClinicAdministratorActivationService({
     pool,
     environment,
-    deliveryService: new ActivationEmailDeliveryService({ environment }),
+    deliveryService,
   });
 }
 
@@ -150,7 +150,7 @@ function tokenHarness({ expired = false, used = false } = {}) {
   };
 }
 
-function staffHarness({ expired = false, used = false, revoked = false } = {}) {
+function staffHarness({ expired = false, used = false, revoked = false, existingUser = null } = {}) {
   const rawToken = 'secure-staff-activation-token-with-more-than-32-characters';
   const state = {
     calls: [],
@@ -166,8 +166,12 @@ function staffHarness({ expired = false, used = false, revoked = false } = {}) {
       state.calls.push({ sql, parameters });
       if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql.includes("set_config('avera.")) return { rows: [] };
       if (sql.includes('SELECT r.code FROM clinic_memberships')) return { rows: [{ code: 'clinic_administrator' }] };
-      if (sql.includes('SELECT role_id, name, code FROM roles')) return { rows: [{ role_id: 'role-vet', name: 'Veterinarian', code: 'veterinarian' }] };
-      if (sql.includes('SELECT * FROM users WHERE email')) return { rows: [] };
+      if (sql.includes('SELECT role_id, name, code FROM roles')) {
+        return parameters[1] === 'role-vet'
+          ? { rows: [{ role_id: 'role-vet', name: 'Veterinarian', code: 'veterinarian' }] }
+          : { rows: [] };
+      }
+      if (sql.includes('SELECT * FROM users WHERE email')) return { rows: existingUser ? [existingUser] : [] };
       if (sql.includes('INSERT INTO users')) return { rows: [{ user_id: 'staff-1', clinic_id: 'clinic-1', full_name: parameters[1], email: parameters[2], status: 'PendingActivation' }] };
       if (sql.includes('INSERT INTO clinic_memberships') || sql.includes('INSERT INTO staff_profiles')) return { rows: [] };
       if (sql.includes('SELECT name FROM clinics')) return { rows: [{ name: 'Ada Veterinary Clinic' }] };
@@ -175,6 +179,7 @@ function staffHarness({ expired = false, used = false, revoked = false } = {}) {
         state.revokedAt = new Date();
         return { rows: [] };
       }
+      if (sql.includes("UPDATE activation_tokens SET delivery_method='email'")) return { rows: [] };
       if (sql.includes('INSERT INTO activation_tokens')) {
         state.tokenInsertCount += 1;
         return { rows: [{ token_id: `staff-token-${state.tokenInsertCount}` }] };
@@ -287,7 +292,7 @@ test('staff invitation is passwordless, token-hashed, tenant-scoped, and pending
   const harness = staffHarness();
   const result = await service(harness.pool).inviteStaff({
     clinicId: 'clinic-1', actorUserId: 'admin-1', fullName: 'Jane Vet',
-    email: 'jane@example.com', roleName: 'Veterinarian', ipAddress: '127.0.0.1',
+    email: 'jane@example.com', roleId: 'role-vet', ipAddress: '127.0.0.1',
   });
   assert.equal(result.status, 'PendingActivation');
   assert.equal(result.delivery.status, 'DeliveryUnavailable');
@@ -296,6 +301,51 @@ test('staff invitation is passwordless, token-hashed, tenant-scoped, and pending
   const tokenInsert = harness.state.calls.find((call) => call.sql.includes('INSERT INTO activation_tokens'));
   assert.equal(typeof tokenInsert.parameters[3], 'string');
   assert.equal(JSON.stringify(harness.state.calls).includes('secure-staff-activation-token'), false);
+  const roleLookup = harness.state.calls.find((call) => call.sql.includes('SELECT role_id, name, code FROM roles'));
+  assert.deepEqual(roleLookup.parameters, ['clinic-1', 'role-vet']);
+});
+
+test('staff invitation emails the selected role and rejects stale role IDs', async () => {
+  const harness = staffHarness();
+  let delivered;
+  const deliveryService = {
+    configured: true,
+    async sendStaffActivation(message) {
+      delivered = message;
+      return { reference: 'resend-message-1' };
+    },
+  };
+  const result = await service(harness.pool, deliveryService).inviteStaff({
+    clinicId: 'clinic-1', actorUserId: 'admin-1', fullName: 'Jane Vet',
+    email: 'jane@example.com', roleId: 'role-vet', ipAddress: '127.0.0.1',
+  });
+  assert.equal(result.delivery.status, 'EmailSent');
+  assert.equal(delivered.to, 'jane@example.com');
+  assert.equal(delivered.roleName, 'Veterinarian');
+  assert.match(delivered.activationUrl, /^https:\/\/accounts\.averavet\.sbs\/activate-staff\?token=/);
+
+  await assert.rejects(
+    service(staffHarness().pool).inviteStaff({
+      clinicId: 'clinic-1', actorUserId: 'admin-1', fullName: 'Stale Role',
+      email: 'stale@example.com', roleId: 'role-from-another-clinic',
+    }),
+    (error) => error.code === 'invalid_clinic_role' && error.statusCode === 400,
+  );
+});
+
+test('pending and active duplicate staff invitations return specific safe conflicts', async () => {
+  for (const [status, code] of [['PendingActivation', 'invitation_pending'], ['Active', 'email_in_use']]) {
+    const harness = staffHarness({
+      existingUser: { clinic_id: 'clinic-1', status },
+    });
+    await assert.rejects(
+      service(harness.pool).inviteStaff({
+        clinicId: 'clinic-1', actorUserId: 'admin-1', fullName: 'Jane Vet',
+        email: 'jane@example.com', roleId: 'role-vet',
+      }),
+      (error) => error.code === code && error.statusCode === 409,
+    );
+  }
 });
 
 test('staff activation hashes the password, activates membership, and rejects expired or reused links', async () => {

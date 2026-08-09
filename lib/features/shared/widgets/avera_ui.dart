@@ -264,6 +264,7 @@ class AveraLabeledDropdownField<T> extends StatelessWidget {
     this.value,
     this.validator,
     this.helperText,
+    this.autovalidateMode,
   });
 
   final String label;
@@ -273,6 +274,7 @@ class AveraLabeledDropdownField<T> extends StatelessWidget {
   final ValueChanged<T?>? onChanged;
   final String? Function(T?)? validator;
   final String? helperText;
+  final AutovalidateMode? autovalidateMode;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -286,6 +288,7 @@ class AveraLabeledDropdownField<T> extends StatelessWidget {
           items: items,
           onChanged: onChanged,
           validator: validator,
+          autovalidateMode: autovalidateMode,
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
           style: averaText(context).fieldValue,
           hint: Text(

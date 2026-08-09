@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/config/medical_file_quick_access_provider.dart';
@@ -920,26 +921,57 @@ class _CloudRecordCard extends StatelessWidget {
   final Map<String, dynamic> value;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      leading: _RecordIcon(record: record, compact: true),
-      title: Text(_remoteRecordTitle(value)),
-      subtitle: Text(_remoteRecordDate(value) ?? 'Date unavailable'),
-      trailing: record.id == 'consultations'
-          ? const Icon(Icons.chevron_right_rounded)
-          : null,
-      onTap: record.id == 'consultations'
-          ? () {
-              final consultationId = value['consultation_id']?.toString();
-              if (consultationId == null || consultationId.isEmpty) return;
-              context.push(
-                '/consultations/$consultationId?patientId=${Uri.encodeQueryComponent(patientId)}',
-              );
-            }
-          : null,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final route = cloudMedicalRecordRoute(
+      patientId: patientId,
+      recordId: record.id,
+      value: value,
+    );
+    return Card(
+      child: ListTile(
+        key: ValueKey(
+          'medical-file-record-${record.id}-${_remoteRecordId(record.id, value) ?? 'unknown'}',
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 10,
+        ),
+        leading: _RecordIcon(record: record, compact: true),
+        title: Text(_remoteRecordTitle(value)),
+        subtitle: Text(cloudMedicalRecordDate(value)),
+        trailing: route == null
+            ? null
+            : const Icon(Icons.chevron_right_rounded),
+        onTap: route == null ? null : () => context.push(route),
+      ),
+    );
+  }
+}
+
+@visibleForTesting
+String? cloudMedicalRecordRoute({
+  required String patientId,
+  required String recordId,
+  required Map<String, dynamic> value,
+}) {
+  final id = _remoteRecordId(recordId, value);
+  if (id == null) return null;
+  return switch (recordId) {
+    'consultations' =>
+      '/consultations/$id?patientId=${Uri.encodeQueryComponent(patientId)}',
+    'appointments' => '/appointments/$id',
+    _ => null,
+  };
+}
+
+String? _remoteRecordId(String recordId, Map<String, dynamic> value) {
+  final raw = switch (recordId) {
+    'consultations' => value['consultation_id'],
+    'appointments' => value['schedule_entry_id'],
+    _ => null,
+  };
+  final id = raw?.toString().trim();
+  return id == null || id.isEmpty ? null : id;
 }
 
 class _RecordEmptyState extends StatelessWidget {
@@ -1074,6 +1106,15 @@ String? _remoteRecordDate(Map<String, dynamic> value) =>
             value['scheduled_at'] ??
             value['created_at'])
         as String?;
+
+@visibleForTesting
+String cloudMedicalRecordDate(Map<String, dynamic> value) {
+  final raw = _remoteRecordDate(value);
+  final date = raw == null ? null : DateTime.tryParse(raw)?.toLocal();
+  return date == null
+      ? 'Date unavailable'
+      : DateFormat.yMMMd().add_jm().format(date);
+}
 
 class _QuickAccessGrid extends StatelessWidget {
   const _QuickAccessGrid({required this.records, required this.onSelected});

@@ -163,7 +163,13 @@ class ClinicUserManagementScreen extends ConsumerWidget {
 }
 
 class AddClinicUserScreen extends ConsumerStatefulWidget {
-  const AddClinicUserScreen({super.key});
+  const AddClinicUserScreen({super.key, this.backendModeOverride});
+
+  @visibleForTesting
+  final bool? backendModeOverride;
+
+  bool get isBackendMode =>
+      backendModeOverride ?? BackendConfiguration.isBackendMode;
 
   @override
   ConsumerState<AddClinicUserScreen> createState() =>
@@ -177,7 +183,8 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
   final _phone = TextEditingController();
   final _title = TextEditingController();
   final _staffNumber = TextEditingController();
-  String _role = 'Veterinarian';
+  String? _selectedRoleId;
+  String? _submissionError;
   bool _saving = false;
 
   @override
@@ -192,89 +199,164 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final roles = ref.watch(assignableClinicRolesProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Add User')),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.pageTopPadding,
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.bottomContentClearance,
+          ),
           children: [
-            TextFormField(
+            const AveraPageHeader(
+              title: 'Invite Staff Member',
+              subtitle:
+                  'Assign a clinic role. The staff member will create their password from a secure email link.',
+            ),
+            const SizedBox(height: AveraSpacing.subtitleToContentGap),
+            AveraLabeledTextField(
+              label: 'Full Name',
               controller: _name,
-              decoration: const InputDecoration(labelText: 'Full Name'),
+              hintText: 'Enter full name',
+              textInputAction: TextInputAction.next,
               validator: _required,
             ),
-            const SizedBox(height: 14),
-            TextFormField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            AveraLabeledTextField(
+              label: 'Email Address',
               controller: _email,
+              hintText: 'Enter email address',
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email Address'),
+              textInputAction: TextInputAction.next,
               validator: (value) =>
                   value != null &&
                       RegExp(r'^\S+@\S+\.\S+$').hasMatch(value.trim())
                   ? null
                   : 'Enter a valid email address',
             ),
-            const SizedBox(height: 14),
-            TextFormField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            AveraLabeledTextField(
+              label: 'Phone Number',
               controller: _phone,
+              hintText: 'Enter phone number',
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Phone Number'),
+              textInputAction: TextInputAction.next,
             ),
-            const SizedBox(height: 14),
-            TextFormField(
+            const SizedBox(height: AveraSpacing.cardGap),
+            AveraLabeledTextField(
+              label: 'Professional Title',
               controller: _title,
-              decoration: const InputDecoration(
-                labelText: 'Professional Title',
+              hintText: 'Enter professional title',
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: AveraSpacing.cardGap),
+            roles.when(
+              loading: () => const AveraLabeledDropdownField<String>(
+                label: 'Role',
+                hintText: 'Loading clinic roles...',
+                items: [],
+                onChanged: null,
               ),
-            ),
-            const SizedBox(height: 14),
-            DropdownButtonFormField<String>(
-              value: _role,
-              decoration: const InputDecoration(labelText: 'Role'),
-              items:
-                  const [
-                        'Veterinarian',
-                        'Veterinary Nurse',
-                        'Receptionist',
-                        'Laboratory Staff',
-                        'Pharmacist',
-                        'Cashier',
-                        'Practice Manager',
-                        'Inventory Officer',
-                        'Sales Representative',
-                        'Custom Role',
-                      ]
-                      .map(
-                        (role) =>
-                            DropdownMenuItem(value: role, child: Text(role)),
-                      )
-                      .toList(),
-              onChanged: (value) => setState(() => _role = value ?? _role),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _staffNumber,
-              decoration: const InputDecoration(
-                labelText: 'Staff Number (optional)',
+              error: (_, __) => AveraLabeledFieldCard(
+                label: 'Role',
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Clinic roles could not be loaded.',
+                        style: averaText(context).fieldPlaceholder,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () =>
+                          ref.invalidate(assignableClinicRolesProvider),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _saving ? null : _invite,
-              icon: _saving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+              data: (items) => AveraLabeledDropdownField<String>(
+                label: 'Role',
+                hintText: 'Select a clinic role',
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                value: items.any((role) => role.id == _selectedRoleId)
+                    ? _selectedRoleId
+                    : null,
+                items: items
+                    .map(
+                      (role) => DropdownMenuItem<String>(
+                        value: role.id,
+                        child: Text(
+                          role.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     )
-                  : const Icon(Icons.send_outlined),
-              label: const Text('Create Invitation'),
+                    .toList(growable: false),
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() {
+                        _selectedRoleId = value;
+                        _submissionError = null;
+                      }),
+                validator: (value) =>
+                    value == null || !items.any((role) => role.id == value)
+                    ? 'Please select a valid staff role.'
+                    : null,
+              ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Invitations are recorded locally for development. Production activation links and email delivery require the configured secure backend.',
-              style: Theme.of(context).textTheme.bodySmall,
+            const SizedBox(height: AveraSpacing.cardGap),
+            AveraLabeledTextField(
+              label: 'Staff Number (optional)',
+              controller: _staffNumber,
+              hintText: 'Enter staff number',
+              textInputAction: TextInputAction.done,
             ),
+            if (_submissionError != null) ...[
+              const SizedBox(height: AveraSpacing.cardGap),
+              AveraSurfaceCard(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                    const SizedBox(width: AveraSpacing.compactRowGap),
+                    Expanded(
+                      child: Text(
+                        _submissionError!,
+                        style: averaText(context).listItemSubtitle.copyWith(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: AveraSpacing.subtitleToContentGap),
+            AveraPrimaryActionButton(
+              label: 'Create Invitation',
+              icon: Icons.send_outlined,
+              loading: _saving,
+              onPressed: roles.hasValue ? _invite : null,
+            ),
+            if (!widget.isBackendMode) ...[
+              const SizedBox(height: AveraSpacing.compactRowGap),
+              Text(
+                'Development mode creates a local activation link for testing.',
+                style: averaText(context).caption,
+              ),
+            ],
           ],
         ),
       ),
@@ -282,9 +364,18 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
   }
 
   Future<void> _invite() async {
+    if (_saving) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final session = ref.read(userSessionProvider).valueOrNull;
     if (session == null) return;
+    final roles = ref.read(assignableClinicRolesProvider).valueOrNull;
+    final selectedRole = roles
+        ?.where((role) => role.id == _selectedRoleId)
+        .firstOrNull;
+    if (selectedRole == null) {
+      _formKey.currentState?.validate();
+      return;
+    }
     setState(() => _saving = true);
     try {
       final link = await ref
@@ -296,19 +387,30 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
             phoneNumber: _phone.text,
             professionalTitle: _title.text,
             staffNumber: _staffNumber.text,
-            role: _role,
+            role: selectedRole,
           );
       if (mounted) {
-        if (BackendConfiguration.isBackendMode) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+        if (widget.isBackendMode) {
+          await showDialog<void>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text(
+                link == 'email-sent' ? 'Invitation sent' : 'Invitation created',
+              ),
               content: Text(
                 link == 'email-sent'
-                    ? 'Invitation sent. The staff member can create a password from the email link.'
-                    : 'Invitation created, but email delivery is not configured. Ask the platform owner to review email delivery.',
+                    ? 'An activation email has been sent to ${_email.text.trim().toLowerCase()}. The staff member can use it to create their password.'
+                    : 'The staff account is pending activation, but the email could not be delivered. Check email delivery before resending the invitation.',
               ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Done'),
+                ),
+              ],
             ),
           );
+          if (!mounted) return;
           context.pop();
           return;
         }
@@ -323,15 +425,7 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error is ApiException
-                  ? error.message
-                  : error.toString().replaceFirst('Bad state: ', ''),
-            ),
-          ),
-        );
+        setState(() => _submissionError = _invitationError(error));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -340,6 +434,25 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
 
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'This field is required.' : null;
+
+  String _invitationError(Object error) {
+    if (error is! ApiException) {
+      return 'The invitation could not be created. Please try again.';
+    }
+    return switch (error.code) {
+      'invalid_clinic_role' =>
+        'The selected role is no longer available. Please choose another role.',
+      'invitation_pending' =>
+        'An invitation is already pending for this email. Use Resend Invitation from Staff Management.',
+      'email_in_use' => error.message,
+      'staff_invitation_forbidden' =>
+        'You do not have permission to invite staff members.',
+      _ =>
+        error.message.trim().isEmpty
+            ? 'The invitation could not be created. Please try again.'
+            : error.message,
+    };
+  }
 }
 
 class PlatformOwnerDashboardScreen extends ConsumerWidget {

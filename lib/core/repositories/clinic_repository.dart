@@ -2592,7 +2592,7 @@ class ClinicRepository {
     required UserSession actingSession,
     required String fullName,
     required String email,
-    required String role,
+    required ClinicRoleOption role,
     String? phoneNumber,
     String? professionalTitle,
     String? staffNumber,
@@ -2612,7 +2612,7 @@ class ClinicRepository {
           'phone': phoneNumber?.trim(),
           'professionalTitle': professionalTitle?.trim(),
           'staffNumber': staffNumber?.trim(),
-          'roleName': role,
+          'roleId': role.id,
         },
       );
       final invitation = Map<String, dynamic>.from(
@@ -2646,8 +2646,8 @@ class ClinicRepository {
               username: normalizedEmail,
               email: normalizedEmail,
               passwordHash: _hashPassword(_uuid.v4()),
-              role: role,
-              roleId: Value(role),
+              role: role.name,
+              roleId: Value(role.id),
               accountType: const Value(AccountTypes.clinicStaff),
               accountStatus: const Value(AccountStatuses.invited),
               invitationStatus: const Value(AccountStatuses.invited),
@@ -2686,7 +2686,7 @@ class ClinicRepository {
               action: 'user.invited',
               entityType: const Value('AppUser'),
               entityId: Value(userId),
-              details: Value('Invited $normalizedEmail as $role.'),
+              details: Value('Invited $normalizedEmail as ${role.name}.'),
               createdAt: now,
             ),
           );

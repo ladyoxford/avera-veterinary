@@ -63,6 +63,17 @@ final clinicRepositoryProvider = Provider<ClinicRepository>((ref) {
   );
 });
 
+final assignableClinicRolesProvider =
+    FutureProvider.autoDispose<List<ClinicRoleOption>>((ref) async {
+      final session = await ref.watch(userSessionProvider.future);
+      final roles = await ref
+          .watch(clinicRepositoryProvider)
+          .availableClinicRoles(session);
+      return roles
+          .where((role) => role.code != 'clinic_administrator')
+          .toList(growable: false);
+    });
+
 final platformDataOfflineProvider = StateProvider<bool>((ref) => false);
 
 final platformRepositoryProvider = Provider<PlatformRepository>((ref) {

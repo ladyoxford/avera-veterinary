@@ -123,6 +123,35 @@ void main() {
     },
   );
 
+  test(
+    'production staff invitation submits the canonical clinic role ID',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final api = _RoleApiClient();
+      final repository = ClinicRepository(database, apiClient: api);
+      final session = await repository.cacheRemoteSession(
+        _administrator(roleId: roleId),
+      );
+      final roles = await repository.availableClinicRoles(session);
+      final veterinarian = roles.singleWhere(
+        (role) => role.code == 'veterinarian',
+      );
+
+      final result = await repository.inviteClinicUser(
+        actingSession: session,
+        fullName: 'Jane Vet',
+        email: 'jane@example.test',
+        role: veterinarian,
+      );
+
+      expect(result, 'email-sent');
+      expect(api.postPath, '/api/v1/users/invitations');
+      expect(api.postBody?['roleId'], 'role-vet');
+      expect(api.postBody, isNot(contains('roleName')));
+    },
+  );
+
   test('direct role mutation is rejected without staff.roles.manage', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);
@@ -162,6 +191,7 @@ RemoteCurrentUser _administrator({
   accountType: AccountTypes.clinicAdministrator,
   permissions: const {
     Permissions.usersView,
+    Permissions.usersCreate,
     Permissions.usersEdit,
     Permissions.usersSuspend,
     Permissions.usersAssignRoles,
@@ -186,6 +216,8 @@ class _RoleApiClient extends ApiClient {
 
   String? patchPath;
   Map<String, dynamic>? patchBody;
+  String? postPath;
+  Map<String, dynamic>? postBody;
   bool roleChanged = false;
 
   @override
@@ -244,5 +276,26 @@ class _RoleApiClient extends ApiClient {
         'roleName': 'Veterinarian',
       },
     };
+  }
+
+  @override
+  Future<Map<String, dynamic>> post(
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = true,
+    bool retry = true,
+  }) async {
+    postPath = path;
+    postBody = body;
+    if (path == '/api/v1/users/invitations') {
+      return {
+        'invitation': {
+          'userId': 'staff-invited',
+          'status': 'PendingActivation',
+          'delivery': {'status': 'EmailSent'},
+        },
+      };
+    }
+    throw StateError('Unexpected POST $path');
   }
 }

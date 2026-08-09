@@ -11,7 +11,7 @@ const inviteStaffSchema = z.object({
   phone: z.string().trim().max(80).nullish(),
   professionalTitle: z.string().trim().max(160).nullish(),
   staffNumber: z.string().trim().max(80).nullish(),
-  roleName: z.string().trim().min(1).max(160),
+  roleId: z.string().uuid(),
 });
 
 const clinicUserSelect = `

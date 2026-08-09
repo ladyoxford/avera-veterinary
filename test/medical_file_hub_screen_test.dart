@@ -35,6 +35,41 @@ void main() {
     expect(restored.ageRecordedAt, DateTime(2026, 4, 6));
   });
 
+  test('Medical File appointment opens the exact saved schedule entry', () {
+    const appointmentId = '63e95c5f-8146-4f41-9441-11a58e976b1e';
+    final route = cloudMedicalRecordRoute(
+      patientId: _patientId,
+      recordId: 'appointments',
+      value: const {
+        'schedule_entry_id': appointmentId,
+        'patient_id': _patientId,
+        'visit_type': 'Grooming',
+        'scheduled_at': '2026-08-09T22:33:48.672Z',
+      },
+    );
+
+    expect(route, '/appointments/$appointmentId');
+  });
+
+  test('Medical File appointment without an identifier is not actionable', () {
+    final route = cloudMedicalRecordRoute(
+      patientId: _patientId,
+      recordId: 'appointments',
+      value: const {'patient_id': _patientId, 'visit_type': 'Grooming'},
+    );
+
+    expect(route, isNull);
+  });
+
+  test('Medical File appointment uses a human-readable schedule time', () {
+    final formatted = cloudMedicalRecordDate(const {
+      'scheduled_at': '2026-08-09T22:33:48.672Z',
+    });
+
+    expect(formatted, isNot(contains('T22:33:48.672Z')));
+    expect(formatted, contains('2026'));
+  });
+
   testWidgets('estimated Medical File age advances with the reference date', (
     tester,
   ) async {

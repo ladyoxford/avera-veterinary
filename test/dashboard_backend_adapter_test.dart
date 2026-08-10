@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:avera/core/remote/clinical_remote_data_source.dart';
-import 'package:avera/features/shared/navigation/clinic_activity_navigation.dart';
 import 'package:avera/features/shared/screens/dashboard_screen.dart';
 
 void main() {
@@ -60,32 +59,5 @@ void main() {
     expect(stats.monthlyRevenue, 0);
     expect(stats.recentActivity, isEmpty);
     expect(stats.recentVisits, isEmpty);
-  });
-
-  test('maps schedule activity to its exact appointment entity', () {
-    final summary = RemoteDashboardSummary.fromJson({
-      'recentActivity': [
-        {
-          'type': 'Schedule',
-          'record_id': '92a4ce80-f37d-4d87-9293-5525fcc46493',
-          'patient_id': 'cb159739-c0cb-4503-a069-9d64563f47bc',
-          'summary': 'Grooming',
-          'occurred_at': '2026-08-09T22:33:48.672Z',
-        },
-      ],
-    });
-
-    final event = dashboardStatsFromRemote(
-      summary,
-      clinicId: 'clinic-1',
-    ).recentActivity.single;
-
-    expect(event.relatedEntityType, 'Appointment');
-    expect(event.relatedEntityId, '92a4ce80-f37d-4d87-9293-5525fcc46493');
-    expect(event.remotePatientId, 'cb159739-c0cb-4503-a069-9d64563f47bc');
-    expect(
-      clinicActivityRoute(event),
-      '/appointments/92a4ce80-f37d-4d87-9293-5525fcc46493',
-    );
   });
 }

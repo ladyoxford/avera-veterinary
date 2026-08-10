@@ -313,10 +313,6 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
   assert.match(routes, /appointment\.rescheduled/);
   assert.match(routes, /appointment\.cancelled/);
   assert.match(routes, /lower\(s\.status\) <> 'cancelled'/);
-  assert.match(
-    routes,
-    /SELECT 'Schedule', 'Appointment', schedule_entry_id, patient_id/,
-  );
   assert.match(routes, /membership_status='Active'/);
   assert.doesNotMatch(routes, /clinic_memberships[\s\S]{0,120}\.status='Active'/);
   assert.match(

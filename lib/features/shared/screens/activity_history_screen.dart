@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/theme/app_theme.dart';
-import '../navigation/clinic_activity_navigation.dart';
 import '../widgets/avera_ui.dart';
 
 enum _ActivityRange { all, today, yesterday, last7Days, last30Days, custom }
@@ -335,30 +334,49 @@ String _displayDescription(String value) => value.replaceAllMapped(
 );
 
 void _openActivity(BuildContext context, ClinicActivityTimelineEvent event) {
-  final route = clinicActivityRoute(event);
-  if (route != null) {
-    context.push(route);
-    return;
-  }
-  showModalBottomSheet<void>(
-    context: context,
-    useSafeArea: true,
-    builder: (context) => Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Activity Details', style: averaText(context).sectionTitle),
-          const SizedBox(height: 12),
-          Text(event.title, style: averaText(context).listItemTitle),
-          const SizedBox(height: 6),
-          Text(
-            _displayDescription(event.description),
-            style: averaText(context).listItemSubtitle,
+  final id = event.relatedEntityId;
+  switch (event.relatedEntityType) {
+    case 'Appointment' when id != null:
+      context.push('/appointments/$id');
+    case 'Vaccination' when id != null:
+      context.push('/vaccinations/$id');
+    case 'Consultation' when id != null:
+      context.push('/consultations/$id');
+    case 'Patient' when id != null:
+      context.push('/animals/$id');
+    case 'ClinicalOperation' when id != null:
+      final route = switch (event.module) {
+        ClinicalOperationTypes.prescription => '/operations/prescriptions',
+        ClinicalOperationTypes.treatment => '/operations/treatment-board',
+        ClinicalOperationTypes.surgery => '/operations/surgery',
+        ClinicalOperationTypes.imaging => '/operations/imaging',
+        ClinicalOperationTypes.document => '/operations/documents',
+        _ => null,
+      };
+      if (route != null) context.push('$route?recordId=$id');
+    case 'Invoice' when id != null:
+      context.push('/billing/history?invoiceId=$id');
+    default:
+      showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        builder: (context) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Activity Details', style: averaText(context).sectionTitle),
+              const SizedBox(height: 12),
+              Text(event.title, style: averaText(context).listItemTitle),
+              const SizedBox(height: 6),
+              Text(
+                _displayDescription(event.description),
+                style: averaText(context).listItemSubtitle,
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
+  }
 }

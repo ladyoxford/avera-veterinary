@@ -1603,14 +1603,12 @@ export async function clinicalRoutes(app) {
       const [species, revenue, activity] = await Promise.all([
         client.query('SELECT species, count(*)::int AS count FROM patients WHERE clinic_id=$1 AND deleted_at IS NULL GROUP BY species ORDER BY count DESC LIMIT 8', [clinicId]),
         client.query(`SELECT to_char(date_trunc('month', paid_at), 'YYYY-MM') AS month, coalesce(sum(amount),0) AS revenue FROM payments WHERE clinic_id=$1 AND paid_at >= now() - interval '6 months' GROUP BY 1 ORDER BY 1`, [clinicId]),
-        client.query(`SELECT type, related_entity_type, record_id, patient_id, occurred_at, summary FROM (
-          SELECT 'Consultation' AS type, 'Consultation' AS related_entity_type,
-                 consultation_id AS record_id, patient_id,
+        client.query(`SELECT type, record_id, patient_id, occurred_at, summary FROM (
+          SELECT 'Consultation' AS type, consultation_id AS record_id, patient_id,
                  occurred_at, coalesce(final_diagnosis, chief_complaint) AS summary
             FROM consultations WHERE clinic_id=$1 AND deleted_at IS NULL
           UNION ALL
-          SELECT 'Schedule', 'Appointment', schedule_entry_id, patient_id,
-                 scheduled_at, visit_type
+          SELECT 'Schedule', schedule_entry_id, patient_id, scheduled_at, visit_type
             FROM schedule_entries WHERE clinic_id=$1
         ) activity ORDER BY occurred_at DESC LIMIT 10`, [clinicId]),
       ]);

@@ -20,6 +20,7 @@ const consultationUuidSchema = z.object({ consultationId: z.string().uuid() });
 const vaccinationUuidSchema = z.object({ vaccinationId: z.string().uuid() });
 const appointmentUuidSchema = z.object({ appointmentId: z.string().uuid() });
 const inventoryUuidSchema = z.object({ inventoryProductId: z.string().uuid() });
+const clinicalOperationUuidSchema = z.object({ operationId: z.string().uuid() });
 export const createPatientSchema = z.object({
   submissionId: z.string().uuid(),
   name: z.string().trim().min(1).max(160),
@@ -140,6 +141,84 @@ const operationPermissions = {
   Document: { view: permissions.documentsView, create: permissions.documentsUpload },
   Treatment: { view: permissions.treatmentBoardView, create: permissions.treatmentBoardCreate },
 };
+
+export const clinicalOperationTransitions = Object.freeze({
+  Surgery: {
+    Draft: ['Scheduled', 'Cancelled'], Pending: ['Scheduled', 'Cancelled'],
+    Scheduled: ['Pre-operative', 'Cancelled'],
+    'Pre-operative': ['Ready for Surgery', 'Cancelled'],
+    'Ready for Surgery': ['In Progress', 'Cancelled'],
+    'In Progress': ['Recovery', 'Cancelled'], Recovery: ['Completed'],
+  },
+  Prescription: {
+    Draft: ['Active', 'Cancelled'], Pending: ['Active', 'Cancelled'],
+    Active: ['Partially Dispensed', 'Dispensed', 'Expired', 'Cancelled'],
+    'Partially Dispensed': ['Dispensed', 'Cancelled'],
+  },
+  Imaging: {
+    Draft: ['Requested', 'Cancelled'], Pending: ['Requested', 'Cancelled'],
+    Requested: ['Scheduled', 'In Progress', 'Cancelled'],
+    Scheduled: ['In Progress', 'Cancelled'],
+    'In Progress': ['Awaiting Report', 'Cancelled'],
+    'Awaiting Report': ['Reported', 'Completed', 'Cancelled'],
+    Reported: ['Completed'],
+  },
+  Document: {
+    Draft: ['Available', 'Archived'], Pending: ['Available', 'Archived'],
+    Available: ['Reviewed', 'Archived'], Reviewed: ['Archived'],
+    Archived: ['Available'],
+  },
+  Treatment: {
+    Pending: ['Upcoming', 'Due', 'Cancelled'], Upcoming: ['Due', 'Cancelled'],
+    Due: ['Administered', 'Delayed', 'Missed', 'Withheld', 'Cancelled'],
+    Overdue: ['Administered', 'Delayed', 'Missed', 'Withheld', 'Cancelled'],
+    Delayed: ['Due', 'Administered', 'Missed', 'Cancelled'],
+  },
+});
+
+const updateClinicalOperationStatusSchema = z.object({
+  status: z.string().trim().min(1).max(100),
+  reason: z.string().trim().max(2000).nullish(),
+});
+
+function clinicalOperationStatusPermission(type, status, fromStatus) {
+  if (type === 'Surgery') {
+    if (status === 'Cancelled') return permissions.surgeryCancel;
+    if (status === 'Completed') return permissions.surgeryComplete;
+    if (['Pre-operative', 'Ready for Surgery'].includes(status)) return permissions.surgeryManagePreop;
+    if (status === 'In Progress') return permissions.surgeryManageIntraop;
+    if (status === 'Recovery') return permissions.surgeryManageRecovery;
+    return permissions.surgeryEdit;
+  }
+  if (type === 'Prescription') {
+    if (status === 'Active') return permissions.prescriptionsActivate;
+    if (status === 'Cancelled') return permissions.prescriptionsCancel;
+    if (['Dispensed', 'Partially Dispensed'].includes(status)) return permissions.prescriptionsDispense;
+    return permissions.prescriptionsEdit;
+  }
+  if (type === 'Imaging') {
+    if (status === 'Scheduled') return permissions.imagingSchedule;
+    if (status === 'In Progress') return permissions.imagingUpload;
+    if (['Awaiting Report', 'Reported'].includes(status)) return permissions.imagingReport;
+    if (status === 'Completed') return permissions.imagingComplete;
+    if (status === 'Cancelled') return permissions.imagingCancel;
+    return permissions.imagingRequest;
+  }
+  if (type === 'Document') {
+    if (status === 'Available' && fromStatus === 'Archived') return permissions.documentsArchive;
+    return status === 'Archived' ? permissions.documentsArchive : permissions.documentsEdit;
+  }
+  if (status === 'Administered') return permissions.treatmentBoardAdminister;
+  if (status === 'Delayed') return permissions.treatmentBoardDelay;
+  if (status === 'Withheld') return permissions.treatmentBoardWithhold;
+  if (status === 'Cancelled') return permissions.treatmentBoardCancel;
+  if (status === 'Due') {
+    return fromStatus === 'Delayed'
+      ? permissions.treatmentBoardReopen
+      : permissions.treatmentBoardCreate;
+  }
+  return permissions.treatmentBoardCreate;
+}
 
 const inventoryFields = {
   name: z.string().trim().min(1).max(200),
@@ -969,6 +1048,120 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.get('/api/v1/clinical-operations/:operationId', { preHandler: [authenticate] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = clinicalOperationUuidSchema.safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'The clinical record identifier is invalid.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const result = await client.query(
+        `SELECT r.operation_id, r.patient_id, r.operation_type, r.title,
+                r.description, r.assigned_to, r.scheduled_at, r.status,
+                r.priority, r.estimated_amount, r.details, r.items,
+                r.created_at, r.updated_at, p.name AS patient_name,
+                p.hospital_number, p.species, p.breed, p.sex,
+                o.full_name AS owner_name, o.phone AS owner_phone,
+                creator.full_name AS created_by_name
+           FROM clinical_operation_records r
+           JOIN patients p ON p.patient_id=r.patient_id AND p.clinic_id=r.clinic_id
+           JOIN owners o ON o.owner_id=p.owner_id AND o.clinic_id=r.clinic_id
+           LEFT JOIN users creator ON creator.user_id=r.created_by
+          WHERE r.clinic_id=$1 AND r.operation_id=$2`,
+        [request.auth.clinicId, params.data.operationId],
+      );
+      const operation = result.rows[0];
+      if (!operation) {
+        return reply.code(404).send({ error: 'not_found', message: 'The clinical record was not found in this clinic.' });
+      }
+      if (!hasPermission(request, operationPermissions[operation.operation_type].view)) {
+        return reply.code(403).send({ error: 'permission_denied', message: 'Permission required for this clinical record.' });
+      }
+      const activity = await client.query(
+        `SELECT a.action, a.previous_summary, a.new_summary, a.reason,
+                a.created_at, u.full_name AS actor_name
+           FROM audit_logs a
+           LEFT JOIN users u ON u.user_id=a.acting_user_id
+          WHERE a.clinic_id=$1 AND a.target_id=$2
+            AND a.action IN ('clinical_operation.created', 'clinical_operation.status_changed')
+          ORDER BY a.created_at DESC`,
+        [request.auth.clinicId, params.data.operationId],
+      );
+      return {
+        operation,
+        allowedNextStatuses: clinicalOperationTransitions[operation.operation_type]?.[operation.status] ?? [],
+        activity: activity.rows,
+      };
+    });
+  });
+
+  app.patch('/api/v1/clinical-operations/:operationId/status', { preHandler: [authenticate] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = clinicalOperationUuidSchema.safeParse(request.params);
+    const parsed = updateClinicalOperationStatusSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the requested status change.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const currentResult = await client.query(
+        `SELECT operation_id, operation_type, status
+           FROM clinical_operation_records
+          WHERE clinic_id=$1 AND operation_id=$2
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.operationId],
+      );
+      const current = currentResult.rows[0];
+      if (!current) {
+        return reply.code(404).send({ error: 'not_found', message: 'The clinical record was not found in this clinic.' });
+      }
+      const permission = clinicalOperationStatusPermission(
+        current.operation_type,
+        parsed.data.status,
+        current.status,
+      );
+      if (!hasPermission(request, permission)) {
+        await writeAudit(client, {
+          clinicId: request.auth.clinicId, actingUserId: request.auth.userId,
+          targetType: current.operation_type, targetId: current.operation_id,
+          action: 'clinical_operation.status_blocked',
+          previousSummary: { status: current.status },
+          newSummary: { requestedStatus: parsed.data.status },
+          sessionId: request.auth.sessionId, success: false,
+          reason: 'permission_denied',
+        });
+        return reply.code(403).send({ error: 'permission_denied', message: 'You do not have permission to perform this clinical action.' });
+      }
+      const allowed = clinicalOperationTransitions[current.operation_type]?.[current.status] ?? [];
+      if (!allowed.includes(parsed.data.status)) {
+        return reply.code(409).send({
+          error: 'invalid_status_transition',
+          message: `This ${current.operation_type.toLowerCase()} cannot move from ${current.status} to ${parsed.data.status}.`,
+        });
+      }
+      if (['Cancelled', 'Missed', 'Delayed', 'Withheld'].includes(parsed.data.status)
+          && !parsed.data.reason?.trim()) {
+        return reply.code(400).send({ error: 'reason_required', message: 'Enter a reason for this status change.' });
+      }
+      const updated = await client.query(
+        `UPDATE clinical_operation_records
+            SET status=$3, updated_at=now()
+          WHERE clinic_id=$1 AND operation_id=$2
+          RETURNING operation_id, patient_id, operation_type, title, status,
+                    scheduled_at, updated_at`,
+        [request.auth.clinicId, params.data.operationId, parsed.data.status],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId, actingUserId: request.auth.userId,
+        targetType: current.operation_type, targetId: current.operation_id,
+        action: 'clinical_operation.status_changed',
+        previousSummary: { status: current.status },
+        newSummary: { status: parsed.data.status },
+        sessionId: request.auth.sessionId, reason: parsed.data.reason ?? null,
+      });
+      return { operation: updated.rows[0] };
+    });
+  });
+
   app.post('/api/v1/clinical-operations', { preHandler: [authenticate] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     const parsed = createClinicalOperationSchema.safeParse(request.body);
@@ -1410,12 +1603,14 @@ export async function clinicalRoutes(app) {
       const [species, revenue, activity] = await Promise.all([
         client.query('SELECT species, count(*)::int AS count FROM patients WHERE clinic_id=$1 AND deleted_at IS NULL GROUP BY species ORDER BY count DESC LIMIT 8', [clinicId]),
         client.query(`SELECT to_char(date_trunc('month', paid_at), 'YYYY-MM') AS month, coalesce(sum(amount),0) AS revenue FROM payments WHERE clinic_id=$1 AND paid_at >= now() - interval '6 months' GROUP BY 1 ORDER BY 1`, [clinicId]),
-        client.query(`SELECT type, record_id, patient_id, occurred_at, summary FROM (
-          SELECT 'Consultation' AS type, consultation_id AS record_id, patient_id,
+        client.query(`SELECT type, related_entity_type, record_id, patient_id, occurred_at, summary FROM (
+          SELECT 'Consultation' AS type, 'Consultation' AS related_entity_type,
+                 consultation_id AS record_id, patient_id,
                  occurred_at, coalesce(final_diagnosis, chief_complaint) AS summary
             FROM consultations WHERE clinic_id=$1 AND deleted_at IS NULL
           UNION ALL
-          SELECT 'Schedule', schedule_entry_id, patient_id, scheduled_at, visit_type
+          SELECT 'Schedule', 'Appointment', schedule_entry_id, patient_id,
+                 scheduled_at, visit_type
             FROM schedule_entries WHERE clinic_id=$1
         ) activity ORDER BY occurred_at DESC LIMIT 10`, [clinicId]),
       ]);

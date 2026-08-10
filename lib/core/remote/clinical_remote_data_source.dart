@@ -683,6 +683,25 @@ class ClinicalRemoteDataSource {
       authenticated: true,
     ),
   );
+
+  Future<Map<String, dynamic>> clinicalOperation(String operationId) async =>
+      Map<String, dynamic>.from(
+        await _client.get('/api/v1/clinical-operations/$operationId'),
+      );
+
+  Future<Map<String, dynamic>> updateClinicalOperationStatus({
+    required String operationId,
+    required String status,
+    String? reason,
+  }) async => Map<String, dynamic>.from(
+    await _client.patch(
+      '/api/v1/clinical-operations/$operationId/status',
+      body: {
+        'status': status,
+        if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim(),
+      },
+    ),
+  );
   Future<RemotePage<RemoteInventoryItem>> inventoryProducts({
     int page = 1,
     int pageSize = 100,

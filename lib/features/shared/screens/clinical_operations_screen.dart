@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_providers.dart';
@@ -170,8 +171,8 @@ enum ClinicalOperationModule {
   };
 }
 
-class _ClinicalStatusAction {
-  const _ClinicalStatusAction({
+class ClinicalOperationStatusAction {
+  const ClinicalOperationStatusAction({
     required this.label,
     required this.status,
     required this.permission,
@@ -184,6 +185,285 @@ class _ClinicalStatusAction {
   final String permission;
   final IconData icon;
   final bool requiresReason;
+}
+
+List<ClinicalOperationStatusAction> clinicalOperationStatusActions(
+  ClinicalOperationModule module,
+  String status,
+) {
+  ClinicalOperationStatusAction action(
+    String label,
+    String next,
+    String permission,
+    IconData icon, {
+    bool reason = false,
+  }) => ClinicalOperationStatusAction(
+    label: label,
+    status: next,
+    permission: permission,
+    icon: icon,
+    requiresReason: reason,
+  );
+  ClinicalOperationStatusAction cancel(String permission, String label) =>
+      action(
+        label,
+        'Cancelled',
+        permission,
+        Icons.cancel_outlined,
+        reason: true,
+      );
+  return switch (module) {
+    ClinicalOperationModule.prescriptions => switch (status) {
+      'Draft' || 'Pending' => [
+        action(
+          'Activate',
+          'Active',
+          Permissions.prescriptionsActivate,
+          Icons.play_circle_outline_rounded,
+        ),
+        cancel(Permissions.prescriptionsCancel, 'Cancel Prescription'),
+      ],
+      'Active' || 'Partially Dispensed' => [
+        cancel(Permissions.prescriptionsCancel, 'Cancel Prescription'),
+      ],
+      _ => const [],
+    },
+    ClinicalOperationModule.treatmentBoard => switch (status) {
+      'Pending' || 'Upcoming' => [
+        action(
+          'Mark Due',
+          'Due',
+          Permissions.treatmentBoardCreate,
+          Icons.schedule_rounded,
+        ),
+        cancel(Permissions.treatmentBoardCancel, 'Cancel Treatment'),
+      ],
+      'Due' || 'Overdue' => [
+        action(
+          'Mark Administered',
+          'Administered',
+          Permissions.treatmentBoardAdminister,
+          Icons.check_circle_outline_rounded,
+        ),
+        action(
+          'Delay',
+          'Delayed',
+          Permissions.treatmentBoardDelay,
+          Icons.snooze_rounded,
+          reason: true,
+        ),
+        action(
+          'Withhold',
+          'Withheld',
+          Permissions.treatmentBoardWithhold,
+          Icons.block_outlined,
+          reason: true,
+        ),
+        action(
+          'Mark Missed',
+          'Missed',
+          Permissions.treatmentBoardCreate,
+          Icons.event_busy_outlined,
+          reason: true,
+        ),
+        cancel(Permissions.treatmentBoardCancel, 'Cancel Treatment'),
+      ],
+      'Delayed' => [
+        action(
+          'Return to Due',
+          'Due',
+          Permissions.treatmentBoardReopen,
+          Icons.restore_rounded,
+        ),
+        action(
+          'Mark Administered',
+          'Administered',
+          Permissions.treatmentBoardAdminister,
+          Icons.check_circle_outline_rounded,
+        ),
+        action(
+          'Mark Missed',
+          'Missed',
+          Permissions.treatmentBoardCreate,
+          Icons.event_busy_outlined,
+          reason: true,
+        ),
+        cancel(Permissions.treatmentBoardCancel, 'Cancel Treatment'),
+      ],
+      _ => const [],
+    },
+    ClinicalOperationModule.surgery => switch (status) {
+      'Draft' || 'Pending' => [
+        action(
+          'Schedule',
+          'Scheduled',
+          Permissions.surgeryEdit,
+          Icons.event_available_outlined,
+        ),
+        cancel(Permissions.surgeryCancel, 'Cancel Surgery'),
+      ],
+      'Scheduled' => [
+        action(
+          'Start Pre-operative',
+          'Pre-operative',
+          Permissions.surgeryManagePreop,
+          Icons.fact_check_outlined,
+        ),
+        cancel(Permissions.surgeryCancel, 'Cancel Surgery'),
+      ],
+      'Pre-operative' => [
+        action(
+          'Ready for Surgery',
+          'Ready for Surgery',
+          Permissions.surgeryManagePreop,
+          Icons.check_circle_outline_rounded,
+        ),
+        cancel(Permissions.surgeryCancel, 'Cancel Surgery'),
+      ],
+      'Ready for Surgery' => [
+        action(
+          'Begin Surgery',
+          'In Progress',
+          Permissions.surgeryManageIntraop,
+          Icons.medical_services_outlined,
+        ),
+        cancel(Permissions.surgeryCancel, 'Cancel Surgery'),
+      ],
+      'In Progress' => [
+        action(
+          'Move to Recovery',
+          'Recovery',
+          Permissions.surgeryManageRecovery,
+          Icons.monitor_heart_outlined,
+        ),
+        cancel(Permissions.surgeryCancel, 'Cancel Surgery'),
+      ],
+      'Recovery' => [
+        action(
+          'Complete',
+          'Completed',
+          Permissions.surgeryComplete,
+          Icons.task_alt_rounded,
+        ),
+      ],
+      _ => const [],
+    },
+    ClinicalOperationModule.imaging => switch (status) {
+      'Draft' || 'Pending' => [
+        action(
+          'Submit Request',
+          'Requested',
+          Permissions.imagingRequest,
+          Icons.send_outlined,
+        ),
+        cancel(Permissions.imagingCancel, 'Cancel Imaging'),
+      ],
+      'Requested' => [
+        action(
+          'Schedule',
+          'Scheduled',
+          Permissions.imagingSchedule,
+          Icons.event_available_outlined,
+        ),
+        action(
+          'Start Study',
+          'In Progress',
+          Permissions.imagingUpload,
+          Icons.play_circle_outline_rounded,
+        ),
+        cancel(Permissions.imagingCancel, 'Cancel Imaging'),
+      ],
+      'Scheduled' => [
+        action(
+          'Start Study',
+          'In Progress',
+          Permissions.imagingUpload,
+          Icons.play_circle_outline_rounded,
+        ),
+        cancel(Permissions.imagingCancel, 'Cancel Imaging'),
+      ],
+      'In Progress' => [
+        action(
+          'Await Report',
+          'Awaiting Report',
+          Permissions.imagingReport,
+          Icons.rate_review_outlined,
+        ),
+        cancel(Permissions.imagingCancel, 'Cancel Imaging'),
+      ],
+      'Awaiting Report' => [
+        action(
+          'Mark Reported',
+          'Reported',
+          Permissions.imagingReport,
+          Icons.description_outlined,
+        ),
+        action(
+          'Complete',
+          'Completed',
+          Permissions.imagingComplete,
+          Icons.task_alt_rounded,
+        ),
+        cancel(Permissions.imagingCancel, 'Cancel Imaging'),
+      ],
+      'Reported' => [
+        action(
+          'Complete',
+          'Completed',
+          Permissions.imagingComplete,
+          Icons.task_alt_rounded,
+        ),
+      ],
+      _ => const [],
+    },
+    ClinicalOperationModule.documents => switch (status) {
+      'Draft' || 'Pending' => [
+        action(
+          'Make Available',
+          'Available',
+          Permissions.documentsEdit,
+          Icons.visibility_outlined,
+        ),
+        action(
+          'Archive',
+          'Archived',
+          Permissions.documentsArchive,
+          Icons.archive_outlined,
+        ),
+      ],
+      'Available' => [
+        action(
+          'Mark Reviewed',
+          'Reviewed',
+          Permissions.documentsEdit,
+          Icons.task_alt_rounded,
+        ),
+        action(
+          'Archive',
+          'Archived',
+          Permissions.documentsArchive,
+          Icons.archive_outlined,
+        ),
+      ],
+      'Reviewed' => [
+        action(
+          'Archive',
+          'Archived',
+          Permissions.documentsArchive,
+          Icons.archive_outlined,
+        ),
+      ],
+      'Archived' => [
+        action(
+          'Restore',
+          'Available',
+          Permissions.documentsArchive,
+          Icons.restore_rounded,
+        ),
+      ],
+      _ => const [],
+    },
+  };
 }
 
 class ClinicalOperationScreen extends ConsumerStatefulWidget {
@@ -431,7 +711,7 @@ class _ClinicalOperationScreenState
                 ),
                 isThreeLine: true,
                 trailing: _StatusPill('${record['status']}'),
-                onTap: () => _showRemoteDetails(record),
+                onTap: () => _openRemoteDetails(record),
               ),
             ),
             const SizedBox(height: AveraSpacing.cardGap),
@@ -441,37 +721,19 @@ class _ClinicalOperationScreenState
     },
   );
 
-  Future<void> _showRemoteDetails(Map<String, dynamic> record) =>
-      showModalBottomSheet<void>(
-        context: context,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (context) => Padding(
-          padding: const EdgeInsets.all(AveraSpacing.largeCardPadding),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${record['title']}',
-                style: averaText(context).sectionTitle,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '${record['patient_name']} - ${record['hospital_number']}',
-                style: averaText(context).listItemSubtitle,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              Text(
-                '${record['description'] ?? 'No additional clinical notes.'}',
-                style: averaText(context).fieldValue,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _StatusPill('${record['status']}'),
-            ],
-          ),
+  Future<void> _openRemoteDetails(Map<String, dynamic> record) async {
+    final operationId = record['operation_id']?.toString().trim();
+    if (operationId == null || operationId.isEmpty) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => RemoteClinicalOperationDetailScreen(
+          operationId: operationId,
+          module: widget.module,
         ),
-      );
+      ),
+    );
+    if (mounted) setState(_reloadRemote);
+  }
 
   void _openInitialRecord(
     List<ClinicOperationRecord> records,
@@ -538,6 +800,466 @@ class _ClinicalOperationScreenState
       setState(_reloadRemote);
     }
   }
+}
+
+class RemoteClinicalOperationDetailScreen extends ConsumerStatefulWidget {
+  const RemoteClinicalOperationDetailScreen({
+    super.key,
+    required this.operationId,
+    required this.module,
+  });
+
+  final String operationId;
+  final ClinicalOperationModule module;
+
+  @override
+  ConsumerState<RemoteClinicalOperationDetailScreen> createState() =>
+      _RemoteClinicalOperationDetailScreenState();
+}
+
+class _RemoteClinicalOperationDetailScreenState
+    extends ConsumerState<RemoteClinicalOperationDetailScreen> {
+  late Future<Map<String, dynamic>> _detail;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    _detail = ref
+        .read(clinicalRemoteDataSourceProvider)
+        .clinicalOperation(widget.operationId);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text('${widget.module.title} Detail')),
+    body: FutureBuilder<Map<String, dynamic>>(
+      future: _detail,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _OperationState(
+            icon: Icons.error_outline_rounded,
+            title: 'Unable to open this clinical record',
+            message: 'Check your connection and try again.',
+            action: FilledButton(
+              onPressed: () => setState(_reload),
+              child: const Text('Retry'),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final payload = snapshot.data!;
+        final record = Map<String, dynamic>.from(payload['operation'] as Map);
+        final session = ref.watch(userSessionProvider).valueOrNull;
+        return ListView(
+          key: ValueKey('remote-clinical-operation-${widget.operationId}'),
+          padding: const EdgeInsets.fromLTRB(
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.pageTopPadding,
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.bottomContentClearance,
+          ),
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${record['title']}',
+                        style: averaText(context).pageTitle,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${record['patient_name']} - ${record['hospital_number']}',
+                        style: averaText(context).pageSubtitle,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _StatusPill('${record['status']}'),
+              ],
+            ),
+            const SizedBox(height: AveraSpacing.sectionGap),
+            _RemoteOperationSection(
+              title: 'Record Information',
+              lines: [
+                ('Patient', _textValue(record['patient_name'])),
+                ('Hospital number', _textValue(record['hospital_number'])),
+                ('Owner', _textValue(record['owner_name'])),
+                (
+                  'Assigned to',
+                  _textValue(record['assigned_to'], fallback: 'Not assigned'),
+                ),
+                ('Priority', _textValue(record['priority'])),
+                ('Scheduled', _dateTimeValue(record['scheduled_at'])),
+                ('Created', _dateTimeValue(record['created_at'])),
+                ('Last updated', _dateTimeValue(record['updated_at'])),
+              ],
+            ),
+            if (_textValue(record['description'], fallback: '').isNotEmpty) ...[
+              const SizedBox(height: AveraSpacing.sectionGap),
+              _RemoteOperationSection(
+                title: 'Clinical Notes',
+                body: Text(
+                  _textValue(record['description']),
+                  style: averaText(context).fieldValue,
+                ),
+              ),
+            ],
+            ..._typeSpecificSections(record),
+            ..._activitySections(payload),
+            const SizedBox(height: AveraSpacing.sectionGap),
+            OutlinedButton.icon(
+              onPressed: () => context.push('/animals/${record['patient_id']}'),
+              icon: const Icon(Icons.pets_outlined),
+              label: const Text('Open Medical File'),
+            ),
+            if (_consultationId(record) case final consultationId?) ...[
+              const SizedBox(height: AveraSpacing.compactRowGap),
+              OutlinedButton.icon(
+                onPressed: () => context.push(
+                  '/consultations/$consultationId?patientId=${Uri.encodeQueryComponent('${record['patient_id']}')}',
+                ),
+                icon: const Icon(Icons.medical_information_outlined),
+                label: const Text('Open Consultation'),
+              ),
+            ],
+            if (session != null) ...[
+              const SizedBox(height: AveraSpacing.sectionGap),
+              _statusActions(record, payload, session),
+            ],
+          ],
+        );
+      },
+    ),
+  );
+
+  List<Widget> _typeSpecificSections(Map<String, dynamic> record) {
+    final details = Map<String, dynamic>.from(
+      (record['details'] as Map?) ?? const <String, dynamic>{},
+    );
+    final items = ((record['items'] as List?) ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final lines = switch (widget.module) {
+      ClinicalOperationModule.surgery => [
+        ('Surgery type', _textValue(details['surgeryType'])),
+        ('Indication', _textValue(details['indication'])),
+        ('Assistant', _textValue(details['assistant'])),
+        ('Anaesthetist', _textValue(details['anaesthetist'])),
+        ('Instructions', _textValue(details['instructions'])),
+      ],
+      ClinicalOperationModule.imaging => [
+        ('Modality', _textValue(details['imagingType'])),
+        ('Anatomical area', _textValue(details['anatomicalArea'])),
+        ('Clinical history', _textValue(details['clinicalHistory'])),
+        ('Suspected diagnosis', _textValue(details['suspectedDiagnosis'])),
+        ('Provider type', _textValue(details['providerType'])),
+        ('Provider', _textValue(details['provider'])),
+        (
+          'Sedation required',
+          details['sedationRequired'] == true ? 'Yes' : 'No',
+        ),
+      ],
+      ClinicalOperationModule.documents => [
+        ('Category', _textValue(details['documentCategory'])),
+        ('Related record', _textValue(details['relatedClinicalRecord'])),
+        ('File name', _textValue(details['fileName'])),
+        ('File type', _textValue(details['mimeType'])),
+        ('Sensitive', details['sensitiveDocument'] == true ? 'Yes' : 'No'),
+        ('Clinical context', _textValue(details['instructions'])),
+      ],
+      ClinicalOperationModule.treatmentBoard => [
+        ('Ordered by', _textValue(details['orderedBy'])),
+        ('Ward or location', _textValue(details['ward'])),
+        ('Instructions', _textValue(details['instructions'])),
+      ],
+      ClinicalOperationModule.prescriptions => [
+        ('Refills allowed', '${details['refillAllowance'] ?? 0}'),
+        ('Instructions', _textValue(details['instructions'])),
+      ],
+    };
+    return [
+      if (lines.any((line) => line.$2.isNotEmpty)) ...[
+        const SizedBox(height: AveraSpacing.sectionGap),
+        _RemoteOperationSection(
+          title: _typeSectionTitle(widget.module),
+          lines: lines.where((line) => line.$2.isNotEmpty).toList(),
+        ),
+      ],
+      if (items.isNotEmpty) ...[
+        const SizedBox(height: AveraSpacing.sectionGap),
+        _RemoteOperationSection(
+          title: widget.module == ClinicalOperationModule.treatmentBoard
+              ? 'Treatment Items'
+              : 'Medication Items',
+          body: Column(
+            children: [
+              for (var index = 0; index < items.length; index++) ...[
+                _RemoteOperationItem(item: items[index]),
+                if (index != items.length - 1) const Divider(height: 24),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _activitySections(Map<String, dynamic> payload) {
+    final activity = ((payload['activity'] as List?) ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList();
+    if (activity.isEmpty) return const [];
+    return [
+      const SizedBox(height: AveraSpacing.sectionGap),
+      _RemoteOperationSection(
+        title: 'Status History',
+        body: Column(
+          children: [
+            for (var index = 0; index < activity.length; index++) ...[
+              _RemoteOperationActivity(entry: activity[index]),
+              if (index != activity.length - 1) const Divider(height: 24),
+            ],
+          ],
+        ),
+      ),
+    ];
+  }
+
+  Widget _statusActions(
+    Map<String, dynamic> record,
+    Map<String, dynamic> payload,
+    UserSession session,
+  ) {
+    final serverAllowed =
+        ((payload['allowedNextStatuses'] as List?) ?? const [])
+            .map((value) => value.toString())
+            .toSet();
+    final actions =
+        clinicalOperationStatusActions(widget.module, '${record['status']}')
+            .where(
+              (action) =>
+                  serverAllowed.contains(action.status) &&
+                  session.can(action.permission),
+            )
+            .toList();
+    if (actions.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Available Actions', style: averaText(context).sectionLabel),
+        const SizedBox(height: AveraSpacing.compactRowGap),
+        for (final action in actions) ...[
+          SizedBox(
+            width: double.infinity,
+            child: action.status == 'Cancelled'
+                ? OutlinedButton.icon(
+                    onPressed: _busy ? null : () => _changeStatus(action),
+                    icon: Icon(action.icon),
+                    label: Text(action.label),
+                  )
+                : FilledButton.icon(
+                    onPressed: _busy ? null : () => _changeStatus(action),
+                    icon: Icon(action.icon),
+                    label: Text(action.label),
+                  ),
+          ),
+          const SizedBox(height: AveraSpacing.compactRowGap),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _changeStatus(ClinicalOperationStatusAction action) async {
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${action.label}?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('This clinical record will be marked ${action.status}.'),
+            if (action.requiresReason) ...[
+              const SizedBox(height: AveraSpacing.cardGap),
+              AveraLabeledTextField(
+                label: 'Reason',
+                controller: reasonController,
+                hintText: 'Enter the reason for this change',
+                minLines: 2,
+                maxLines: 4,
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep Current Status'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (!action.requiresReason ||
+                  reasonController.text.trim().isNotEmpty) {
+                Navigator.pop(dialogContext, true);
+              }
+            },
+            child: Text(action.label),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      reasonController.dispose();
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(clinicalRemoteDataSourceProvider)
+          .updateClinicalOperationStatus(
+            operationId: widget.operationId,
+            status: action.status,
+            reason: reasonController.text,
+          );
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _reload();
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${action.status} recorded.')));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This status change could not be saved. Refresh and try again.',
+          ),
+        ),
+      );
+    } finally {
+      reasonController.dispose();
+    }
+  }
+}
+
+class _RemoteOperationSection extends StatelessWidget {
+  const _RemoteOperationSection({
+    required this.title,
+    this.lines = const [],
+    this.body,
+  });
+
+  final String title;
+  final List<(String, String)> lines;
+  final Widget? body;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: averaText(context).sectionLabel),
+      const SizedBox(height: AveraSpacing.compactRowGap),
+      AveraSurfaceCard(
+        child:
+            body ??
+            Column(
+              children: [
+                for (final line in lines) _DetailLine(line.$1, line.$2),
+              ],
+            ),
+      ),
+    ],
+  );
+}
+
+class _RemoteOperationItem extends StatelessWidget {
+  const _RemoteOperationItem({required this.item});
+  final Map<String, dynamic> item;
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = [
+      item['strength'],
+      item['dose'],
+      item['doseUnit'],
+      item['route'],
+      item['frequency'],
+      item['duration'],
+    ].map(_textValue).where((value) => value.isNotEmpty).join(' - ');
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.medication_outlined),
+      title: Text(_textValue(item['name'], fallback: 'Clinical item')),
+      subtitle: summary.isEmpty ? null : Text(summary),
+    );
+  }
+}
+
+class _RemoteOperationActivity extends StatelessWidget {
+  const _RemoteOperationActivity({required this.entry});
+  final Map<String, dynamic> entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final previous = (entry['previous_summary'] as Map?)?['status'];
+    final next = (entry['new_summary'] as Map?)?['status'];
+    final status = next == null
+        ? 'Record created'
+        : '${_textValue(previous, fallback: 'New')} to $next';
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.history_rounded),
+      title: Text(status),
+      subtitle: Text(
+        '${_textValue(entry['actor_name'], fallback: 'Clinic staff')} - '
+        '${_dateTimeValue(entry['created_at'])}',
+      ),
+    );
+  }
+}
+
+String _typeSectionTitle(ClinicalOperationModule module) => switch (module) {
+  ClinicalOperationModule.surgery => 'Surgical Plan',
+  ClinicalOperationModule.prescriptions => 'Prescription Details',
+  ClinicalOperationModule.imaging => 'Imaging Request',
+  ClinicalOperationModule.documents => 'Document Details',
+  ClinicalOperationModule.treatmentBoard => 'Treatment Plan',
+};
+
+String _textValue(Object? value, {String fallback = ''}) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? fallback : text;
+}
+
+String _dateTimeValue(Object? value) {
+  final parsed = DateTime.tryParse(_textValue(value));
+  return parsed == null
+      ? 'Not recorded'
+      : DateFormat.yMMMd().add_jm().format(parsed.toLocal());
+}
+
+String? _consultationId(Map<String, dynamic> record) {
+  final details = (record['details'] as Map?) ?? const <String, dynamic>{};
+  final value = details['consultationId'] ?? details['consultation_id'];
+  final id = value?.toString().trim();
+  return id == null || id.isEmpty ? null : id;
 }
 
 class _ClinicalOperationDetailSheet extends ConsumerStatefulWidget {
@@ -814,14 +1536,14 @@ class _ClinicalOperationDetailSheetState
     );
   }
 
-  List<_ClinicalStatusAction> _nextActions(String status) {
-    _ClinicalStatusAction action(
+  List<ClinicalOperationStatusAction> _nextActions(String status) {
+    ClinicalOperationStatusAction action(
       String label,
       String next,
       String permission,
       IconData icon, {
       bool reason = false,
-    }) => _ClinicalStatusAction(
+    }) => ClinicalOperationStatusAction(
       label: label,
       status: next,
       permission: permission,

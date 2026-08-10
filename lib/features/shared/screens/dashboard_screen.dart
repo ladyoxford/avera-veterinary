@@ -15,6 +15,7 @@ import '../../../core/services/clinic_operating_status_service.dart';
 import '../../../core/services/dashboard_mode_resolver.dart';
 import '../../../core/services/feature_gate_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../navigation/clinic_activity_navigation.dart';
 import '../widgets/branded_app_bar.dart';
 import '../widgets/avera_ui.dart';
 
@@ -198,6 +199,11 @@ ClinicActivityTimelineEvent _remoteActivityEvent(
       DateTime.fromMillisecondsSinceEpoch(0);
   final relatedEntityId = (value['record_id'] ?? value['related_entity_id'])
       ?.toString();
+  final relatedEntityType = value['related_entity_type'] as String?;
+  final canonicalEntityType = switch (relatedEntityType ?? type) {
+    'Schedule' => 'Appointment',
+    final entityType => entityType,
+  };
   return ClinicActivityTimelineEvent(
     id:
         value['id']?.toString() ??
@@ -207,9 +213,7 @@ ClinicActivityTimelineEvent _remoteActivityEvent(
     title: summary,
     description: type,
     occurredAt: occurredAt,
-    relatedEntityType:
-        value['related_entity_type'] as String? ??
-        (relatedEntityId == null ? null : type),
+    relatedEntityType: relatedEntityId == null ? null : canonicalEntityType,
     relatedEntityId: relatedEntityId,
     remotePatientId: value['patient_id']?.toString(),
   );
@@ -718,45 +722,16 @@ class _OperationalActivityTile extends StatelessWidget {
 }
 
 void _openActivity(BuildContext context, ClinicActivityTimelineEvent event) {
-  final id = event.relatedEntityId;
-  final isConsultation =
-      event.relatedEntityType == 'Consultation' ||
-      event.type.toLowerCase().contains('consultation');
-  if (isConsultation && id != null && id.isNotEmpty) {
-    final patientId = event.remotePatientId;
-    context.push(
-      patientId == null
-          ? '/consultations/$id'
-          : '/consultations/$id?patientId=${Uri.encodeQueryComponent(patientId)}',
-    );
+  final route = clinicActivityRoute(event);
+  if (route != null) {
+    context.push(route);
     return;
   }
-  switch (event.relatedEntityType) {
-    case 'Appointment' when id != null:
-      context.push('/appointments/$id');
-    case 'Vaccination' when id != null:
-      context.push('/vaccinations/$id');
-    case 'Patient' when id != null:
-      context.push('/animals/$id');
-    case 'ClinicalOperation' when id != null:
-      final route = switch (event.module) {
-        ClinicalOperationTypes.prescription => '/operations/prescriptions',
-        ClinicalOperationTypes.treatment => '/operations/treatment-board',
-        ClinicalOperationTypes.surgery => '/operations/surgery',
-        ClinicalOperationTypes.imaging => '/operations/imaging',
-        ClinicalOperationTypes.document => '/operations/documents',
-        _ => null,
-      };
-      if (route != null) context.push('$route?recordId=$id');
-    case 'Invoice' when id != null:
-      context.push('/billing/history?invoiceId=$id');
-    default:
-      showModalBottomSheet<void>(
-        context: context,
-        useSafeArea: true,
-        builder: (_) => _ActivityDetailsSheet(event: event),
-      );
-  }
+  showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    builder: (_) => _ActivityDetailsSheet(event: event),
+  );
 }
 
 String _professionalDescription(ClinicActivityTimelineEvent event) {

@@ -165,6 +165,10 @@ class CloudDashboardScreen extends ConsumerWidget {
       );
       return;
     }
+    if (type == 'Schedule' && recordId != null) {
+      context.push('/appointments/$recordId');
+      return;
+    }
     if (type == 'Schedule') context.push('/appointments');
   }
 }

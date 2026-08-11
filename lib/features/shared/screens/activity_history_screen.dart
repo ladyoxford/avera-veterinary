@@ -156,19 +156,17 @@ class _ActivityHistoryScreenState extends ConsumerState<ActivityHistoryScreen> {
       onRefresh: () => _load(reset: true),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
-          20,
-          20,
-          20,
+          AveraSpacing.pageHorizontalPadding,
+          AveraSpacing.pageTopPadding,
+          AveraSpacing.pageHorizontalPadding,
           AveraSpacing.bottomContentClearance,
         ),
         children: [
-          Text('Activity History', style: averaText(context).pageTitle),
-          const SizedBox(height: 6),
           Text(
             'Review clinic actions across patients, staff and operations.',
             style: averaText(context).pageSubtitle,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AveraSpacing.subtitleToContentGap),
           TextField(
             controller: _search,
             decoration: const InputDecoration(
@@ -183,7 +181,7 @@ class _ActivityHistoryScreenState extends ConsumerState<ActivityHistoryScreen> {
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AveraSpacing.compactRowGap),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -203,7 +201,7 @@ class _ActivityHistoryScreenState extends ConsumerState<ActivityHistoryScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AveraSpacing.cardGap),
           _ModuleFilter(
             value: _module,
             onChanged: (value) async {
@@ -286,16 +284,27 @@ class _ModuleFilter extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => DropdownButtonFormField<String?>(
-    value: value,
-    isExpanded: true,
-    decoration: const InputDecoration(labelText: 'Module'),
-    items: [
-      const DropdownMenuItem<String?>(value: null, child: Text('All Modules')),
-      for (final module in _modules)
-        DropdownMenuItem(value: module.$1, child: Text(module.$2)),
-    ],
-    onChanged: onChanged,
+  Widget build(BuildContext context) => AveraLabeledFieldCard(
+    label: 'Module',
+    child: DropdownButtonHideUnderline(
+      child: DropdownButton<String?>(
+        key: const Key('activity-module-filter'),
+        value: value,
+        isExpanded: true,
+        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+        style: averaText(context).fieldValue,
+        dropdownColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+        items: [
+          const DropdownMenuItem<String?>(
+            value: null,
+            child: Text('All Modules'),
+          ),
+          for (final module in _modules)
+            DropdownMenuItem(value: module.$1, child: Text(module.$2)),
+        ],
+        onChanged: onChanged,
+      ),
+    ),
   );
 }
 

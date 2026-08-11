@@ -264,14 +264,15 @@ export async function clinicRoutes(app) {
 
   app.get('/api/v1/users', { preHandler: [authenticate, requirePermission(permissions.usersView)] }, async (request, reply) => {
     if (!request.auth.clinicId) return clinicContextRequired(reply);
-    const users = await withTenantTransaction(app.pool, request.auth, async (client) => (
+    const usersResult = await withTenantTransaction(app.pool, request.auth, async (client) => (
       await client.query(
         `${clinicUserSelect}
           WHERE u.clinic_id = $1 AND u.deleted_at IS NULL
           ORDER BY u.full_name LIMIT 100`,
         [request.auth.clinicId],
       )
-    )).rows;
+    ));
+    const users = usersResult.rows;
     return { users: await Promise.all(users.map(async (user) => {
       const profilePhotoUrl = await app.profilePhotoStorage.signedUrl(user.profilePhotoPath);
       delete user.profilePhotoPath;
@@ -281,13 +282,14 @@ export async function clinicRoutes(app) {
 
   app.get('/api/v1/users/:userId', { preHandler: [authenticate, requirePermission(permissions.usersView)] }, async (request, reply) => {
     if (!request.auth.clinicId) return clinicContextRequired(reply);
-    const user = await withTenantTransaction(app.pool, request.auth, async (client) => (
+    const userResult = await withTenantTransaction(app.pool, request.auth, async (client) => (
       await client.query(
         `${clinicUserSelect}
           WHERE u.user_id = $1 AND u.clinic_id = $2 AND u.deleted_at IS NULL`,
         [request.params.userId, request.auth.clinicId],
       )
-    )).rows[0];
+    ));
+    const user = userResult.rows[0];
     if (!user) return reply.code(404).send({ error: 'staff_not_found', message: 'Staff member was not found in this clinic.' });
     const profilePhotoUrl = await app.profilePhotoStorage.signedUrl(user.profilePhotoPath);
     delete user.profilePhotoPath;

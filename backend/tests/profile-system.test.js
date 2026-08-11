@@ -39,3 +39,17 @@ test('self profile routes never accept a target user id', async () => {
   assert.match(selfSection, /request\.auth\.userId/);
   assert.doesNotMatch(selfSection, /request\.params\.userId/);
 });
+
+test('clinic staff routes await tenant queries before reading rows', async () => {
+  const source = await readFile(new URL('../src/routes/clinic-routes.js', import.meta.url), 'utf8');
+  const listStart = source.indexOf("app.get('/api/v1/users'");
+  const detailStart = source.indexOf("app.get('/api/v1/users/:userId'");
+  const rolesStart = source.indexOf("app.get('/api/v1/roles'");
+  const listRoute = source.slice(listStart, detailStart);
+  const detailRoute = source.slice(detailStart, rolesStart);
+
+  assert.match(listRoute, /const usersResult = await withTenantTransaction/);
+  assert.match(listRoute, /const users = usersResult\.rows/);
+  assert.match(detailRoute, /const userResult = await withTenantTransaction/);
+  assert.match(detailRoute, /const user = userResult\.rows\[0\]/);
+});

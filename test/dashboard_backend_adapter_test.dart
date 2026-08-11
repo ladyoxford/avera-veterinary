@@ -87,4 +87,47 @@ void main() {
       '/appointments/$appointmentId',
     );
   });
+
+  const operationRoutes = <String, String>{
+    'Surgery': '/operations/surgery',
+    'Prescription': '/operations/prescriptions',
+    'Imaging': '/operations/imaging',
+    'Document': '/operations/documents',
+    'Treatment': '/operations/treatment-board',
+  };
+
+  for (final entry in operationRoutes.entries) {
+    test('production ${entry.key} activity deep-links to its exact record', () {
+      const operationId = '2656ae09-8248-4934-a6c6-b7eb3f4e2152';
+      final summary = RemoteDashboardSummary.fromJson({
+        'recentActivity': [
+          {
+            'type': 'ClinicalOperation',
+            'module': entry.key,
+            'related_entity_type': 'ClinicalOperation',
+            'record_id': operationId,
+            'patient_id': 'patient-1',
+            'title': '${entry.key} title',
+            'summary': '${entry.key} - Scheduled',
+            'occurred_at': '2026-08-10T10:00:00.000Z',
+          },
+        ],
+      });
+      final event = dashboardStatsFromRemote(
+        summary,
+        clinicId: 'clinic-1',
+      ).recentActivity.single;
+
+      expect(event.module, entry.key.toLowerCase());
+      expect(event.title, '${entry.key} title');
+      expect(
+        clinicActivityRoute(event),
+        '${entry.value}?recordId=$operationId',
+      );
+      expect(
+        remoteDashboardActivityRoute(summary.recentActivity.single),
+        '${entry.value}?recordId=$operationId',
+      );
+    });
+  }
 }

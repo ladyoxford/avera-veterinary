@@ -70,6 +70,31 @@ void main() {
     expect(formatted, contains('2026'));
   });
 
+  const operationRoutes = <String, String>{
+    'surgery': '/operations/surgery',
+    'medications': '/operations/prescriptions',
+    'imaging': '/operations/imaging',
+    'documents': '/operations/documents',
+    'treatment': '/operations/treatment-board',
+  };
+
+  for (final entry in operationRoutes.entries) {
+    test('Medical File ${entry.key} opens the canonical operation detail', () {
+      const operationId = '2656ae09-8248-4934-a6c6-b7eb3f4e2152';
+      final route = cloudMedicalRecordRoute(
+        patientId: _patientId,
+        recordId: entry.key,
+        value: const {
+          'operation_id': operationId,
+          'patient_id': _patientId,
+          'title': 'Persisted clinical operation',
+        },
+      );
+
+      expect(route, '${entry.value}?recordId=$operationId');
+    });
+  }
+
   testWidgets('estimated Medical File age advances with the reference date', (
     tester,
   ) async {

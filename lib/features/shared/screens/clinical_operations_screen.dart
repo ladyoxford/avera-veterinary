@@ -472,10 +472,12 @@ class ClinicalOperationScreen extends ConsumerStatefulWidget {
     super.key,
     required this.module,
     this.initialRecordId,
+    this.initialRemoteRecordId,
   });
 
   final ClinicalOperationModule module;
   final int? initialRecordId;
+  final String? initialRemoteRecordId;
 
   @override
   ConsumerState<ClinicalOperationScreen> createState() =>
@@ -639,6 +641,7 @@ class _ClinicalOperationScreenState
       if (!snapshot.hasData) {
         return const Center(child: CircularProgressIndicator());
       }
+      _openInitialRemoteRecord();
       final query = _query.trim().toLowerCase();
       final records = snapshot.data!.items
           .where((record) {
@@ -734,6 +737,26 @@ class _ClinicalOperationScreenState
       ),
     );
     if (mounted) setState(_reloadRemote);
+  }
+
+  void _openInitialRemoteRecord() {
+    final operationId = widget.initialRemoteRecordId?.trim();
+    if (_openedInitialRecord || operationId == null || operationId.isEmpty) {
+      return;
+    }
+    _openedInitialRecord = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => RemoteClinicalOperationDetailScreen(
+            operationId: operationId,
+            module: widget.module,
+          ),
+        ),
+      );
+      if (mounted) setState(_reloadRemote);
+    });
   }
 
   void _openInitialRecord(

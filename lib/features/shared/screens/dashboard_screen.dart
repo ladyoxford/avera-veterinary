@@ -16,6 +16,7 @@ import '../../../core/services/dashboard_mode_resolver.dart';
 import '../../../core/services/feature_gate_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../navigation/clinic_activity_navigation.dart';
+import '../navigation/clinic_activity_remote_adapter.dart';
 import '../widgets/branded_app_bar.dart';
 import '../widgets/avera_ui.dart';
 
@@ -178,7 +179,7 @@ DashboardStats dashboardStatsFromRemote(
   recentVisits: const [],
   recentActivity: [
     for (var index = 0; index < summary.recentActivity.length; index++)
-      _remoteActivityEvent(
+      clinicActivityEventFromRemote(
         summary.recentActivity[index],
         clinicId: clinicId,
         index: index,
@@ -186,35 +187,6 @@ DashboardStats dashboardStatsFromRemote(
   ],
   unreadNotifications: 0,
 );
-
-ClinicActivityTimelineEvent _remoteActivityEvent(
-  Map<String, dynamic> value, {
-  required String clinicId,
-  required int index,
-}) {
-  final type = value['type'] as String? ?? 'ClinicActivity';
-  final summary = value['summary'] as String? ?? 'Clinic activity';
-  final occurredAt =
-      DateTime.tryParse('${value['occurred_at']}') ??
-      DateTime.fromMillisecondsSinceEpoch(0);
-  final relatedEntityId = (value['record_id'] ?? value['related_entity_id'])
-      ?.toString();
-  return ClinicActivityTimelineEvent(
-    id:
-        value['id']?.toString() ??
-        '${occurredAt.microsecondsSinceEpoch}-$index',
-    clinicId: clinicId,
-    type: type,
-    title: summary,
-    description: type,
-    occurredAt: occurredAt,
-    relatedEntityType:
-        value['related_entity_type'] as String? ??
-        (relatedEntityId == null ? null : type),
-    relatedEntityId: relatedEntityId,
-    remotePatientId: value['patient_id']?.toString(),
-  );
-}
 
 // Legacy layout retained while older dashboard widget tests are migrated.
 // ignore: unused_element

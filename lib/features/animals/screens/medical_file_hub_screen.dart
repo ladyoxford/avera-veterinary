@@ -504,8 +504,16 @@ class _CloudMedicalRecordContentState
 
   void _load() {
     final path = _remoteSectionPath(widget.record.id);
+    final operationType = _clinicalOperationTypeForRecord(widget.record.id);
     _records = path == null
-        ? null
+        ? operationType == null
+              ? null
+              : ref
+                    .read(clinicalRemoteDataSourceProvider)
+                    .patientClinicalOperations(
+                      widget.patientId,
+                      operationType: operationType,
+                    )
         : ref
               .read(clinicalRemoteDataSourceProvider)
               .patientSection(widget.patientId, path);
@@ -636,12 +644,14 @@ class _CloudMedicalRecordScreenState
         return _CloudTimelineRecord(file: widget.file);
       default:
         final path = _remoteSectionPath(widget.record.id);
-        if (path == null) {
+        final operationType = _clinicalOperationTypeForRecord(widget.record.id);
+        if (path == null && operationType == null) {
           return _RecordUnavailableState(record: widget.record);
         }
         final request = RemotePatientSectionRequest(
           patientId: widget.patientId,
-          section: path,
+          section: path ?? 'clinical-operations',
+          operationType: operationType,
         );
         final section = ref.watch(remotePatientSectionProvider(request));
         return section.when(
@@ -960,6 +970,11 @@ String? cloudMedicalRecordRoute({
     'consultations' =>
       '/consultations/$id?patientId=${Uri.encodeQueryComponent(patientId)}',
     'appointments' => '/appointments/$id',
+    'surgery' => '/operations/surgery?recordId=$id',
+    'medications' => '/operations/prescriptions?recordId=$id',
+    'imaging' => '/operations/imaging?recordId=$id',
+    'documents' => '/operations/documents?recordId=$id',
+    'treatment' => '/operations/treatment-board?recordId=$id',
     _ => null,
   };
 }
@@ -968,6 +983,11 @@ String? _remoteRecordId(String recordId, Map<String, dynamic> value) {
   final raw = switch (recordId) {
     'consultations' => value['consultation_id'],
     'appointments' => value['schedule_entry_id'],
+    'surgery' ||
+    'medications' ||
+    'imaging' ||
+    'documents' ||
+    'treatment' => value['operation_id'],
     _ => null,
   };
   final id = raw?.toString().trim();
@@ -1073,17 +1093,24 @@ String? _remoteSectionPath(String recordId) => switch (recordId) {
   'vaccinations' => 'vaccinations',
   'laboratory' => 'laboratory',
   'hospitalization' => 'hospitalizations',
-  'surgery' => 'surgeries',
-  'medications' => 'prescriptions',
   'billing' => 'billing',
   'appointments' => 'appointments',
-  'documents' => 'documents',
   'images' => 'images',
   _ => null,
 };
 
+String? _clinicalOperationTypeForRecord(String recordId) => switch (recordId) {
+  'surgery' => 'Surgery',
+  'medications' => 'Prescription',
+  'imaging' => 'Imaging',
+  'documents' => 'Document',
+  'treatment' => 'Treatment',
+  _ => null,
+};
+
 String _remoteRecordTitle(Map<String, dynamic> value) =>
-    (value['final_diagnosis'] ??
+    (value['title'] ??
+            value['final_diagnosis'] ??
             value['vaccine_name'] ??
             value['test_type'] ??
             value['diagnosis'] ??
@@ -1093,19 +1120,22 @@ String _remoteRecordTitle(Map<String, dynamic> value) =>
             value['visit_type'] ??
             value['category'] ??
             'Clinical record')
-        as String;
+        .toString();
 
-String? _remoteRecordDate(Map<String, dynamic> value) =>
-    (value['occurred_at'] ??
-            value['administered_at'] ??
-            value['requested_at'] ??
-            value['admitted_at'] ??
-            value['performed_at'] ??
-            value['prescribed_at'] ??
-            value['issued_at'] ??
-            value['scheduled_at'] ??
-            value['created_at'])
-        as String?;
+String? _remoteRecordDate(Map<String, dynamic> value) {
+  final raw =
+      value['occurred_at'] ??
+      value['administered_at'] ??
+      value['requested_at'] ??
+      value['admitted_at'] ??
+      value['performed_at'] ??
+      value['prescribed_at'] ??
+      value['issued_at'] ??
+      value['scheduled_at'] ??
+      value['created_at'];
+  final text = raw?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
+}
 
 @visibleForTesting
 String cloudMedicalRecordDate(Map<String, dynamic> value) {
@@ -1354,7 +1384,9 @@ const _medicalFileRecords = <_MedicalFileRecord>[
     Icons.calendar_month_outlined,
     11,
   ),
+  _MedicalFileRecord('imaging', 'Imaging', Icons.image_search_outlined, 12),
   _MedicalFileRecord('documents', 'Documents', Icons.description_outlined, 12),
+  _MedicalFileRecord('treatment', 'Treatment', Icons.view_kanban_outlined, 13),
   _MedicalFileRecord(
     'images',
     'Images & AI Recognition',

@@ -314,6 +314,7 @@ final appRouter = GoRouter(
               initialRecordId: int.tryParse(
                 state.uri.queryParameters['recordId'] ?? '',
               ),
+              initialRemoteRecordId: state.uri.queryParameters['recordId'],
             ),
           ),
         ),
@@ -326,6 +327,7 @@ final appRouter = GoRouter(
               initialRecordId: int.tryParse(
                 state.uri.queryParameters['recordId'] ?? '',
               ),
+              initialRemoteRecordId: state.uri.queryParameters['recordId'],
             ),
           ),
         ),
@@ -338,6 +340,7 @@ final appRouter = GoRouter(
               initialRecordId: int.tryParse(
                 state.uri.queryParameters['recordId'] ?? '',
               ),
+              initialRemoteRecordId: state.uri.queryParameters['recordId'],
             ),
           ),
         ),
@@ -350,6 +353,7 @@ final appRouter = GoRouter(
               initialRecordId: int.tryParse(
                 state.uri.queryParameters['recordId'] ?? '',
               ),
+              initialRemoteRecordId: state.uri.queryParameters['recordId'],
             ),
           ),
         ),
@@ -362,6 +366,7 @@ final appRouter = GoRouter(
               initialRecordId: int.tryParse(
                 state.uri.queryParameters['recordId'] ?? '',
               ),
+              initialRemoteRecordId: state.uri.queryParameters['recordId'],
             ),
           ),
         ),

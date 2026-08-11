@@ -6,9 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/backend_configuration.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../navigation/clinic_activity_navigation.dart';
+import '../navigation/clinic_activity_remote_adapter.dart';
 import '../widgets/avera_ui.dart';
 
 enum _ActivityRange { all, today, yesterday, last7Days, last30Days, custom }
@@ -32,6 +35,7 @@ class _ActivityHistoryScreenState extends ConsumerState<ActivityHistoryScreen> {
   bool _loading = false;
   bool _hasMore = true;
   List<ClinicActivityTimelineEvent> _events = const [];
+  Object? _loadError;
 
   @override
   void initState() {
@@ -76,22 +80,51 @@ class _ActivityHistoryScreenState extends ConsumerState<ActivityHistoryScreen> {
     setState(() => _loading = true);
     try {
       final range = _selectedRange;
-      final page = await ref
-          .read(clinicRepositoryProvider)
-          .getClinicActivityPage(
-            limit: _pageSize,
-            offset: reset ? 0 : _offset,
-            from: range?.start,
-            until: range?.end,
-            module: _module,
-            search: _search.text,
-          );
+      final List<ClinicActivityTimelineEvent> page;
+      final bool hasMore;
+      if (BackendConfiguration.isBackendMode) {
+        final session = await ref.read(userSessionProvider.future);
+        final remote = await ref
+            .read(clinicalRemoteDataSourceProvider)
+            .activity(
+              page: reset ? 1 : (_offset ~/ _pageSize) + 1,
+              pageSize: _pageSize,
+              from: range?.start,
+              until: range?.end,
+              module: _module,
+              search: _search.text,
+            );
+        page = [
+          for (var index = 0; index < remote.items.length; index++)
+            clinicActivityEventFromRemote(
+              remote.items[index],
+              clinicId: session.clinic.clinicId,
+              index: (reset ? 0 : _offset) + index,
+            ),
+        ];
+        hasMore = remote.hasNextPage;
+      } else {
+        page = await ref
+            .read(clinicRepositoryProvider)
+            .getClinicActivityPage(
+              limit: _pageSize,
+              offset: reset ? 0 : _offset,
+              from: range?.start,
+              until: range?.end,
+              module: _module,
+              search: _search.text,
+            );
+        hasMore = page.length == _pageSize;
+      }
       if (!mounted) return;
       setState(() {
         _events = reset ? page : [..._events, ...page];
         _offset = _events.length;
-        _hasMore = page.length == _pageSize;
+        _hasMore = hasMore;
+        _loadError = null;
       });
+    } catch (error) {
+      if (mounted) setState(() => _loadError = error);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -179,7 +212,9 @@ class _ActivityHistoryScreenState extends ConsumerState<ActivityHistoryScreen> {
             },
           ),
           const SizedBox(height: 20),
-          if (_events.isEmpty && !_loading)
+          if (_loadError != null && _events.isEmpty && !_loading)
+            _ActivityLoadError(onRetry: () => _load(reset: true))
+          else if (_events.isEmpty && !_loading)
             const _ActivityEmptyState()
           else
             ..._groupedRows(context),
@@ -234,15 +269,20 @@ class _ModuleFilter extends StatelessWidget {
   const _ModuleFilter({required this.value, required this.onChanged});
   final String? value;
   final ValueChanged<String?> onChanged;
-  static const _modules = [
-    'Schedule',
-    'Vaccinations',
-    'Consultations',
-    'Inventory',
-    'Billing',
-    'Patients',
-    'Staff',
-    'Administration',
+  static const _modules = <(String, String)>[
+    ('Schedule', 'Appointments / Schedule'),
+    ('Consultations', 'Consultations'),
+    ('Surgery', 'Surgery'),
+    ('Prescription', 'Prescriptions'),
+    ('Imaging', 'Imaging'),
+    ('Document', 'Documents'),
+    ('Treatment', 'Treatment'),
+    ('Vaccinations', 'Vaccinations'),
+    ('Patients', 'Patients'),
+    ('Billing', 'Billing'),
+    ('Inventory', 'Inventory'),
+    ('Staff', 'Staff'),
+    ('Administration', 'Administration'),
   ];
 
   @override
@@ -253,9 +293,38 @@ class _ModuleFilter extends StatelessWidget {
     items: [
       const DropdownMenuItem<String?>(value: null, child: Text('All Modules')),
       for (final module in _modules)
-        DropdownMenuItem(value: module, child: Text(module)),
+        DropdownMenuItem(value: module.$1, child: Text(module.$2)),
     ],
     onChanged: onChanged,
+  );
+}
+
+class _ActivityLoadError extends StatelessWidget {
+  const _ActivityLoadError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(32),
+    child: Column(
+      children: [
+        const Icon(Icons.cloud_off_outlined, size: 40),
+        const SizedBox(height: 12),
+        const Text('Unable to load clinic activity'),
+        const SizedBox(height: 4),
+        const Text(
+          'Check your connection and try again.',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Retry'),
+        ),
+      ],
+    ),
   );
 }
 

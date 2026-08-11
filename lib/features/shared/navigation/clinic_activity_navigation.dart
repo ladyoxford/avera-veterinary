@@ -41,6 +41,7 @@ String? remoteDashboardActivityRoute(Map<String, dynamic> entry) {
       ?.toString()
       .trim();
   final patientId = entry['patient_id']?.toString().trim();
+  final module = entry['module']?.toString().trim().toLowerCase();
   return switch (type) {
     'Appointment' || 'Schedule' => '/appointments/$id',
     'Consultation' =>
@@ -49,6 +50,17 @@ String? remoteDashboardActivityRoute(Map<String, dynamic> entry) {
           : '/consultations/$id?patientId=${Uri.encodeQueryComponent(patientId)}',
     'Vaccination' => '/vaccinations/$id',
     'Patient' => '/animals/$id',
+    'Invoice' => '/billing/history?invoiceId=$id',
+    'ClinicalOperation' => switch (module) {
+      ClinicalOperationTypes.prescription =>
+        '/operations/prescriptions?recordId=$id',
+      ClinicalOperationTypes.treatment =>
+        '/operations/treatment-board?recordId=$id',
+      ClinicalOperationTypes.surgery => '/operations/surgery?recordId=$id',
+      ClinicalOperationTypes.imaging => '/operations/imaging?recordId=$id',
+      ClinicalOperationTypes.document => '/operations/documents?recordId=$id',
+      _ => null,
+    },
     _ => null,
   };
 }

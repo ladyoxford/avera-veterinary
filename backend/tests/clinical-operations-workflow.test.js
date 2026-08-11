@@ -30,3 +30,22 @@ test('clinical operation detail and status routes enforce production safeguards'
   assert.match(source, /clinical_operation\.status_changed/);
   assert.match(source, /reason_required/);
 });
+
+test('canonical activity and patient operation routes preserve operation UUIDs', () => {
+  const source = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /app\.get\('\/api\/v1\/activity'/);
+  assert.match(source, /app\.get\('\/api\/v1\/patients\/:patientId\/clinical-operations'/);
+  assert.match(
+    source,
+    /SELECT 'ClinicalOperation', operation_type, 'ClinicalOperation', operation_id/,
+  );
+  assert.match(source, /lower\(activity\.module\) = lower\(\$4\)/);
+  assert.match(source, /ORDER BY activity\.occurred_at DESC/);
+  assert.match(source, /WHERE clinic_id=\$1 AND patient_id=\$2 AND operation_type=\$3/);
+  for (const type of ['Surgery', 'Prescription', 'Imaging', 'Document', 'Treatment']) {
+    assert.ok(clinicalOperationTransitions[type], `${type} must remain supported`);
+  }
+});

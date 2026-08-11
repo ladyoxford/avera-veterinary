@@ -11,9 +11,45 @@ const pageSchema = z.object({
   sort: z.string().trim().max(80).optional(),
   direction: z.enum(['asc', 'desc']).default('desc'),
   status: z.string().trim().max(80).optional(),
+  module: z.string().trim().max(80).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
 });
+
+const clinicActivityUnionSql = `
+  SELECT 'Consultation' AS type, 'Consultations' AS module,
+         'Consultation' AS related_entity_type,
+         consultation_id AS record_id, patient_id, occurred_at,
+         coalesce(final_diagnosis, chief_complaint, 'Consultation') AS title,
+         'Consultation' AS summary
+    FROM consultations
+   WHERE clinic_id=$1 AND deleted_at IS NULL
+  UNION ALL
+  SELECT 'Schedule', 'Schedule', 'Schedule', schedule_entry_id, patient_id,
+         scheduled_at, visit_type, status
+    FROM schedule_entries
+   WHERE clinic_id=$1
+  UNION ALL
+  SELECT 'ClinicalOperation', operation_type, 'ClinicalOperation', operation_id,
+         patient_id, coalesce(updated_at, created_at), title,
+         operation_type || ' - ' || status
+    FROM clinical_operation_records
+   WHERE clinic_id=$1
+  UNION ALL
+  SELECT 'Vaccination', 'Vaccinations', 'Vaccination', vaccination_id,
+         patient_id, administered_at, vaccine_name, status
+    FROM vaccinations
+   WHERE clinic_id=$1
+  UNION ALL
+  SELECT 'Patient', 'Patients', 'Patient', patient_id, patient_id,
+         registered_at, name || ' registered', hospital_number
+    FROM patients
+   WHERE clinic_id=$1 AND deleted_at IS NULL
+  UNION ALL
+  SELECT 'Invoice', 'Billing', 'Invoice', invoice_id, patient_id,
+         issued_at, invoice_number, status
+    FROM invoices
+   WHERE clinic_id=$1`;
 
 const uuidSchema = z.object({ patientId: z.string().uuid() });
 const consultationUuidSchema = z.object({ consultationId: z.string().uuid() });
@@ -840,6 +876,53 @@ export async function clinicalRoutes(app) {
     ['billing', 'invoices', 'invoice_id', permissions.billingView, 'issued_at'], ['appointments', 'schedule_entries', 'schedule_entry_id', permissions.appointmentsView, 'scheduled_at'], ['documents', 'media_assets', 'media_asset_id', permissions.mediaView, 'created_at'], ['images', 'media_assets', 'media_asset_id', permissions.mediaView, 'created_at'],
   ]) app.get(`/api/v1/patients/:patientId/${path}`, { preHandler: [authenticate, requirePermission(permission)] }, (request, reply) => patientSection(request, reply, table, id, permission, order));
 
+  app.get('/api/v1/patients/:patientId/clinical-operations', { preHandler: [authenticate] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = uuidSchema.safeParse(request.params);
+    const query = parsePage(request, reply);
+    const operationType = typeof request.query?.operationType === 'string'
+      ? request.query.operationType
+      : null;
+    if (!params.success || !query || !clinicalOperationTypes.includes(operationType)) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Patient or clinical operation parameters are invalid.' });
+    }
+    if (!hasPermission(request, operationPermissions[operationType].view)) {
+      return reply.code(403).send({ error: 'permission_denied', message: 'Permission required for this clinical operation.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      if (!await patientExists(client, request.auth.clinicId, params.data.patientId)) {
+        return reply.code(404).send({ error: 'not_found', message: 'The patient was not found in this clinic.' });
+      }
+      const offset = (query.page - 1) * query.pageSize;
+      const values = [request.auth.clinicId, params.data.patientId, operationType];
+      const [rows, count] = await Promise.all([
+        client.query(
+          `SELECT operation_id, patient_id, operation_type, title, description,
+                  assigned_to, scheduled_at, status, priority, estimated_amount,
+                  details, items, created_at, updated_at
+             FROM clinical_operation_records
+            WHERE clinic_id=$1 AND patient_id=$2 AND operation_type=$3
+            ORDER BY scheduled_at DESC, created_at DESC
+            LIMIT $4 OFFSET $5`,
+          [...values, query.pageSize, offset],
+        ),
+        client.query(
+          `SELECT count(*)::int AS total FROM clinical_operation_records
+            WHERE clinic_id=$1 AND patient_id=$2 AND operation_type=$3`,
+          values,
+        ),
+      ]);
+      const total = count.rows[0].total;
+      return {
+        items: rows.rows,
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+        hasNextPage: offset + rows.rowCount < total,
+      };
+    });
+  });
+
   for (const [path, list] of Object.entries(lists)) app.get(`/api/v1/${path === 'laboratory' ? 'laboratory-reports' : path}`, { preHandler: [authenticate, requirePermission(list.permission)] }, tenantList(list.config));
 
   app.get('/api/v1/schedule/:appointmentId', { preHandler: [authenticate, requirePermission(permissions.appointmentsView)] }, async (request, reply) => {
@@ -1585,6 +1668,49 @@ export async function clinicalRoutes(app) {
   app.get('/api/v1/payments', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, tenantList(paymentList));
   app.get('/api/v1/media', { preHandler: [authenticate, requirePermission(permissions.mediaView)] }, tenantList(mediaList));
 
+  app.get('/api/v1/activity', { preHandler: [authenticate, requirePermission(permissions.dashboardView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const query = parsePage(request, reply);
+    if (!query) return undefined;
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const offset = (query.page - 1) * query.pageSize;
+      const values = [
+        request.auth.clinicId,
+        query.search ?? null,
+        `%${query.search ?? ''}%`,
+        query.module ?? null,
+        query.from ?? null,
+        query.to ?? null,
+      ];
+      const where = `($2::text IS NULL OR activity.title ILIKE $3 OR activity.summary ILIKE $3)
+        AND ($4::text IS NULL OR lower(activity.module) = lower($4))
+        AND ($5::timestamptz IS NULL OR activity.occurred_at >= $5)
+        AND ($6::timestamptz IS NULL OR activity.occurred_at < $6)`;
+      const [rows, count] = await Promise.all([
+        client.query(
+          `SELECT * FROM (${clinicActivityUnionSql}) activity
+            WHERE ${where}
+            ORDER BY activity.occurred_at DESC
+            LIMIT $7 OFFSET $8`,
+          [...values, query.pageSize, offset],
+        ),
+        client.query(
+          `SELECT count(*)::int AS total FROM (${clinicActivityUnionSql}) activity
+            WHERE ${where}`,
+          values,
+        ),
+      ]);
+      const total = count.rows[0].total;
+      return {
+        items: rows.rows,
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+        hasNextPage: offset + rows.rowCount < total,
+      };
+    });
+  });
+
   app.get('/api/v1/dashboard/summary', { preHandler: [authenticate, requirePermission(permissions.dashboardView)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     return withTenantTransaction(app.pool, request.auth, async (client) => {
@@ -1603,14 +1729,13 @@ export async function clinicalRoutes(app) {
       const [species, revenue, activity] = await Promise.all([
         client.query('SELECT species, count(*)::int AS count FROM patients WHERE clinic_id=$1 AND deleted_at IS NULL GROUP BY species ORDER BY count DESC LIMIT 8', [clinicId]),
         client.query(`SELECT to_char(date_trunc('month', paid_at), 'YYYY-MM') AS month, coalesce(sum(amount),0) AS revenue FROM payments WHERE clinic_id=$1 AND paid_at >= now() - interval '6 months' GROUP BY 1 ORDER BY 1`, [clinicId]),
-        client.query(`SELECT type, record_id, patient_id, occurred_at, summary FROM (
-          SELECT 'Consultation' AS type, consultation_id AS record_id, patient_id,
-                 occurred_at, coalesce(final_diagnosis, chief_complaint) AS summary
-            FROM consultations WHERE clinic_id=$1 AND deleted_at IS NULL
-          UNION ALL
-          SELECT 'Schedule', schedule_entry_id, patient_id, scheduled_at, visit_type
-            FROM schedule_entries WHERE clinic_id=$1
-        ) activity ORDER BY occurred_at DESC LIMIT 10`, [clinicId]),
+        client.query(
+          `SELECT type, module, related_entity_type, record_id, patient_id,
+                  occurred_at, title, summary
+             FROM (${clinicActivityUnionSql}) activity
+            ORDER BY occurred_at DESC LIMIT 10`,
+          [clinicId],
+        ),
       ]);
       return { ...result.rows[0], speciesDistribution: species.rows, revenueTrend: revenue.rows, recentActivity: activity.rows };
     });

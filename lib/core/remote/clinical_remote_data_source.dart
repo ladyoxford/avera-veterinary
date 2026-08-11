@@ -815,6 +815,42 @@ class ClinicalRemoteDataSource {
         await _client.get('/api/v1/dashboard/summary'),
       );
 
+  Future<RemotePage<Map<String, dynamic>>> activity({
+    int page = 1,
+    int pageSize = 50,
+    String? search,
+    String? module,
+    DateTime? from,
+    DateTime? until,
+  }) async {
+    final response = await _client.get(
+      _path('/api/v1/activity', {
+        'page': '$page',
+        'pageSize': '$pageSize',
+        if (search?.trim().isNotEmpty == true) 'search': search!.trim(),
+        if (module?.trim().isNotEmpty == true) 'module': module!.trim(),
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (until != null) 'to': until.toUtc().toIso8601String(),
+      }),
+    );
+    return _page(response, (value) => value);
+  }
+
+  Future<RemotePage<Map<String, dynamic>>> patientClinicalOperations(
+    String patientId, {
+    required String operationType,
+    int page = 1,
+  }) async {
+    final response = await _client.get(
+      _path('/api/v1/patients/$patientId/clinical-operations', {
+        'page': '$page',
+        'pageSize': '25',
+        'operationType': operationType,
+      }),
+    );
+    return _page(response, (value) => value);
+  }
+
   Future<RemotePage<Map<String, dynamic>>> _generic(
     String path, {
     required int page,

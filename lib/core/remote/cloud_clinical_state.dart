@@ -616,19 +616,22 @@ class RemotePatientSectionRequest {
   const RemotePatientSectionRequest({
     required this.patientId,
     required this.section,
+    this.operationType,
   });
 
   final String patientId;
   final String section;
+  final String? operationType;
 
   @override
   bool operator ==(Object other) =>
       other is RemotePatientSectionRequest &&
       other.patientId == patientId &&
-      other.section == section;
+      other.section == section &&
+      other.operationType == operationType;
 
   @override
-  int get hashCode => Object.hash(patientId, section);
+  int get hashCode => Object.hash(patientId, section, operationType);
 }
 
 final remotePatientSectionProvider = FutureProvider.autoDispose
@@ -639,11 +642,15 @@ final remotePatientSectionProvider = FutureProvider.autoDispose
       final session = await ref.watch(userSessionProvider.future);
       final cache = ref.watch(cloudCacheRepositoryProvider);
       final key =
-          'medical-file-section:${session.clinic.clinicId}:${request.patientId}:${request.section}';
+          'medical-file-section:${session.clinic.clinicId}:${request.patientId}:${request.section}:${request.operationType ?? ''}';
       try {
-        final page = await ref
-            .watch(clinicalRemoteDataSourceProvider)
-            .patientSection(request.patientId, request.section);
+        final source = ref.watch(clinicalRemoteDataSourceProvider);
+        final page = request.operationType == null
+            ? await source.patientSection(request.patientId, request.section)
+            : await source.patientClinicalOperations(
+                request.patientId,
+                operationType: request.operationType!,
+              );
         await cache.put(
           key: key,
           clinicId: session.clinic.clinicId,

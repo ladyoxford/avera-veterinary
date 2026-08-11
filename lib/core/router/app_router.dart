@@ -53,6 +53,29 @@ import '../../features/vaccination/screens/cloud_vaccination_detail_screen.dart'
 import '../../features/vera/screens/vera_screen.dart';
 import '../services/feature_gate_service.dart';
 
+Widget _clinicalOperationDestination(
+  GoRouterState state,
+  ClinicalOperationModule module,
+) {
+  final recordId = state.uri.queryParameters['recordId']?.trim();
+  final openDetailDirectly =
+      BackendConfiguration.isConfigured &&
+      state.uri.queryParameters['direct'] == 'true' &&
+      recordId != null &&
+      recordId.isNotEmpty;
+  if (openDetailDirectly) {
+    return RemoteClinicalOperationDetailScreen(
+      operationId: recordId,
+      module: module,
+    );
+  }
+  return ClinicalOperationScreen(
+    module: module,
+    initialRecordId: int.tryParse(recordId ?? ''),
+    initialRemoteRecordId: recordId,
+  );
+}
+
 final appRouter = GoRouter(
   routes: [
     GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
@@ -309,12 +332,9 @@ final appRouter = GoRouter(
           path: '/operations/treatment-board',
           builder: (context, state) => FeatureGate(
             feature: AveraFeature.treatmentBoard,
-            child: ClinicalOperationScreen(
-              module: ClinicalOperationModule.treatmentBoard,
-              initialRecordId: int.tryParse(
-                state.uri.queryParameters['recordId'] ?? '',
-              ),
-              initialRemoteRecordId: state.uri.queryParameters['recordId'],
+            child: _clinicalOperationDestination(
+              state,
+              ClinicalOperationModule.treatmentBoard,
             ),
           ),
         ),
@@ -322,12 +342,9 @@ final appRouter = GoRouter(
           path: '/operations/surgery',
           builder: (context, state) => FeatureGate(
             feature: AveraFeature.surgery,
-            child: ClinicalOperationScreen(
-              module: ClinicalOperationModule.surgery,
-              initialRecordId: int.tryParse(
-                state.uri.queryParameters['recordId'] ?? '',
-              ),
-              initialRemoteRecordId: state.uri.queryParameters['recordId'],
+            child: _clinicalOperationDestination(
+              state,
+              ClinicalOperationModule.surgery,
             ),
           ),
         ),
@@ -335,12 +352,9 @@ final appRouter = GoRouter(
           path: '/operations/prescriptions',
           builder: (context, state) => FeatureGate(
             feature: AveraFeature.prescriptions,
-            child: ClinicalOperationScreen(
-              module: ClinicalOperationModule.prescriptions,
-              initialRecordId: int.tryParse(
-                state.uri.queryParameters['recordId'] ?? '',
-              ),
-              initialRemoteRecordId: state.uri.queryParameters['recordId'],
+            child: _clinicalOperationDestination(
+              state,
+              ClinicalOperationModule.prescriptions,
             ),
           ),
         ),
@@ -348,12 +362,9 @@ final appRouter = GoRouter(
           path: '/operations/imaging',
           builder: (context, state) => FeatureGate(
             feature: AveraFeature.imaging,
-            child: ClinicalOperationScreen(
-              module: ClinicalOperationModule.imaging,
-              initialRecordId: int.tryParse(
-                state.uri.queryParameters['recordId'] ?? '',
-              ),
-              initialRemoteRecordId: state.uri.queryParameters['recordId'],
+            child: _clinicalOperationDestination(
+              state,
+              ClinicalOperationModule.imaging,
             ),
           ),
         ),
@@ -361,12 +372,9 @@ final appRouter = GoRouter(
           path: '/operations/documents',
           builder: (context, state) => FeatureGate(
             feature: AveraFeature.documents,
-            child: ClinicalOperationScreen(
-              module: ClinicalOperationModule.documents,
-              initialRecordId: int.tryParse(
-                state.uri.queryParameters['recordId'] ?? '',
-              ),
-              initialRemoteRecordId: state.uri.queryParameters['recordId'],
+            child: _clinicalOperationDestination(
+              state,
+              ClinicalOperationModule.documents,
             ),
           ),
         ),

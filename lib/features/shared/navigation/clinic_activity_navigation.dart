@@ -1,5 +1,8 @@
 import '../../../core/repositories/clinic_repository.dart';
 
+String _clinicalOperationDetailRoute(String path, String id) =>
+    '$path?recordId=${Uri.encodeQueryComponent(id)}&direct=true';
+
 String? clinicActivityRoute(ClinicActivityTimelineEvent event) {
   final id = event.relatedEntityId?.trim();
   if (id == null || id.isEmpty) return null;
@@ -19,13 +22,26 @@ String? clinicActivityRoute(ClinicActivityTimelineEvent event) {
     'Patient' => '/animals/$id',
     'Invoice' => '/billing/history?invoiceId=$id',
     'ClinicalOperation' => switch (event.module) {
-      ClinicalOperationTypes.prescription =>
-        '/operations/prescriptions?recordId=$id',
-      ClinicalOperationTypes.treatment =>
-        '/operations/treatment-board?recordId=$id',
-      ClinicalOperationTypes.surgery => '/operations/surgery?recordId=$id',
-      ClinicalOperationTypes.imaging => '/operations/imaging?recordId=$id',
-      ClinicalOperationTypes.document => '/operations/documents?recordId=$id',
+      ClinicalOperationTypes.prescription => _clinicalOperationDetailRoute(
+        '/operations/prescriptions',
+        id,
+      ),
+      ClinicalOperationTypes.treatment => _clinicalOperationDetailRoute(
+        '/operations/treatment-board',
+        id,
+      ),
+      ClinicalOperationTypes.surgery => _clinicalOperationDetailRoute(
+        '/operations/surgery',
+        id,
+      ),
+      ClinicalOperationTypes.imaging => _clinicalOperationDetailRoute(
+        '/operations/imaging',
+        id,
+      ),
+      ClinicalOperationTypes.document => _clinicalOperationDetailRoute(
+        '/operations/documents',
+        id,
+      ),
       _ => null,
     },
     _ => null,
@@ -52,13 +68,26 @@ String? remoteDashboardActivityRoute(Map<String, dynamic> entry) {
     'Patient' => '/animals/$id',
     'Invoice' => '/billing/history?invoiceId=$id',
     'ClinicalOperation' => switch (module) {
-      ClinicalOperationTypes.prescription =>
-        '/operations/prescriptions?recordId=$id',
-      ClinicalOperationTypes.treatment =>
-        '/operations/treatment-board?recordId=$id',
-      ClinicalOperationTypes.surgery => '/operations/surgery?recordId=$id',
-      ClinicalOperationTypes.imaging => '/operations/imaging?recordId=$id',
-      ClinicalOperationTypes.document => '/operations/documents?recordId=$id',
+      ClinicalOperationTypes.prescription => _clinicalOperationDetailRoute(
+        '/operations/prescriptions',
+        id,
+      ),
+      ClinicalOperationTypes.treatment => _clinicalOperationDetailRoute(
+        '/operations/treatment-board',
+        id,
+      ),
+      ClinicalOperationTypes.surgery => _clinicalOperationDetailRoute(
+        '/operations/surgery',
+        id,
+      ),
+      ClinicalOperationTypes.imaging => _clinicalOperationDetailRoute(
+        '/operations/imaging',
+        id,
+      ),
+      ClinicalOperationTypes.document => _clinicalOperationDetailRoute(
+        '/operations/documents',
+        id,
+      ),
       _ => null,
     },
     _ => null,

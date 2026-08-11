@@ -970,11 +970,11 @@ String? cloudMedicalRecordRoute({
     'consultations' =>
       '/consultations/$id?patientId=${Uri.encodeQueryComponent(patientId)}',
     'appointments' => '/appointments/$id',
-    'surgery' => '/operations/surgery?recordId=$id',
-    'medications' => '/operations/prescriptions?recordId=$id',
-    'imaging' => '/operations/imaging?recordId=$id',
-    'documents' => '/operations/documents?recordId=$id',
-    'treatment' => '/operations/treatment-board?recordId=$id',
+    'surgery' => '/operations/surgery?recordId=$id&direct=true',
+    'medications' => '/operations/prescriptions?recordId=$id&direct=true',
+    'imaging' => '/operations/imaging?recordId=$id&direct=true',
+    'documents' => '/operations/documents?recordId=$id&direct=true',
+    'treatment' => '/operations/treatment-board?recordId=$id&direct=true',
     _ => null,
   };
 }

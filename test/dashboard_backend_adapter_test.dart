@@ -122,11 +122,11 @@ void main() {
       expect(event.title, '${entry.key} title');
       expect(
         clinicActivityRoute(event),
-        '${entry.value}?recordId=$operationId',
+        '${entry.value}?recordId=$operationId&direct=true',
       );
       expect(
         remoteDashboardActivityRoute(summary.recentActivity.single),
-        '${entry.value}?recordId=$operationId',
+        '${entry.value}?recordId=$operationId&direct=true',
       );
     });
   }

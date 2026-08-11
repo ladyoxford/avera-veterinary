@@ -91,7 +91,7 @@ void main() {
         },
       );
 
-      expect(route, '${entry.value}?recordId=$operationId');
+      expect(route, '${entry.value}?recordId=$operationId&direct=true');
     });
   }
 

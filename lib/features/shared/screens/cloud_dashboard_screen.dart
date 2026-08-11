@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/remote/cloud_clinical_state.dart';
+import '../navigation/clinic_activity_navigation.dart';
 
 class CloudDashboardScreen extends ConsumerWidget {
   const CloudDashboardScreen({super.key});
@@ -156,15 +157,7 @@ class CloudDashboardScreen extends ConsumerWidget {
   }
 
   void _openActivity(BuildContext context, Map<String, dynamic> entry) {
-    final type = entry['type']?.toString();
-    final recordId = entry['record_id']?.toString();
-    final patientId = entry['patient_id']?.toString();
-    if (type == 'Consultation' && recordId != null && patientId != null) {
-      context.push(
-        '/consultations/$recordId?patientId=${Uri.encodeQueryComponent(patientId)}',
-      );
-      return;
-    }
-    if (type == 'Schedule') context.push('/appointments');
+    final route = remoteDashboardActivityRoute(entry);
+    if (route != null) context.push(route);
   }
 }

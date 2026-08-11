@@ -13,6 +13,7 @@ import '../../../core/config/backend_configuration.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/remote/clinical_remote_data_source.dart';
+import '../../../core/remote/remote_clinical_operation_detail.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/feature_gate_service.dart';
@@ -854,104 +855,119 @@ class _RemoteClinicalOperationDetailScreenState
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final payload = snapshot.data!;
-        final record = Map<String, dynamic>.from(payload['operation'] as Map);
-        final session = ref.watch(userSessionProvider).valueOrNull;
-        return ListView(
-          key: ValueKey('remote-clinical-operation-${widget.operationId}'),
-          padding: const EdgeInsets.fromLTRB(
-            AveraSpacing.pageHorizontalPadding,
-            AveraSpacing.pageTopPadding,
-            AveraSpacing.pageHorizontalPadding,
-            AveraSpacing.bottomContentClearance,
-          ),
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${record['title']}',
-                        style: averaText(context).pageTitle,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${record['patient_name']} - ${record['hospital_number']}',
-                        style: averaText(context).pageSubtitle,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                _StatusPill('${record['status']}'),
-              ],
-            ),
-            const SizedBox(height: AveraSpacing.sectionGap),
-            _RemoteOperationSection(
-              title: 'Record Information',
-              lines: [
-                ('Patient', _textValue(record['patient_name'])),
-                ('Hospital number', _textValue(record['hospital_number'])),
-                ('Owner', _textValue(record['owner_name'])),
-                (
-                  'Assigned to',
-                  _textValue(record['assigned_to'], fallback: 'Not assigned'),
-                ),
-                ('Priority', _textValue(record['priority'])),
-                ('Scheduled', _dateTimeValue(record['scheduled_at'])),
-                ('Created', _dateTimeValue(record['created_at'])),
-                ('Last updated', _dateTimeValue(record['updated_at'])),
-              ],
-            ),
-            if (_textValue(record['description'], fallback: '').isNotEmpty) ...[
-              const SizedBox(height: AveraSpacing.sectionGap),
-              _RemoteOperationSection(
-                title: 'Clinical Notes',
-                body: Text(
-                  _textValue(record['description']),
-                  style: averaText(context).fieldValue,
-                ),
-              ),
-            ],
-            ..._typeSpecificSections(record),
-            ..._activitySections(payload),
-            const SizedBox(height: AveraSpacing.sectionGap),
-            OutlinedButton.icon(
-              onPressed: () => context.push('/animals/${record['patient_id']}'),
-              icon: const Icon(Icons.pets_outlined),
-              label: const Text('Open Medical File'),
-            ),
-            if (_consultationId(record) case final consultationId?) ...[
-              const SizedBox(height: AveraSpacing.compactRowGap),
-              OutlinedButton.icon(
-                onPressed: () => context.push(
-                  '/consultations/$consultationId?patientId=${Uri.encodeQueryComponent('${record['patient_id']}')}',
-                ),
-                icon: const Icon(Icons.medical_information_outlined),
-                label: const Text('Open Consultation'),
-              ),
-            ],
-            if (session != null) ...[
-              const SizedBox(height: AveraSpacing.sectionGap),
-              _statusActions(record, payload, session),
-            ],
-          ],
-        );
+        try {
+          final payload = RemoteClinicalOperationDetailPayload.fromJson(
+            snapshot.data!,
+          );
+          final session = ref.watch(userSessionProvider).valueOrNull;
+          return _buildDetail(payload, session);
+        } on Object {
+          return const _OperationState(
+            icon: Icons.error_outline_rounded,
+            title: 'Unable to display this clinical record',
+            message:
+                'The record was loaded, but part of its clinical information could not be displayed.',
+          );
+        }
       },
     ),
   );
 
-  List<Widget> _typeSpecificSections(Map<String, dynamic> record) {
-    final details = Map<String, dynamic>.from(
-      (record['details'] as Map?) ?? const <String, dynamic>{},
+  Widget _buildDetail(
+    RemoteClinicalOperationDetailPayload payload,
+    UserSession? session,
+  ) {
+    final record = payload.operation;
+    return ListView(
+      key: ValueKey('remote-clinical-operation-${widget.operationId}'),
+      padding: const EdgeInsets.fromLTRB(
+        AveraSpacing.pageHorizontalPadding,
+        AveraSpacing.pageTopPadding,
+        AveraSpacing.pageHorizontalPadding,
+        AveraSpacing.bottomContentClearance,
+      ),
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${record['title']}',
+                    style: averaText(context).pageTitle,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${record['patient_name']} - ${record['hospital_number']}',
+                    style: averaText(context).pageSubtitle,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _StatusPill('${record['status']}'),
+          ],
+        ),
+        const SizedBox(height: AveraSpacing.sectionGap),
+        _RemoteOperationSection(
+          title: 'Record Information',
+          lines: [
+            ('Patient', _textValue(record['patient_name'])),
+            ('Hospital number', _textValue(record['hospital_number'])),
+            ('Owner', _textValue(record['owner_name'])),
+            (
+              'Assigned to',
+              _textValue(record['assigned_to'], fallback: 'Not assigned'),
+            ),
+            ('Priority', _textValue(record['priority'])),
+            ('Scheduled', _dateTimeValue(record['scheduled_at'])),
+            ('Created', _dateTimeValue(record['created_at'])),
+            ('Last updated', _dateTimeValue(record['updated_at'])),
+          ],
+        ),
+        if (_textValue(record['description'], fallback: '').isNotEmpty) ...[
+          const SizedBox(height: AveraSpacing.sectionGap),
+          _RemoteOperationSection(
+            title: 'Clinical Notes',
+            body: Text(
+              _textValue(record['description']),
+              style: averaText(context).fieldValue,
+            ),
+          ),
+        ],
+        ..._typeSpecificSections(payload),
+        ..._activitySections(payload),
+        const SizedBox(height: AveraSpacing.sectionGap),
+        OutlinedButton.icon(
+          onPressed: () => context.push('/animals/${record['patient_id']}'),
+          icon: const Icon(Icons.pets_outlined),
+          label: const Text('Open Medical File'),
+        ),
+        if (_consultationId(payload.details) case final consultationId?) ...[
+          const SizedBox(height: AveraSpacing.compactRowGap),
+          OutlinedButton.icon(
+            onPressed: () => context.push(
+              '/consultations/$consultationId?patientId=${Uri.encodeQueryComponent('${record['patient_id']}')}',
+            ),
+            icon: const Icon(Icons.medical_information_outlined),
+            label: const Text('Open Consultation'),
+          ),
+        ],
+        if (session != null) ...[
+          const SizedBox(height: AveraSpacing.sectionGap),
+          _statusActions(record, payload, session),
+        ],
+      ],
     );
-    final items = ((record['items'] as List?) ?? const <dynamic>[])
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList();
+  }
+
+  List<Widget> _typeSpecificSections(
+    RemoteClinicalOperationDetailPayload payload,
+  ) {
+    final details = payload.details;
+    final items = payload.items;
     final lines = switch (widget.module) {
       ClinicalOperationModule.surgery => [
         ('Surgery type', _textValue(details['surgeryType'])),
@@ -1017,11 +1033,8 @@ class _RemoteClinicalOperationDetailScreenState
     ];
   }
 
-  List<Widget> _activitySections(Map<String, dynamic> payload) {
-    final activity = ((payload['activity'] as List?) ?? const <dynamic>[])
-        .whereType<Map>()
-        .map((entry) => Map<String, dynamic>.from(entry))
-        .toList();
+  List<Widget> _activitySections(RemoteClinicalOperationDetailPayload payload) {
+    final activity = payload.activity;
     if (activity.isEmpty) return const [];
     return [
       const SizedBox(height: AveraSpacing.sectionGap),
@@ -1041,13 +1054,10 @@ class _RemoteClinicalOperationDetailScreenState
 
   Widget _statusActions(
     Map<String, dynamic> record,
-    Map<String, dynamic> payload,
+    RemoteClinicalOperationDetailPayload payload,
     UserSession session,
   ) {
-    final serverAllowed =
-        ((payload['allowedNextStatuses'] as List?) ?? const [])
-            .map((value) => value.toString())
-            .toSet();
+    final serverAllowed = payload.allowedNextStatuses;
     final actions =
         clinicalOperationStatusActions(widget.module, '${record['status']}')
             .where(
@@ -1218,8 +1228,8 @@ class _RemoteOperationActivity extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final previous = (entry['previous_summary'] as Map?)?['status'];
-    final next = (entry['new_summary'] as Map?)?['status'];
+    final previous = normalizedClinicalMap(entry['previous_summary'])['status'];
+    final next = normalizedClinicalMap(entry['new_summary'])['status'];
     final status = next == null
         ? 'Record created'
         : '${_textValue(previous, fallback: 'New')} to $next';
@@ -1244,8 +1254,7 @@ String _typeSectionTitle(ClinicalOperationModule module) => switch (module) {
 };
 
 String _textValue(Object? value, {String fallback = ''}) {
-  final text = value?.toString().trim();
-  return text == null || text.isEmpty ? fallback : text;
+  return clinicalDisplayValue(value, fallback: fallback);
 }
 
 String _dateTimeValue(Object? value) {
@@ -1255,8 +1264,7 @@ String _dateTimeValue(Object? value) {
       : DateFormat.yMMMd().add_jm().format(parsed.toLocal());
 }
 
-String? _consultationId(Map<String, dynamic> record) {
-  final details = (record['details'] as Map?) ?? const <String, dynamic>{};
+String? _consultationId(Map<String, dynamic> details) {
   final value = details['consultationId'] ?? details['consultation_id'];
   final id = value?.toString().trim();
   return id == null || id.isEmpty ? null : id;

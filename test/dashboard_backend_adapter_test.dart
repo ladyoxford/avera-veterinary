@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:avera/core/remote/clinical_remote_data_source.dart';
 import 'package:avera/features/shared/screens/dashboard_screen.dart';
+import 'package:avera/features/shared/navigation/clinic_activity_navigation.dart';
 
 void main() {
   test('maps production summary into the original dashboard model', () {
@@ -59,5 +60,31 @@ void main() {
     expect(stats.monthlyRevenue, 0);
     expect(stats.recentActivity, isEmpty);
     expect(stats.recentVisits, isEmpty);
+  });
+
+  test('production Schedule activity deep-links to its exact appointment', () {
+    const appointmentId = '7925f06b-75d4-4e8a-9ef6-e80b8f28d238';
+    final summary = RemoteDashboardSummary.fromJson({
+      'recentActivity': [
+        {
+          'type': 'Schedule',
+          'record_id': appointmentId,
+          'patient_id': 'patient-1',
+          'summary': 'Grooming',
+          'occurred_at': '2026-08-10T10:00:00.000Z',
+        },
+      ],
+    });
+    final event = dashboardStatsFromRemote(
+      summary,
+      clinicId: 'clinic-1',
+    ).recentActivity.single;
+
+    expect(event.relatedEntityType, 'Schedule');
+    expect(clinicActivityRoute(event), '/appointments/$appointmentId');
+    expect(
+      remoteDashboardActivityRoute(summary.recentActivity.single),
+      '/appointments/$appointmentId',
+    );
   });
 }

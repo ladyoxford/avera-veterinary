@@ -431,3 +431,14 @@ test('sign-in validation accepts omitted optional fields but rejects null values
   assert.equal(signInSchema.safeParse({ email: 'not-an-email', password: 'unchanged' }).success, false);
   assert.equal(signInSchema.safeParse({ email: 'admin@avera.test', password: '' }).success, false);
 });
+
+test('recent activity orders appointments by lifecycle activity, not future visit time', () => {
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(
+    routes,
+    /SELECT 'Schedule', 'Schedule', 'Schedule', schedule_entry_id, patient_id,\s+coalesce\(updated_at, created_at\), visit_type, status/,
+  );
+});

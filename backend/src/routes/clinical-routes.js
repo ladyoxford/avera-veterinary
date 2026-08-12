@@ -26,7 +26,7 @@ const clinicActivityUnionSql = `
    WHERE clinic_id=$1 AND deleted_at IS NULL
   UNION ALL
   SELECT 'Schedule', 'Schedule', 'Schedule', schedule_entry_id, patient_id,
-         scheduled_at, visit_type, status
+         coalesce(updated_at, created_at), visit_type, status
     FROM schedule_entries
    WHERE clinic_id=$1
   UNION ALL

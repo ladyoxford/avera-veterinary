@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_providers.dart';
+import '../models/reminder_event.dart';
 import '../repositories/clinic_repository.dart';
 import '../repositories/cloud_cache_repository.dart';
 import '../security/access_control.dart';
@@ -815,5 +816,60 @@ final remoteDashboardProvider =
         if (cached == null) rethrow;
         ref.read(remoteDashboardOfflineProvider.notifier).state = true;
         return RemoteDashboardSummary.fromJson(cached);
+      }
+    });
+
+final remoteReminderFeedOfflineProvider = StateProvider<bool>((ref) => false);
+
+final remoteReminderFeedProvider = FutureProvider<ReminderFeed>((ref) async {
+  final session = await ref.watch(userSessionProvider.future);
+  final cache = ref.watch(cloudCacheRepositoryProvider);
+  final key = 'reminder-feed:${session.clinic.clinicId}';
+  try {
+    final feed = await ref.watch(clinicalRemoteDataSourceProvider).reminders();
+    ref.read(remoteReminderFeedOfflineProvider.notifier).state = false;
+    await cache.put(
+      key: key,
+      clinicId: session.clinic.clinicId,
+      payload: feed.toJson(),
+    );
+    return feed;
+  } catch (_) {
+    final saved = await cache.get(key, clinicId: session.clinic.clinicId);
+    if (saved == null) rethrow;
+    ref.read(remoteReminderFeedOfflineProvider.notifier).state = true;
+    return ReminderFeed.fromJson(saved);
+  }
+});
+
+final remoteNotificationsOfflineProvider = StateProvider<bool>((ref) => false);
+
+final remoteNotificationsProvider =
+    FutureProvider<List<RemoteNotificationItem>>((ref) async {
+      final session = await ref.watch(userSessionProvider.future);
+      final cache = ref.watch(cloudCacheRepositoryProvider);
+      final key = 'notifications:${session.clinic.clinicId}';
+      try {
+        final page = await ref
+            .watch(clinicalRemoteDataSourceProvider)
+            .notifications();
+        ref.read(remoteNotificationsOfflineProvider.notifier).state = false;
+        await cache.put(
+          key: key,
+          clinicId: session.clinic.clinicId,
+          payload: {'items': page.items.map((item) => item.toJson()).toList()},
+        );
+        return page.items;
+      } catch (_) {
+        final saved = await cache.get(key, clinicId: session.clinic.clinicId);
+        if (saved == null) rethrow;
+        ref.read(remoteNotificationsOfflineProvider.notifier).state = true;
+        return (saved['items'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => RemoteNotificationItem.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList(growable: false);
       }
     });

@@ -74,6 +74,89 @@ void main() {
   });
 
   test(
+    'production reminders and notification mutations retain exact IDs',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'avera_access_token': 'production-access-token',
+      });
+      final requests = <http.Request>[];
+      final source = ClinicalRemoteDataSource(
+        ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: MockClient((request) async {
+            requests.add(request);
+            if (request.url.path == '/api/v1/reminders') {
+              return http.Response(
+                jsonEncode({
+                  'upcoming': [
+                    {
+                      'event_id': 'appointment:exact-id',
+                      'event_type': 'Appointment',
+                      'module': 'Schedule',
+                      'related_entity_type': 'Schedule',
+                      'related_entity_id': 'exact-id',
+                      'patient_id': 'patient-id',
+                      'patient_name': 'Luna',
+                      'title': 'Grooming',
+                      'description': 'Confirmed',
+                      'scheduled_at': '2026-08-14T09:30:00.000Z',
+                      'reminder_at': '2026-08-14T08:30:00.000Z',
+                      'priority': 'upcoming',
+                      'status': 'Confirmed',
+                      'notification_id': 'notification-id',
+                    },
+                  ],
+                  'alerts': <dynamic>[],
+                }),
+                200,
+              );
+            }
+            if (request.url.path == '/api/v1/notifications') {
+              return http.Response(
+                jsonEncode({
+                  'items': <dynamic>[],
+                  'page': 1,
+                  'pageSize': 50,
+                  'total': 0,
+                  'hasNextPage': false,
+                }),
+                200,
+              );
+            }
+            return http.Response('{}', 200);
+          }),
+        ),
+      );
+
+      final feed = await source.reminders();
+      await source.notifications();
+      await source.markNotificationRead('notification-id');
+      await source.dismissNotification('notification-id');
+
+      expect(feed.upcoming.single.relatedEntityId, 'exact-id');
+      expect(feed.upcoming.single.notificationId, 'notification-id');
+      expect(
+        requests.map((request) => '${request.method} ${request.url.path}'),
+        [
+          'GET /api/v1/reminders',
+          'GET /api/v1/notifications',
+          'PATCH /api/v1/notifications/notification-id/read',
+          'PATCH /api/v1/notifications/notification-id/dismiss',
+        ],
+      );
+      expect(
+        requests.every(
+          (request) =>
+              request.headers['authorization'] ==
+              'Bearer production-access-token',
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
     'patient registration uses authenticated production POST and UUID result',
     () async {
       FlutterSecureStorage.setMockInitialValues({

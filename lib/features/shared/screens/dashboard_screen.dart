@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/models/alert_destination.dart';
+import '../../../core/models/reminder_event.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
@@ -36,12 +37,19 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               )
         : ref.watch(dashboardStatsProvider);
-    final notifications = ref.watch(notificationsProvider);
+    final notifications = BackendConfiguration.isConfigured
+        ? null
+        : ref.watch(notificationsProvider);
+    final reminderFeed = BackendConfiguration.isConfigured
+        ? ref.watch(remoteReminderFeedProvider)
+        : const AsyncData(ReminderFeed(upcoming: [], alerts: []));
+    final showingCachedReminders =
+        BackendConfiguration.isConfigured &&
+        ref.watch(remoteReminderFeedOfflineProvider);
     final operatingStatus = ref.watch(clinicOperatingStatusProvider);
     final showingCachedDashboard =
         BackendConfiguration.isConfigured &&
         ref.watch(remoteDashboardOfflineProvider);
-
     return Scaffold(
       appBar: const BrandedAppBar(),
       body: stats.when(
@@ -69,7 +77,7 @@ class DashboardScreen extends ConsumerWidget {
               ? const <_QuickAction>[]
               : _dashboardActionsFor(sessionData, dashboardMode);
           final alerts =
-              notifications.valueOrNull
+              notifications?.valueOrNull
                   ?.where((item) => !item.isRead)
                   .take(4)
                   .toList() ??
@@ -82,6 +90,22 @@ class DashboardScreen extends ConsumerWidget {
                 ref.invalidate(dashboardStatsProvider);
               }
               ref.invalidate(notificationsProvider);
+              if (BackendConfiguration.isConfigured) {
+                ref.invalidate(remoteReminderFeedProvider);
+                ref.invalidate(remoteNotificationsProvider);
+                final refreshed = await ref.read(
+                  remoteReminderFeedProvider.future,
+                );
+                final currentSession = await ref.read(
+                  userSessionProvider.future,
+                );
+                await ref
+                    .read(appointmentNotificationServiceProvider)
+                    .reconcileEvents(
+                      events: refreshed.upcoming,
+                      timeZone: currentSession.clinic.timeZone,
+                    );
+              }
             },
             child: LayoutBuilder(
               builder: (context, constraints) => ListView(
@@ -136,7 +160,12 @@ class DashboardScreen extends ConsumerWidget {
                           const SizedBox(height: 24),
                           _DashboardQuickActionGrid(actions: actions),
                           const SizedBox(height: 36),
-                          _AlertsAndActivity(data: data, alerts: alerts),
+                          _AlertsAndActivity(
+                            data: data,
+                            alerts: alerts,
+                            reminderFeed: reminderFeed,
+                            showingCachedReminders: showingCachedReminders,
+                          ),
                         ],
                       ),
                     ),
@@ -398,14 +427,26 @@ class _QuickActionTile extends StatelessWidget {
 }
 
 class _AlertsAndActivity extends StatelessWidget {
-  const _AlertsAndActivity({required this.data, required this.alerts});
+  const _AlertsAndActivity({
+    required this.data,
+    required this.alerts,
+    required this.reminderFeed,
+    required this.showingCachedReminders,
+  });
   final DashboardStats data;
   final List<dynamic> alerts;
+  final AsyncValue<ReminderFeed> reminderFeed;
+  final bool showingCachedReminders;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final sideBySide = constraints.maxWidth >= 900;
-      final alertsPanel = _AlertPanel(data: data, alerts: alerts);
+      final alertsPanel = _AlertPanel(
+        data: data,
+        alerts: alerts,
+        reminderFeed: reminderFeed,
+        showingCachedReminders: showingCachedReminders,
+      );
       final activityPanel = _RecentActivity(data: data);
       if (!sideBySide) {
         return Column(
@@ -426,9 +467,16 @@ class _AlertsAndActivity extends StatelessWidget {
 }
 
 class _AlertPanel extends StatelessWidget {
-  const _AlertPanel({required this.data, required this.alerts});
+  const _AlertPanel({
+    required this.data,
+    required this.alerts,
+    required this.reminderFeed,
+    required this.showingCachedReminders,
+  });
   final DashboardStats data;
   final List<dynamic> alerts;
+  final AsyncValue<ReminderFeed> reminderFeed;
+  final bool showingCachedReminders;
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,6 +491,45 @@ class _AlertPanel extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Column(
             children: [
+              if (showingCachedReminders)
+                const ListTile(
+                  leading: Icon(Icons.cloud_off_outlined),
+                  title: Text('Showing saved activity'),
+                  subtitle: Text('Upcoming activity could not be refreshed.'),
+                ),
+              ...reminderFeed.when(
+                loading: () => const [
+                  Padding(
+                    padding: EdgeInsets.all(18),
+                    child: CircularProgressIndicator(),
+                  ),
+                ],
+                error: (_, __) => const [
+                  Padding(
+                    padding: EdgeInsets.all(18),
+                    child: Text('Upcoming activity could not be loaded.'),
+                  ),
+                ],
+                data: (feed) {
+                  final upcoming = feed.upcoming
+                      .where(
+                        (item) => !feed.alerts.any(
+                          (alert) => alert.eventId == item.eventId,
+                        ),
+                      )
+                      .take(4)
+                      .toList();
+                  return [
+                    if (feed.alerts.isNotEmpty)
+                      const _ReminderGroupLabel('Requires attention'),
+                    for (final event in feed.alerts.take(4))
+                      _ReminderTile(event: event, alert: true),
+                    if (upcoming.isNotEmpty)
+                      const _ReminderGroupLabel('Upcoming'),
+                    for (final event in upcoming) _ReminderTile(event: event),
+                  ];
+                },
+              ),
               if (data.expiredDrugs > 0)
                 _AlertTile(
                   icon: Icons.warning_amber_rounded,
@@ -466,7 +553,8 @@ class _AlertPanel extends StatelessWidget {
                   inventoryFilter: 'low',
                   tone: _ActionTone.amber,
                 ),
-              if (data.vaccinationsDue > 0)
+              if (!BackendConfiguration.isConfigured &&
+                  data.vaccinationsDue > 0)
                 _AlertTile(
                   icon: Icons.vaccines_outlined,
                   title: '${data.vaccinationsDue} vaccines due',
@@ -486,9 +574,14 @@ class _AlertPanel extends StatelessWidget {
                   ),
                   tone: _ActionTone.blue,
                 ),
-              if (data.expiredDrugs == 0 &&
+              if (!showingCachedReminders &&
+                  reminderFeed.hasValue &&
+                  reminderFeed.valueOrNull?.upcoming.isEmpty != false &&
+                  reminderFeed.valueOrNull?.alerts.isEmpty != false &&
+                  data.expiredDrugs == 0 &&
                   data.lowStock == 0 &&
-                  data.vaccinationsDue == 0 &&
+                  (BackendConfiguration.isConfigured ||
+                      data.vaccinationsDue == 0) &&
                   alerts.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(18),
@@ -503,6 +596,71 @@ class _AlertPanel extends StatelessWidget {
       ),
     ],
   );
+}
+
+class _ReminderGroupLabel extends StatelessWidget {
+  const _ReminderGroupLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: averaText(context).caption.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  );
+}
+
+class _ReminderTile extends StatelessWidget {
+  const _ReminderTile({required this.event, this.alert = false});
+
+  final ReminderEvent event;
+  final bool alert;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = alert
+        ? Theme.of(context).colorScheme.error
+        : Theme.of(context).colorScheme.primary;
+    return Column(
+      children: [
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 6,
+          ),
+          leading: Icon(
+            alert ? Icons.warning_amber_rounded : Icons.event_outlined,
+            color: color,
+          ),
+          title: Text(event.title, style: averaText(context).listItemTitle),
+          subtitle: Text(
+            '${event.patientName ?? event.module} • ${DateFormat.MMMd().add_jm().format(event.scheduledAt)}',
+            style: averaText(context).listItemSubtitle,
+          ),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () {
+            final route = remoteDashboardActivityRoute({
+              'related_entity_type': event.relatedEntityType,
+              'record_id': event.relatedEntityId,
+              'patient_id': event.patientId,
+              'module': event.module,
+            });
+            if (route != null) context.push(route);
+          },
+        ),
+        const Divider(height: 1, indent: 68),
+      ],
+    );
+  }
 }
 
 class _AlertTile extends StatelessWidget {

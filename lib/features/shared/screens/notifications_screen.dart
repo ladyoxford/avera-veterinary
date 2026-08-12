@@ -7,8 +7,13 @@ import 'package:intl/intl.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart' as local_db show Notification;
 import '../../../core/models/alert_destination.dart';
+import '../../../core/models/reminder_event.dart';
+import '../../../core/remote/api_client.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/services/appointment_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../navigation/clinic_activity_navigation.dart';
 import '../widgets/avera_ui.dart';
 
 class NotificationsScreen extends ConsumerWidget {
@@ -16,6 +21,9 @@ class NotificationsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (BackendConfiguration.isConfigured) {
+      return const _RemoteNotificationsScreen();
+    }
     final session = ref.watch(userSessionProvider).valueOrNull;
     final notifications = ref.watch(notificationsProvider);
     return Scaffold(
@@ -272,6 +280,280 @@ class NotificationsScreen extends ConsumerWidget {
                         .cancelReminder(systemId);
                   }
                 },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoteNotificationsScreen extends ConsumerWidget {
+  const _RemoteNotificationsScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifications = ref.watch(remoteNotificationsProvider);
+    final showingSaved = ref.watch(remoteNotificationsOfflineProvider);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Notification Center'),
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/'),
+        ),
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(remoteReminderFeedProvider);
+          ref.invalidate(remoteNotificationsProvider);
+          await ref.read(remoteNotificationsProvider.future);
+        },
+        child: notifications.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(
+                height: MediaQuery.sizeOf(context).height * .65,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Notifications could not be loaded.'),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            ref.invalidate(remoteNotificationsProvider),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          data: (items) => items.isEmpty && showingSaved
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    SizedBox(
+                      height: MediaQuery.sizeOf(context).height * .65,
+                      child: const Center(
+                        child: Text(
+                          'Notifications could not be refreshed.\nPull down to retry.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : items.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    SizedBox(
+                      height: MediaQuery.sizeOf(context).height * .65,
+                      child: const Center(child: _EmptyNotifications()),
+                    ),
+                  ],
+                )
+              : ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(
+                    20,
+                    20,
+                    20,
+                    AveraSpacing.bottomContentClearance,
+                  ),
+                  itemCount: items.length + (showingSaved ? 1 : 0),
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    if (showingSaved && index == 0) {
+                      return const ListTile(
+                        leading: Icon(Icons.cloud_off_outlined),
+                        title: Text('Showing saved notifications'),
+                        subtitle: Text('Pull down to try refreshing.'),
+                      );
+                    }
+                    final item = items[index - (showingSaved ? 1 : 0)];
+                    return _RemoteNotificationCard(
+                      item: item,
+                      onTap: () => _open(context, ref, item),
+                      onLongPress: () => _manage(context, ref, item),
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(
+    BuildContext context,
+    WidgetRef ref,
+    RemoteNotificationItem item,
+  ) async {
+    if (!item.isRead) {
+      try {
+        await ref
+            .read(clinicalRemoteDataSourceProvider)
+            .markNotificationRead(item.id);
+        ref.invalidate(remoteNotificationsProvider);
+      } catch (_) {
+        // Opening the authoritative record remains useful while read-state sync retries.
+      }
+    }
+    if (!context.mounted) return;
+    final route = remoteDashboardActivityRoute({
+      'related_entity_type': item.relatedEntityType,
+      'record_id': item.relatedEntityId,
+      'patient_id': item.patientId,
+      'module': item.type,
+    });
+    if (route != null) context.push(route);
+  }
+
+  Future<void> _manage(
+    BuildContext context,
+    WidgetRef ref,
+    RemoteNotificationItem item,
+  ) async {
+    HapticFeedback.selectionClick();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Manage Notification', style: averaText(context).pageTitle),
+              const SizedBox(height: 12),
+              Text(item.title, style: averaText(context).listItemTitle),
+              Text(item.body, style: averaText(context).listItemSubtitle),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.open_in_new_rounded),
+                title: const Text('Open Related Record'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _open(context, ref, item);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.notifications_off_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  'Dismiss Notification',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+                  await ref
+                      .read(clinicalRemoteDataSourceProvider)
+                      .dismissNotification(item.id);
+                  await ref
+                      .read(appointmentNotificationServiceProvider)
+                      .cancelReminder(
+                        stableReminderNotificationId(item.eventId),
+                      );
+                  ref.invalidate(remoteNotificationsProvider);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoteNotificationCard extends StatelessWidget {
+  const _RemoteNotificationCard({
+    required this.item,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final RemoteNotificationItem item;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final isUrgent = item.priority == 'overdue' || item.priority == 'due';
+    final color = isUrgent
+        ? Theme.of(context).colorScheme.error
+        : Theme.of(context).colorScheme.primary;
+    final date = item.scheduledAt ?? item.createdAt;
+    return Semantics(
+      button: true,
+      label: '${item.title}, ${item.isRead ? 'read' : 'unread'}',
+      child: AveraSurfaceCard(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.notifications_outlined, color: color),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: averaText(context).listItemTitle,
+                          ),
+                        ),
+                        if (!item.isRead)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${DateFormat.yMMMd().add_jm().format(date)} - ${item.type}',
+                      style: averaText(context).caption,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.body,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: averaText(context).listItemSubtitle,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

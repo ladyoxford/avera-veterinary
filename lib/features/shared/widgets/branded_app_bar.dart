@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/models/alert_destination.dart';
 import '../../../core/remote/api_client.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import 'avera_logo.dart';
 import 'identity_avatar.dart';
 
@@ -23,20 +24,29 @@ class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(userSessionProvider);
-    final notifications = ref.watch(notificationsProvider);
+    final localNotifications = BackendConfiguration.isConfigured
+        ? null
+        : ref.watch(notificationsProvider);
+    final remoteNotifications = BackendConfiguration.isConfigured
+        ? ref.watch(remoteNotificationsProvider)
+        : null;
     final compact = MediaQuery.sizeOf(context).width < 620;
-    final unreadCount =
-        notifications.valueOrNull
-            ?.where(
-              (item) =>
-                  InAppNotificationStatusStorage.fromStorage(
-                    item.status,
-                    isRead: item.isRead,
-                  ) ==
-                  InAppNotificationStatus.unread,
-            )
-            .length ??
-        0;
+    final unreadCount = BackendConfiguration.isConfigured
+        ? remoteNotifications?.valueOrNull
+                  ?.where((item) => !item.isRead)
+                  .length ??
+              0
+        : localNotifications?.valueOrNull
+                  ?.where(
+                    (item) =>
+                        InAppNotificationStatusStorage.fromStorage(
+                          item.status,
+                          isRead: item.isRead,
+                        ) ==
+                        InAppNotificationStatus.unread,
+                  )
+                  .length ??
+              0;
 
     return AppBar(
       toolbarHeight: 84,

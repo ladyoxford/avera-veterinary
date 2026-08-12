@@ -9,6 +9,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../database/app_database.dart';
+import '../models/reminder_event.dart';
 import '../repositories/clinic_repository.dart';
 
 /// Bridges an Android notification tap into the running Flutter navigation
@@ -37,6 +38,10 @@ abstract interface class AppointmentNotificationService {
   });
   Future<void> cancelReminder(int notificationId);
   Future<void> cancelReminders(Iterable<AppointmentReminder> reminders);
+  Future<void> reconcileEvents({
+    required Iterable<ReminderEvent> events,
+    required String timeZone,
+  });
 }
 
 class LocalAppointmentNotificationService
@@ -160,6 +165,89 @@ class LocalAppointmentNotificationService
       await cancelReminder(reminder.notificationId);
     }
   }
+
+  @override
+  Future<void> reconcileEvents({
+    required Iterable<ReminderEvent> events,
+    required String timeZone,
+  }) async {
+    if (!_supportsNotifications) return;
+    await initialize();
+    final pending = await _plugin.pendingNotificationRequests();
+    final now = DateTime.now();
+    final desired = <int, (ReminderEvent, DateTime)>{};
+    for (final event in events) {
+      if (event.notificationDismissed) continue;
+      final reminderTime = event.reminderAt?.isAfter(now) == true
+          ? event.reminderAt
+          : event.scheduledAt.isAfter(now)
+          ? event.scheduledAt
+          : null;
+      if (reminderTime != null) {
+        desired[stableReminderNotificationId(event.eventId)] = (
+          event,
+          reminderTime,
+        );
+      }
+    }
+    for (final request in pending.where(
+      (item) => item.payload?.contains('"reminderEventId"') == true,
+    )) {
+      if (!desired.containsKey(request.id)) {
+        await _plugin.cancel(id: request.id);
+      }
+    }
+    tz.Location location;
+    try {
+      location = tz.getLocation(timeZone);
+    } catch (_) {
+      location = tz.local;
+    }
+    for (final entry in desired.entries) {
+      final event = entry.value.$1;
+      final reminderTime = entry.value.$2;
+      await _plugin.zonedSchedule(
+        id: entry.key,
+        title: event.title,
+        body: [
+          event.patientName,
+          event.description,
+        ].where((value) => value?.trim().isNotEmpty == true).join(': '),
+        scheduledDate: tz.TZDateTime.from(reminderTime, location),
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'avera_clinical_reminders',
+            'Clinical reminders',
+            channelDescription:
+                'Appointments, vaccinations, surgeries and treatments due.',
+            icon: 'ic_stat_avera',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+        payload: jsonEncode({
+          'reminderEventId': event.eventId,
+          if (event.notificationId != null)
+            'notificationId': event.notificationId,
+          'destinationType': event.relatedEntityType,
+          'entityId': event.relatedEntityId,
+          'module': event.module,
+          if (event.patientId != null) 'patientId': event.patientId,
+        }),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    }
+  }
+}
+
+int stableReminderNotificationId(String value) {
+  var hash = 0x811c9dc5;
+  for (final unit in value.codeUnits) {
+    hash ^= unit;
+    hash = (hash * 0x01000193) & 0x7fffffff;
+  }
+  return hash == 0 ? 1 : hash;
 }
 
 class NoopAppointmentNotificationService
@@ -182,6 +270,12 @@ class NoopAppointmentNotificationService
   Future<void> scheduleReminder({
     required AppointmentDetail detail,
     required AppointmentReminder reminder,
+    required String timeZone,
+  }) async {}
+
+  @override
+  Future<void> reconcileEvents({
+    required Iterable<ReminderEvent> events,
     required String timeZone,
   }) async {}
 }

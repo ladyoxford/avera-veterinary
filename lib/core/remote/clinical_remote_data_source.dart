@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../models/reminder_event.dart';
 import 'api_client.dart';
 
 class RemotePage<T> {
@@ -814,6 +815,30 @@ class ClinicalRemoteDataSource {
       RemoteDashboardSummary.fromJson(
         await _client.get('/api/v1/dashboard/summary'),
       );
+
+  Future<ReminderFeed> reminders() async =>
+      ReminderFeed.fromJson(await _client.get('/api/v1/reminders'));
+
+  Future<RemotePage<RemoteNotificationItem>> notifications({
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    final response = await _client.get(
+      _path('/api/v1/notifications', {
+        'page': '$page',
+        'pageSize': '$pageSize',
+      }),
+    );
+    return _page(response, RemoteNotificationItem.fromJson);
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    await _client.patch('/api/v1/notifications/$notificationId/read');
+  }
+
+  Future<void> dismissNotification(String notificationId) async {
+    await _client.patch('/api/v1/notifications/$notificationId/dismiss');
+  }
 
   Future<RemotePage<Map<String, dynamic>>> activity({
     int page = 1,

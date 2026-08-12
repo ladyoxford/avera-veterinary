@@ -648,7 +648,9 @@ Future<void> _startRemoteConsultation(
     ..invalidate(remoteAppointmentDetailProvider(detail.id))
     ..invalidate(remoteAppointmentScheduleProvider)
     ..invalidate(remotePatientMedicalFileProvider(patient.id))
-    ..invalidate(remoteDashboardProvider);
+    ..invalidate(remoteDashboardProvider)
+    ..invalidate(remoteReminderFeedProvider)
+    ..invalidate(remoteNotificationsProvider);
 }
 
 Future<void> _rescheduleRemoteAppointment(
@@ -667,7 +669,9 @@ Future<void> _rescheduleRemoteAppointment(
     ..invalidate(remoteAppointmentDetailProvider(detail.id))
     ..invalidate(remoteAppointmentScheduleProvider)
     ..invalidate(remotePatientMedicalFileProvider(detail.patientId))
-    ..invalidate(remoteDashboardProvider);
+    ..invalidate(remoteDashboardProvider)
+    ..invalidate(remoteReminderFeedProvider)
+    ..invalidate(remoteNotificationsProvider);
   if (context.mounted) {
     _showMessage(context, 'Appointment rescheduled successfully.');
   }
@@ -704,7 +708,9 @@ Future<void> _cancelRemoteAppointment(
       ..invalidate(remoteAppointmentDetailProvider(detail.id))
       ..invalidate(remoteAppointmentScheduleProvider)
       ..invalidate(remotePatientMedicalFileProvider(detail.patientId))
-      ..invalidate(remoteDashboardProvider);
+      ..invalidate(remoteDashboardProvider)
+      ..invalidate(remoteReminderFeedProvider)
+      ..invalidate(remoteNotificationsProvider);
     if (context.mounted) _showMessage(context, 'Visit cancelled.');
   } catch (error) {
     if (context.mounted) {
@@ -1876,6 +1882,8 @@ class _NewAppointmentScreenState extends ConsumerState<NewAppointmentScreen> {
         ref
           ..invalidate(remotePatientMedicalFileProvider(_remotePatient!.id))
           ..invalidate(remoteDashboardProvider)
+          ..invalidate(remoteReminderFeedProvider)
+          ..invalidate(remoteNotificationsProvider)
           ..invalidate(remoteAppointmentScheduleProvider);
         if (mounted) {
           _showMessage(context, 'Appointment saved.');

@@ -1173,6 +1173,9 @@ class _RemoteClinicalOperationDetailScreenState
         _busy = false;
         _reload();
       });
+      ref
+        ..invalidate(remoteReminderFeedProvider)
+        ..invalidate(remoteNotificationsProvider);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('${action.status} recorded.')));
@@ -3296,6 +3299,9 @@ class _CreateClinicalOperationSheetState
             ),
           );
         }
+        ref
+          ..invalidate(remoteReminderFeedProvider)
+          ..invalidate(remoteNotificationsProvider);
         if (!context.mounted) return;
         _dirty = false;
         Navigator.of(context).pop();

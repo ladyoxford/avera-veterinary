@@ -957,6 +957,8 @@ class _RecordVaccinationScreenState
         ref
           ..invalidate(remotePatientMedicalFileProvider(_remotePatient!.id))
           ..invalidate(remoteDashboardProvider)
+          ..invalidate(remoteReminderFeedProvider)
+          ..invalidate(remoteNotificationsProvider)
           ..invalidate(remoteVaccinationScheduleProvider)
           ..invalidate(
             remotePatientSectionProvider(

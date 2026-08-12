@@ -356,7 +356,6 @@ final userSessionProvider = FutureProvider<UserSession>((ref) async {
   final cached = await ref
       .watch(clinicRepositoryProvider)
       .cacheRemoteSession(remote);
-  unawaited(_reconcileAppointmentReminders(ref, cached));
   return cached;
 });
 

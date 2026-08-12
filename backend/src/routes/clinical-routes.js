@@ -217,6 +217,116 @@ const updateClinicalOperationStatusSchema = z.object({
   reason: z.string().trim().max(2000).nullish(),
 });
 
+const notificationUuidSchema = z.object({ notificationId: z.string().uuid() });
+
+function reminderSelectSql(request) {
+  const selects = [];
+  if (hasPermission(request, permissions.appointmentsView)) selects.push(`
+    SELECT 'appointment:' || s.schedule_entry_id AS event_id, 'Appointment' AS event_type,
+           'Schedule' AS module, 'Schedule' AS related_entity_type,
+           s.schedule_entry_id AS related_entity_id, s.patient_id, p.name AS patient_name,
+           s.visit_type AS title, coalesce(s.notes, s.status) AS description,
+           s.scheduled_at, s.scheduled_at - interval '1 hour' AS reminder_at,
+           CASE WHEN s.scheduled_at < now() THEN 'overdue'
+                WHEN s.scheduled_at <= now() + interval '1 hour' THEN 'due' ELSE 'upcoming' END AS priority,
+           s.status, s.assigned_staff_id
+      FROM schedule_entries s JOIN patients p ON p.patient_id=s.patient_id
+     WHERE s.clinic_id=$1 AND s.scheduled_at >= now() - interval '1 day'
+       AND lower(s.status) NOT IN ('cancelled','completed','missed')
+       `);
+  if (hasPermission(request, permissions.vaccinationsView)) selects.push(`
+    SELECT 'vaccination:' || v.vaccination_id, 'Vaccination', 'Vaccinations', 'Vaccination',
+           v.vaccination_id, v.patient_id, p.name, v.vaccine_name,
+           'Vaccination due', v.next_due_at, v.next_due_at - interval '1 day',
+           CASE WHEN v.next_due_at < now() THEN 'overdue'
+                WHEN v.next_due_at < now() + interval '1 day' THEN 'due' ELSE 'upcoming' END,
+           v.status, NULL::uuid
+      FROM vaccinations v JOIN patients p ON p.patient_id=v.patient_id
+     WHERE v.clinic_id=$1 AND v.next_due_at IS NOT NULL
+       AND v.next_due_at >= now() - interval '30 days'
+       AND lower(v.status) NOT IN ('cancelled','archived')
+       AND NOT EXISTS (
+         SELECT 1 FROM vaccinations newer
+          WHERE newer.clinic_id=v.clinic_id AND newer.patient_id=v.patient_id
+            AND lower(newer.vaccine_name)=lower(v.vaccine_name)
+            AND newer.administered_at > v.administered_at
+       )`);
+  for (const [type, permission] of [
+    ['Surgery', permissions.surgeryView], ['Treatment', permissions.treatmentBoardView],
+  ]) {
+    if (!hasPermission(request, permission)) continue;
+    selects.push(`
+      SELECT lower(r.operation_type) || ':' || r.operation_id, r.operation_type,
+             r.operation_type, 'ClinicalOperation', r.operation_id, r.patient_id,
+             p.name, r.title, coalesce(r.description, r.status), r.scheduled_at,
+             r.scheduled_at - interval '1 hour',
+             CASE WHEN r.scheduled_at < now() THEN 'overdue'
+                  WHEN r.scheduled_at < now() + interval '1 hour' THEN 'due' ELSE 'upcoming' END,
+             r.status, NULL::uuid
+        FROM clinical_operation_records r JOIN patients p ON p.patient_id=r.patient_id
+       WHERE r.clinic_id=$1 AND r.operation_type='${type}'
+         AND r.scheduled_at >= now() - interval '30 days'
+         AND lower(r.status) NOT IN ('completed','cancelled','administered','missed','withheld','archived')`);
+  }
+  if (hasPermission(request, permissions.consultationsView)) selects.push(`
+    SELECT 'follow-up:' || c.consultation_id, 'FollowUp', 'Consultations', 'Consultation',
+           c.consultation_id, c.patient_id, p.name, 'Consultation follow-up',
+           coalesce(c.final_diagnosis, c.chief_complaint), c.follow_up_at,
+           c.follow_up_at - interval '1 day',
+           CASE WHEN c.follow_up_at < now() THEN 'overdue'
+                WHEN c.follow_up_at < now() + interval '1 day' THEN 'due' ELSE 'upcoming' END,
+           c.status, NULL::uuid
+      FROM consultations c JOIN patients p ON p.patient_id=c.patient_id
+     WHERE c.clinic_id=$1 AND c.deleted_at IS NULL AND c.follow_up_at IS NOT NULL
+       AND c.follow_up_at >= now() - interval '30 days'`);
+  return selects.length === 0 ? null : selects.join('\nUNION ALL\n');
+}
+
+async function loadReminderFeed(client, request) {
+  const sql = reminderSelectSql(request);
+  if (!sql) return { upcoming: [], alerts: [] };
+  const rows = await client.query(
+    `SELECT * FROM (${sql}) reminders ORDER BY scheduled_at ASC LIMIT 100`,
+    [request.auth.clinicId],
+  );
+  const upcoming = rows.rows.filter((row) => new Date(row.scheduled_at) >= new Date()).slice(0, 30);
+  const alerts = rows.rows.filter((row) => ['due', 'overdue'].includes(row.priority));
+  return { upcoming, alerts };
+}
+
+async function syncReminderNotifications(client, request, alerts) {
+  const notificationIds = new Map();
+  for (const alert of alerts) {
+    const dedupeKey = alert.event_id;
+    const result = await client.query(
+      `INSERT INTO clinic_notifications
+         (clinic_id,user_id,dedupe_key,notification_type,title,body,priority,
+          related_entity_type,related_entity_id,patient_id,scheduled_at,reminder_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       ON CONFLICT (clinic_id,user_id,dedupe_key) DO UPDATE SET
+         title=excluded.title, body=excluded.body, priority=excluded.priority,
+         scheduled_at=excluded.scheduled_at, reminder_at=excluded.reminder_at
+       RETURNING notification_id,dismissed_at`,
+      [request.auth.clinicId, request.auth.userId, dedupeKey, alert.event_type,
+        alert.title, `${alert.patient_name}: ${alert.description}`, alert.priority,
+        alert.related_entity_type, alert.related_entity_id, alert.patient_id,
+        alert.scheduled_at, alert.reminder_at],
+    );
+    notificationIds.set(dedupeKey, result.rows[0]);
+  }
+  return notificationIds;
+}
+
+async function dismissObsoleteReminderNotifications(client, request, activeKeys) {
+  await client.query(
+    `UPDATE clinic_notifications
+        SET dismissed_at=coalesce(dismissed_at,now())
+      WHERE clinic_id=$1 AND user_id=$2 AND dismissed_at IS NULL
+        AND NOT (dedupe_key = ANY($3::text[]))`,
+    [request.auth.clinicId, request.auth.userId, activeKeys],
+  );
+}
+
 function clinicalOperationStatusPermission(type, status, fromStatus) {
   if (type === 'Surgery') {
     if (status === 'Cancelled') return permissions.surgeryCancel;
@@ -1708,6 +1818,100 @@ export async function clinicalRoutes(app) {
         total,
         hasNextPage: offset + rows.rowCount < total,
       };
+    });
+  });
+
+  app.get('/api/v1/reminders', { preHandler: [authenticate, requirePermission(permissions.dashboardView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const feed = await loadReminderFeed(client, request);
+      const notificationIds = await syncReminderNotifications(client, request, [
+        ...new Map([...feed.upcoming, ...feed.alerts].map((item) => [item.event_id, item])).values(),
+      ]);
+      await dismissObsoleteReminderNotifications(
+        client, request, [...notificationIds.keys()],
+      );
+      return {
+        upcoming: feed.upcoming.map((item) => ({
+          ...item,
+          notification_id: notificationIds.get(item.event_id)?.notification_id,
+          notification_dismissed: notificationIds.get(item.event_id)?.dismissed_at != null,
+        })),
+        alerts: feed.alerts.map((item) => ({
+          ...item,
+          notification_id: notificationIds.get(item.event_id)?.notification_id,
+          notification_dismissed: notificationIds.get(item.event_id)?.dismissed_at != null,
+        })),
+      };
+    });
+  });
+
+  app.get('/api/v1/notifications', { preHandler: [authenticate, requirePermission(permissions.dashboardView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const query = parsePage(request, reply);
+    if (!query) return undefined;
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const feed = await loadReminderFeed(client, request);
+      const notificationIds = await syncReminderNotifications(client, request, [
+        ...new Map([...feed.upcoming, ...feed.alerts].map((item) => [item.event_id, item])).values(),
+      ]);
+      await dismissObsoleteReminderNotifications(
+        client, request, [...notificationIds.keys()],
+      );
+      const offset = (query.page - 1) * query.pageSize;
+      const [rows, count] = await Promise.all([
+        client.query(
+          `SELECT notification_id,dedupe_key AS event_id,notification_type,title,body,priority,
+                  related_entity_type,related_entity_id,patient_id,scheduled_at,
+                  reminder_at,created_at,read_at
+             FROM clinic_notifications
+            WHERE clinic_id=$1 AND user_id=$2 AND dismissed_at IS NULL
+            ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+          [request.auth.clinicId, request.auth.userId, query.pageSize, offset],
+        ),
+        client.query(
+          `SELECT count(*)::int AS total FROM clinic_notifications
+            WHERE clinic_id=$1 AND user_id=$2 AND dismissed_at IS NULL`,
+          [request.auth.clinicId, request.auth.userId],
+        ),
+      ]);
+      return {
+        items: rows.rows, page: query.page, pageSize: query.pageSize,
+        total: count.rows[0].total,
+        hasNextPage: offset + rows.rowCount < count.rows[0].total,
+      };
+    });
+  });
+
+  app.patch('/api/v1/notifications/:notificationId/read', { preHandler: [authenticate, requirePermission(permissions.dashboardView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = notificationUuidSchema.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_failed' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const result = await client.query(
+        `UPDATE clinic_notifications SET read_at=coalesce(read_at,now())
+          WHERE notification_id=$1 AND clinic_id=$2 AND user_id=$3
+          RETURNING notification_id,read_at`,
+        [parsed.data.notificationId, request.auth.clinicId, request.auth.userId],
+      );
+      if (!result.rows[0]) return reply.code(404).send({ error: 'not_found' });
+      return { notification: result.rows[0] };
+    });
+  });
+
+  app.patch('/api/v1/notifications/:notificationId/dismiss', { preHandler: [authenticate, requirePermission(permissions.dashboardView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = notificationUuidSchema.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_failed' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const result = await client.query(
+        `UPDATE clinic_notifications SET dismissed_at=coalesce(dismissed_at,now())
+          WHERE notification_id=$1 AND clinic_id=$2 AND user_id=$3
+          RETURNING notification_id`,
+        [parsed.data.notificationId, request.auth.clinicId, request.auth.userId],
+      );
+      if (!result.rows[0]) return reply.code(404).send({ error: 'not_found' });
+      return { notification: result.rows[0] };
     });
   });
 

@@ -432,6 +432,50 @@ test('sign-in validation accepts omitted optional fields but rejects null values
   assert.equal(signInSchema.safeParse({ email: 'admin@avera.test', password: '' }).success, false);
 });
 
+test('production reminders are durable, tenant scoped, and deduplicated', () => {
+  const reminders = fs.readFileSync(
+    new URL('../migrations/018_production_reminders.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(reminders, /CREATE TABLE IF NOT EXISTS clinic_notifications/);
+  assert.match(reminders, /UNIQUE \(clinic_id, user_id, dedupe_key\)/);
+  assert.match(reminders, /related_entity_type/);
+  assert.match(reminders, /related_entity_id UUID/);
+  assert.match(reminders, /read_at TIMESTAMPTZ/);
+  assert.match(reminders, /dismissed_at TIMESTAMPTZ/);
+  assert.match(reminders, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(reminders, /clinic_id::text = current_setting\('avera\.clinic_id'/);
+
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(routes, /\/api\/v1\/reminders/);
+  assert.match(routes, /\/api\/v1\/notifications/);
+  assert.match(routes, /ORDER BY scheduled_at ASC/);
+  assert.match(routes, /ON CONFLICT \(clinic_id,user_id,dedupe_key\)/);
+  assert.match(routes, /lower\(s\.status\) NOT IN \('cancelled','completed','missed'\)/);
+  assert.match(routes, /lower\(r\.status\) NOT IN \('completed','cancelled','administered','missed','withheld','archived'\)/);
+  assert.match(routes, /NOT EXISTS \(\s*SELECT 1 FROM vaccinations newer/);
+  assert.match(routes, /dismissObsoleteReminderNotifications/);
+  assert.match(routes, /NOT \(dedupe_key = ANY\(\$3::text\[\]\)\)/);
+  assert.doesNotMatch(routes, /dismissed_at=NULL/);
+});
+
+test('reminder feed covers dated clinical sources with exact ordering', () => {
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(routes, /FROM schedule_entries s JOIN patients p/);
+  assert.match(routes, /v\.next_due_at, v\.next_due_at - interval '1 day'/);
+  assert.match(routes, /r\.operation_type='\$\{type\}'/);
+  assert.match(routes, /c\.follow_up_at/);
+  assert.match(routes, /ORDER BY scheduled_at ASC LIMIT 100/);
+  assert.match(routes, /lower\(v\.status\) NOT IN \('cancelled','archived'\)/);
+  assert.match(routes, /newer\.administered_at > v\.administered_at/);
+});
+
 test('recent activity orders appointments by lifecycle activity, not future visit time', () => {
   const routes = fs.readFileSync(
     new URL('../src/routes/clinical-routes.js', import.meta.url),

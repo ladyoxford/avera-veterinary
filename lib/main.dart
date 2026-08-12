@@ -129,11 +129,16 @@ class _AveraAppState extends ConsumerState<AveraApp> {
       });
     });
     final themeMode = ref.watch(themeControllerProvider);
+    final clinicColor = ref
+        .watch(clinicSettingsProvider)
+        .valueOrNull
+        ?.themeColor;
+    final accentColor = _clinicAccentColor(clinicColor);
     return MaterialApp.router(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(accentColor: accentColor),
+      darkTheme: AppTheme.dark(accentColor: accentColor),
       themeMode: themeMode,
       routerConfig: appRouter,
       builder: (context, child) => ResponsiveBreakpoints.builder(
@@ -146,4 +151,12 @@ class _AveraAppState extends ConsumerState<AveraApp> {
       ),
     );
   }
+}
+
+Color _clinicAccentColor(String? value) {
+  final normalized = value?.trim().replaceFirst('#', '');
+  if (normalized == null || !RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(normalized)) {
+    return AppTheme.primary;
+  }
+  return Color(int.parse('FF$normalized', radix: 16));
 }

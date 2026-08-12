@@ -112,6 +112,8 @@ export const defaultClinicRoleTemplates = Object.freeze([
     'inventory.adjust', 'inventory.sell',
     ...billing, ...surgery, ...prescriptions, ...imaging, ...documents,
     ...treatmentBoard, 'reports.export',
+    'clinic_settings.view', 'clinic_settings.edit',
+    'clinic.work_hours.manage',
     'appointments.view', 'appointments.create', 'appointments.edit',
     'appointments.cancel', 'appointments.start_consultation',
     'appointments.assign_clinical_staff',

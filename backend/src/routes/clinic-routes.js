@@ -1,7 +1,7 @@
 import { writeAudit } from '../audit/audit-service.js';
 import { withTenantTransaction } from '../database/pool.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
-import { permissions } from '../security/permissions.js';
+import { hasPermission, permissions } from '../security/permissions.js';
 import { ensureDefaultClinicRoles } from '../security/default-clinic-roles.js';
 import { z } from 'zod';
 
@@ -22,6 +22,44 @@ const profilePhotoSchema = z.object({
   contentType: z.enum(['image/jpeg', 'image/png']),
   data: z.string().min(1),
 });
+const clinicSettingsSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  email: z.string().trim().email().max(254).nullish(),
+  phone: z.string().trim().max(80).nullish(),
+  address: z.string().trim().max(240).nullish(),
+  city: z.string().trim().max(120).nullish(),
+  country: z.string().trim().max(120).nullish(),
+  timeZone: z.string().trim().min(1).max(120),
+});
+const workDaySchema = z.object({
+  weekday: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+  isOpen: z.boolean(),
+  openingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullish(),
+  closingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullish(),
+  breakStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullish(),
+  breakEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullish(),
+}).superRefine((day, context) => {
+  if (day.isOpen && (!day.openingTime || !day.closingTime || day.openingTime >= day.closingTime)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Open days need valid opening and closing times.' });
+  }
+});
+const clinicWorkHoursSchema = z.object({
+  timeZone: z.string().trim().min(1).max(120),
+  isEnabled: z.boolean(),
+  days: z.array(workDaySchema).length(7).refine((days) => new Set(days.map((day) => day.weekday)).size === 7),
+});
+const clinicBrandAssetSchema = z.object({
+  kind: z.enum(['logo', 'banner']),
+  contentType: z.enum(['image/jpeg', 'image/png']),
+  data: z.string().min(1),
+});
+const clinicThemeColorSchema = z.object({ color: z.string().regex(/^#[0-9A-Fa-f]{6}$/) });
+
+const defaultClinicWorkDays = [
+  ...['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].map((weekday) => ({ weekday, isOpen: true, openingTime: '08:00', closingTime: '18:00' })),
+  { weekday: 'saturday', isOpen: true, openingTime: '09:00', closingTime: '14:00' },
+  { weekday: 'sunday', isOpen: false },
+];
 
 const clinicUserSelect = `
   SELECT u.user_id AS "userId", u.full_name AS "fullName", u.email, u.phone,
@@ -161,6 +199,122 @@ export async function changeClinicUserRole(client, context) {
 }
 
 export async function clinicRoutes(app) {
+  app.get('/api/v1/clinic/settings', { preHandler: [authenticate, requirePermission(permissions.clinicSettingsView)] }, async (request, reply) => {
+    if (!request.auth.clinicId) return clinicContextRequired(reply);
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const clinic = (await client.query(
+        `SELECT c.clinic_id AS "clinicId", c.name, c.email, c.phone, c.address,
+                c.city, c.country, c.time_zone AS "timeZone",
+                coalesce(cb.primary_color, '#087F7B') AS "themeColor",
+                cb.logo_path AS "logoPath", cb.banner_path AS "bannerPath"
+           FROM clinics c
+           LEFT JOIN clinic_branding cb ON cb.clinic_id = c.clinic_id
+          WHERE c.clinic_id = $1 AND c.deleted_at IS NULL`,
+        [request.auth.clinicId],
+      )).rows[0];
+      if (!clinic) return reply.code(404).send({ error: 'clinic_not_found', message: 'The active clinic was not found.' });
+      return { clinic: {
+        ...clinic,
+        logoUrl: await app.profilePhotoStorage.signedUrl(clinic.logoPath),
+        bannerUrl: await app.profilePhotoStorage.signedUrl(clinic.bannerPath),
+      } };
+    });
+  });
+
+  app.patch('/api/v1/clinic/settings', { preHandler: [authenticate, requirePermission(permissions.clinicSettingsEdit)] }, async (request, reply) => {
+    if (!request.auth.clinicId) return clinicContextRequired(reply);
+    const parsed = clinicSettingsSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Review the clinic information and try again.' });
+    await withTenantTransaction(app.pool, request.auth, async (client) => {
+      const previous = (await client.query('SELECT name, email, phone, address, city, country, time_zone FROM clinics WHERE clinic_id = $1 FOR UPDATE', [request.auth.clinicId])).rows[0];
+      if (!previous) throw Object.assign(new Error('Clinic not found'), { statusCode: 404 });
+      const value = parsed.data;
+      await client.query(
+        `UPDATE clinics SET name=$1, email=$2, phone=$3, address=$4, city=$5,
+          country=$6, time_zone=$7, updated_at=now(), updated_by=$8
+          WHERE clinic_id=$9`,
+        [value.name, value.email || null, value.phone || null, value.address || null, value.city || null, value.country || null, value.timeZone, request.auth.userId, request.auth.clinicId],
+      );
+      await writeAudit(client, { clinicId: request.auth.clinicId, actingUserId: request.auth.userId, targetType: 'Clinic', targetId: request.auth.clinicId, action: 'clinic.settings_updated', previousSummary: previous, newSummary: value, sessionId: request.auth.sessionId, ipAddress: request.ip });
+    });
+    return { updated: true };
+  });
+
+  app.get('/api/v1/clinic/work-hours', { preHandler: [authenticate] }, async (request, reply) => {
+    if (!request.auth.clinicId) return clinicContextRequired(reply);
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      await client.query(
+        `INSERT INTO clinic_work_hours (clinic_id, time_zone, days)
+         SELECT clinic_id, time_zone, $2::jsonb FROM clinics WHERE clinic_id=$1
+         ON CONFLICT (clinic_id) DO NOTHING`,
+        [request.auth.clinicId, JSON.stringify(defaultClinicWorkDays)],
+      );
+      const value = (await client.query('SELECT clinic_id AS "clinicId", time_zone AS "timeZone", is_enabled AS "isEnabled", days FROM clinic_work_hours WHERE clinic_id=$1', [request.auth.clinicId])).rows[0];
+      return { workHours: value };
+    });
+  });
+
+  app.put('/api/v1/clinic/work-hours', { preHandler: [authenticate] }, async (request, reply) => {
+    if (!request.auth.clinicId) return clinicContextRequired(reply);
+    if (!hasPermission(request, permissions.clinicWorkHoursManage) && !hasPermission(request, permissions.clinicSettingsEdit)) {
+      return reply.code(403).send({ error: 'permission_required', message: 'You do not have permission to manage clinic work hours.' });
+    }
+    const parsed = clinicWorkHoursSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Review the work hours and try again.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const previous = (await client.query('SELECT time_zone, is_enabled, days FROM clinic_work_hours WHERE clinic_id=$1 FOR UPDATE', [request.auth.clinicId])).rows[0] ?? null;
+      const value = parsed.data;
+      await client.query(
+        `INSERT INTO clinic_work_hours (clinic_id,time_zone,is_enabled,days,updated_by)
+         VALUES ($1,$2,$3,$4::jsonb,$5)
+         ON CONFLICT (clinic_id) DO UPDATE SET time_zone=EXCLUDED.time_zone,
+           is_enabled=EXCLUDED.is_enabled, days=EXCLUDED.days, updated_at=now(), updated_by=EXCLUDED.updated_by`,
+        [request.auth.clinicId, value.timeZone, value.isEnabled, JSON.stringify(value.days), request.auth.userId],
+      );
+      await client.query('UPDATE clinics SET time_zone=$1, updated_at=now(), updated_by=$2 WHERE clinic_id=$3', [value.timeZone, request.auth.userId, request.auth.clinicId]);
+      await writeAudit(client, { clinicId: request.auth.clinicId, actingUserId: request.auth.userId, targetType: 'ClinicWorkHours', targetId: request.auth.clinicId, action: 'clinic.work_hours_updated', previousSummary: previous, newSummary: value, sessionId: request.auth.sessionId, ipAddress: request.ip });
+      return { workHours: { clinicId: request.auth.clinicId, ...value } };
+    });
+  });
+
+  app.post('/api/v1/clinic/branding', { preHandler: [authenticate, requirePermission(permissions.clinicSettingsEdit)] }, async (request, reply) => {
+    if (!request.auth.clinicId) return clinicContextRequired(reply);
+    const parsed = clinicBrandAssetSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid_clinic_branding', message: 'Choose a JPEG or PNG image.' });
+    try {
+      const bytes = Buffer.from(parsed.data.data, 'base64');
+      const path = await app.profilePhotoStorage.uploadBrandAsset({ clinicId: request.auth.clinicId, kind: parsed.data.kind, contentType: parsed.data.contentType, bytes });
+      const column = parsed.data.kind === 'logo' ? 'logo_path' : 'banner_path';
+      const previous = await withTenantTransaction(app.pool, request.auth, async (client) => {
+        const oldPath = (await client.query(`SELECT ${column} AS path FROM clinic_branding WHERE clinic_id=$1`, [request.auth.clinicId])).rows[0]?.path;
+        await client.query(
+          `INSERT INTO clinic_branding (clinic_id, ${column}, updated_by) VALUES ($1,$2,$3)
+           ON CONFLICT (clinic_id) DO UPDATE SET ${column}=EXCLUDED.${column}, updated_at=now(), updated_by=EXCLUDED.updated_by`,
+          [request.auth.clinicId, path, request.auth.userId],
+        );
+        await writeAudit(client, { clinicId: request.auth.clinicId, actingUserId: request.auth.userId, targetType: 'ClinicBranding', targetId: request.auth.clinicId, action: `clinic.${parsed.data.kind}_updated`, previousSummary: { path: oldPath ?? null }, newSummary: { path }, sessionId: request.auth.sessionId, ipAddress: request.ip });
+        return oldPath;
+      });
+      if (previous && previous !== path) await app.profilePhotoStorage.remove(previous);
+      return { url: await app.profilePhotoStorage.signedUrl(path) };
+    } catch (error) {
+      return reply.code(error.statusCode ?? 500).send({ error: error.code ?? 'clinic_branding_upload_failed', message: error.statusCode ? error.message : 'The clinic image could not be uploaded.' });
+    }
+  });
+
+  app.patch('/api/v1/clinic/theme-color', { preHandler: [authenticate, requirePermission(permissions.clinicSettingsEdit)] }, async (request, reply) => {
+    if (!request.auth.clinicId) return clinicContextRequired(reply);
+    const parsed = clinicThemeColorSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid_theme_color', message: 'Choose a valid clinic theme color.' });
+    const color = parsed.data.color.toUpperCase();
+    await withTenantTransaction(app.pool, request.auth, async (client) => {
+      const previous = (await client.query('SELECT primary_color FROM clinic_branding WHERE clinic_id=$1 FOR UPDATE', [request.auth.clinicId])).rows[0]?.primary_color ?? '#087F7B';
+      await client.query(`INSERT INTO clinic_branding (clinic_id,primary_color,updated_by) VALUES ($1,$2,$3) ON CONFLICT (clinic_id) DO UPDATE SET primary_color=EXCLUDED.primary_color,updated_at=now(),updated_by=EXCLUDED.updated_by`, [request.auth.clinicId, color, request.auth.userId]);
+      await writeAudit(client, { clinicId: request.auth.clinicId, actingUserId: request.auth.userId, targetType: 'ClinicBranding', targetId: request.auth.clinicId, action: 'clinic.theme_color_updated', previousSummary: { color: previous }, newSummary: { color }, sessionId: request.auth.sessionId, ipAddress: request.ip });
+    });
+    return { color };
+  });
+
   app.get('/api/v1/me/profile', { preHandler: [authenticate] }, async (request, reply) => {
     const profile = (await app.pool.query(
       `${clinicUserSelect} WHERE u.user_id = $1 AND u.deleted_at IS NULL`,

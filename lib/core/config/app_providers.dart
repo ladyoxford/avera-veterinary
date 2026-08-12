@@ -402,6 +402,12 @@ final clinicOperatingStatusProvider = FutureProvider<ClinicOperatingStatus>((
   return ClinicOperatingStatusService.calculate(workHours);
 });
 
+final clinicSettingsProvider = FutureProvider<Clinic>((ref) async {
+  final session = await ref.watch(userSessionProvider.future);
+  if (!session.can(Permissions.clinicSettingsView)) return session.clinic;
+  return ref.watch(clinicRepositoryProvider).refreshClinicSettings();
+});
+
 /// A non-reserving preview for the active clinic. The repository assigns the
 /// final number inside the registration transaction, so this value can change.
 final hospitalNumberPreviewProvider = FutureProvider<HospitalNumberPreview>((

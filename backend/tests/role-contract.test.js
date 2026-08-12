@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 import { changeClinicUserRole } from '../src/routes/clinic-routes.js';
 import { defaultClinicRoleTemplates, ensureDefaultClinicRoles } from '../src/security/default-clinic-roles.js';
+import { clinicAdministratorPermissionKeys } from '../src/security/permission-catalog.js';
 import { publicUser } from '../src/services/auth-service.js';
 
 const roleUuid = '9c169399-c6d6-437c-8c55-74b0521d7600';
@@ -76,6 +77,58 @@ test('standard clinic roles are tenant-scoped, assignable, and receive permissio
     assert.equal(call.parameters[0], 'clinic-1');
     assert.equal(call.parameters[4], 'admin-1');
     assert.match(call.sql, /ON CONFLICT \(clinic_id, name\) DO UPDATE/);
+  }
+});
+
+test('settings permissions follow the administrative role policy', () => {
+  const settingsPermissions = [
+    'clinic_settings.view',
+    'clinic_settings.edit',
+    'clinic.work_hours.manage',
+  ];
+  const practiceManager = defaultClinicRoleTemplates.find(
+    (template) => template.code === 'practice_manager',
+  );
+  assert.ok(practiceManager);
+  for (const permission of settingsPermissions) {
+    assert.ok(practiceManager.permissions.includes(permission));
+    assert.ok(clinicAdministratorPermissionKeys.includes(permission));
+  }
+
+  const ordinaryRoleCodes = [
+    'veterinarian',
+    'veterinary_nurse',
+    'receptionist',
+    'laboratory_staff',
+    'pharmacist',
+    'cashier',
+    'inventory_officer',
+    'sales_representative',
+  ];
+  for (const roleCode of ordinaryRoleCodes) {
+    const template = defaultClinicRoleTemplates.find(
+      (candidate) => candidate.code === roleCode,
+    );
+    assert.ok(template, `Missing default role template: ${roleCode}`);
+    assert.equal(template.permissions.includes('clinic_settings.edit'), false);
+    assert.equal(template.permissions.includes('clinic.work_hours.manage'), false);
+    assert.equal(template.permissions.includes('clinic_settings.view'), false);
+  }
+});
+
+test('every default role permission exists in the production permission catalog', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/010_production_permission_catalog.sql', import.meta.url),
+    'utf8',
+  );
+  for (const template of defaultClinicRoleTemplates) {
+    for (const permission of template.permissions) {
+      assert.match(
+        migration,
+        new RegExp(`'${permission.replaceAll('.', '\\.')}'`),
+        `${template.code} references uncatalogued permission ${permission}`,
+      );
+    }
   }
 });
 

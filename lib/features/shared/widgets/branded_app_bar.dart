@@ -199,14 +199,6 @@ class _UserAvatarButton extends StatelessWidget {
                   context.push('/settings');
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.dark_mode_outlined),
-                title: const Text('Theme'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  context.push('/settings');
-                },
-              ),
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.logout_rounded),

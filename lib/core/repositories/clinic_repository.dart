@@ -892,18 +892,40 @@ class ClinicRepository {
 
   Future<ClinicWorkHoursConfig?> clinicWorkHours({String? clinicId}) async {
     final targetClinicId = clinicId ?? activeClinicId;
+    if (_apiClient != null && targetClinicId == activeClinicId) {
+      try {
+        final response = await _apiClient.get('/api/v1/clinic/work-hours');
+        final remote = ClinicWorkHoursConfig.fromJson(
+          response['workHours'] as Map<String, dynamic>,
+        );
+        await _cacheClinicWorkHours(remote);
+        return remote;
+      } on ApiException {
+        // Valid cached hours remain available while the backend is unreachable.
+      }
+    }
     final header = await (db.select(
       db.clinicWorkHours,
     )..where((item) => item.clinicId.equals(targetClinicId))).getSingleOrNull();
-    if (header == null) return null;
+    if (header == null) {
+      final clinic =
+          await (db.select(db.clinics)
+                ..where((item) => item.clinicId.equals(targetClinicId)))
+              .getSingleOrNull();
+      if (clinic == null) return null;
+      await _ensureClinicWorkHours(targetClinicId, timeZone: clinic.timeZone);
+    }
+    final resolvedHeader = await (db.select(
+      db.clinicWorkHours,
+    )..where((item) => item.clinicId.equals(targetClinicId))).getSingle();
     final rows = await (db.select(
       db.clinicWorkDays,
     )..where((item) => item.clinicId.equals(targetClinicId))).get();
     final byWeekday = {for (final row in rows) row.weekday: row};
     return ClinicWorkHoursConfig(
       clinicId: targetClinicId,
-      timeZone: header.timeZone,
-      isEnabled: header.isEnabled,
+      timeZone: resolvedHeader.timeZone,
+      isEnabled: resolvedHeader.isEnabled,
       days: [
         for (final weekday in clinicWeekdays)
           ClinicWorkDayConfig(
@@ -935,6 +957,16 @@ class ClinicRepository {
     }
     _validateClinicWorkHours(days);
     final previous = await clinicWorkHours();
+    if (_apiClient != null) {
+      await _apiClient.put(
+        '/api/v1/clinic/work-hours',
+        body: {
+          'timeZone': timeZone,
+          'isEnabled': isEnabled,
+          'days': days.map((day) => day.toJson()).toList(growable: false),
+        },
+      );
+    }
     final now = DateTime.now();
     await db.transaction(() async {
       await _ensureClinicWorkHours(activeClinicId, timeZone: timeZone);
@@ -991,6 +1023,39 @@ class ClinicRepository {
               createdAt: now,
             ),
           );
+    });
+  }
+
+  Future<void> _cacheClinicWorkHours(ClinicWorkHoursConfig config) async {
+    final now = DateTime.now();
+    await db.transaction(() async {
+      await _ensureClinicWorkHours(config.clinicId, timeZone: config.timeZone);
+      await (db.update(
+        db.clinicWorkHours,
+      )..where((row) => row.clinicId.equals(config.clinicId))).write(
+        ClinicWorkHoursCompanion(
+          timeZone: Value(config.timeZone),
+          isEnabled: Value(config.isEnabled),
+          updatedAt: Value(now),
+        ),
+      );
+      for (final day in config.days) {
+        await (db.update(db.clinicWorkDays)..where(
+              (row) =>
+                  row.clinicId.equals(config.clinicId) &
+                  row.weekday.equals(day.weekday),
+            ))
+            .write(
+              ClinicWorkDaysCompanion(
+                isOpen: Value(day.isOpen),
+                openingTime: Value(day.openingTime),
+                closingTime: Value(day.closingTime),
+                breakStart: Value(day.breakStart),
+                breakEnd: Value(day.breakEnd),
+                updatedAt: Value(now),
+              ),
+            );
+      }
     });
   }
 
@@ -1325,6 +1390,9 @@ class ClinicRepository {
             ),
           );
     });
+    if (remote.clinicId != null) {
+      await _ensureClinicWorkHours(clinicId, timeZone: 'Africa/Lagos');
+    }
     final user = await (db.select(
       db.appUsers,
     )..where((item) => item.userId.equals(remote.userId))).getSingle();
@@ -2855,6 +2923,136 @@ class ClinicRepository {
             : Value(themeColor),
       ),
     );
+  }
+
+  Future<Clinic> refreshClinicSettings() async {
+    if (_apiClient != null) {
+      try {
+        final response = await _apiClient.get('/api/v1/clinic/settings');
+        final value = response['clinic'] as Map<String, dynamic>;
+        await (db.update(
+          db.clinics,
+        )..where((clinic) => clinic.clinicId.equals(activeClinicId))).write(
+          ClinicsCompanion(
+            clinicName: Value(value['name'] as String),
+            email: Value(value['email'] as String?),
+            phoneNumber: Value(value['phone'] as String?),
+            address: Value(value['address'] as String?),
+            city: Value(value['city'] as String?),
+            country: Value(value['country'] as String?),
+            timeZone: Value(value['timeZone'] as String? ?? 'Africa/Lagos'),
+            logo: Value(value['logoUrl'] as String?),
+            banner: Value(value['bannerUrl'] as String?),
+            themeColor: Value(value['themeColor'] as String? ?? '#087F7B'),
+          ),
+        );
+      } on ApiException {
+        // The cached settings remain useful during a temporary outage.
+      }
+    }
+    return (db.select(
+      db.clinics,
+    )..where((clinic) => clinic.clinicId.equals(activeClinicId))).getSingle();
+  }
+
+  Future<void> updateClinicInformation({
+    required UserSession session,
+    required String name,
+    required String? email,
+    required String? phone,
+    required String? address,
+    required String? city,
+    required String? country,
+    required String timeZone,
+  }) async {
+    if (!session.can(Permissions.clinicSettingsEdit)) {
+      throw StateError('You do not have permission to edit clinic settings.');
+    }
+    if (session.clinic.clinicId != activeClinicId) {
+      throw StateError('Clinic settings can only be changed in this clinic.');
+    }
+    final normalizedName = name.trim();
+    if (normalizedName.length < 2) throw ArgumentError('Enter a clinic name.');
+    String? optional(String? value) {
+      final normalized = value?.trim();
+      return normalized == null || normalized.isEmpty ? null : normalized;
+    }
+
+    if (_apiClient != null) {
+      await _apiClient.patch(
+        '/api/v1/clinic/settings',
+        body: {
+          'name': normalizedName,
+          'email': optional(email),
+          'phone': optional(phone),
+          'address': optional(address),
+          'city': optional(city),
+          'country': optional(country),
+          'timeZone': timeZone,
+        },
+      );
+    }
+    await (db.update(
+      db.clinics,
+    )..where((clinic) => clinic.clinicId.equals(activeClinicId))).write(
+      ClinicsCompanion(
+        clinicName: Value(normalizedName),
+        email: Value(optional(email)),
+        phoneNumber: Value(optional(phone)),
+        address: Value(optional(address)),
+        city: Value(optional(city)),
+        country: Value(optional(country)),
+        timeZone: Value(timeZone),
+      ),
+    );
+  }
+
+  Future<void> updateClinicBrandAsset({
+    required UserSession session,
+    required String kind,
+    required String localPath,
+    required String contentType,
+    required String base64Data,
+  }) async {
+    if (!session.can(Permissions.clinicSettingsEdit)) {
+      throw StateError('You do not have permission to edit clinic branding.');
+    }
+    String reference = localPath;
+    if (_apiClient != null) {
+      final response = await _apiClient.post(
+        '/api/v1/clinic/branding',
+        authenticated: true,
+        body: {'kind': kind, 'contentType': contentType, 'data': base64Data},
+      );
+      reference = response['url'] as String? ?? '';
+      if (reference.isEmpty) {
+        throw StateError('The clinic image could not be uploaded.');
+      }
+    }
+    await updateClinicBranding(
+      logo: kind == 'logo' ? reference : null,
+      banner: kind == 'banner' ? reference : null,
+    );
+  }
+
+  Future<void> updateClinicThemeColor({
+    required UserSession session,
+    required String color,
+  }) async {
+    if (!session.can(Permissions.clinicSettingsEdit)) {
+      throw StateError('You do not have permission to edit clinic branding.');
+    }
+    final normalized = color.toUpperCase();
+    if (!RegExp(r'^#[0-9A-F]{6}$').hasMatch(normalized)) {
+      throw ArgumentError('Choose a valid clinic theme color.');
+    }
+    if (_apiClient != null) {
+      await _apiClient.patch(
+        '/api/v1/clinic/theme-color',
+        body: {'color': normalized},
+      );
+    }
+    await updateClinicBranding(themeColor: normalized);
   }
 
   Future<void> _ensureDefaultProtocols(String clinicId) async {

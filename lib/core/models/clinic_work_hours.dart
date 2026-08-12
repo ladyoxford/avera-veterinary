@@ -38,6 +38,16 @@ class ClinicWorkDayConfig {
     'breakStart': breakStart,
     'breakEnd': breakEnd,
   };
+
+  factory ClinicWorkDayConfig.fromJson(Map<String, dynamic> json) =>
+      ClinicWorkDayConfig(
+        weekday: json['weekday'] as String,
+        isOpen: json['isOpen'] as bool? ?? false,
+        openingTime: json['openingTime'] as String?,
+        closingTime: json['closingTime'] as String?,
+        breakStart: json['breakStart'] as String?,
+        breakEnd: json['breakEnd'] as String?,
+      );
 }
 
 class ClinicWorkHoursConfig {
@@ -66,6 +76,17 @@ class ClinicWorkHoursConfig {
     'isEnabled': isEnabled,
     'days': days.map((day) => day.toJson()).toList(),
   };
+
+  factory ClinicWorkHoursConfig.fromJson(Map<String, dynamic> json) =>
+      ClinicWorkHoursConfig(
+        clinicId: json['clinicId'] as String,
+        timeZone: json['timeZone'] as String? ?? 'Africa/Lagos',
+        isEnabled: json['isEnabled'] as bool? ?? true,
+        days: (json['days'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(ClinicWorkDayConfig.fromJson)
+            .toList(growable: false),
+      );
 }
 
 const clinicWeekdays = <String>[

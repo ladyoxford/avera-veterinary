@@ -486,3 +486,28 @@ test('recent activity orders appointments by lifecycle activity, not future visi
     /SELECT 'Schedule', 'Schedule', 'Schedule', schedule_entry_id, patient_id,\s+coalesce\(updated_at, created_at\), visit_type, status/,
   );
 });
+
+test('clinic settings migration provisions durable work hours and branding', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/019_clinic_settings_and_work_hours.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS clinic_work_hours/);
+  assert.match(migration, /days JSONB NOT NULL/);
+  assert.match(migration, /INSERT INTO clinic_work_hours/);
+  assert.match(migration, /ON CONFLICT \(clinic_id\) DO NOTHING/);
+  assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS banner_path/);
+  assert.match(migration, /clinic_branding_primary_color_format/);
+
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinic-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(routes, /\/api\/v1\/clinic\/settings/);
+  assert.match(routes, /\/api\/v1\/clinic\/work-hours/);
+  assert.match(routes, /\/api\/v1\/clinic\/branding/);
+  assert.match(routes, /\/api\/v1\/clinic\/theme-color/);
+  assert.match(routes, /clinic\.work_hours_updated/);
+  assert.match(routes, /clinic\.theme_color_updated/);
+});

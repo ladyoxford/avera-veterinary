@@ -158,11 +158,11 @@ class AppTheme {
   static const _darkBackground = Color(0xFF101418);
   static const _darkCard = Color(0xFF1F2630);
 
-  static ThemeData light() {
+  static ThemeData light({Color accentColor = primary}) {
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: primary,
-          primary: primary,
+          seedColor: accentColor,
+          primary: accentColor,
           secondary: secondary,
           tertiary: accent,
           surface: lightSurface,
@@ -187,12 +187,12 @@ class AppTheme {
     );
   }
 
-  static ThemeData dark() {
+  static ThemeData dark({Color accentColor = primary}) {
     final scheme =
         ColorScheme.fromSeed(
           brightness: Brightness.dark,
-          seedColor: primary,
-          primary: primary,
+          seedColor: accentColor,
+          primary: accentColor,
           secondary: secondary,
           tertiary: accent,
           surface: darkSurface,

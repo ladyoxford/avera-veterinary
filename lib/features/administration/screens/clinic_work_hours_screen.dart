@@ -45,15 +45,20 @@ class _ClinicWorkHoursScreenState extends ConsumerState<ClinicWorkHoursScreen> {
       appBar: AppBar(title: const Text('Work Hours')),
       body: session.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const _WorkHoursMessage(
+        error: (_, __) => _WorkHoursMessage(
           title: 'Work hours unavailable',
           message: 'Sign in again to review this clinic setting.',
+          onRetry: () {
+            ref.invalidate(userSessionProvider);
+            ref.invalidate(clinicWorkHoursProvider);
+          },
         ),
         data: (userSession) => workHours.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => const _WorkHoursMessage(
+          error: (_, __) => _WorkHoursMessage(
             title: 'Work hours unavailable',
             message: 'Try again shortly. Your clinic data is safe.',
+            onRetry: () => ref.invalidate(clinicWorkHoursProvider),
           ),
           data: (config) {
             if (config == null) {
@@ -388,9 +393,14 @@ class _PreviewCard extends StatelessWidget {
 }
 
 class _WorkHoursMessage extends StatelessWidget {
-  const _WorkHoursMessage({required this.title, required this.message});
+  const _WorkHoursMessage({
+    required this.title,
+    required this.message,
+    this.onRetry,
+  });
   final String title;
   final String message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -404,6 +414,10 @@ class _WorkHoursMessage extends StatelessWidget {
           Text(title, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 6),
           Text(message, textAlign: TextAlign.center),
+          if (onRetry != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
         ],
       ),
     ),

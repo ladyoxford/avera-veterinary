@@ -538,6 +538,22 @@ final appRouter = GoRouter(
           builder: (context, state) => const SettingsScreen(),
         ),
         GoRoute(
+          path: '/settings/clinic-information',
+          builder: (context, state) => const ClinicInformationScreen(),
+        ),
+        GoRoute(
+          path: '/settings/about',
+          builder: (context, state) => const AboutAveraScreen(),
+        ),
+        GoRoute(
+          path: '/settings/support',
+          builder: (context, state) => const SupportScreen(),
+        ),
+        GoRoute(
+          path: '/settings/privacy',
+          builder: (context, state) => const PrivacyPolicyScreen(),
+        ),
+        GoRoute(
           path: '/settings/work-hours',
           builder: (context, state) => const ClinicWorkHoursScreen(),
         ),

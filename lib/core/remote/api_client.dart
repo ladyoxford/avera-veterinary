@@ -98,6 +98,18 @@ class ApiClient {
     authenticated: authenticated,
     retry: retry,
   );
+  Future<Map<String, dynamic>> put(
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = true,
+    bool retry = true,
+  }) => _request(
+    'PUT',
+    path,
+    body: body,
+    authenticated: authenticated,
+    retry: retry,
+  );
   Future<Map<String, dynamic>> delete(
     String path, {
     bool authenticated = true,
@@ -137,6 +149,7 @@ class ApiClient {
         'GET' => _client.get(uri, headers: headers),
         'DELETE' => _client.delete(uri, headers: headers),
         'PATCH' => _client.patch(uri, headers: headers, body: encodedBody),
+        'PUT' => _client.put(uri, headers: headers, body: encodedBody),
         _ => _client.post(uri, headers: headers, body: encodedBody),
       };
       final response = await request.timeout(

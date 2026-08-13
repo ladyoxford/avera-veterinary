@@ -1,9 +1,12 @@
 import 'package:avera/core/config/app_providers.dart';
 import 'package:avera/core/database/app_database.dart';
+import 'package:avera/core/models/clinic_work_hours.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
 import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/core/theme/theme_controller.dart';
+import 'package:avera/features/administration/screens/clinic_work_hours_screen.dart';
 import 'package:avera/features/shared/screens/settings_screen.dart';
+import 'package:avera/features/shared/widgets/avera_ui.dart';
 import 'package:avera/features/shared/widgets/branded_app_bar.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -96,6 +99,104 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+    'clinic information uses external AVERA labels on a narrow phone',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: providerOverrides,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const ClinicInformationScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AveraLabeledTextField), findsWidgets);
+      expect(find.text('CLINIC NAME'), findsOneWidget);
+      expect(find.text('CLINIC EMAIL'), findsOneWidget);
+      for (final decorator in tester.widgetList<InputDecorator>(
+        find.descendant(
+          of: find.byType(ClinicInformationScreen),
+          matching: find.byType(InputDecorator),
+        ),
+      )) {
+        expect(decorator.decoration.labelText, isNull);
+      }
+      await tester.drag(find.byType(ListView), const Offset(0, -520));
+      await tester.pumpAndSettle();
+      expect(find.text('TIME ZONE'), findsWidgets);
+      for (final decorator in tester.widgetList<InputDecorator>(
+        find.descendant(
+          of: find.byType(ClinicInformationScreen),
+          matching: find.byType(InputDecorator),
+        ),
+      )) {
+        expect(decorator.decoration.labelText, isNull);
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('work hours uses AVERA cards without narrow-screen overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final workHours = ClinicWorkHoursConfig(
+      clinicId: session.clinic.clinicId,
+      timeZone: 'Africa/Lagos',
+      isEnabled: true,
+      days: [
+        for (final weekday in clinicWeekdays)
+          ClinicWorkDayConfig(
+            weekday: weekday,
+            isOpen: weekday != 'sunday',
+            openingTime: weekday == 'sunday' ? null : '08:00',
+            closingTime: weekday == 'sunday' ? null : '18:00',
+          ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...providerOverrides,
+          clinicWorkHoursProvider.overrideWith((ref) async => workHours),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: const ClinicWorkHoursScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AveraLabeledSwitchField), findsOneWidget);
+    expect(find.byType(AveraLabeledDropdownField<String>), findsOneWidget);
+    expect(find.text('AVAILABILITY'), findsOneWidget);
+    expect(find.text('TIME ZONE'), findsOneWidget);
+    final timeZoneDecorator = tester.widget<InputDecorator>(
+      find.descendant(
+        of: find.byType(AveraLabeledDropdownField<String>),
+        matching: find.byType(InputDecorator),
+      ),
+    );
+    expect(timeZoneDecorator.decoration.labelText, isNull);
+    await tester.scrollUntilVisible(find.text('Mon'), 250);
+    expect(find.text('OPENS'), findsOneWidget);
+    expect(find.text('CLOSES'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('avatar sheet contains account actions and no Theme action', (
     tester,

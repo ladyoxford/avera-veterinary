@@ -14,6 +14,7 @@ import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_controller.dart';
+import '../widgets/avera_ui.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -725,13 +726,14 @@ class _ClinicInformationScreenState
     int maxLines = 1,
     TextInputType? keyboardType,
   }) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: TextFormField(
+    padding: const EdgeInsets.only(bottom: AveraSpacing.cardGap),
+    child: AveraLabeledTextField(
+      label: label,
       controller: controller,
+      hintText: 'Enter $label',
       enabled: enabled,
       maxLines: maxLines,
       keyboardType: keyboardType,
-      decoration: InputDecoration(labelText: label),
       validator: required
           ? (value) => value == null || value.trim().isEmpty
                 ? '$label is required.'

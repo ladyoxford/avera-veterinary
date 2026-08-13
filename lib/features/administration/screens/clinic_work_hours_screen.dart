@@ -7,6 +7,8 @@ import '../../../core/models/clinic_work_hours.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/clinic_operating_status_service.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../shared/widgets/avera_ui.dart';
 
 class ClinicWorkHoursScreen extends ConsumerStatefulWidget {
   const ClinicWorkHoursScreen({super.key});
@@ -39,8 +41,6 @@ class _ClinicWorkHoursScreenState extends ConsumerState<ClinicWorkHoursScreen> {
   Widget build(BuildContext context) {
     final session = ref.watch(userSessionProvider);
     final workHours = ref.watch(clinicWorkHoursProvider);
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Work Hours')),
       body: session.when(
@@ -70,32 +70,34 @@ class _ClinicWorkHoursScreenState extends ConsumerState<ClinicWorkHoursScreen> {
             _hydrate(config);
             final canManage = _canManage(userSession);
             return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+              padding: const EdgeInsets.fromLTRB(
+                AveraSpacing.pageHorizontalPadding,
+                AveraSpacing.pageTopPadding,
+                AveraSpacing.pageHorizontalPadding,
+                AveraSpacing.bottomContentClearance,
+              ),
               children: [
-                Text('Clinic work hours', style: theme.textTheme.headlineSmall),
-                const SizedBox(height: 6),
-                Text(
-                  canManage
+                AveraPageHeader(
+                  title: 'Clinic schedule',
+                  subtitle: canManage
                       ? 'Set opening hours, breaks, and the clinic time zone.'
                       : 'Contact your clinic administrator to update work hours.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
                 ),
-                const SizedBox(height: 20),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Work hours enabled'),
-                  subtitle: const Text('Show operating status to clinic staff'),
+                const SizedBox(height: AveraSpacing.sectionGap),
+                AveraLabeledSwitchField(
+                  label: 'Availability',
+                  title: 'Work hours enabled',
+                  subtitle: 'Show operating status to clinic staff',
                   value: _enabled,
                   onChanged: canManage
                       ? (value) => setState(() => _enabled = value)
                       : null,
                 ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
+                const SizedBox(height: AveraSpacing.cardGap),
+                AveraLabeledDropdownField<String>(
+                  label: 'Time zone',
+                  hintText: 'Select time zone',
                   value: _timeZone,
-                  decoration: const InputDecoration(labelText: 'Time zone'),
                   items: const [
                     DropdownMenuItem(
                       value: 'Africa/Lagos',
@@ -108,9 +110,12 @@ class _ClinicWorkHoursScreenState extends ConsumerState<ClinicWorkHoursScreen> {
                             setState(() => _timeZone = value ?? _timeZone)
                       : null,
                 ),
-                const SizedBox(height: 22),
-                Text('Working days', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SizedBox(height: AveraSpacing.sectionGap),
+                const AveraSectionHeader(
+                  title: 'Working days',
+                  subtitle: 'Choose opening, closing, and break times.',
+                ),
+                const SizedBox(height: AveraSpacing.cardGap),
                 for (var index = 0; index < _days.length; index++)
                   _WorkDayEditor(
                     day: _days[index],
@@ -257,22 +262,25 @@ class _WorkDayEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canEditTimes = enabled && day.isOpen;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AveraSpacing.cardGap),
+      child: AveraSurfaceCard(
+        outlined: true,
         child: Column(
           children: [
             Row(
               children: [
-                SizedBox(
-                  width: 46,
+                Expanded(
                   child: Text(
                     clinicWeekdayLabels[day.weekday]!,
-                    style: Theme.of(context).textTheme.titleSmall,
+                    style: averaText(context).listItemTitle,
                   ),
                 ),
-                Expanded(child: Text(day.isOpen ? 'Open' : 'Closed')),
+                Text(
+                  day.isOpen ? 'Open' : 'Closed',
+                  style: averaText(context).caption,
+                ),
+                const SizedBox(width: AveraSpacing.compactRowGap),
                 Switch.adaptive(
                   value: day.isOpen,
                   onChanged: enabled
@@ -285,7 +293,7 @@ class _WorkDayEditor extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: _TimeButton(
+                    child: _TimeField(
                       label: 'Opens',
                       value: day.openingTime ?? '08:00',
                       enabled: canEditTimes,
@@ -295,7 +303,7 @@ class _WorkDayEditor extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _TimeButton(
+                    child: _TimeField(
                       label: 'Closes',
                       value: day.closingTime ?? '18:00',
                       enabled: canEditTimes,
@@ -335,8 +343,8 @@ class _WorkDayEditor extends StatelessWidget {
   }
 }
 
-class _TimeButton extends StatelessWidget {
-  const _TimeButton({
+class _TimeField extends StatelessWidget {
+  const _TimeField({
     required this.label,
     required this.value,
     required this.enabled,
@@ -349,15 +357,37 @@ class _TimeButton extends StatelessWidget {
   final ValueChanged<String> onSelected;
 
   @override
-  Widget build(BuildContext context) => OutlinedButton(
-    onPressed: enabled
-        ? () async {
-            final selected = await _pickTime(context, value);
-            if (selected != null) onSelected(selected);
-          }
-        : null,
-    child: Text(
-      '$label ${DateFormat('HH:mm').format(DateFormat('HH:mm').parseStrict(value))}',
+  Widget build(BuildContext context) => AveraLabeledFieldCard(
+    label: label,
+    child: InkWell(
+      onTap: enabled
+          ? () async {
+              final selected = await _pickTime(context, value);
+              if (selected != null) onSelected(selected);
+            }
+          : null,
+      child: Row(
+        children: [
+          Icon(
+            Icons.schedule_rounded,
+            size: 20,
+            color: enabled
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).disabledColor,
+          ),
+          const SizedBox(width: AveraSpacing.compactRowGap),
+          Expanded(
+            child: Text(
+              DateFormat(
+                'HH:mm',
+              ).format(DateFormat('HH:mm').parseStrict(value)),
+              style: averaText(context).fieldValue.copyWith(
+                color: enabled ? null : Theme.of(context).disabledColor,
+              ),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -377,17 +407,15 @@ class _PreviewCard extends StatelessWidget {
   final String summary;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Preview', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
-          Text(summary),
-        ],
-      ),
+  Widget build(BuildContext context) => AveraSurfaceCard(
+    outlined: true,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Preview', style: averaText(context).listItemTitle),
+        const SizedBox(height: 8),
+        Text(summary, style: averaText(context).listItemSubtitle),
+      ],
     ),
   );
 }

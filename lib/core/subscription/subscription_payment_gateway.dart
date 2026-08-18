@@ -140,6 +140,47 @@ class SubscriptionPaymentRecord {
       );
 }
 
+class SubscriptionPaymentVerification {
+  const SubscriptionPaymentVerification({
+    required this.payment,
+    required this.subscription,
+    required this.verified,
+    required this.mode,
+    required this.subscriptionApplied,
+  });
+
+  final SubscriptionPaymentRecord? payment;
+  final ServerClinicSubscription? subscription;
+  final bool verified;
+  final String mode;
+  final bool subscriptionApplied;
+
+  bool get isTestMode => mode == 'test';
+
+  factory SubscriptionPaymentVerification.fromJson(Map<String, dynamic> json) {
+    final paymentValue = json['payment'];
+    final subscriptionValue = json['subscription'];
+    final payment = paymentValue is Map<String, dynamic>
+        ? SubscriptionPaymentRecord.fromJson(paymentValue)
+        : null;
+    final subscription = subscriptionValue is Map<String, dynamic>
+        ? ServerClinicSubscription.fromJson(subscriptionValue)
+        : null;
+    final subscriptionApplied =
+        json['subscriptionApplied'] as bool? ?? subscription != null;
+    return SubscriptionPaymentVerification(
+      payment: payment,
+      subscription: subscription,
+      verified:
+          json['verified'] as bool? ??
+          subscription != null || payment?.status.toLowerCase() == 'successful',
+      mode:
+          json['mode'] as String? ?? (subscriptionApplied ? 'live' : 'unknown'),
+      subscriptionApplied: subscriptionApplied,
+    );
+  }
+}
+
 class SubscriptionCheckoutSession {
   const SubscriptionCheckoutSession({
     required this.authorizationUrl,
@@ -173,7 +214,7 @@ abstract interface class SubscriptionPaymentGateway {
     required SubscriptionPlan plan,
     required SubscriptionBillingCycle billingCycle,
   });
-  Future<ServerClinicSubscription?> verifyPayment(String reference);
+  Future<SubscriptionPaymentVerification> verifyPayment(String reference);
   Future<ServerClinicSubscription> cancelRenewal(String clinicId);
   Future<ServerClinicSubscription> reactivateSubscription(String clinicId);
 }
@@ -240,14 +281,13 @@ class PaystackSubscriptionGateway implements SubscriptionPaymentGateway {
   }
 
   @override
-  Future<ServerClinicSubscription?> verifyPayment(String reference) async {
+  Future<SubscriptionPaymentVerification> verifyPayment(
+    String reference,
+  ) async {
     final response = await _client.get(
       '/api/v1/subscriptions/payments/paystack/verify/${Uri.encodeComponent(reference)}',
     );
-    final value = response['subscription'];
-    return value is Map<String, dynamic>
-        ? ServerClinicSubscription.fromJson(value)
-        : null;
+    return SubscriptionPaymentVerification.fromJson(response);
   }
 
   @override
@@ -317,8 +357,9 @@ class UnconfiguredSubscriptionPaymentGateway
   }) async => _unavailable();
 
   @override
-  Future<ServerClinicSubscription?> verifyPayment(String reference) async =>
-      _unavailable();
+  Future<SubscriptionPaymentVerification> verifyPayment(
+    String reference,
+  ) async => _unavailable();
 
   @override
   Future<ServerClinicSubscription> cancelRenewal(String clinicId) async =>

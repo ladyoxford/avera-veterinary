@@ -74,6 +74,8 @@ export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
   );
   const subscriptionGateway = new PaystackSubscriptionGateway({
     secretKey: environment.PAYSTACK_SECRET_KEY,
+    publicKey: environment.PAYSTACK_PUBLIC_KEY,
+    mode: environment.PAYSTACK_MODE,
   });
   app.decorate(
     'subscriptionService',

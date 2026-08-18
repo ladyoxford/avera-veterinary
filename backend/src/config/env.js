@@ -12,6 +12,7 @@ const schema = z.object({
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
   ENABLE_LOCAL_DEVELOPMENT_AUTH: z.enum(['true', 'false']).default('false'),
   ENABLE_DEMO_DATA_GENERATOR: z.enum(['true', 'false']).default('false'),
+  PAYSTACK_MODE: z.enum(['test', 'live']).optional(),
   PAYSTACK_SECRET_KEY: z.string().min(1).optional(),
   PAYSTACK_PUBLIC_KEY: z.string().min(1).optional(),
   PAYSTACK_WEBHOOK_SECRET: z.string().min(1).optional(),

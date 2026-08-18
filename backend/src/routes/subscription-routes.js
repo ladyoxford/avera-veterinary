@@ -21,13 +21,14 @@ export async function subscriptionRoutes(app) {
   };
   const verifyPaystack = async (request, reply) =>
     handle(reply, async () => {
-      const result = await service.verifyAndApply(
+      const result = await service.verifyConfiguredPayment(
         request.params.reference,
         request.auth,
       );
       if (
-        !result.subscription ||
-        !canAccessClinic(request.auth, result.subscription.clinicId)
+        (result.subscriptionApplied && !result.subscription) ||
+        (result.subscription &&
+          !canAccessClinic(request.auth, result.subscription.clinicId))
       ) {
         return forbidden(reply);
       }

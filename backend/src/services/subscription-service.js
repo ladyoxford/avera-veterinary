@@ -89,6 +89,7 @@ export class SubscriptionService {
   }
 
   async initializeCheckout({ auth, clinicId, planCode, billingCycle }) {
+    this.#paymentMode();
     const cycle = normalizeCycle(billingCycle);
     const result = await withTenantTransaction(
       this.pool,
@@ -119,11 +120,18 @@ export class SubscriptionService {
             ? plan.annual_amount_minor
             : plan.monthly_amount_minor;
         const gatewayPlanCode = this.#configuredPlanCode(plan.plan_key, cycle);
-        if (amountMinor == null || !gatewayPlanCode || !this.gateway.configured) {
+        if (amountMinor == null || !gatewayPlanCode) {
           throw serviceError(
             'plan_not_configured',
             `${plan.display_name} ${cycle} billing has not been configured.`,
             409,
+          );
+        }
+        if (!this.gateway.configured) {
+          throw serviceError(
+            this.gateway.configurationError ?? 'gateway_not_configured',
+            'Paystack payment configuration is unavailable.',
+            503,
           );
         }
         const billingUser = (
@@ -209,65 +217,69 @@ export class SubscriptionService {
     }
   }
 
+  async verifyConfiguredPayment(reference, auth = null) {
+    return this.#paymentMode() === 'test'
+      ? this.verifyOnly(reference, auth)
+      : this.verifyAndApply(reference, auth);
+  }
+
+  async verifyOnly(reference, auth = null) {
+    const { expected, verified, alreadySuccessful } =
+      await this.#verifyExpectedPayment(reference, auth, 'test');
+    if (alreadySuccessful) return this.#verificationOnlyResult(expected);
+    return withTenantTransaction(
+      this.pool,
+      { clinicId: expected.clinic_id, isPlatformOwner: true },
+      async (client) => {
+        const locked = (
+          await client.query(
+            `SELECT * FROM subscription_payment_transactions
+              WHERE reference = $1 FOR UPDATE`,
+            [reference],
+          )
+        ).rows[0];
+        if (locked.status === 'Successful') {
+          return this.#verificationOnlyResult(locked);
+        }
+        const paidAt = verified.paid_at ? new Date(verified.paid_at) : new Date();
+        const summary = {
+          gatewayStatus: verified.status,
+          mode: 'test',
+          subscriptionApplied: false,
+        };
+        const updated = (
+          await client.query(
+            `UPDATE subscription_payment_transactions
+                SET status = 'Successful', payment_channel = $2,
+                    gateway_transaction_id = $3, paid_at = $4,
+                    updated_at = now(), gateway_response_summary = $5::jsonb
+              WHERE reference = $1 RETURNING *`,
+            [
+              reference,
+              verified.channel ?? null,
+              verified.id == null ? null : String(verified.id),
+              paidAt,
+              JSON.stringify(summary),
+            ],
+          )
+        ).rows[0] ?? {
+          ...locked,
+          status: 'Successful',
+          payment_channel: verified.channel ?? null,
+          gateway_transaction_id:
+            verified.id == null ? null : String(verified.id),
+          paid_at: paidAt,
+          gateway_response_summary: summary,
+        };
+        return this.#verificationOnlyResult(updated);
+      },
+    );
+  }
+
   async verifyAndApply(reference, auth = null) {
-    const expected = (
-      await this.pool.query(
-        `SELECT * FROM subscription_payment_transactions WHERE reference = $1`,
-        [reference],
-      )
-    ).rows[0];
-    if (!expected) {
-      throw serviceError('payment_not_found', 'The payment reference was not found.', 404);
-    }
-    if (
-      auth &&
-      auth.clinicId !== expected.clinic_id &&
-      auth.accountType !== 'PlatformOwner' &&
-      auth.accountType !== 'PlatformAdministrator'
-    ) {
-      throw serviceError(
-        'forbidden',
-        'You cannot manage subscriptions for this clinic.',
-        403,
-      );
-    }
-    if (expected.status === 'Successful') {
-      return this.#verificationResult(expected);
-    }
-    const verified = await this.gateway.verifyPayment(reference);
-    if (
-      ['pending', 'ongoing', 'processing'].includes(
-        String(verified?.status).toLowerCase(),
-      )
-    ) {
-      throw serviceError(
-        'payment_pending',
-        'Paystack has not confirmed this payment yet.',
-        409,
-      );
-    }
-    const verificationError = validateVerifiedPayment(expected, verified);
-    if (verificationError != null) {
-      await this.#markVerificationFailure(expected, verified);
-      throw serviceError(
-        verificationError,
-        'The payment details could not be verified.',
-        409,
-      );
-    }
-    const metadata = normalizeMetadata(verified.metadata);
-    if (
-      metadata.clinicId !== expected.clinic_id ||
-      metadata.planCode !== expected.plan_code ||
-      normalizeCycle(metadata.billingCycle) !== expected.billing_cycle
-    ) {
-      await this.#markVerificationFailure(expected, verified);
-      throw serviceError(
-        'payment_metadata_mismatch',
-        'The payment does not match this clinic subscription.',
-        409,
-      );
-    }
+    const { expected, verified, alreadySuccessful } =
+      await this.#verifyExpectedPayment(reference, auth, 'live');
+    if (alreadySuccessful) return this.#verificationResult(expected);
     return withTenantTransaction(
       this.pool,
       { clinicId: expected.clinic_id, isPlatformOwner: true },
@@ -358,6 +370,9 @@ export class SubscriptionService {
         return {
           payment: { ...mapPayment(locked), status: 'Successful', paidAt },
           subscription: mapSubscription(subscription),
+          verified: true,
+          mode: 'live',
+          subscriptionApplied: true,
         };
       },
     );
@@ -376,6 +391,7 @@ export class SubscriptionService {
   }
 
   async persistWebhook({ event, rawBody, payloadHash }) {
+    const mode = this.#paymentMode();
     const identity = webhookIdentity(event, payloadHash);
     const inserted = await this.pool.query(
       `INSERT INTO payment_webhook_events
@@ -388,8 +404,9 @@ export class SubscriptionService {
     if (inserted.rowCount === 0) return { duplicate: true };
     try {
       if (event.event === 'charge.success' && event.data?.reference) {
-        await this.verifyAndApply(event.data.reference);
-      } else {
+        if (mode === 'test') await this.verifyOnly(event.data.reference);
+        else await this.verifyAndApply(event.data.reference);
+      } else if (mode === 'live') {
         await this.#applySubscriptionEvent(event);
       }
       await this.pool.query(
@@ -499,12 +516,114 @@ export class SubscriptionService {
     );
   }
 
+  async #verifyExpectedPayment(reference, auth, mode) {
+    const expected = (
+      await this.pool.query(
+        `SELECT * FROM subscription_payment_transactions WHERE reference = $1`,
+        [reference],
+      )
+    ).rows[0];
+    if (!expected) {
+      throw serviceError('payment_not_found', 'The payment reference was not found.', 404);
+    }
+    if (
+      auth &&
+      auth.clinicId !== expected.clinic_id &&
+      auth.accountType !== 'PlatformOwner' &&
+      auth.accountType !== 'PlatformAdministrator'
+    ) {
+      throw serviceError(
+        'forbidden',
+        'You cannot manage subscriptions for this clinic.',
+        403,
+      );
+    }
+    if (expected.status === 'Successful') {
+      const summary = normalizeMetadata(expected.gateway_response_summary);
+      const storedMode = summary.mode ??
+        (expected.subscription_id != null ? 'live' : null);
+      if (storedMode && storedMode !== mode) {
+        throw serviceError(
+          'payment_mode_mismatch',
+          'The payment mode does not match this environment.',
+          409,
+        );
+      }
+      return { expected, verified: null, alreadySuccessful: true };
+    }
+    const verified = await this.gateway.verifyPayment(reference);
+    if (
+      ['pending', 'ongoing', 'processing'].includes(
+        String(verified?.status).toLowerCase(),
+      )
+    ) {
+      throw serviceError(
+        'payment_pending',
+        'Paystack has not confirmed this payment yet.',
+        409,
+      );
+    }
+    const verificationError =
+      validateVerifiedPayment(expected, verified) ??
+      validatePaystackDomain(mode, verified?.domain);
+    if (verificationError != null) {
+      await this.#markVerificationFailure(expected, verified);
+      throw serviceError(
+        verificationError,
+        'The payment details could not be verified.',
+        409,
+      );
+    }
+    const metadata = normalizeMetadata(verified.metadata);
+    if (
+      metadata.clinicId !== expected.clinic_id ||
+      metadata.planCode !== expected.plan_code ||
+      normalizeCycle(metadata.billingCycle) !== expected.billing_cycle
+    ) {
+      await this.#markVerificationFailure(expected, verified);
+      throw serviceError(
+        'payment_metadata_mismatch',
+        'The payment does not match this clinic subscription.',
+        409,
+      );
+    }
+    return { expected, verified, alreadySuccessful: false };
+  }
+
   async #verificationResult(payment) {
     const subscription = await this.getClinicSubscription(
       { clinicId: payment.clinic_id, accountType: 'PlatformOwner' },
       payment.clinic_id,
     );
-    return { payment: mapPayment(payment), subscription };
+    return {
+      payment: mapPayment(payment),
+      subscription,
+      verified: true,
+      mode: 'live',
+      subscriptionApplied: true,
+    };
+  }
+
+  #verificationOnlyResult(payment) {
+    return {
+      payment: mapPayment(payment),
+      subscription: null,
+      verified: true,
+      mode: 'test',
+      subscriptionApplied: false,
+    };
+  }
+
+  #paymentMode() {
+    const mode = this.environment.PAYSTACK_MODE;
+    if (mode !== 'test' && mode !== 'live') {
+      throw serviceError(
+        'payment_mode_not_configured',
+        'Paystack payment mode has not been configured.',
+        503,
+      );
+    }
+    return mode;
   }
 
   #configuredPlanCode(planKey, billingCycle) {
@@ -541,6 +660,15 @@ export function validateVerifiedPayment(expected, verified) {
     return 'payment_currency_mismatch';
   }
   return null;
+}
+
+export function validatePaystackDomain(mode, domain) {
+  if (domain == null) return null;
+  const normalized = String(domain).toLowerCase();
+  if (normalized !== 'test' && normalized !== 'live') {
+    return 'payment_domain_invalid';
+  }
+  return normalized === mode ? null : 'payment_mode_mismatch';
 }
 
 function tenantContext(auth, clinicId) {

@@ -320,10 +320,10 @@ class _SubscriptionPlansScreenState
     if (reference == null) return;
     setState(() => _working = true);
     try {
-      final subscription = await ref
+      final verification = await ref
           .read(subscriptionPaymentGatewayProvider)
           .verifyPayment(reference);
-      if (subscription == null) {
+      if (!verification.verified) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Payment is still pending.')),
@@ -332,11 +332,13 @@ class _SubscriptionPlansScreenState
         return;
       }
       ref.invalidate(subscriptionBillingProvider);
-      ref.invalidate(activeClinicSubscriptionProvider);
+      if (verification.subscriptionApplied) {
+        ref.invalidate(activeClinicSubscriptionProvider);
+      }
       if (mounted) {
         setState(() => _pendingReference = null);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment confirmed securely.')),
+          SnackBar(content: Text(_verificationMessage(verification))),
         );
       }
     } on ApiException catch (error) {
@@ -397,7 +399,9 @@ class SubscriptionPaymentCallbackScreen extends ConsumerStatefulWidget {
 class _SubscriptionPaymentCallbackScreenState
     extends ConsumerState<SubscriptionPaymentCallbackScreen> {
   String? _error;
-  bool _confirmed = false;
+  SubscriptionPaymentVerification? _verification;
+
+  bool get _confirmed => _verification?.verified ?? false;
 
   @override
   void initState() {
@@ -412,12 +416,20 @@ class _SubscriptionPaymentCallbackScreenState
       return;
     }
     try {
-      await ref
+      final verification = await ref
           .read(subscriptionPaymentGatewayProvider)
           .verifyPayment(reference);
+      if (!verification.verified) {
+        throw const ApiException(
+          'payment_pending',
+          'Paystack has not confirmed this payment yet.',
+        );
+      }
       ref.invalidate(subscriptionBillingProvider);
-      ref.invalidate(activeClinicSubscriptionProvider);
-      if (mounted) setState(() => _confirmed = true);
+      if (verification.subscriptionApplied) {
+        ref.invalidate(activeClinicSubscriptionProvider);
+      }
+      if (mounted) setState(() => _verification = verification);
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     }
@@ -446,7 +458,7 @@ class _SubscriptionPaymentCallbackScreenState
             const SizedBox(height: 16),
             Text(
               _confirmed
-                  ? 'Payment confirmed'
+                  ? _verificationMessage(_verification!)
                   : _error ?? 'Confirming payment securely...',
               textAlign: TextAlign.center,
               style: averaText(context).sectionTitle,
@@ -473,6 +485,17 @@ class _SubscriptionPaymentCallbackScreenState
       ),
     ),
   );
+}
+
+String _verificationMessage(SubscriptionPaymentVerification verification) {
+  if (verification.isTestMode) {
+    return 'Payment verified successfully in test mode.\n'
+        'No subscription changes were applied.';
+  }
+  if (!verification.subscriptionApplied) {
+    return 'Payment verified securely. No subscription changes were applied.';
+  }
+  return 'Payment confirmed securely.';
 }
 
 class _SubscriptionSummaryCard extends StatelessWidget {

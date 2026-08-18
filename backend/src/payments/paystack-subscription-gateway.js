@@ -1,14 +1,34 @@
 import { SubscriptionPaymentGateway } from './subscription-payment-gateway.js';
 
 export class PaystackSubscriptionGateway extends SubscriptionPaymentGateway {
-  constructor({ secretKey, fetchImpl = globalThis.fetch }) {
+  constructor({ secretKey, publicKey, mode, fetchImpl = globalThis.fetch }) {
     super();
     this.secretKey = secretKey;
+    this.publicKey = publicKey;
+    this.mode = mode;
     this.fetchImpl = fetchImpl;
   }
 
   get configured() {
-    return Boolean(this.secretKey);
+    return this.configurationError == null;
+  }
+
+  get configurationError() {
+    if (this.mode !== 'test' && this.mode !== 'live') {
+      return 'payment_mode_not_configured';
+    }
+    if (!this.secretKey) return 'gateway_not_configured';
+    const expectedSecretPrefix = this.mode === 'test' ? 'sk_test_' : 'sk_live_';
+    if (!this.secretKey.startsWith(expectedSecretPrefix)) {
+      return 'payment_key_mode_mismatch';
+    }
+    if (this.publicKey) {
+      const expectedPublicPrefix = this.mode === 'test' ? 'pk_test_' : 'pk_live_';
+      if (!this.publicKey.startsWith(expectedPublicPrefix)) {
+        return 'payment_key_mode_mismatch';
+      }
+    }
+    return null;
   }
 
   async initializeCheckout({
@@ -56,8 +76,8 @@ export class PaystackSubscriptionGateway extends SubscriptionPaymentGateway {
 
   async #request(path, { method = 'GET', body } = {}) {
     if (!this.configured) {
-      const error = new Error('Paystack has not been configured.');
-      error.code = 'gateway_not_configured';
+      const error = new Error('Paystack payment configuration is unavailable.');
+      error.code = this.configurationError;
       throw error;
     }
     const response = await this.fetchImpl(`https://api.paystack.co${path}`, {

@@ -338,7 +338,9 @@ class _SubscriptionPlansScreenState
       if (mounted) {
         setState(() => _pendingReference = null);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_verificationMessage(verification))),
+          SnackBar(
+            content: Text(subscriptionPaymentVerificationMessage(verification)),
+          ),
         );
       }
     } on ApiException catch (error) {
@@ -458,7 +460,7 @@ class _SubscriptionPaymentCallbackScreenState
             const SizedBox(height: 16),
             Text(
               _confirmed
-                  ? _verificationMessage(_verification!)
+                  ? subscriptionPaymentVerificationMessage(_verification!)
                   : _error ?? 'Confirming payment securely...',
               textAlign: TextAlign.center,
               style: averaText(context).sectionTitle,
@@ -485,17 +487,6 @@ class _SubscriptionPaymentCallbackScreenState
       ),
     ),
   );
-}
-
-String _verificationMessage(SubscriptionPaymentVerification verification) {
-  if (verification.isTestMode) {
-    return 'Payment verified successfully in test mode.\n'
-        'No subscription changes were applied.';
-  }
-  if (!verification.subscriptionApplied) {
-    return 'Payment verified securely. No subscription changes were applied.';
-  }
-  return 'Payment confirmed securely.';
 }
 
 class _SubscriptionSummaryCard extends StatelessWidget {

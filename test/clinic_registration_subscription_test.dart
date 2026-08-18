@@ -1,15 +1,21 @@
 import 'package:drift/native.dart';
+import 'package:avera/core/config/app_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:avera/core/database/app_database.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
 import 'package:avera/core/subscription/subscription_plan_config.dart';
 import 'package:avera/core/theme/app_theme.dart';
+import 'package:avera/features/authentication/screens/clinic_registration_payment_screen.dart';
 import 'package:avera/features/authentication/screens/clinic_registration_screen.dart';
 import 'package:avera/features/shared/widgets/subscription_widgets.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  FlutterSecureStorage.setMockInitialValues({});
+
   test('subscription catalogue is complete and preserves storage labels', () {
     expect(SubscriptionPlanCatalogue.plans.length, 3);
     expect(SubscriptionPlan.starter.label, 'Starter');
@@ -224,6 +230,110 @@ void main() {
     expect(find.byKey(const Key('plan-benefit-check')), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'submitted application offers payment without submitting a second application',
+    (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = _PaymentReadyClinicRepository(database);
+      await _pumpRegistration(
+        tester,
+        size: const Size(390, 844),
+        repository: repository,
+      );
+
+      await _enterRegistrationField(
+        tester,
+        const Key('clinic-name-field'),
+        'Crest Veterinary Hospital',
+      );
+      await _enterRegistrationField(
+        tester,
+        const Key('clinic-email-field'),
+        'hello@crest.test',
+      );
+      await _enterRegistrationField(
+        tester,
+        const Key('clinic-phone-field'),
+        '+2348000000000',
+      );
+      await _enterRegistrationField(
+        tester,
+        const Key('clinic-address-field'),
+        '1 Veterinary Way',
+      );
+      await _enterRegistrationField(
+        tester,
+        const Key('clinic-city-field'),
+        'Abuja',
+      );
+      await _enterRegistrationField(
+        tester,
+        const Key('administrator-name-field'),
+        'Crest Administrator',
+      );
+      await _enterRegistrationField(
+        tester,
+        const Key('administrator-email-field'),
+        'administrator@crest.test',
+      );
+      await _enterRegistrationField(
+        tester,
+        const Key('administrator-phone-field'),
+        '+2348111111111',
+      );
+
+      final enterprise = find.byKey(const Key('subscription-plan-enterprise'));
+      await _scrollRegistrationUntilVisible(tester, enterprise);
+      await tester.tap(enterprise);
+      await tester.pumpAndSettle();
+      final terms = find.byKey(const Key('clinic-registration-terms'));
+      await _scrollRegistrationUntilVisible(tester, terms);
+      await tester.tap(terms);
+      await tester.pumpAndSettle();
+      final submit = find.text('Continue with Enterprise');
+      await _scrollRegistrationUntilVisible(tester, submit);
+      await tester.tap(submit);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Application submitted'), findsOneWidget);
+      expect(find.text('Continue to Payment'), findsOneWidget);
+      expect(find.textContaining('Plan: Enterprise'), findsOneWidget);
+      expect(find.textContaining('Payment: Pending'), findsOneWidget);
+      expect(repository.submissionCount, 1);
+      expect(repository.submitted?.subscriptionPlan, 'Enterprise');
+
+      await tester.tap(
+        find.byKey(const Key('continue-to-registration-payment')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ClinicRegistrationPaymentScreen), findsOneWidget);
+      expect(find.text('AVR-20260818-ABC123'), findsOneWidget);
+      expect(find.text('Enterprise'), findsOneWidget);
+      expect(find.text('Pending approval'), findsOneWidget);
+      expect(repository.submissionCount, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+}
+
+Future<void> _enterRegistrationField(
+  WidgetTester tester,
+  Key key,
+  String value,
+) async {
+  final container = find.byKey(key);
+  await _scrollRegistrationUntilVisible(tester, container);
+  final input = find.descendant(
+    of: container,
+    matching: find.byType(TextFormField),
+  );
+  await tester.enterText(input, value);
+  await tester.pump();
 }
 
 Future<void> _scrollRegistrationUntilVisible(
@@ -248,11 +358,16 @@ Future<void> _pumpRegistration(
   WidgetTester tester, {
   required Size size,
   ThemeMode themeMode = ThemeMode.light,
+  ClinicRepository? repository,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        if (repository != null)
+          clinicRepositoryProvider.overrideWithValue(repository),
+      ],
       child: MaterialApp(
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
@@ -262,4 +377,38 @@ Future<void> _pumpRegistration(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _PaymentReadyClinicRepository extends ClinicRepository {
+  _PaymentReadyClinicRepository(super.database);
+
+  int submissionCount = 0;
+  ClinicApplication? submitted;
+
+  @override
+  Future<ClinicApplication> submitClinicApplication(
+    ClinicApplication application,
+  ) async {
+    submissionCount += 1;
+    submitted = application;
+    return ClinicApplication(
+      clinicName: application.clinicName,
+      clinicEmail: application.clinicEmail,
+      phoneNumber: application.phoneNumber,
+      address: application.address,
+      city: application.city,
+      country: application.country,
+      administratorName: application.administratorName,
+      administratorEmail: application.administratorEmail,
+      administratorPhone: application.administratorPhone,
+      professionalTitle: application.professionalTitle,
+      subscriptionPlan: application.subscriptionPlan,
+      timeZone: application.timeZone,
+      reference: 'AVR-20260818-ABC123',
+      applicationId: 'application-1',
+      clinicId: 'clinic-1',
+      paymentStatus: 'Pending',
+      paymentAccessToken: 'scoped-registration-capability',
+    );
+  }
 }

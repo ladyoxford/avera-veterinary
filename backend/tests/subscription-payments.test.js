@@ -232,6 +232,119 @@ test('subscription verification preserves subscriptions.manage authorization', a
   }
 });
 
+test('clinic application returns a scoped payment capability that cannot cross applications', async (context) => {
+  const client = transactionClient((sql) => {
+    if (
+      sql.includes('FROM clinic_applications') &&
+      sql.includes('lower(administrator_email::text)')
+    ) {
+      return { rows: [] };
+    }
+    if (sql.includes('INSERT INTO clinic_applications')) {
+      return {
+        rows: [{
+          application_id: 'application-1',
+          application_reference: 'AVR-20260818-ABC123',
+          status: 'Pending',
+          submitted_at: new Date('2026-08-18T08:00:00Z'),
+        }],
+      };
+    }
+    return { rows: [] };
+  });
+  const app = await buildApp({
+    environment: {
+      ...testEnvironment(),
+      REGISTRATION_PAYMENT_TOKEN_TTL_MINUTES: 30,
+    },
+    pool: transactionPool(client),
+  });
+  context.after(() => app.close());
+
+  const registration = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications',
+    payload: {
+      clinicName: 'Crest Veterinary Hospital',
+      clinicEmail: 'hello@crest.test',
+      phoneNumber: '+2348000000000',
+      address: '1 Veterinary Way',
+      city: 'Abuja',
+      country: 'Nigeria',
+      administratorName: 'Crest Administrator',
+      administratorEmail: 'administrator@crest.test',
+      administratorPhone: '+2348111111111',
+      professionalTitle: 'Veterinarian',
+      subscriptionPlan: 'Enterprise',
+      timeZone: 'Africa/Lagos',
+    },
+  });
+
+  assert.equal(registration.statusCode, 201);
+  const application = registration.json().application;
+  assert.equal(application.applicationId, 'application-1');
+  assert.equal(application.selectedPlan, 'Enterprise');
+  assert.equal(application.status, 'Pending');
+  assert.equal(application.paymentStatus, 'Pending');
+  assert.equal(typeof application.paymentAccessToken, 'string');
+  const claims = app.jwt.verify(application.paymentAccessToken);
+  assert.equal(claims.scope, 'clinic-application-payment');
+  assert.equal(claims.applicationId, 'application-1');
+  assert.equal(claims.clinicId, application.clinicId);
+  assert.equal(claims.selectedPlan, 'Enterprise');
+
+  const calls = [];
+  app.subscriptionService.initializeApplicationCheckout = async (input) => {
+    calls.push(input);
+    return {
+      authorizationUrl: 'https://checkout.paystack.test/application-1',
+      reference: 'AVERA-APPLICATION-1',
+    };
+  };
+  const checkout = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications/application-1/payments/paystack/initialize',
+    payload: {
+      accessToken: application.paymentAccessToken,
+      billingCycle: 'annual',
+    },
+  });
+  assert.equal(checkout.statusCode, 200);
+  assert.deepEqual(calls, [{
+    applicationId: 'application-1',
+    clinicId: application.clinicId,
+    billingCycle: 'annual',
+    retry: false,
+  }]);
+
+  const crossApplication = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications/application-2/payments/paystack/initialize',
+    payload: {
+      accessToken: application.paymentAccessToken,
+      billingCycle: 'annual',
+    },
+  });
+  assert.equal(crossApplication.statusCode, 403);
+  assert.equal(crossApplication.json().error, 'registration_payment_access_denied');
+  assert.equal(calls.length, 1);
+
+  const expiredToken = app.jwt.sign({
+    scope: 'clinic-application-payment',
+    applicationId: 'application-1',
+    clinicId: application.clinicId,
+    selectedPlan: 'Enterprise',
+    exp: Math.floor(Date.now() / 1000) - 60,
+  });
+  const expired = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications/application-1/payments/paystack/initialize',
+    payload: { accessToken: expiredToken, billingCycle: 'monthly' },
+  });
+  assert.equal(expired.statusCode, 403);
+  assert.equal(calls.length, 1);
+});
+
 test('checkout price and currency come from the server plan, not the client', async () => {
   const gatewayCalls = [];
   const client = transactionClient((sql) => {
@@ -290,6 +403,291 @@ test('checkout price and currency come from the server plan, not the client', as
   assert.equal(JSON.stringify(checkout).includes('test-secret'), false);
   assert.equal(Object.hasOwn(checkout, 'secretKey'), false);
 });
+
+test('application checkout uses the persisted plan and applicant email', async () => {
+  const gatewayCalls = [];
+  const application = {
+    application_id: 'application-1',
+    clinic_id: 'clinic-application-1',
+    status: 'Pending',
+    selected_plan: 'Enterprise',
+    payment_status: 'Pending',
+    payment_reference: null,
+    administrator_email: 'applicant@crest.test',
+    application_reference: 'AVR-20260818-ABC123',
+  };
+  const client = transactionClient((sql) => {
+    if (sql.includes('FROM clinic_applications') && sql.includes('FOR UPDATE')) {
+      return { rows: [application] };
+    }
+    if (sql.includes('FROM plans')) {
+      return {
+        rows: [{
+          plan_key: 'Enterprise',
+          display_name: 'Enterprise',
+          monthly_amount_minor: 500000,
+          annual_amount_minor: 5000000,
+          currency: 'NGN',
+        }],
+      };
+    }
+    if (/\bFROM subscriptions\b|\bUPDATE subscriptions\b|\bINSERT INTO subscriptions\b/.test(sql)) {
+      throw new Error('Registration checkout must not touch subscriptions.');
+    }
+    return { rows: [] };
+  });
+  const service = new SubscriptionService({
+    pool: transactionPool(client),
+    environment: {
+      PAYSTACK_MODE: 'test',
+      PAYSTACK_CURRENCY: 'NGN',
+      PAYSTACK_ENTERPRISE_ANNUAL_PLAN_CODE: 'PLN_enterprise_annual_test',
+      registrationPaymentCallbackUrl:
+        'avera://app/payments/registration-callback',
+    },
+    gateway: {
+      configured: true,
+      async initializeCheckout(input) {
+        gatewayCalls.push(input);
+        return {
+          authorization_url: 'https://checkout.paystack.test/application-1',
+          access_code: 'public-checkout-code',
+        };
+      },
+    },
+  });
+
+  const checkout = await service.initializeApplicationCheckout({
+    applicationId: application.application_id,
+    clinicId: application.clinic_id,
+    billingCycle: 'annual',
+  });
+
+  assert.equal(checkout.reference.startsWith('AVERA-'), true);
+  assert.equal(gatewayCalls.length, 1);
+  assert.equal(gatewayCalls[0].email, 'applicant@crest.test');
+  assert.equal(gatewayCalls[0].amountMinor, 5000000);
+  assert.equal(gatewayCalls[0].currency, 'NGN');
+  assert.equal(gatewayCalls[0].planCode, 'PLN_enterprise_annual_test');
+  assert.equal(
+    gatewayCalls[0].callbackUrl,
+    'avera://app/payments/registration-callback',
+  );
+  assert.deepEqual(gatewayCalls[0].metadata, {
+    clinicId: 'clinic-application-1',
+    planCode: 'Enterprise',
+    billingCycle: 'annual',
+    paymentScope: 'clinic_application',
+    applicationId: 'application-1',
+    applicationReference: 'AVR-20260818-ABC123',
+  });
+  assert.equal(
+    client.calls.some((call) =>
+      call.sql.includes('UPDATE clinic_applications') &&
+      call.parameters[0] === 'application-1'
+    ),
+    true,
+  );
+});
+
+test('application payment retry replaces only the pending checkout', async () => {
+  const gatewayCalls = [];
+  const application = {
+    application_id: 'application-1',
+    clinic_id: 'clinic-application-1',
+    status: 'Pending',
+    selected_plan: 'Enterprise',
+    payment_status: 'Pending',
+    payment_reference: 'AVERA-OLD-PENDING',
+    administrator_email: 'applicant@crest.test',
+    application_reference: 'AVR-20260818-ABC123',
+  };
+  const client = transactionClient((sql) => {
+    if (sql.includes('FROM clinic_applications') && sql.includes('FOR UPDATE')) {
+      return { rows: [application] };
+    }
+    if (
+      sql.includes('FROM subscription_payment_transactions') &&
+      sql.includes('reference = $1 AND clinic_id = $2')
+    ) {
+      return { rows: [{ status: 'Pending' }] };
+    }
+    if (sql.includes('FROM plans')) {
+      return {
+        rows: [{
+          plan_key: 'Enterprise',
+          display_name: 'Enterprise',
+          monthly_amount_minor: 500000,
+          annual_amount_minor: 5000000,
+          currency: 'NGN',
+        }],
+      };
+    }
+    if (sql.includes('INSERT INTO clinic_applications')) {
+      throw new Error('Payment retry must not create another clinic application.');
+    }
+    return { rows: [] };
+  });
+  const service = new SubscriptionService({
+    pool: transactionPool(client),
+    environment: {
+      PAYSTACK_MODE: 'test',
+      PAYSTACK_CURRENCY: 'NGN',
+      PAYSTACK_ENTERPRISE_MONTHLY_PLAN_CODE: 'PLN_enterprise_monthly_test',
+      registrationPaymentCallbackUrl:
+        'avera://app/payments/registration-callback',
+    },
+    gateway: {
+      configured: true,
+      async initializeCheckout(input) {
+        gatewayCalls.push(input);
+        return {
+          authorization_url: 'https://checkout.paystack.test/application-1',
+          access_code: 'public-checkout-code',
+        };
+      },
+    },
+  });
+
+  await assert.rejects(
+    service.initializeApplicationCheckout({
+      applicationId: application.application_id,
+      clinicId: application.clinic_id,
+      billingCycle: 'monthly',
+    }),
+    (error) => error.code === 'payment_in_progress',
+  );
+  assert.equal(gatewayCalls.length, 0);
+
+  const checkout = await service.initializeApplicationCheckout({
+    applicationId: application.application_id,
+    clinicId: application.clinic_id,
+    billingCycle: 'monthly',
+    retry: true,
+  });
+
+  assert.equal(gatewayCalls.length, 1);
+  assert.equal(checkout.authorizationUrl.includes('paystack.test'), true);
+  assert.equal(
+    client.calls.some((call) =>
+      call.sql.includes("SET status = 'Abandoned'") &&
+      call.parameters[0] === 'AVERA-OLD-PENDING'
+    ),
+    true,
+  );
+  assert.equal(
+    client.calls.some((call) => call.sql.includes('INSERT INTO clinic_applications')),
+    false,
+  );
+});
+
+for (const mode of ['test', 'live']) {
+  test(`application ${mode} verification records payment without approval or subscription mutation`, async () => {
+    const reference = `AVERA-APPLICATION-${mode.toUpperCase()}`;
+    const application = {
+      application_id: 'application-1',
+      clinic_id: 'clinic-application-1',
+      status: 'Pending',
+      selected_plan: 'Enterprise',
+      payment_status: 'Pending',
+      payment_reference: reference,
+      application_reference: 'AVR-20260818-ABC123',
+    };
+    const expected = {
+      ...pendingPayment(),
+      reference,
+      clinic_id: application.clinic_id,
+      plan_code: application.selected_plan,
+      gateway_response_summary: {
+        clinicId: application.clinic_id,
+        planCode: application.selected_plan,
+        billingCycle: 'monthly',
+        paymentScope: 'clinic_application',
+        applicationId: application.application_id,
+      },
+    };
+    const successful = {
+      ...expected,
+      status: 'Successful',
+      payment_channel: 'card',
+      paid_at: new Date('2026-08-18T09:00:00Z'),
+      gateway_response_summary: {
+        ...expected.gateway_response_summary,
+        gatewayStatus: 'success',
+        mode,
+        subscriptionApplied: false,
+      },
+    };
+    const forbiddenMutation =
+      /\bsubscriptions\b|UPDATE clinics|INSERT INTO users|activation_tokens/;
+    const client = transactionClient((sql, parameters) => {
+      if (forbiddenMutation.test(sql)) {
+        throw new Error(`Application payment must not run: ${sql}`);
+      }
+      if (sql.includes('FROM clinic_applications')) {
+        return { rows: [application] };
+      }
+      if (
+        sql.includes('SELECT * FROM subscription_payment_transactions') &&
+        sql.includes('FOR UPDATE')
+      ) {
+        return { rows: [expected] };
+      }
+      if (sql.includes('UPDATE subscription_payment_transactions')) {
+        return { rows: [successful] };
+      }
+      if (sql.includes('UPDATE clinic_applications')) {
+        assert.equal(parameters[0], application.application_id);
+        assert.equal(parameters[1], mode === 'test' ? 'TestVerified' : 'Paid');
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+    const pool = {
+      ...transactionPool(client),
+      async query(sql) {
+        if (forbiddenMutation.test(sql)) {
+          throw new Error(`Application payment must not run: ${sql}`);
+        }
+        if (sql.includes('FROM subscription_payment_transactions')) {
+          return { rows: [expected] };
+        }
+        return { rows: [] };
+      },
+    };
+    const service = new SubscriptionService({
+      pool,
+      environment: { PAYSTACK_MODE: mode },
+      gateway: {
+        async verifyPayment() {
+          return successfulVerification(expected, {
+            domain: mode,
+            metadata: expected.gateway_response_summary,
+          });
+        },
+      },
+    });
+
+    const result = await service.verifyApplicationPayment({
+      applicationId: application.application_id,
+      clinicId: application.clinic_id,
+      reference,
+    });
+
+    assert.equal(result.verified, true);
+    assert.equal(result.mode, mode);
+    assert.equal(result.subscriptionApplied, false);
+    assert.equal(result.subscription, null);
+    assert.equal(result.application.status, 'Pending');
+    assert.equal(
+      result.application.paymentStatus,
+      mode === 'test' ? 'TestVerified' : 'Paid',
+    );
+    assert.equal(application.status, 'Pending');
+    assert.equal(application.payment_status, 'Pending');
+    assert.equal(client.calls.some((call) => forbiddenMutation.test(call.sql)), false);
+  });
+}
 
 test('test-mode verification records the payment without subscription mutations', async () => {
   const expected = pendingPayment();
@@ -493,6 +891,63 @@ test('charge.success webhook uses no-mutation verification in test and live appl
       poolCalls.some((sql) => sql.includes("processing_status = 'Processed'")),
       true,
     );
+  }
+});
+
+test('application payment webhook stays in the approval workflow in every mode', async () => {
+  for (const mode of ['test', 'live']) {
+    const applicationCalls = [];
+    const subscriptionCalls = [];
+    const service = new SubscriptionService({
+      pool: {
+        async query(sql) {
+          if (sql.includes('INSERT INTO payment_webhook_events')) {
+            return {
+              rowCount: 1,
+              rows: [{ payment_webhook_event_id: `application-event-${mode}` }],
+            };
+          }
+          if (
+            sql.includes('FROM subscription_payment_transactions') &&
+            sql.includes('gateway_response_summary')
+          ) {
+            return {
+              rows: [{
+                clinic_id: 'clinic-application-1',
+                gateway_response_summary: {
+                  paymentScope: 'clinic_application',
+                  applicationId: 'application-1',
+                },
+              }],
+            };
+          }
+          return { rowCount: 1, rows: [] };
+        },
+      },
+      environment: { PAYSTACK_MODE: mode },
+      gateway: {},
+    });
+    service.verifyApplicationPayment = async (input) => {
+      applicationCalls.push(input);
+    };
+    service.verifyOnly = async () => subscriptionCalls.push('verifyOnly');
+    service.verifyAndApply = async () => subscriptionCalls.push('verifyAndApply');
+
+    await service.persistWebhook({
+      event: {
+        event: 'charge.success',
+        data: { reference: `AVERA-APPLICATION-${mode.toUpperCase()}` },
+      },
+      rawBody: Buffer.from('{}'),
+      payloadHash: `application-hash-${mode}`,
+    });
+
+    assert.deepEqual(applicationCalls, [{
+      applicationId: 'application-1',
+      clinicId: 'clinic-application-1',
+      reference: `AVERA-APPLICATION-${mode.toUpperCase()}`,
+    }]);
+    assert.deepEqual(subscriptionCalls, []);
   }
 });
 

@@ -214,7 +214,18 @@ abstract interface class SubscriptionPaymentGateway {
     required SubscriptionPlan plan,
     required SubscriptionBillingCycle billingCycle,
   });
+  Future<SubscriptionCheckoutSession> initializeRegistrationCheckout({
+    required String applicationId,
+    required String accessToken,
+    required SubscriptionBillingCycle billingCycle,
+    bool retry = false,
+  });
   Future<SubscriptionPaymentVerification> verifyPayment(String reference);
+  Future<SubscriptionPaymentVerification> verifyRegistrationPayment({
+    required String applicationId,
+    required String accessToken,
+    required String reference,
+  });
   Future<ServerClinicSubscription> cancelRenewal(String clinicId);
   Future<ServerClinicSubscription> reactivateSubscription(String clinicId);
 }
@@ -291,6 +302,40 @@ class PaystackSubscriptionGateway implements SubscriptionPaymentGateway {
   }
 
   @override
+  Future<SubscriptionCheckoutSession> initializeRegistrationCheckout({
+    required String applicationId,
+    required String accessToken,
+    required SubscriptionBillingCycle billingCycle,
+    bool retry = false,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/clinic-applications/${Uri.encodeComponent(applicationId)}/payments/paystack/initialize',
+      body: {
+        'accessToken': accessToken,
+        'billingCycle': billingCycle.apiValue,
+        'retry': retry,
+      },
+    );
+    return SubscriptionCheckoutSession(
+      authorizationUrl: Uri.parse(response['authorizationUrl'] as String),
+      reference: response['reference'] as String,
+    );
+  }
+
+  @override
+  Future<SubscriptionPaymentVerification> verifyRegistrationPayment({
+    required String applicationId,
+    required String accessToken,
+    required String reference,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/clinic-applications/${Uri.encodeComponent(applicationId)}/payments/paystack/verify',
+      body: {'accessToken': accessToken, 'reference': reference},
+    );
+    return SubscriptionPaymentVerification.fromJson(response);
+  }
+
+  @override
   Future<ServerClinicSubscription> cancelRenewal(String clinicId) async {
     final response = await _client.post(
       '/api/clinics/${Uri.encodeComponent(clinicId)}/subscription/cancel-renewal',
@@ -362,6 +407,21 @@ class UnconfiguredSubscriptionPaymentGateway
   ) async => _unavailable();
 
   @override
+  Future<SubscriptionCheckoutSession> initializeRegistrationCheckout({
+    required String applicationId,
+    required String accessToken,
+    required SubscriptionBillingCycle billingCycle,
+    bool retry = false,
+  }) async => _unavailable();
+
+  @override
+  Future<SubscriptionPaymentVerification> verifyRegistrationPayment({
+    required String applicationId,
+    required String accessToken,
+    required String reference,
+  }) async => _unavailable();
+
+  @override
   Future<ServerClinicSubscription> cancelRenewal(String clinicId) async =>
       _unavailable();
 
@@ -373,3 +433,16 @@ class UnconfiguredSubscriptionPaymentGateway
 
 DateTime? _date(dynamic value) =>
     value is String ? DateTime.tryParse(value)?.toLocal() : null;
+
+String subscriptionPaymentVerificationMessage(
+  SubscriptionPaymentVerification verification,
+) {
+  if (verification.isTestMode) {
+    return 'Payment verified successfully in test mode.\n'
+        'No subscription changes were applied.';
+  }
+  if (!verification.subscriptionApplied) {
+    return 'Payment confirmed. Your clinic application remains pending approval.';
+  }
+  return 'Payment confirmed securely.';
+}

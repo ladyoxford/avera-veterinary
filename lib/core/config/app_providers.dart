@@ -28,6 +28,7 @@ import '../services/hospital_load_test_seeder.dart';
 import '../services/bioqarah_receipt_importer.dart';
 import '../services/biometric_auth_service.dart';
 import '../subscription/subscription_payment_gateway.dart';
+import '../subscription/registration_payment_session_store.dart';
 
 enum AnimalStatusFilter {
   active('Active'),
@@ -245,6 +246,11 @@ final subscriptionPaymentGatewayProvider = Provider<SubscriptionPaymentGateway>(
     return PaystackSubscriptionGateway(ref.watch(apiClientProvider));
   },
 );
+
+final registrationPaymentSessionStoreProvider =
+    Provider<RegistrationPaymentSessionStore>(
+      (ref) => const RegistrationPaymentSessionStore(FlutterSecureStorage()),
+    );
 
 final subscriptionBillingProvider = FutureProvider<SubscriptionBillingSnapshot>(
   (ref) async {

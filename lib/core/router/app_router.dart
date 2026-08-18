@@ -11,6 +11,7 @@ import '../models/vaccine_catalogue.dart';
 import '../remote/api_client.dart';
 import '../../features/authentication/screens/authentication_screen.dart';
 import '../../features/authentication/screens/clinic_registration_screen.dart';
+import '../../features/authentication/screens/clinic_registration_payment_screen.dart';
 import '../../features/authentication/screens/clinic_administrator_activation_screen.dart';
 import 'activation_link.dart';
 import '../../features/authentication/screens/password_reset_screens.dart';
@@ -94,6 +95,12 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/register-clinic',
       builder: (context, state) => const ClinicRegistrationScreen(),
+    ),
+    GoRoute(
+      path: '/payments/registration-callback',
+      builder: (context, state) => ClinicRegistrationPaymentCallbackScreen(
+        reference: state.uri.queryParameters['reference'],
+      ),
     ),
     GoRoute(
       path: '/activate-clinic-admin',

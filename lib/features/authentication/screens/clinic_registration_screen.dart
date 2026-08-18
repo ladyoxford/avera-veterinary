@@ -10,7 +10,10 @@ import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../../shared/widgets/subscription_widgets.dart';
+import 'clinic_registration_payment_screen.dart';
 import 'subscription_comparison_screen.dart';
+
+enum _ClinicRegistrationNextStep { payment, done }
 
 class ClinicRegistrationScreen extends HookConsumerWidget {
   const ClinicRegistrationScreen({super.key});
@@ -81,31 +84,49 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
               ),
             );
         if (context.mounted) {
-          await showDialog<void>(
+          final nextStep = await showDialog<_ClinicRegistrationNextStep>(
             context: context,
             builder: (dialogContext) => AlertDialog(
               title: const Text('Application submitted'),
               content: Text(
-                'Your clinic registration has been submitted successfully.\n\nReference: ${application.reference}\nPlan: ${application.subscriptionPlan}\nStatus: Pending approval\n\nYour application and payment will be reviewed by the AVERA Platform Owner. You will receive an activation message after approval.',
+                'Your clinic application has been submitted successfully.\n\nReference: ${application.reference}\nPlan: ${application.subscriptionPlan}\nStatus: Pending approval\nPayment: ${application.paymentStatus ?? 'Pending'}\n\nContinue to payment to complete your registration request. Platform Owner approval and administrator activation remain separate required steps.',
               ),
               actions: [
-                FilledButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                    context.go(
-                      Uri(
-                        path: '/login',
-                        queryParameters: {
-                          'clinicName': application.clinicName.trim(),
-                        },
-                      ).toString(),
-                    );
-                  },
+                TextButton(
+                  onPressed: () => Navigator.pop(
+                    dialogContext,
+                    _ClinicRegistrationNextStep.done,
+                  ),
                   child: const Text('Done'),
                 ),
+                if (application.canContinueToPayment)
+                  FilledButton(
+                    key: const Key('continue-to-registration-payment'),
+                    onPressed: () => Navigator.pop(
+                      dialogContext,
+                      _ClinicRegistrationNextStep.payment,
+                    ),
+                    child: const Text('Continue to Payment'),
+                  ),
               ],
             ),
           );
+          if (!context.mounted) return;
+          if (nextStep == _ClinicRegistrationNextStep.payment) {
+            await Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) =>
+                    ClinicRegistrationPaymentScreen(application: application),
+              ),
+            );
+          } else if (nextStep == _ClinicRegistrationNextStep.done) {
+            context.go(
+              Uri(
+                path: '/login',
+                queryParameters: {'clinicName': application.clinicName.trim()},
+              ).toString(),
+            );
+          }
         }
       } catch (_) {
         if (context.mounted) {

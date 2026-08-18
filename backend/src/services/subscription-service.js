@@ -89,22 +89,166 @@ export class SubscriptionService {
   }
 
   async initializeCheckout({ auth, clinicId, planCode, billingCycle }) {
+    return this.#initializeCheckout({
+      auth,
+      clinicId,
+      billingCycle,
+      callbackUrl:
+        this.environment.paymentCallbackUrl ??
+        this.environment.PAYSTACK_CALLBACK_URL ??
+        this.environment.APP_PAYMENT_CALLBACK_URL,
+      loadContext: async (client) => {
+        const billingUser = (
+          await client.query(
+            `SELECT email
+               FROM users
+              WHERE clinic_id = $1 AND status = 'Active' AND deleted_at IS NULL
+              ORDER BY (account_type = 'ClinicAdministrator') DESC, created_at
+              LIMIT 1`,
+            [clinicId],
+          )
+        ).rows[0];
+        if (!billingUser) {
+          throw serviceError(
+            'billing_contact_missing',
+            'No active clinic billing contact is available.',
+            409,
+          );
+        }
+        return {
+          email: billingUser.email,
+          planCode,
+          paymentScope: 'clinic_subscription',
+          auditAction: 'subscription.checkout_started',
+        };
+      },
+    });
+  }
+
+  async initializeApplicationCheckout({
+    applicationId,
+    clinicId,
+    billingCycle,
+    retry = false,
+  }) {
+    return this.#initializeCheckout({
+      auth: { accountType: 'PlatformOwner' },
+      auditAuth: null,
+      clinicId,
+      billingCycle,
+      callbackUrl:
+        this.environment.registrationPaymentCallbackUrl ??
+        `${this.environment.APP_DEEP_LINK_SCHEME ?? 'avera'}://app/payments/registration-callback`,
+      loadContext: async (client) => {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+          `clinic-application-payment:${applicationId}`,
+        ]);
+        const application = (
+          await client.query(
+            `SELECT application_id, clinic_id, status, selected_plan,
+                    payment_status, payment_reference, administrator_email,
+                    application_reference
+               FROM clinic_applications
+              WHERE application_id = $1
+              FOR UPDATE`,
+            [applicationId],
+          )
+        ).rows[0];
+        validateApplicationPaymentTarget(application, { applicationId, clinicId });
+        if (['Paid', 'TestVerified'].includes(application.payment_status)) {
+          throw serviceError(
+            'payment_already_verified',
+            'Payment has already been verified for this clinic application.',
+            409,
+          );
+        }
+        if (application.payment_reference) {
+          const previous = (
+            await client.query(
+              `SELECT status
+                 FROM subscription_payment_transactions
+                WHERE reference = $1 AND clinic_id = $2`,
+              [application.payment_reference, clinicId],
+            )
+          ).rows[0];
+          if (previous?.status === 'Successful') {
+            throw serviceError(
+              'payment_already_verified',
+              'Payment has already been verified for this clinic application.',
+              409,
+            );
+          }
+          if (previous?.status === 'Pending' && !retry) {
+            throw serviceError(
+              'payment_in_progress',
+              'A payment checkout is already in progress for this application.',
+              409,
+            );
+          }
+          if (previous?.status === 'Pending' && retry) {
+            await client.query(
+              `UPDATE subscription_payment_transactions
+                  SET status = 'Abandoned', updated_at = now(),
+                      gateway_response_summary =
+                        COALESCE(gateway_response_summary, '{}'::jsonb) ||
+                        jsonb_build_object('reason', 'applicant_retry')
+                WHERE reference = $1 AND clinic_id = $2 AND status = 'Pending'`,
+              [application.payment_reference, clinicId],
+            );
+          }
+        }
+        return {
+          email: application.administrator_email,
+          planCode: application.selected_plan,
+          paymentScope: 'clinic_application',
+          applicationId,
+          applicationReference: application.application_reference,
+          auditAction: 'clinic.application_payment_started',
+          afterInsert: async (reference) => {
+            await client.query(
+              `UPDATE clinic_applications
+                  SET payment_reference = $2, payment_status = 'Pending',
+                      updated_at = now()
+                WHERE application_id = $1`,
+              [applicationId, reference],
+            );
+          },
+        };
+      },
+    });
+  }
+
+  async #initializeCheckout({
+    auth,
+    auditAuth = auth,
+    clinicId,
+    billingCycle,
+    callbackUrl,
+    loadContext,
+  }) {
     this.#paymentMode();
     const cycle = normalizeCycle(billingCycle);
     const result = await withTenantTransaction(
       this.pool,
       tenantContext(auth, clinicId),
       async (client) => {
+        const context = await loadContext(client);
         const plan = (
           await client.query(
             `SELECT plan_key, display_name, monthly_amount_minor,
                     annual_amount_minor, currency
                FROM plans
               WHERE plan_key = $1 AND active = true`,
-            [planCode],
+            [context.planCode],
           )
         ).rows[0];
-        if (!plan) throw serviceError('invalid_plan', 'The selected plan is unavailable.', 400);
+        if (!plan) {
+          throw serviceError(
+            'invalid_plan',
+            'The selected plan is unavailable.',
+            400,
+          );
+        }
         if (
           String(plan.currency).toUpperCase() !==
           String(this.environment.PAYSTACK_CURRENCY ?? 'NGN').toUpperCase()
@@ -134,29 +278,24 @@ export class SubscriptionService {
             503,
           );
         }
-        const billingUser = (
-          await client.query(
-            `SELECT email
-               FROM users
-              WHERE clinic_id = $1 AND status = 'Active' AND deleted_at IS NULL
-              ORDER BY (account_type = 'ClinicAdministrator') DESC, created_at
-              LIMIT 1`,
-            [clinicId],
-          )
-        ).rows[0];
-        if (!billingUser) {
-          throw serviceError(
-            'billing_contact_missing',
-            'No active clinic billing contact is available.',
-            409,
-          );
-        }
         const reference = createPaymentReference();
+        const metadata = {
+          clinicId,
+          planCode: plan.plan_key,
+          billingCycle: cycle,
+          paymentScope: context.paymentScope,
+          ...(context.applicationId
+            ? { applicationId: context.applicationId }
+            : {}),
+          ...(context.applicationReference
+            ? { applicationReference: context.applicationReference }
+            : {}),
+        };
         await client.query(
           `INSERT INTO subscription_payment_transactions
              (clinic_id, reference, gateway, plan_code, billing_cycle,
-              amount_minor, currency, status)
-           VALUES ($1, $2, 'paystack', $3, $4, $5, $6, 'Pending')`,
+              amount_minor, currency, status, gateway_response_summary)
+           VALUES ($1, $2, 'paystack', $3, $4, $5, $6, 'Pending', $7::jsonb)`,
           [
             clinicId,
             reference,
@@ -164,21 +303,24 @@ export class SubscriptionService {
             cycle,
             Number(amountMinor),
             plan.currency,
+            JSON.stringify(metadata),
           ],
         );
+        await context.afterInsert?.(reference);
         await audit(client, {
           clinicId,
-          auth,
-          action: 'subscription.checkout_started',
-          targetId: null,
+          auth: auditAuth,
+          action: context.auditAction,
+          targetId: context.applicationId ?? null,
           next: { reference, planCode: plan.plan_key, billingCycle: cycle },
         });
         return {
-          email: billingUser.email,
+          email: context.email,
           amountMinor: Number(amountMinor),
           currency: plan.currency,
           gatewayPlanCode,
           reference,
+          metadata,
         };
       },
     );
@@ -190,11 +332,8 @@ export class SubscriptionService {
         currency: result.currency,
         planCode: result.gatewayPlanCode,
         reference: result.reference,
-        callbackUrl:
-          this.environment.paymentCallbackUrl ??
-          this.environment.PAYSTACK_CALLBACK_URL ??
-          this.environment.APP_PAYMENT_CALLBACK_URL,
-        metadata: { clinicId, planCode, billingCycle: cycle },
+        callbackUrl,
+        metadata: result.metadata,
       });
       return {
         authorizationUrl: checkout.authorization_url,
@@ -205,7 +344,9 @@ export class SubscriptionService {
       await this.pool.query(
         `UPDATE subscription_payment_transactions
             SET status = 'Failed', updated_at = now(),
-                gateway_response_summary = jsonb_build_object('reason', $2::text)
+                gateway_response_summary =
+                  COALESCE(gateway_response_summary, '{}'::jsonb) ||
+                  jsonb_build_object('reason', $2::text)
           WHERE reference = $1 AND status = 'Pending'`,
         [result.reference, safeGatewayReason(error)],
       );
@@ -224,9 +365,121 @@ export class SubscriptionService {
   }
 
   async verifyOnly(reference, auth = null) {
+    return this.#verifyWithoutApplying({
+      reference,
+      auth,
+      mode: 'test',
+    });
+  }
+
+  async verifyApplicationPayment({ applicationId, clinicId, reference }) {
+    const application = await withTenantTransaction(
+      this.pool,
+      { isPlatformOwner: true },
+      async (client) => (
+        await client.query(
+          `SELECT application_id, clinic_id, status, selected_plan,
+                  payment_status, payment_reference, application_reference
+             FROM clinic_applications
+            WHERE application_id = $1`,
+          [applicationId],
+        )
+      ).rows[0],
+    );
+    validateApplicationPaymentTarget(application, { applicationId, clinicId });
+    if (application.payment_reference !== reference) {
+      throw serviceError(
+        'payment_reference_mismatch',
+        'This payment does not belong to the clinic application.',
+        403,
+      );
+    }
+    const expected = (
+      await this.pool.query(
+        `SELECT clinic_id, plan_code, gateway_response_summary
+           FROM subscription_payment_transactions
+          WHERE reference = $1`,
+        [reference],
+      )
+    ).rows[0];
+    const paymentMetadata = normalizeMetadata(expected?.gateway_response_summary);
+    if (
+      expected?.clinic_id !== clinicId ||
+      expected?.plan_code !== application.selected_plan ||
+      paymentMetadata.paymentScope !== 'clinic_application' ||
+      paymentMetadata.applicationId !== applicationId
+    ) {
+      throw serviceError(
+        'payment_application_mismatch',
+        'This payment does not match the clinic application.',
+        403,
+      );
+    }
+    const mode = this.#paymentMode();
+    return this.#verifyWithoutApplying({
+      reference,
+      auth: { clinicId, accountType: 'ClinicApplication' },
+      mode,
+      afterVerified: async (client) => {
+        const lockedApplication = (
+          await client.query(
+            `SELECT application_id, clinic_id, status, selected_plan,
+                    payment_status, payment_reference, application_reference
+               FROM clinic_applications
+              WHERE application_id = $1
+              FOR UPDATE`,
+            [applicationId],
+          )
+        ).rows[0];
+        validateApplicationPaymentTarget(lockedApplication, {
+          applicationId,
+          clinicId,
+        });
+        if (lockedApplication.payment_reference !== reference) {
+          throw serviceError(
+            'payment_reference_mismatch',
+            'This payment does not belong to the clinic application.',
+            403,
+          );
+        }
+        const paymentStatus = mode === 'test' ? 'TestVerified' : 'Paid';
+        await client.query(
+          `UPDATE clinic_applications
+              SET payment_status = $2, updated_at = now()
+            WHERE application_id = $1`,
+          [applicationId, paymentStatus],
+        );
+        await audit(client, {
+          clinicId,
+          auth: null,
+          action: 'clinic.application_payment_verified',
+          targetId: applicationId,
+          next: { reference, paymentStatus, mode },
+        });
+        return {
+          application: {
+            applicationId,
+            clinicId,
+            reference: lockedApplication.application_reference,
+            status: lockedApplication.status,
+            paymentStatus,
+          },
+        };
+      },
+    });
+  }
+
+  async #verifyWithoutApplying({
+    reference,
+    auth,
+    mode,
+    afterVerified,
+  }) {
     const { expected, verified, alreadySuccessful } =
-      await this.#verifyExpectedPayment(reference, auth, 'test');
-    if (alreadySuccessful) return this.#verificationOnlyResult(expected);
+      await this.#verifyExpectedPayment(reference, auth, mode);
+    if (alreadySuccessful && afterVerified == null) {
+      return this.#verificationOnlyResult(expected, mode);
+    }
     return withTenantTransaction(
       this.pool,
       { clinicId: expected.clinic_id, isPlatformOwner: true },
@@ -238,40 +491,47 @@ export class SubscriptionService {
             [reference],
           )
         ).rows[0];
-        if (locked.status === 'Successful') {
-          return this.#verificationOnlyResult(locked);
-        }
-        const paidAt = verified.paid_at ? new Date(verified.paid_at) : new Date();
-        const summary = {
-          gatewayStatus: verified.status,
-          mode: 'test',
-          subscriptionApplied: false,
-        };
-        const updated = (
-          await client.query(
-            `UPDATE subscription_payment_transactions
-                SET status = 'Successful', payment_channel = $2,
-                    gateway_transaction_id = $3, paid_at = $4,
-                    updated_at = now(), gateway_response_summary = $5::jsonb
-              WHERE reference = $1 RETURNING *`,
-            [
-              reference,
-              verified.channel ?? null,
+        let payment = locked;
+        if (locked.status !== 'Successful') {
+          const paidAt = verified.paid_at
+            ? new Date(verified.paid_at)
+            : new Date();
+          const summary = {
+            ...normalizeMetadata(locked.gateway_response_summary),
+            gatewayStatus: verified.status,
+            mode,
+            subscriptionApplied: false,
+          };
+          payment = (
+            await client.query(
+              `UPDATE subscription_payment_transactions
+                  SET status = 'Successful', payment_channel = $2,
+                      gateway_transaction_id = $3, paid_at = $4,
+                      updated_at = now(), gateway_response_summary = $5::jsonb
+                WHERE reference = $1 RETURNING *`,
+              [
+                reference,
+                verified.channel ?? null,
+                verified.id == null ? null : String(verified.id),
+                paidAt,
+                JSON.stringify(summary),
+              ],
+            )
+          ).rows[0] ?? {
+            ...locked,
+            status: 'Successful',
+            payment_channel: verified.channel ?? null,
+            gateway_transaction_id:
               verified.id == null ? null : String(verified.id),
-              paidAt,
-              JSON.stringify(summary),
-            ],
-          )
-        ).rows[0] ?? {
-          ...locked,
-          status: 'Successful',
-          payment_channel: verified.channel ?? null,
-          gateway_transaction_id:
-            verified.id == null ? null : String(verified.id),
-          paid_at: paidAt,
-          gateway_response_summary: summary,
+            paid_at: paidAt,
+            gateway_response_summary: summary,
+          };
+        }
+        const context = await afterVerified?.(client, payment) ?? {};
+        return {
+          ...this.#verificationOnlyResult(payment, mode),
+          ...context,
         };
-        return this.#verificationOnlyResult(updated);
       },
     );
   }
@@ -404,8 +664,7 @@ export class SubscriptionService {
     if (inserted.rowCount === 0) return { duplicate: true };
     try {
       if (event.event === 'charge.success' && event.data?.reference) {
-        if (mode === 'test') await this.verifyOnly(event.data.reference);
-        else await this.verifyAndApply(event.data.reference);
+        await this.#verifyWebhookPayment(event.data.reference, mode);
       } else if (mode === 'live') {
         await this.#applySubscriptionEvent(event);
       }
@@ -504,7 +763,8 @@ export class SubscriptionService {
     await this.pool.query(
       `UPDATE subscription_payment_transactions
           SET status = 'Failed', updated_at = now(),
-              gateway_response_summary = $2::jsonb
+              gateway_response_summary =
+                COALESCE(gateway_response_summary, '{}'::jsonb) || $2::jsonb
         WHERE reference = $1 AND status <> 'Successful'`,
       [
         expected.reference,
@@ -514,6 +774,31 @@ export class SubscriptionService {
         }),
       ],
     );
+  }
+
+  async #verifyWebhookPayment(reference, mode) {
+    const payment = (
+      await this.pool.query(
+        `SELECT clinic_id, gateway_response_summary
+           FROM subscription_payment_transactions
+          WHERE reference = $1`,
+        [reference],
+      )
+    ).rows[0];
+    const metadata = normalizeMetadata(payment?.gateway_response_summary);
+    if (
+      metadata.paymentScope === 'clinic_application' &&
+      typeof metadata.applicationId === 'string'
+    ) {
+      await this.verifyApplicationPayment({
+        applicationId: metadata.applicationId,
+        clinicId: payment.clinic_id,
+        reference,
+      });
+      return;
+    }
+    if (mode === 'test') await this.verifyOnly(reference);
+    else await this.verifyAndApply(reference);
   }
 
   async #verifyExpectedPayment(reference, auth, mode) {
@@ -604,12 +889,12 @@ export class SubscriptionService {
     };
   }
 
-  #verificationOnlyResult(payment) {
+  #verificationOnlyResult(payment, mode = 'test') {
     return {
       payment: mapPayment(payment),
       subscription: null,
       verified: true,
-      mode: 'test',
+      mode,
       subscriptionApplied: false,
     };
   }
@@ -696,6 +981,30 @@ function normalizeMetadata(value) {
     }
   }
   return value && typeof value === 'object' ? value : {};
+}
+
+function validateApplicationPaymentTarget(
+  application,
+  { applicationId, clinicId },
+) {
+  if (
+    !application ||
+    application.application_id !== applicationId ||
+    application.clinic_id !== clinicId
+  ) {
+    throw serviceError(
+      'clinic_application_not_found',
+      'The clinic application could not be found.',
+      404,
+    );
+  }
+  if (!['Pending', 'PendingApproval', 'Approved'].includes(application.status)) {
+    throw serviceError(
+      'clinic_application_payment_unavailable',
+      'Payment is not available for this clinic application.',
+      409,
+    );
+  }
 }
 
 function addBillingPeriod(date, cycle) {

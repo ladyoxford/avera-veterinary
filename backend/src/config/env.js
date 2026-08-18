@@ -19,7 +19,9 @@ const schema = z.object({
   PAYSTACK_CALLBACK_URL: z.string().url().optional(),
   PAYSTACK_CURRENCY: z.string().length(3).default('NGN'),
   APP_PAYMENT_CALLBACK_URL: z.string().url().optional(),
+  APP_REGISTRATION_PAYMENT_CALLBACK_URL: z.string().url().optional(),
   APP_DEEP_LINK_SCHEME: z.string().regex(/^[a-z][a-z0-9+.-]*$/).default('avera'),
+  REGISTRATION_PAYMENT_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(1440),
   PAYSTACK_STARTER_MONTHLY_PLAN_CODE: z.string().optional(),
   PAYSTACK_STARTER_ANNUAL_PLAN_CODE: z.string().optional(),
   PAYSTACK_PROFESSIONAL_MONTHLY_PLAN_CODE: z.string().optional(),
@@ -64,5 +66,8 @@ export function loadEnvironment(raw = process.env) {
     allowedOrigins: environment.ALLOWED_ORIGINS.split(',').map((value) => value.trim()),
     paymentCallbackUrl:
       environment.PAYSTACK_CALLBACK_URL ?? environment.APP_PAYMENT_CALLBACK_URL,
+    registrationPaymentCallbackUrl:
+      environment.APP_REGISTRATION_PAYMENT_CALLBACK_URL ??
+      `${environment.APP_DEEP_LINK_SCHEME}://app/payments/registration-callback`,
   };
 }

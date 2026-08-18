@@ -476,6 +476,10 @@ class ClinicApplication {
     required this.subscriptionPlan,
     this.timeZone = 'Africa/Lagos',
     this.reference,
+    this.applicationId,
+    this.clinicId,
+    this.paymentStatus,
+    this.paymentAccessToken,
   });
 
   final String clinicName;
@@ -491,6 +495,15 @@ class ClinicApplication {
   final String subscriptionPlan;
   final String timeZone;
   final String? reference;
+  final String? applicationId;
+  final String? clinicId;
+  final String? paymentStatus;
+  final String? paymentAccessToken;
+
+  bool get canContinueToPayment =>
+      applicationId?.isNotEmpty == true &&
+      clinicId?.isNotEmpty == true &&
+      paymentAccessToken?.isNotEmpty == true;
 }
 
 class ClinicAdministratorActivation {
@@ -698,6 +711,10 @@ class ClinicRepository {
         subscriptionPlan: application.subscriptionPlan,
         timeZone: application.timeZone,
         reference: remote['reference'] as String?,
+        applicationId: remote['applicationId'] as String?,
+        clinicId: clinicId,
+        paymentStatus: remote['paymentStatus'] as String? ?? 'Pending',
+        paymentAccessToken: remote['paymentAccessToken'] as String?,
       );
     }
     final normalizedEmail = application.administratorEmail.trim().toLowerCase();

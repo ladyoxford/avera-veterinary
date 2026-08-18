@@ -25,6 +25,19 @@ const clinicApplicationSchema = z.object({
   timeZone: z.string().trim().min(1).max(120).default('Africa/Lagos'),
 });
 
+const registrationPaymentInitializeSchema = z.object({
+  accessToken: z.string().trim().min(20),
+  billingCycle: z.enum(['monthly', 'annual']).default('monthly'),
+  retry: z.boolean().optional().default(false),
+});
+
+const registrationPaymentVerifySchema = z.object({
+  accessToken: z.string().trim().min(20),
+  reference: z.string().trim().min(8).max(160),
+});
+
+const clinicApplicationPaymentScope = 'clinic-application-payment';
+
 const clinicStatusSchema = z.object({
   status: z.enum([
     'Pending',
@@ -149,10 +162,62 @@ export async function platformRoutes(app) {
           applicationId: application.application_id,
           clinicId: application.clinic_id,
           reference: application.application_reference,
+          selectedPlan: input.subscriptionPlan,
           status: 'Pending',
+          paymentStatus: 'Pending',
+          paymentAccessToken: createClinicApplicationPaymentToken(app, {
+            applicationId: application.application_id,
+            clinicId: application.clinic_id,
+            selectedPlan: input.subscriptionPlan,
+          }),
           submittedAt: application.submitted_at,
         },
       });
+    },
+  );
+
+  app.post(
+    '/api/v1/clinic-applications/:applicationId/payments/paystack/initialize',
+    { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } },
+    async (request, reply) => {
+      const parsed = registrationPaymentInitializeSchema.safeParse(request.body);
+      if (!parsed.success) return registrationPaymentValidationError(reply);
+      const access = verifyClinicApplicationPaymentToken(
+        app,
+        parsed.data.accessToken,
+        request.params.applicationId,
+      );
+      if (!access) return registrationPaymentForbidden(reply);
+      return handleRegistrationPayment(reply, () =>
+        app.subscriptionService.initializeApplicationCheckout({
+          applicationId: access.applicationId,
+          clinicId: access.clinicId,
+          billingCycle: parsed.data.billingCycle,
+          retry: parsed.data.retry,
+        }),
+      );
+    },
+  );
+
+  app.post(
+    '/api/v1/clinic-applications/:applicationId/payments/paystack/verify',
+    { config: { rateLimit: { max: 30, timeWindow: '1 hour' } } },
+    async (request, reply) => {
+      const parsed = registrationPaymentVerifySchema.safeParse(request.body);
+      if (!parsed.success) return registrationPaymentValidationError(reply);
+      const access = verifyClinicApplicationPaymentToken(
+        app,
+        parsed.data.accessToken,
+        request.params.applicationId,
+      );
+      if (!access) return registrationPaymentForbidden(reply);
+      return handleRegistrationPayment(reply, () =>
+        app.subscriptionService.verifyApplicationPayment({
+          applicationId: access.applicationId,
+          clinicId: access.clinicId,
+          reference: parsed.data.reference,
+        }),
+      );
     },
   );
 
@@ -541,6 +606,66 @@ export async function platformRoutes(app) {
     if (!updated) return reply.code(404).send({ error: 'not_found', message: 'User not found.' });
     return updated;
   });
+}
+
+export function createClinicApplicationPaymentToken(app, application) {
+  const ttlMinutes =
+    Number(app.environment.REGISTRATION_PAYMENT_TOKEN_TTL_MINUTES) || 1440;
+  return app.jwt.sign(
+    {
+      scope: clinicApplicationPaymentScope,
+      applicationId: application.applicationId,
+      clinicId: application.clinicId,
+      selectedPlan: application.selectedPlan,
+      nonce: randomUUID(),
+    },
+    { expiresIn: ttlMinutes * 60 },
+  );
+}
+
+function verifyClinicApplicationPaymentToken(app, token, applicationId) {
+  try {
+    const access = app.jwt.verify(token);
+    if (
+      access.scope !== clinicApplicationPaymentScope ||
+      access.applicationId !== applicationId ||
+      typeof access.clinicId !== 'string' ||
+      access.clinicId.length === 0
+    ) {
+      return null;
+    }
+    return access;
+  } catch (_) {
+    return null;
+  }
+}
+
+function registrationPaymentForbidden(reply) {
+  return reply.code(403).send({
+    error: 'registration_payment_access_denied',
+    message: 'This clinic payment session is invalid or has expired.',
+  });
+}
+
+function registrationPaymentValidationError(reply) {
+  return reply.code(400).send({
+    error: 'validation_error',
+    message: 'Provide a valid clinic payment session.',
+  });
+}
+
+async function handleRegistrationPayment(reply, action) {
+  try {
+    return await action();
+  } catch (error) {
+    if (error.statusCode) {
+      return reply.code(error.statusCode).send({
+        error: error.code ?? 'registration_payment_error',
+        message: error.message,
+      });
+    }
+    throw error;
+  }
 }
 
 async function requirePlatformAccount(request, reply) {

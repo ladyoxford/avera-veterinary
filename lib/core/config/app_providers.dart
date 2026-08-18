@@ -116,6 +116,17 @@ final platformClinicProvider = FutureProvider.family<Clinic?, String>((
   return ref.watch(platformRepositoryProvider).loadClinic(session, clinicId);
 });
 
+final platformClinicApplicationPaymentProvider =
+    FutureProvider.family<PlatformClinicApplicationPayment?, String>((
+      ref,
+      clinicId,
+    ) async {
+      final session = await ref.watch(userSessionProvider.future);
+      return ref
+          .watch(platformRepositoryProvider)
+          .loadClinicApplicationPayment(session, clinicId);
+    });
+
 final platformAdministratorActivationProvider =
     FutureProvider.family<PlatformAdministratorActivation, String>((
       ref,

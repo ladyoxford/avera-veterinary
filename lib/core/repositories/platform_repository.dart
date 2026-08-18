@@ -70,6 +70,16 @@ class PlatformClinicApprovalResult {
   final PlatformAdministratorActivation activation;
 }
 
+class PlatformClinicApplicationPayment {
+  const PlatformClinicApplicationPayment({
+    required this.applicationReference,
+    required this.paymentStatus,
+  });
+
+  final String applicationReference;
+  final String paymentStatus;
+}
+
 abstract interface class PlatformRepository {
   Future<PlatformOverviewSnapshot> loadOverview(UserSession session);
 
@@ -80,6 +90,11 @@ abstract interface class PlatformRepository {
   Stream<List<Clinic>> watchClinics(UserSession session, {String? status});
 
   Future<Clinic?> loadClinic(UserSession session, String clinicId);
+
+  Future<PlatformClinicApplicationPayment?> loadClinicApplicationPayment(
+    UserSession session,
+    String clinicId,
+  );
 
   Future<Clinic> updateClinicStatus({
     required UserSession session,
@@ -147,6 +162,15 @@ class LocalPlatformRepository implements PlatformRepository {
     return (db.select(
       db.clinics,
     )..where((clinic) => clinic.clinicId.equals(clinicId))).getSingleOrNull();
+  }
+
+  @override
+  Future<PlatformClinicApplicationPayment?> loadClinicApplicationPayment(
+    UserSession session,
+    String clinicId,
+  ) async {
+    _ensurePlatformOwner(session);
+    return null;
   }
 
   @override
@@ -413,6 +437,30 @@ class RemotePlatformRepository implements PlatformRepository {
       onOfflineChanged?.call(true);
       return _local.loadClinic(session, clinicId);
     }
+  }
+
+  @override
+  Future<PlatformClinicApplicationPayment?> loadClinicApplicationPayment(
+    UserSession session,
+    String clinicId,
+  ) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.get(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}',
+    );
+    final value = response['clinic'];
+    if (value is! Map<String, dynamic>) return null;
+    final applicationReference = value['applicationReference'] as String?;
+    final paymentStatus = value['paymentStatus'] as String?;
+    if (applicationReference == null || applicationReference.trim().isEmpty) {
+      return null;
+    }
+    return PlatformClinicApplicationPayment(
+      applicationReference: applicationReference,
+      paymentStatus: paymentStatus?.trim().isNotEmpty == true
+          ? paymentStatus!
+          : 'Pending',
+    );
   }
 
   @override

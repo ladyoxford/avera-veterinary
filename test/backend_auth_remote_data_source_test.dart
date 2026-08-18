@@ -56,6 +56,37 @@ void main() {
     },
   );
 
+  test('ApiClient preserves the safe server message for rate limiting', () async {
+    final apiClient = ApiClient(
+      baseUrl: 'https://api.avera.test',
+      tokens: const TokenStore(FlutterSecureStorage()),
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'error': 'rate_limit_exceeded',
+            'message':
+                'Too many requests were made. Please wait a few minutes and try again.',
+          }),
+          429,
+        ),
+      ),
+    );
+
+    await expectLater(
+      apiClient.post('/api/v1/clinic-applications', body: const {}),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.code, 'code', 'rate_limit_exceeded')
+            .having((error) => error.statusCode, 'statusCode', 429)
+            .having(
+              (error) => error.message,
+              'message',
+              contains('wait a few minutes'),
+            ),
+      ),
+    );
+  });
+
   test('clinical endpoints share the production Render base URL', () async {
     final client = MockClient((request) async {
       expect(

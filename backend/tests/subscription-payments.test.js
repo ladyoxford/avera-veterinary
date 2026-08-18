@@ -345,6 +345,32 @@ test('clinic application returns a scoped payment capability that cannot cross a
   assert.equal(calls.length, 1);
 });
 
+test('clinic registration throttling returns a safe actionable error', async (context) => {
+  const app = await buildApp({
+    environment: testEnvironment(),
+    pool: {
+      async query() {
+        throw new Error('Invalid throttling probes must not query the database.');
+      },
+    },
+  });
+  context.after(() => app.close());
+
+  let response;
+  for (let attempt = 0; attempt < 21; attempt += 1) {
+    response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/clinic-applications',
+      payload: {},
+    });
+  }
+
+  assert.equal(response.statusCode, 429);
+  assert.equal(response.json().error, 'rate_limit_exceeded');
+  assert.match(response.json().message, /wait a few minutes/i);
+  assert.equal(typeof response.json().requestId, 'string');
+});
+
 test('checkout price and currency come from the server plan, not the client', async () => {
   const gatewayCalls = [];
   const client = transactionClient((sql) => {

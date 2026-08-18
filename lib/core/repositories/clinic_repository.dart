@@ -678,26 +678,7 @@ class ClinicRepository {
       );
       final remote = response['application'] as Map<String, dynamic>;
       final clinicId = remote['clinicId'] as String;
-      await db
-          .into(db.clinics)
-          .insertOnConflictUpdate(
-            ClinicsCompanion.insert(
-              clinicId: clinicId,
-              clinicName: application.clinicName.trim(),
-              address: Value(application.address.trim()),
-              city: Value(application.city.trim()),
-              country: Value(application.country.trim()),
-              phoneNumber: Value(application.phoneNumber.trim()),
-              email: Value(application.clinicEmail.trim().toLowerCase()),
-              timeZone: Value(application.timeZone),
-              subscriptionPlan: Value(application.subscriptionPlan),
-              clinicStatus: const Value('Pending'),
-              dateRegistered:
-                  DateTime.tryParse(remote['submittedAt'] as String? ?? '') ??
-                  DateTime.now(),
-            ),
-          );
-      return ClinicApplication(
+      final submitted = ClinicApplication(
         clinicName: application.clinicName,
         clinicEmail: application.clinicEmail,
         phoneNumber: application.phoneNumber,
@@ -716,6 +697,35 @@ class ClinicRepository {
         paymentStatus: remote['paymentStatus'] as String? ?? 'Pending',
         paymentAccessToken: remote['paymentAccessToken'] as String?,
       );
+      try {
+        await db
+            .into(db.clinics)
+            .insertOnConflictUpdate(
+              ClinicsCompanion.insert(
+                clinicId: clinicId,
+                clinicName: application.clinicName.trim(),
+                address: Value(application.address.trim()),
+                city: Value(application.city.trim()),
+                country: Value(application.country.trim()),
+                phoneNumber: Value(application.phoneNumber.trim()),
+                email: Value(application.clinicEmail.trim().toLowerCase()),
+                timeZone: Value(application.timeZone),
+                subscriptionPlan: Value(application.subscriptionPlan),
+                clinicStatus: const Value('Pending'),
+                dateRegistered:
+                    DateTime.tryParse(remote['submittedAt'] as String? ?? '') ??
+                    DateTime.now(),
+              ),
+            );
+      } catch (error) {
+        if (kDebugMode) {
+          debugPrint(
+            'Clinic application submitted; local pending-clinic cache update failed: '
+            '${error.runtimeType}',
+          );
+        }
+      }
+      return submitted;
     }
     final normalizedEmail = application.administratorEmail.trim().toLowerCase();
     final duplicate =

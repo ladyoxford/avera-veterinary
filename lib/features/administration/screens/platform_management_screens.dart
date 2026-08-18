@@ -107,6 +107,9 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
     final activation = ref.watch(
       platformAdministratorActivationProvider(clinicId),
     );
+    final applicationPayment = ref.watch(
+      platformClinicApplicationPaymentProvider(clinicId),
+    );
     ref.watch(platformClinicProvider(clinicId));
     return _PlatformGuard(
       child: StreamBuilder<List<Clinic>>(
@@ -167,6 +170,73 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
                             .first,
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                applicationPayment.when(
+                  loading: () => const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: LinearProgressIndicator(),
+                    ),
+                  ),
+                  error: (_, __) => Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.warning_amber_rounded),
+                      title: const Text('Payment status unavailable'),
+                      subtitle: const Text(
+                        'The clinic application is unchanged. Try loading its payment status again.',
+                      ),
+                      trailing: IconButton(
+                        tooltip: 'Retry payment status',
+                        onPressed: () => ref.invalidate(
+                          platformClinicApplicationPaymentProvider(clinicId),
+                        ),
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ),
+                  ),
+                  data: (payment) => Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Registration & Payment',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          if (payment == null)
+                            const Text(
+                              'No clinic-registration application is linked to this clinic.',
+                            )
+                          else ...[
+                            Text(
+                              'Application reference',
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            SelectableText(payment.applicationReference),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Payment status',
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _paymentStatusLabel(payment.paymentStatus),
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _paymentStatusDescription(payment.paymentStatus),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 if (clinic.clinicStatus == 'Active') ...[
@@ -352,6 +422,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
             );
       }
       ref.invalidate(platformClinicProvider(clinicId));
+      ref.invalidate(platformClinicApplicationPaymentProvider(clinicId));
       ref.invalidate(platformAdministratorActivationProvider(clinicId));
       ref.invalidate(platformClinicsProvider);
       ref.invalidate(platformOverviewProvider);
@@ -425,6 +496,29 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
       'NotProvisioned' => 'Administrator not provisioned',
       'LocalDevelopment' => 'Local development activation',
       _ => activation.status,
+    };
+  }
+
+  String _paymentStatusLabel(String status) {
+    return switch (status.toLowerCase()) {
+      'paid' => 'Paid',
+      'testverified' => 'Test payment verified',
+      'failed' => 'Payment failed',
+      'cancelled' || 'canceled' => 'Payment cancelled',
+      _ => 'Pending payment',
+    };
+  }
+
+  String _paymentStatusDescription(String status) {
+    return switch (status.toLowerCase()) {
+      'paid' =>
+        'Payment is verified. Platform Owner approval and administrator activation remain separate required steps.',
+      'testverified' =>
+        'Payment was verified in test mode. No subscription, approval, or activation changes were applied.',
+      'failed' || 'cancelled' || 'canceled' =>
+        'The clinic application remains submitted and payment may be retried safely.',
+      _ =>
+        'Payment has not been verified. The clinic application remains pending review.',
     };
   }
 

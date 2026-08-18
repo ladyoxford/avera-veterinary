@@ -282,6 +282,10 @@ class ApiClient {
     if (status == 408 || status == 504) {
       return 'The AVERA server took too long to respond. Please try again.';
     }
+    if (status == 429) {
+      return serverMessage ??
+          'Too many requests were made. Please wait a few minutes and try again.';
+    }
     if (status >= 500) {
       return 'The AVERA server is unavailable. Please try again shortly.';
     }

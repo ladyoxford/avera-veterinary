@@ -6,6 +6,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/config/clinic_registration_provider.dart';
 import '../../../core/location/country_catalog.dart';
+import '../../../core/remote/api_client.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
@@ -50,6 +51,7 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
     final selectedPlan = ref.watch(clinicRegistrationPlanProvider);
 
     Future<void> submit() async {
+      if (submitting.value) return;
       FocusScope.of(context).unfocus();
       if (!(formKey.currentState?.validate() ?? false) || !accepted.value) {
         if (!accepted.value) {
@@ -127,6 +129,12 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
               ).toString(),
             );
           }
+        }
+      } on ApiException catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_registrationFailureMessage(error))),
+          );
         }
       } catch (_) {
         if (context.mounted) {
@@ -381,6 +389,13 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
       value == null || !RegExp(r'^\S+@\S+\.\S+$').hasMatch(value)
       ? 'Enter a valid email address.'
       : null;
+}
+
+String _registrationFailureMessage(ApiException error) {
+  if (error.code == 'application_exists') {
+    return 'An active clinic application already exists for this administrator email. Contact AVERA support if you need to resume its payment. Your form has been preserved.';
+  }
+  return '${error.message} Your form has been preserved.';
 }
 
 class _LabeledTextField extends StatelessWidget {

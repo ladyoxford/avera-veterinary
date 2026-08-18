@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:avera/core/database/app_database.dart';
+import 'package:avera/core/remote/api_client.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
 import 'package:avera/core/subscription/subscription_plan_config.dart';
 import 'package:avera/core/theme/app_theme.dart';
@@ -319,6 +320,71 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('registration explains throttling and preserves entered form data', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _pumpRegistration(
+      tester,
+      size: const Size(390, 844),
+      repository: _FailingClinicRepository(
+        database,
+        const ApiException(
+          'rate_limit_exceeded',
+          'Too many requests were made. Please wait a few minutes and try again.',
+          statusCode: 429,
+        ),
+      ),
+    );
+    await _completeRequiredRegistrationFields(tester);
+
+    final submit = find.text('Continue with Starter');
+    await _scrollRegistrationUntilVisible(tester, submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Too many requests were made. Please wait a few minutes and try again. Your form has been preserved.',
+      ),
+      findsOneWidget,
+    );
+    await _scrollRegistrationUntilVisible(
+      tester,
+      find.byKey(const Key('clinic-name-field')),
+      upward: true,
+    );
+    final clinicName = tester.widget<TextFormField>(
+      find.descendant(
+        of: find.byKey(const Key('clinic-name-field')),
+        matching: find.byType(TextFormField),
+      ),
+    );
+    expect(clinicName.controller!.text, 'Crest Veterinary Hospital');
+    expect(tester.takeException(), isNull);
+  });
+}
+
+Future<void> _completeRequiredRegistrationFields(WidgetTester tester) async {
+  const fields = <(Key, String)>[
+    (Key('clinic-name-field'), 'Crest Veterinary Hospital'),
+    (Key('clinic-email-field'), 'hello@crest.test'),
+    (Key('clinic-phone-field'), '+2348000000000'),
+    (Key('clinic-address-field'), '1 Veterinary Way'),
+    (Key('clinic-city-field'), 'Abuja'),
+    (Key('administrator-name-field'), 'Crest Administrator'),
+    (Key('administrator-email-field'), 'administrator@crest.test'),
+    (Key('administrator-phone-field'), '+2348111111111'),
+  ];
+  for (final (key, value) in fields) {
+    await _enterRegistrationField(tester, key, value);
+  }
+  final terms = find.byKey(const Key('clinic-registration-terms'));
+  await _scrollRegistrationUntilVisible(tester, terms);
+  await tester.tap(terms);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _enterRegistrationField(
@@ -410,5 +476,18 @@ class _PaymentReadyClinicRepository extends ClinicRepository {
       paymentStatus: 'Pending',
       paymentAccessToken: 'scoped-registration-capability',
     );
+  }
+}
+
+class _FailingClinicRepository extends ClinicRepository {
+  _FailingClinicRepository(super.database, this.error);
+
+  final Object error;
+
+  @override
+  Future<ClinicApplication> submitClinicApplication(
+    ClinicApplication application,
+  ) async {
+    throw error;
   }
 }

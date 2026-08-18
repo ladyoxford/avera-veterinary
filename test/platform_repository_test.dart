@@ -162,6 +162,50 @@ void main() {
   );
 
   test(
+    'platform clinic detail preserves application reference and payment status',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final session = await _platformOwnerSession(database);
+      final tokens = const TokenStore(FlutterSecureStorage());
+      await tokens.save(
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      );
+      final repository = RemotePlatformRepository(
+        db: database,
+        apiClient: ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: tokens,
+          client: MockClient((request) async {
+            expect(request.url.path, '/api/v1/platform/clinics/remote-clinic');
+            return http.Response(
+              jsonEncode({
+                'clinic': {
+                  ..._remoteClinic(status: 'PendingApproval'),
+                  'applicationReference': 'AVR-20260818-ABC123',
+                  'paymentStatus': 'TestVerified',
+                },
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final payment = await repository.loadClinicApplicationPayment(
+        session,
+        'remote-clinic',
+      );
+
+      expect(payment, isNotNull);
+      expect(payment!.applicationReference, 'AVR-20260818-ABC123');
+      expect(payment.paymentStatus, 'TestVerified');
+    },
+  );
+
+  test(
     'approving a clinic calls the backend and refreshes the Drift cache',
     () async {
       final database = AppDatabase.forTesting(NativeDatabase.memory());

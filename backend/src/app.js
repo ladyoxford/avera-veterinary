@@ -91,6 +91,13 @@ export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
   });
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);
+    if (error.statusCode === 429) {
+      return reply.code(429).send({
+        error: 'rate_limit_exceeded',
+        message: 'Too many requests were made. Please wait a few minutes and try again.',
+        requestId: request.id,
+      });
+    }
     reply.code(error.statusCode ?? 500).send({ error: 'internal_error', message: 'The request could not be completed.', requestId: request.id });
   });
   await app.register(healthRoutes);

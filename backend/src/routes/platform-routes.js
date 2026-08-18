@@ -58,7 +58,10 @@ const clinicSubscriptionSchema = z.object({
 export async function platformRoutes(app) {
   app.post(
     '/api/v1/clinic-applications',
-    { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } },
+    // Carrier-grade NAT can place many legitimate mobile applicants behind one
+    // public IP. The global limiter remains in force; this route allowance
+    // prevents a handful of users from blocking clinic registration for an hour.
+    { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } },
     async (request, reply) => {
       const parsed = clinicApplicationSchema.safeParse(request.body);
       if (!parsed.success) {

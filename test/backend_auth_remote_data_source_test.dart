@@ -242,6 +242,64 @@ void main() {
     },
   );
 
+  test(
+    'patient photo update uses the canonical authenticated UUID contract',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'avera_access_token': 'production-access-token',
+      });
+      const patientId = 'cb159739-c0cb-4503-a069-9d64563f47bc';
+      final source = ClinicalRemoteDataSource(
+        ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: MockClient((request) async {
+            expect(request.method, 'POST');
+            expect(
+              request.url.path,
+              '/api/v1/patients/$patientId/profile-photo',
+            );
+            expect(
+              request.headers['authorization'],
+              'Bearer production-access-token',
+            );
+            expect(jsonDecode(request.body), {
+              'contentType': 'image/jpeg',
+              'data': '/9j/2Q==',
+            });
+            return http.Response(
+              jsonEncode({
+                'patient': {
+                  'patient_id': patientId,
+                  'hospital_number': 'AVR-2026-00001',
+                  'name': 'Luna',
+                  'species': 'Cat',
+                  'status': 'Active',
+                  'owner_name': 'Luna Owner',
+                  'owner_phone': '08000000000',
+                  'profile_photo_url':
+                      'https://storage.avera.test/patients/luna.jpg',
+                },
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final patient = await source.updatePatientPhoto(
+        patientId: patientId,
+        contentType: 'image/jpeg',
+        base64Data: '/9j/2Q==',
+      );
+
+      expect(patient.id, patientId);
+      expect(patient.photoUrl, 'https://storage.avera.test/patients/luna.jpg');
+      expect(patient.hospitalNumber, 'AVR-2026-00001');
+    },
+  );
+
   test('clinical mutations use authenticated production contracts', () async {
     FlutterSecureStorage.setMockInitialValues({
       'avera_access_token': 'production-access-token',

@@ -523,3 +523,13 @@ test('clinic settings migration provisions durable work hours and branding', () 
   assert.match(routes, /clinic\.work_hours_updated/);
   assert.match(routes, /clinic\.theme_color_updated/);
 });
+
+test('patient photo migration preserves patients and adds only the photo path', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/021_patient_profile_photos.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /ALTER TABLE patients/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS profile_photo_path TEXT/);
+  assert.doesNotMatch(migration, /DROP TABLE|DELETE FROM patients|TRUNCATE/i);
+});

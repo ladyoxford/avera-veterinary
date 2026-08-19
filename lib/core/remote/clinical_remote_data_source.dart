@@ -33,6 +33,7 @@ class RemotePatient {
     this.ownerEmail,
     this.ownerAddress,
     this.imagePlaceholder,
+    this.photoUrl,
     this.dateOfBirth,
     this.isDateOfBirthEstimated = false,
     this.originalAgeValue,
@@ -55,6 +56,7 @@ class RemotePatient {
   final String? ownerEmail;
   final String? ownerAddress;
   final String? imagePlaceholder;
+  final String? photoUrl;
   final DateTime? dateOfBirth;
   final bool isDateOfBirthEstimated;
   final int? originalAgeValue;
@@ -77,6 +79,7 @@ class RemotePatient {
     ownerEmail: value['owner_email'] as String?,
     ownerAddress: _ownerAddress(value),
     imagePlaceholder: value['image_placeholder'] as String?,
+    photoUrl: value['profile_photo_url'] as String?,
     dateOfBirth: _date(value['date_of_birth']),
     isDateOfBirthEstimated:
         value['is_date_of_birth_estimated'] as bool? ?? false,
@@ -103,6 +106,7 @@ class RemotePatient {
     'owner_email': ownerEmail,
     'owner_address': ownerAddress,
     'image_placeholder': imagePlaceholder,
+    'profile_photo_url': photoUrl,
     'date_of_birth': dateOfBirth?.toIso8601String(),
     'is_date_of_birth_estimated': isDateOfBirthEstimated,
     'original_age_value': originalAgeValue,
@@ -527,6 +531,21 @@ class ClinicalRemoteDataSource {
         'status': status,
         if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim(),
       },
+    );
+    return RemotePatient.fromJson(
+      Map<String, dynamic>.from(response['patient'] as Map),
+    );
+  }
+
+  Future<RemotePatient> updatePatientPhoto({
+    required String patientId,
+    required String contentType,
+    required String base64Data,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/patients/$patientId/profile-photo',
+      authenticated: true,
+      body: {'contentType': contentType, 'data': base64Data},
     );
     return RemotePatient.fromJson(
       Map<String, dynamic>.from(response['patient'] as Map),

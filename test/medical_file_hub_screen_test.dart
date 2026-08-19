@@ -8,6 +8,7 @@ import 'package:avera/core/security/access_control.dart';
 import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/core/theme/theme_controller.dart';
 import 'package:avera/features/animals/screens/medical_file_hub_screen.dart';
+import 'package:avera/features/shared/widgets/identity_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -25,7 +26,9 @@ void main() {
   });
 
   test('remote patient cache preserves estimated-age metadata', () {
-    final patient = _medicalFile().patient;
+    final patient = _medicalFile(
+      photoUrl: 'https://storage.avera.test/patients/luna.jpg',
+    ).patient;
     final restored = RemotePatient.fromJson(patient.toJson());
 
     expect(restored.dateOfBirth, DateTime(2025, 4, 6));
@@ -33,6 +36,44 @@ void main() {
     expect(restored.originalAgeValue, 1);
     expect(restored.originalAgeUnit, 'years');
     expect(restored.ageRecordedAt, DateTime(2026, 4, 6));
+    expect(restored.photoUrl, 'https://storage.avera.test/patients/luna.jpg');
+  });
+
+  testWidgets(
+    'Medical File patient avatar falls back and opens photo actions',
+    (tester) async {
+      await tester.pumpWidget(_subject(preferences));
+      await tester.pumpAndSettle();
+
+      final avatar = tester.widget<AveraIdentityAvatar>(
+        find.byKey(const Key('medical-file-patient-avatar')),
+      );
+      expect(avatar.photoReference, isNull);
+      expect(find.text('L'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('medical-file-patient-avatar')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Take photo'), findsOneWidget);
+      expect(find.text('Upload photo'), findsOneWidget);
+      expect(find.text('View photo'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Medical File patient avatar receives the cached photo URL', (
+    tester,
+  ) async {
+    const photoUrl = 'https://storage.avera.test/patients/luna.jpg';
+    await tester.pumpWidget(
+      _subject(preferences, medicalFile: _medicalFile(photoUrl: photoUrl)),
+    );
+    await tester.pump();
+
+    final avatar = tester.widget<AveraIdentityAvatar>(
+      find.byKey(const Key('medical-file-patient-avatar')),
+    );
+    expect(avatar.photoReference, photoUrl);
   });
 
   test('Medical File appointment opens the exact saved schedule entry', () {
@@ -456,6 +497,7 @@ Widget _subject(
   ThemeData? theme,
   TextScaler textScaler = TextScaler.noScaling,
   DateTime? ageReferenceDate,
+  RemotePatientMedicalFile? medicalFile,
 }) => ProviderScope(
   overrides: [
     sharedPreferencesProvider.overrideWithValue(preferences),
@@ -465,7 +507,7 @@ Widget _subject(
     userSessionProvider.overrideWith((ref) async => _session()),
     remotePatientMedicalFileProvider.overrideWith((ref, patientId) async {
       expect(patientId, _patientId);
-      return _medicalFile();
+      return medicalFile ?? _medicalFile();
     }),
     remotePatientSectionProvider.overrideWith(
       (ref, request) async => const RemotePage(
@@ -490,32 +532,34 @@ Widget _subject(
   ),
 );
 
-RemotePatientMedicalFile _medicalFile() => RemotePatientMedicalFile(
-  patient: RemotePatient(
-    id: _patientId,
-    hospitalNumber: 'AVR-2026-00001',
-    name: 'Luna',
-    species: 'Cat',
-    status: 'Active',
-    ownerName: 'Ada Okafor',
-    ownerPhone: '08010000000',
-    breed: 'Domestic Shorthair',
-    sex: 'Female',
-    dateOfBirth: DateTime(2025, 4, 6),
-    isDateOfBirthEstimated: true,
-    originalAgeValue: 1,
-    originalAgeUnit: 'years',
-    ageRecordedAt: DateTime(2026, 4, 6),
-    currentWeightKg: 15.0,
-  ),
-  summaries: {
-    'consultations': {'count': 0},
-    'vaccinations': {'count': 0},
-    'laboratory': {'count': 0},
-    'hospitalizations': {'count': 0},
-  },
-  timeline: [],
-);
+RemotePatientMedicalFile _medicalFile({String? photoUrl}) =>
+    RemotePatientMedicalFile(
+      patient: RemotePatient(
+        id: _patientId,
+        hospitalNumber: 'AVR-2026-00001',
+        name: 'Luna',
+        species: 'Cat',
+        status: 'Active',
+        ownerName: 'Ada Okafor',
+        ownerPhone: '08010000000',
+        breed: 'Domestic Shorthair',
+        sex: 'Female',
+        dateOfBirth: DateTime(2025, 4, 6),
+        isDateOfBirthEstimated: true,
+        originalAgeValue: 1,
+        originalAgeUnit: 'years',
+        ageRecordedAt: DateTime(2026, 4, 6),
+        currentWeightKg: 15.0,
+        photoUrl: photoUrl,
+      ),
+      summaries: {
+        'consultations': {'count': 0},
+        'vaccinations': {'count': 0},
+        'laboratory': {'count': 0},
+        'hospitalizations': {'count': 0},
+      },
+      timeline: [],
+    );
 
 UserSession _session() => UserSession(
   user: AppUser(
@@ -554,6 +598,7 @@ UserSession _session() => UserSession(
   ),
   backendPermissions: const {
     Permissions.patientsView,
+    Permissions.patientsEdit,
     Permissions.consultationsView,
     Permissions.consultationsCreate,
   },

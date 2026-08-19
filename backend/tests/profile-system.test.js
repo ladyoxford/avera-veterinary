@@ -30,6 +30,41 @@ test('profile photos are scoped by clinic and authenticated user identifiers', (
   );
 });
 
+test('patient profile photos are scoped by clinic and canonical patient identifiers', () => {
+  const storage = new ProfilePhotoStorageService({ environment });
+  assert.equal(
+    storage.patientObjectPath({
+      clinicId: 'clinic-a',
+      patientId: 'patient-a',
+      contentType: 'image/png',
+    }),
+    'clinic-a/patients/patient-a/avatar.png',
+  );
+  assert.notEqual(
+    storage.patientObjectPath({
+      clinicId: 'clinic-a', patientId: 'patient-a', contentType: 'image/jpeg',
+    }),
+    storage.patientObjectPath({
+      clinicId: 'clinic-b', patientId: 'patient-a', contentType: 'image/jpeg',
+    }),
+  );
+});
+
+test('patient photo route requires edit permission and tenant-scoped UUID lookup', async () => {
+  const source = await readFile(new URL('../src/routes/clinical-routes.js', import.meta.url), 'utf8');
+  const start = source.indexOf("app.post('/api/v1/patients/:patientId/profile-photo'");
+  const end = source.indexOf("app.get('/api/v1/patients/:patientId/medical-file'", start);
+  const route = source.slice(start, end);
+
+  assert.ok(start >= 0);
+  assert.match(route, /requirePermission\(permissions\.patientsEdit\)/);
+  assert.match(route, /uuidSchema\.safeParse\(request\.params\)/);
+  assert.match(route, /WHERE clinic_id = \$1 AND patient_id = \$2 AND deleted_at IS NULL/);
+  assert.match(route, /request\.auth\.clinicId, params\.data\.patientId/);
+  assert.match(route, /patient\.photo_updated/);
+  assert.doesNotMatch(route, /profile_photo_path:/);
+});
+
 test('self profile routes never accept a target user id', async () => {
   const source = await readFile(new URL('../src/routes/clinic-routes.js', import.meta.url), 'utf8');
   for (const route of ['/api/v1/me/profile', '/api/v1/me/profile-photo']) {

@@ -2,8 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_cropper/image_cropper.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
@@ -11,6 +9,7 @@ import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/avera_ui.dart';
 import '../widgets/identity_avatar.dart';
+import '../widgets/avera_photo_actions.dart';
 
 class MyProfileScreen extends ConsumerStatefulWidget {
   const MyProfileScreen({super.key});
@@ -217,72 +216,30 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   }
 
   Future<void> _showPhotoActions(UserSession session) async {
-    await showModalBottomSheet<void>(
+    final action = await showAveraPhotoActionSheet(
       context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Change Profile Photo'),
-              leading: const Icon(Icons.account_circle_outlined),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take Photo'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _pickPhoto(session, ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose From Photos'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _pickPhoto(session, ImageSource.gallery);
-              },
-            ),
-            if (session.user.profilePhoto != null)
-              ListTile(
-                leading: Icon(
-                  Icons.delete_outline,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                title: Text(
-                  'Remove Current Photo',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _removePhoto(session);
-                },
-              ),
-          ],
-        ),
-      ),
+      subjectName: session.user.fullName,
+      hasPhoto: session.user.profilePhoto?.trim().isNotEmpty == true,
+      canRemovePhoto: true,
     );
+    if (!mounted || action == null) return;
+    if (action == AveraPhotoAction.viewPhoto) {
+      await showAveraPhotoViewer(
+        context: context,
+        subjectName: session.user.fullName,
+        photoReference: session.user.profilePhoto!,
+      );
+    } else if (action == AveraPhotoAction.removePhoto) {
+      await _removePhoto(session);
+    } else {
+      await _pickPhoto(session, action);
+    }
   }
 
-  Future<void> _pickPhoto(UserSession session, ImageSource source) async {
+  Future<void> _pickPhoto(UserSession session, AveraPhotoAction action) async {
     try {
-      final selected = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 88,
-      );
-      if (selected == null || !mounted) return;
-      final cropped = await ImageCropper().cropImage(
-        sourcePath: selected.path,
-        compressFormat: ImageCompressFormat.jpg,
-        compressQuality: 84,
-        maxWidth: 512,
-        maxHeight: 512,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-      );
-      if (cropped == null) return;
+      final cropped = await pickAndCropAveraPhoto(action);
+      if (cropped == null || !mounted) return;
       final bytes = await cropped.readAsBytes();
       if (bytes.length > 1024 * 1024) {
         _message('Choose a profile photo smaller than 1 MB.');

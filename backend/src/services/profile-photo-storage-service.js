@@ -39,6 +39,11 @@ export class ProfilePhotoStorageService {
     return `${clinicId}/branding/${kind}.${extension}`;
   }
 
+  patientObjectPath({ clinicId, patientId, contentType }) {
+    const extension = contentType === 'image/png' ? 'png' : 'jpg';
+    return `${clinicId}/patients/${patientId}/avatar.${extension}`;
+  }
+
   async upload({ clinicId, userId, contentType, bytes }) {
     if (!this.configured) {
       throw storageError(503, 'profile_photo_storage_unavailable', 'Profile photo storage is not configured yet.');
@@ -69,6 +74,23 @@ export class ProfilePhotoStorageService {
     });
     if (!response.ok) {
       throw storageError(502, 'clinic_branding_upload_failed', 'The clinic image could not be uploaded. Please try again.');
+    }
+    return path;
+  }
+
+  async uploadPatientPhoto({ clinicId, patientId, contentType, bytes }) {
+    if (!this.configured) {
+      throw storageError(503, 'patient_photo_storage_unavailable', 'Patient photo storage is not configured yet.');
+    }
+    this.validate({ contentType, bytes });
+    const path = this.patientObjectPath({ clinicId, patientId, contentType });
+    const response = await this.fetch(this.#objectUrl(path), {
+      method: 'POST',
+      headers: { ...this.#headers(), 'Content-Type': contentType, 'x-upsert': 'true' },
+      body: bytes,
+    });
+    if (!response.ok) {
+      throw storageError(502, 'patient_photo_upload_failed', 'The patient photo could not be uploaded. Please try again.');
     }
     return path;
   }

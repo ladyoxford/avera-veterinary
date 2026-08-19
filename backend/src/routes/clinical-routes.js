@@ -57,6 +57,10 @@ const vaccinationUuidSchema = z.object({ vaccinationId: z.string().uuid() });
 const appointmentUuidSchema = z.object({ appointmentId: z.string().uuid() });
 const inventoryUuidSchema = z.object({ inventoryProductId: z.string().uuid() });
 const clinicalOperationUuidSchema = z.object({ operationId: z.string().uuid() });
+const patientPhotoSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png']),
+  data: z.string().min(1),
+});
 export const createPatientSchema = z.object({
   submissionId: z.string().uuid(),
   name: z.string().trim().min(1).max(160),
@@ -434,7 +438,7 @@ async function clinicNumbering(client, clinicId, userId) {
   return clinic;
 }
 
-function patientResponse(row) {
+function patientResponse(row, profilePhotoUrl = null) {
   return {
     patient_id: row.patient_id,
     hospital_number: row.hospital_number,
@@ -450,6 +454,7 @@ function patientResponse(row) {
     age_recorded_at: row.age_recorded_at,
     current_weight_kg: row.current_weight_kg,
     image_placeholder: row.image_placeholder,
+    profile_photo_url: profilePhotoUrl,
     registered_at: row.registered_at,
     revision: row.revision,
     owner_id: row.owner_id,
@@ -527,7 +532,8 @@ const patientList = {
   from: 'patients p JOIN owners o ON o.owner_id = p.owner_id',
   select: `p.patient_id, p.hospital_number, p.name, p.species, p.breed, p.sex, p.status, p.date_of_birth,
            p.is_date_of_birth_estimated, p.original_age_value, p.original_age_unit, p.age_recorded_at,
-           p.current_weight_kg, p.image_placeholder, p.registered_at, p.updated_at, p.revision,
+           p.current_weight_kg, p.image_placeholder, p.profile_photo_path,
+           p.registered_at, p.updated_at, p.revision,
            o.owner_id, o.full_name AS owner_name, o.phone AS owner_phone,
            o.email AS owner_email, o.address AS owner_address,
            o.city AS owner_city, o.state AS owner_state`,
@@ -537,6 +543,42 @@ const patientList = {
   values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.status ?? null],
   order: (query) => orderBy(query.sort, query.direction, { name: 'p.name', hospitalNumber: 'p.hospital_number', registeredAt: 'p.registered_at', updatedAt: 'p.updated_at' }, 'p.registered_at'),
 };
+
+async function patientResponseWithPhoto(app, row) {
+  return patientResponse(
+    row,
+    await app.profilePhotoStorage.signedUrl(row.profile_photo_path),
+  );
+}
+
+async function patientPage(app, request, query) {
+  const offset = (query.page - 1) * query.pageSize;
+  return withTenantTransaction(app.pool, request.auth, async (client) => {
+    const filterValues = patientList.values(query, request.auth);
+    const count = await client.query(
+      `SELECT count(*)::int AS total FROM ${patientList.from} WHERE ${patientList.where}`,
+      filterValues,
+    );
+    const values = [...filterValues, query.pageSize, offset];
+    const result = await client.query(
+      `SELECT ${patientList.select} FROM ${patientList.from}
+        WHERE ${patientList.where} ORDER BY ${patientList.order(query)}
+        LIMIT $${values.length - 1} OFFSET $${values.length}`,
+      values,
+    );
+    const items = await Promise.all(
+      result.rows.map((row) => patientResponseWithPhoto(app, row)),
+    );
+    const total = count.rows[0].total;
+    return {
+      items,
+      page: query.page,
+      pageSize: query.pageSize,
+      total,
+      hasNextPage: offset + items.length < total,
+    };
+  });
+}
 
 const ownerList = {
   from: 'owners o',
@@ -644,7 +686,12 @@ export async function clinicalRoutes(app) {
     values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`], order: (query) => orderBy(query.sort, query.direction, { name: 'u.full_name', lastLogin: 'u.last_login_at' }, 'u.full_name'),
   }));
   app.get('/api/v1/owners', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, tenantList(ownerList));
-  app.get('/api/v1/patients', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, tenantList(patientList));
+  app.get('/api/v1/patients', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const query = parsePage(request, reply);
+    if (!query) return undefined;
+    return patientPage(app, request, query);
+  });
 
   app.get('/api/v1/patients/number-preview', { preHandler: [authenticate, requirePermission(permissions.patientsCreate)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
@@ -684,7 +731,7 @@ export async function clinicalRoutes(app) {
         [request.auth.clinicId, input.submissionId],
       );
       if (existing.rows[0]) {
-        return { patient: patientResponse(existing.rows[0]), submissionId: input.submissionId, duplicateSubmission: true };
+        return { patient: await patientResponseWithPhoto(app, existing.rows[0]), submissionId: input.submissionId, duplicateSubmission: true };
       }
 
       const clinic = await clinicNumbering(client, request.auth.clinicId, request.auth.userId);
@@ -739,7 +786,7 @@ export async function clinicalRoutes(app) {
         sessionId: request.auth.sessionId,
       });
       reply.code(201);
-      return { patient: patientResponse(row), submissionId: input.submissionId, duplicateSubmission: false };
+      return { patient: await patientResponseWithPhoto(app, row), submissionId: input.submissionId, duplicateSubmission: false };
     });
   });
 
@@ -789,7 +836,7 @@ export async function clinicalRoutes(app) {
         reason: parsed.data.reason ?? null,
         sessionId: request.auth.sessionId,
       });
-      return { patient: patientResponse(patient.rows[0]) };
+      return { patient: await patientResponseWithPhoto(app, patient.rows[0]) };
     });
   });
 
@@ -950,8 +997,76 @@ export async function clinicalRoutes(app) {
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const patient = await client.query(`SELECT ${patientList.select} FROM ${patientList.from} WHERE p.clinic_id = $1 AND p.patient_id = $2 AND p.deleted_at IS NULL AND o.deleted_at IS NULL`, [request.auth.clinicId, params.data.patientId]);
       if (!patient.rows[0]) return reply.code(404).send({ error: 'not_found', message: 'The patient was not found in this clinic.' });
-      return { patient: patient.rows[0] };
+      return { patient: await patientResponseWithPhoto(app, patient.rows[0]) };
     });
+  });
+
+  app.post('/api/v1/patients/:patientId/profile-photo', { preHandler: [authenticate, requirePermission(permissions.patientsEdit)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = uuidSchema.safeParse(request.params);
+    const parsed = patientPhotoSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'invalid_patient_photo', message: 'Choose a JPEG or PNG image.' });
+    }
+    let bytes;
+    try {
+      bytes = Buffer.from(parsed.data.data, 'base64');
+    } catch (_) {
+      return reply.code(400).send({ error: 'invalid_patient_photo', message: 'The selected image could not be read.' });
+    }
+    try {
+      return await withTenantTransaction(app.pool, request.auth, async (client) => {
+        const current = await client.query(
+          `SELECT profile_photo_path
+             FROM patients
+            WHERE clinic_id = $1 AND patient_id = $2 AND deleted_at IS NULL
+            FOR UPDATE`,
+          [request.auth.clinicId, params.data.patientId],
+        );
+        if (!current.rows[0]) {
+          return reply.code(404).send({ error: 'not_found', message: 'The patient was not found in this clinic.' });
+        }
+        const path = await app.profilePhotoStorage.uploadPatientPhoto({
+          clinicId: request.auth.clinicId,
+          patientId: params.data.patientId,
+          contentType: parsed.data.contentType,
+          bytes,
+        });
+        await client.query(
+          `UPDATE patients
+              SET profile_photo_path = $1, updated_at = now(), revision = revision + 1
+            WHERE clinic_id = $2 AND patient_id = $3`,
+          [path, request.auth.clinicId, params.data.patientId],
+        );
+        const patient = await client.query(
+          `SELECT ${patientList.select} FROM ${patientList.from}
+            WHERE p.clinic_id = $1 AND p.patient_id = $2
+              AND p.deleted_at IS NULL AND o.deleted_at IS NULL`,
+          [request.auth.clinicId, params.data.patientId],
+        );
+        await writeAudit(client, {
+          clinicId: request.auth.clinicId,
+          actingUserId: request.auth.userId,
+          targetType: 'Patient',
+          targetId: params.data.patientId,
+          action: 'patient.photo_updated',
+          newSummary: { photoUpdated: true },
+          sessionId: request.auth.sessionId,
+        });
+        const previousPath = current.rows[0].profile_photo_path;
+        if (previousPath && previousPath !== path) {
+          await app.profilePhotoStorage.remove(previousPath);
+        }
+        return { patient: await patientResponseWithPhoto(app, patient.rows[0]) };
+      });
+    } catch (error) {
+      return reply.code(error.statusCode ?? 500).send({
+        error: error.code ?? 'patient_photo_upload_failed',
+        message: error.statusCode
+          ? error.message
+          : 'The patient photo could not be uploaded.',
+      });
+    }
   });
 
   app.get('/api/v1/patients/:patientId/medical-file', { preHandler: [authenticate, requirePermission(permissions.patientsView)] }, async (request, reply) => {
@@ -977,7 +1092,7 @@ export async function clinicalRoutes(app) {
           UNION ALL SELECT 'Laboratory', requested_at, test_type FROM laboratory_reports WHERE clinic_id=$1 AND patient_id=$2
         ) events ORDER BY occurred_at DESC LIMIT 10`, [clinicId, patientId]),
       ]);
-      return { patient: patient.rows[0], summaries: { consultations: consultations.rows[0], vaccinations: vaccinations.rows[0], laboratory: laboratory.rows[0], hospitalizations: hospitalizations.rows[0], surgeries: surgeries.rows[0], prescriptions: prescriptions.rows[0], billing: invoices.rows[0], media: media.rows[0] }, timeline: timeline.rows };
+      return { patient: await patientResponseWithPhoto(app, patient.rows[0]), summaries: { consultations: consultations.rows[0], vaccinations: vaccinations.rows[0], laboratory: laboratory.rows[0], hospitalizations: hospitalizations.rows[0], surgeries: surgeries.rows[0], prescriptions: prescriptions.rows[0], billing: invoices.rows[0], media: media.rows[0] }, timeline: timeline.rows };
     });
   });
 

@@ -12,6 +12,7 @@ import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/identity_avatar.dart';
 
 class CloudPatientListScreen extends ConsumerStatefulWidget {
   const CloudPatientListScreen({super.key});
@@ -173,7 +174,7 @@ class _CloudPatientListScreenState
                           padding: EdgeInsets.all(18),
                           child: Center(child: CircularProgressIndicator()),
                         )
-                      : _CloudPatientCard(patient: state.items[index]),
+                      : CloudPatientCard(patient: state.items[index]),
                 ),
               ),
             ],
@@ -184,8 +185,8 @@ class _CloudPatientListScreenState
   }
 }
 
-class _CloudPatientCard extends ConsumerWidget {
-  const _CloudPatientCard({required this.patient});
+class CloudPatientCard extends ConsumerWidget {
+  const CloudPatientCard({super.key, required this.patient});
   final RemotePatient patient;
 
   @override
@@ -208,11 +209,11 @@ class _CloudPatientCard extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 24,
-                child: Text(
-                  patient.name.isEmpty ? '?' : patient.name[0].toUpperCase(),
-                ),
+              AveraIdentityAvatar(
+                key: Key('patient-avatar-${patient.id}'),
+                name: patient.name,
+                photoReference: patient.photoUrl,
+                size: 48,
               ),
               const SizedBox(width: AveraSpacing.compactRowGap),
               Expanded(

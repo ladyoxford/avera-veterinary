@@ -124,8 +124,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('profile-avatar')));
     await tester.pumpAndSettle();
-    expect(find.text('Take Photo'), findsOneWidget);
-    expect(find.text('Choose From Photos'), findsOneWidget);
+    expect(find.text('Take photo'), findsOneWidget);
+    expect(find.text('Upload photo'), findsOneWidget);
+    expect(find.text('View photo'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();

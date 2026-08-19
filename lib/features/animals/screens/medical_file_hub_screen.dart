@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,11 +7,14 @@ import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/config/medical_file_quick_access_provider.dart';
+import '../../../core/remote/api_client.dart';
 import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/animal_age_service.dart';
+import '../../shared/widgets/avera_photo_actions.dart';
+import '../../shared/widgets/identity_avatar.dart';
 import 'animal_profile_screen.dart';
 
 class MedicalFileHubScreen extends ConsumerWidget {
@@ -56,13 +61,23 @@ class MedicalFileHubScreen extends ConsumerWidget {
   }
 }
 
-class CloudMedicalFileHubScreen extends ConsumerWidget {
+class CloudMedicalFileHubScreen extends ConsumerStatefulWidget {
   const CloudMedicalFileHubScreen({super.key, required this.patientId});
 
   final String patientId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CloudMedicalFileHubScreen> createState() =>
+      _CloudMedicalFileHubScreenState();
+}
+
+class _CloudMedicalFileHubScreenState
+    extends ConsumerState<CloudMedicalFileHubScreen> {
+  bool _savingPhoto = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final patientId = widget.patientId;
     final file = ref.watch(remotePatientMedicalFileProvider(patientId));
     final session = ref.watch(userSessionProvider).valueOrNull;
     final ageReferenceDate = ref.watch(animalAgeReferenceDateProvider);
@@ -103,6 +118,8 @@ class CloudMedicalFileHubScreen extends ConsumerWidget {
         summary: _CloudPatientSummary(
           patient: value.patient,
           referenceDate: ageReferenceDate,
+          savingPhoto: _savingPhoto,
+          onPhotoPressed: () => _showPhotoActions(value.patient, session),
         ),
         onRecordSelected: (record) => Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -119,6 +136,77 @@ class CloudMedicalFileHubScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _showPhotoActions(
+    RemotePatient patient,
+    UserSession? session,
+  ) async {
+    if (_savingPhoto) return;
+    final canEdit = session?.can(Permissions.patientsEdit) == true;
+    final hasPhoto = patient.photoUrl?.trim().isNotEmpty == true;
+    final action = await showAveraPhotoActionSheet(
+      context: context,
+      subjectName: patient.name,
+      hasPhoto: hasPhoto,
+      canChangePhoto: canEdit,
+    );
+    if (!mounted || action == null) return;
+    if (action == AveraPhotoAction.viewPhoto) {
+      await showAveraPhotoViewer(
+        context: context,
+        subjectName: patient.name,
+        photoReference: patient.photoUrl!,
+      );
+      return;
+    }
+    if (!canEdit) return;
+    await _updatePatientPhoto(patient, action);
+  }
+
+  Future<void> _updatePatientPhoto(
+    RemotePatient patient,
+    AveraPhotoAction action,
+  ) async {
+    try {
+      final photo = await pickAndCropAveraPhoto(action);
+      if (photo == null || !mounted) return;
+      final bytes = await photo.readAsBytes();
+      if (bytes.length > 1024 * 1024) {
+        _message('Choose a patient photo smaller than 1 MB.');
+        return;
+      }
+      setState(() => _savingPhoto = true);
+      await ref
+          .read(clinicalRemoteDataSourceProvider)
+          .updatePatientPhoto(
+            patientId: patient.id,
+            contentType: 'image/jpeg',
+            base64Data: base64Encode(bytes),
+          );
+      ref
+        ..invalidate(remotePatientMedicalFileProvider(widget.patientId))
+        ..invalidate(remoteDashboardProvider);
+      await Future.wait([
+        ref.read(remotePatientListProvider.notifier).refresh(),
+        ref.read(remotePatientDirectoryProvider.notifier).refresh(),
+      ]);
+      if (mounted) _message('Patient photo updated.');
+    } on ApiException catch (error) {
+      if (mounted) _message(error.message);
+    } catch (_) {
+      if (mounted) {
+        _message(
+          'The patient photo could not be changed. Check photo permissions.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingPhoto = false);
+    }
+  }
+
+  void _message(String value) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(value)));
 }
 
 MedicalFileQuickAccessScope? _quickAccessScope(UserSession? session) {
@@ -685,10 +773,14 @@ class _CloudPatientSummary extends StatelessWidget {
   const _CloudPatientSummary({
     required this.patient,
     required this.referenceDate,
+    required this.onPhotoPressed,
+    required this.savingPhoto,
   });
 
   final RemotePatient patient;
   final DateTime referenceDate;
+  final VoidCallback onPhotoPressed;
+  final bool savingPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -702,17 +794,22 @@ class _CloudPatientSummary extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Text(
-                  patient.name.trim().isEmpty
-                      ? '?'
-                      : patient.name.trim()[0].toUpperCase(),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  AveraIdentityAvatar(
+                    key: const Key('medical-file-patient-avatar'),
+                    name: patient.name,
+                    photoReference: patient.photoUrl,
+                    size: 58,
+                    onTap: savingPhoto ? null : onPhotoPressed,
                   ),
-                ),
+                  if (savingPhoto)
+                    const SizedBox.square(
+                      dimension: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
               ),
               const SizedBox(width: 14),
               Expanded(

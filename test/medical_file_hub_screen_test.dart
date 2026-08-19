@@ -92,6 +92,31 @@ void main() {
     expect(route, '/appointments/$appointmentId');
   });
 
+  test('Medical File vaccination opens the exact saved vaccination', () {
+    const vaccinationId = '3da75bf7-217d-4abe-92ee-800204074436';
+    final route = cloudMedicalRecordRoute(
+      patientId: _patientId,
+      recordId: 'vaccinations',
+      value: const {
+        'vaccination_id': vaccinationId,
+        'patient_id': _patientId,
+        'vaccine_name': 'DHLPP',
+      },
+    );
+
+    expect(route, '/vaccinations/$vaccinationId');
+  });
+
+  test('Medical File vaccination without an identifier is not actionable', () {
+    final route = cloudMedicalRecordRoute(
+      patientId: _patientId,
+      recordId: 'vaccinations',
+      value: const {'patient_id': _patientId, 'vaccine_name': 'DHLPP'},
+    );
+
+    expect(route, isNull);
+  });
+
   test('Medical File appointment without an identifier is not actionable', () {
     final route = cloudMedicalRecordRoute(
       patientId: _patientId,

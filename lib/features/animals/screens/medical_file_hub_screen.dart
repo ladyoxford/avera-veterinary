@@ -1066,6 +1066,7 @@ String? cloudMedicalRecordRoute({
   return switch (recordId) {
     'consultations' =>
       '/consultations/$id?patientId=${Uri.encodeQueryComponent(patientId)}',
+    'vaccinations' => '/vaccinations/$id',
     'appointments' => '/appointments/$id',
     'surgery' => '/operations/surgery?recordId=$id&direct=true',
     'medications' => '/operations/prescriptions?recordId=$id&direct=true',
@@ -1079,6 +1080,7 @@ String? cloudMedicalRecordRoute({
 String? _remoteRecordId(String recordId, Map<String, dynamic> value) {
   final raw = switch (recordId) {
     'consultations' => value['consultation_id'],
+    'vaccinations' => value['vaccination_id'],
     'appointments' => value['schedule_entry_id'],
     'surgery' ||
     'medications' ||

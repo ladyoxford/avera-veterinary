@@ -31,6 +31,10 @@ const registrationPaymentInitializeSchema = z.object({
   retry: z.boolean().optional().default(false),
 });
 
+const registrationPaymentPlanSchema = z.object({
+  accessToken: z.string().trim().min(20),
+});
+
 const registrationPaymentVerifySchema = z.object({
   accessToken: z.string().trim().min(20),
   reference: z.string().trim().min(8).max(160),
@@ -176,6 +180,27 @@ export async function platformRoutes(app) {
           submittedAt: application.submitted_at,
         },
       });
+    },
+  );
+
+  app.post(
+    '/api/v1/clinic-applications/:applicationId/payments/plan',
+    { config: { rateLimit: { max: 30, timeWindow: '1 hour' } } },
+    async (request, reply) => {
+      const parsed = registrationPaymentPlanSchema.safeParse(request.body);
+      if (!parsed.success) return registrationPaymentValidationError(reply);
+      const access = verifyClinicApplicationPaymentToken(
+        app,
+        parsed.data.accessToken,
+        request.params.applicationId,
+      );
+      if (!access) return registrationPaymentForbidden(reply);
+      return handleRegistrationPayment(reply, async () => ({
+        plan: await app.subscriptionService.getApplicationPaymentPlan({
+          applicationId: access.applicationId,
+          clinicId: access.clinicId,
+        }),
+      }));
     },
   );
 

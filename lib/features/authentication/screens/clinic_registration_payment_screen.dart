@@ -32,15 +32,61 @@ class ClinicRegistrationPaymentScreen extends ConsumerStatefulWidget {
 class _ClinicRegistrationPaymentScreenState
     extends ConsumerState<ClinicRegistrationPaymentScreen> {
   SubscriptionBillingCycle _billingCycle = SubscriptionBillingCycle.monthly;
+  SubscriptionBillingPlan? _billingPlan;
   String? _paymentReference;
   String? _error;
+  String? _planError;
   SubscriptionPaymentVerification? _verification;
+  bool _loadingPlan = true;
   bool _working = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreSession());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreSession();
+      _loadPaymentPlan();
+    });
+  }
+
+  Future<void> _loadPaymentPlan() async {
+    final applicationId = widget.application.applicationId;
+    final accessToken = widget.application.paymentAccessToken;
+    if (applicationId == null || accessToken == null) {
+      if (mounted) {
+        setState(() {
+          _loadingPlan = false;
+          _planError = 'Pricing is unavailable for this payment session.';
+        });
+      }
+      return;
+    }
+    try {
+      final plan = await ref
+          .read(subscriptionPaymentGatewayProvider)
+          .loadRegistrationPaymentPlan(
+            applicationId: applicationId,
+            accessToken: accessToken,
+          );
+      if (!mounted) return;
+      setState(() {
+        _billingPlan = plan;
+        _loadingPlan = false;
+        _planError = null;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadingPlan = false;
+        _planError = _paymentError(error);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingPlan = false;
+        _planError = _unexpectedPaymentError;
+      });
+    }
   }
 
   Future<void> _restoreSession() async {
@@ -164,6 +210,9 @@ class _ClinicRegistrationPaymentScreenState
   @override
   Widget build(BuildContext context) {
     final verified = _verification != null;
+    final amount = _billingPlan?.amountFor(_billingCycle);
+    final checkoutConfigured =
+        _billingPlan?.checkoutConfiguredFor(_billingCycle) == true;
     return Scaffold(
       appBar: AppBar(title: const Text('Complete Payment')),
       body: SafeArea(
@@ -220,9 +269,88 @@ class _ClinicRegistrationPaymentScreenState
                 ],
                 selected: {_billingCycle},
                 onSelectionChanged: _paymentReference == null && !_working
-                    ? (value) => setState(() => _billingCycle = value.single)
+                    ? (value) => setState(() {
+                        _billingCycle = value.single;
+                        _error = null;
+                      })
                     : null,
               ),
+              const SizedBox(height: AveraSpacing.cardGap),
+              if (_loadingPlan)
+                const AveraSurfaceCard(
+                  child: Row(
+                    children: [
+                      SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Loading secure plan pricing…')),
+                    ],
+                  ),
+                )
+              else if (_planError != null)
+                AveraSurfaceCard(
+                  outlined: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _planError!,
+                        style: averaText(context).listItemSubtitle,
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _loadPaymentPlan,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Retry pricing'),
+                      ),
+                    ],
+                  ),
+                )
+              else if (amount != null)
+                AveraSurfaceCard(
+                  key: const Key('registration-selected-price'),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_billingPlan!.name} ${_billingCycle == SubscriptionBillingCycle.monthly ? 'Monthly' : 'Annual'}',
+                              style: averaText(context).listItemTitle,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _billingCycle == SubscriptionBillingCycle.monthly
+                                  ? 'Billed monthly'
+                                  : 'Billed annually',
+                              style: averaText(context).caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        formatSubscriptionAmount(
+                          amountMinor: amount,
+                          currency: _billingPlan!.currency,
+                        ),
+                        style: averaText(context).sectionTitle,
+                      ),
+                    ],
+                  ),
+                ),
+              if (!_loadingPlan &&
+                  _planError == null &&
+                  !checkoutConfigured) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${_billingPlan?.name ?? widget.application.subscriptionPlan} ${_billingCycle.apiValue} billing is not available for online payment.',
+                  textAlign: TextAlign.center,
+                  style: averaText(context).caption,
+                ),
+              ],
               const SizedBox(height: AveraSpacing.sectionGap),
             ],
             if (_verification != null)
@@ -251,7 +379,7 @@ class _ClinicRegistrationPaymentScreenState
                 label: 'Continue to Paystack',
                 icon: Icons.lock_outline_rounded,
                 loading: _working,
-                onPressed: _startCheckout,
+                onPressed: checkoutConfigured ? _startCheckout : null,
               ),
             if (!verified && _paymentReference != null) ...[
               AveraPrimaryActionButton(

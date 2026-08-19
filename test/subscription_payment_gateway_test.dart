@@ -40,6 +40,25 @@ void main() {
     );
   });
 
+  test('approved subscription prices format as Naira without minor units', () {
+    expect(
+      formatSubscriptionAmount(amountMinor: 500000, currency: 'NGN'),
+      '₦5,000',
+    );
+    expect(
+      formatSubscriptionAmount(amountMinor: 5000000, currency: 'NGN'),
+      '₦50,000',
+    );
+    expect(
+      formatSubscriptionAmount(amountMinor: 1000000, currency: 'NGN'),
+      '₦10,000',
+    );
+    expect(
+      formatSubscriptionAmount(amountMinor: 10000000, currency: 'NGN'),
+      '₦100,000',
+    );
+  });
+
   test('payment DTO parses plan, cycle, amount and dates safely', () {
     final payment = SubscriptionPaymentRecord.fromJson({
       'reference': 'AVERA-TEST-1',
@@ -68,7 +87,7 @@ void main() {
         'reference': 'AVERA-TEST-1',
         'planCode': 'Professional',
         'billingCycle': 'monthly',
-        'amountMinor': 250000,
+        'amountMinor': 500000,
         'currency': 'NGN',
         'status': 'Successful',
         'paidAt': '2026-07-31T10:00:00.000Z',
@@ -131,7 +150,7 @@ void main() {
                   'reference': 'AVERA-TEST-REFERENCE',
                   'planCode': 'Professional',
                   'billingCycle': 'monthly',
-                  'amountMinor': 250000,
+                  'amountMinor': 500000,
                   'currency': 'NGN',
                   'status': 'Successful',
                   'createdAt': '2026-07-31T09:59:00.000Z',
@@ -216,7 +235,7 @@ void main() {
                   'reference': 'AVERA-APPLICATION-1',
                   'planCode': 'Enterprise',
                   'billingCycle': 'annual',
-                  'amountMinor': 5000000,
+                  'amountMinor': 10000000,
                   'currency': 'NGN',
                   'status': 'Successful',
                   'createdAt': '2026-08-18T08:00:00.000Z',
@@ -312,7 +331,7 @@ void main() {
           'reference': 'AVERA-APPLICATION-1',
           'planCode': 'Enterprise',
           'billingCycle': 'monthly',
-          'amountMinor': 500000,
+          'amountMinor': 1000000,
           'currency': 'NGN',
           'status': 'Successful',
           'createdAt': '2026-08-18T08:00:00.000Z',
@@ -366,6 +385,20 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enterprise Monthly'), findsOneWidget);
+      expect(find.text('₦10,000'), findsOneWidget);
+      expect(find.text('1000000'), findsNothing);
+
+      await tester.tap(find.text('Annual'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enterprise Annual'), findsOneWidget);
+      expect(find.text('₦100,000'), findsOneWidget);
+      expect(find.text('10000000'), findsNothing);
+
+      await tester.tap(find.text('Monthly'));
       await tester.pumpAndSettle();
 
       await tester.tap(
@@ -495,7 +528,7 @@ void main() {
             'reference': 'AVERA-APPLICATION-1',
             'planCode': 'Enterprise',
             'billingCycle': 'monthly',
-            'amountMinor': 500000,
+            'amountMinor': 1000000,
             'currency': 'NGN',
             'status': 'Successful',
             'createdAt': '2026-08-18T08:00:00.000Z',
@@ -551,7 +584,7 @@ void main() {
             'reference': 'AVERA-TEST-REFERENCE',
             'planCode': 'Professional',
             'billingCycle': 'monthly',
-            'amountMinor': 250000,
+            'amountMinor': 500000,
             'currency': 'NGN',
             'status': 'Successful',
             'createdAt': '2026-07-31T09:59:00.000Z',
@@ -608,6 +641,17 @@ class _FakeSubscriptionPaymentGateway implements SubscriptionPaymentGateway {
 
   final SubscriptionPaymentVerification verification;
   final SubscriptionCheckoutSession? registrationCheckout;
+  final SubscriptionBillingPlan registrationPlan =
+      const SubscriptionBillingPlan(
+        plan: SubscriptionPlan.enterprise,
+        name: 'Enterprise',
+        tagline: 'AI-powered veterinary hospital operating system.',
+        currency: 'NGN',
+        monthlyAmountMinor: 1000000,
+        annualAmountMinor: 10000000,
+        monthlyCheckoutConfigured: true,
+        annualCheckoutConfigured: true,
+      );
   final List<String> verifiedReferences = [];
   final List<Map<String, Object?>> registrationInitializationCalls = [];
   final List<Map<String, String>> registrationVerificationCalls = [];
@@ -623,6 +667,12 @@ class _FakeSubscriptionPaymentGateway implements SubscriptionPaymentGateway {
   @override
   Future<List<SubscriptionBillingPlan>> loadPlans() =>
       throw UnimplementedError();
+
+  @override
+  Future<SubscriptionBillingPlan> loadRegistrationPaymentPlan({
+    required String applicationId,
+    required String accessToken,
+  }) async => registrationPlan;
 
   @override
   Future<ServerClinicSubscription?> loadSubscription(String clinicId) =>

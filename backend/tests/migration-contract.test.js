@@ -42,6 +42,18 @@ test('membership migration supports one global identity across clinic membership
   assert.match(memberships, /ENABLE ROW LEVEL SECURITY/);
 });
 
+test('subscription pricing migration seeds only approved paid plan amounts', () => {
+  const pricing = fs.readFileSync(
+    new URL('../migrations/020_subscription_plan_pricing.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(pricing, /'Professional', 500000::BIGINT, 5000000::BIGINT/);
+  assert.match(pricing, /'Enterprise', 1000000::BIGINT, 10000000::BIGINT/);
+  assert.match(pricing, /currency = 'NGN'/);
+  assert.doesNotMatch(pricing, /'Starter'/);
+  assert.doesNotMatch(pricing, /PLN_/);
+});
+
 test('authentication security migration protects MFA and revocation state', () => {
   const security = fs.readFileSync(
     new URL('../migrations/007_auth_security.sql', import.meta.url),

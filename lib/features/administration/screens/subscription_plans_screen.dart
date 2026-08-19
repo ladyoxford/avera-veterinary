@@ -656,7 +656,7 @@ class _BillingPlanCard extends StatelessWidget {
     final amount = plan.amountFor(cycle);
     final price = amount == null
         ? 'Not configured'
-        : '${NumberFormat.simpleCurrency(name: plan.currency, decimalDigits: 0).format(amount / 100)} / ${cycle == SubscriptionBillingCycle.monthly ? 'month' : 'year'}';
+        : '${formatSubscriptionAmount(amountMinor: amount, currency: plan.currency)} / ${cycle == SubscriptionBillingCycle.monthly ? 'month' : 'year'}';
     return Semantics(
       button: true,
       selected: selected,

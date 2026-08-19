@@ -1,11 +1,26 @@
 import '../remote/api_client.dart';
 import 'subscription_plan_config.dart';
+import 'package:intl/intl.dart';
 
 enum SubscriptionBillingCycle {
   monthly,
   annual;
 
   String get apiValue => name;
+}
+
+String formatSubscriptionAmount({
+  required int amountMinor,
+  required String currency,
+}) {
+  final amount = amountMinor / 100;
+  if (currency.toUpperCase() == 'NGN') {
+    return '₦${NumberFormat.decimalPattern().format(amount)}';
+  }
+  return NumberFormat.simpleCurrency(
+    name: currency,
+    decimalDigits: 0,
+  ).format(amount);
 }
 
 class SubscriptionBillingPlan {
@@ -207,6 +222,10 @@ class SubscriptionBillingSnapshot {
 
 abstract interface class SubscriptionPaymentGateway {
   Future<List<SubscriptionBillingPlan>> loadPlans();
+  Future<SubscriptionBillingPlan> loadRegistrationPaymentPlan({
+    required String applicationId,
+    required String accessToken,
+  });
   Future<ServerClinicSubscription?> loadSubscription(String clinicId);
   Future<List<SubscriptionPaymentRecord>> loadPayments(String clinicId);
   Future<SubscriptionCheckoutSession> initializeCheckout({
@@ -244,6 +263,20 @@ class PaystackSubscriptionGateway implements SubscriptionPaymentGateway {
               SubscriptionBillingPlan.fromJson(item as Map<String, dynamic>),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<SubscriptionBillingPlan> loadRegistrationPaymentPlan({
+    required String applicationId,
+    required String accessToken,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/clinic-applications/${Uri.encodeComponent(applicationId)}/payments/plan',
+      body: {'accessToken': accessToken},
+    );
+    return SubscriptionBillingPlan.fromJson(
+      response['plan'] as Map<String, dynamic>,
+    );
   }
 
   @override
@@ -380,6 +413,12 @@ class UnconfiguredSubscriptionPaymentGateway
         ),
       )
       .toList(growable: false);
+
+  @override
+  Future<SubscriptionBillingPlan> loadRegistrationPaymentPlan({
+    required String applicationId,
+    required String accessToken,
+  }) async => _unavailable();
 
   @override
   Future<ServerClinicSubscription?> loadSubscription(String clinicId) async =>

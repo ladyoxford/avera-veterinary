@@ -25,28 +25,31 @@ export class SubscriptionService {
         WHERE active = true
         ORDER BY sort_order, display_name`,
     );
-    return result.rows.map((row) => {
-      const monthlyPlanCode = this.#configuredPlanCode(row.plan_key, 'monthly');
-      const annualPlanCode = this.#configuredPlanCode(row.plan_key, 'annual');
-      return {
-        id: row.plan_id,
-        code: row.plan_key,
-        name: row.display_name,
-        tagline: row.tagline,
-        description: row.description,
-        monthlyAmountMinor: toOptionalNumber(row.monthly_amount_minor),
-        annualAmountMinor: toOptionalNumber(row.annual_amount_minor),
-        currency: row.currency,
-        monthlyCheckoutConfigured: Boolean(
-          row.monthly_amount_minor != null && monthlyPlanCode && this.gateway.configured,
-        ),
-        annualCheckoutConfigured: Boolean(
-          row.annual_amount_minor != null && annualPlanCode && this.gateway.configured,
-        ),
-        isRecommended: row.is_recommended,
-        entitlements: row.entitlements,
-      };
-    });
+    return result.rows.map((row) => this.#mapBillingPlan(row));
+  }
+
+  async getApplicationPaymentPlan({ applicationId, clinicId }) {
+    return withTenantTransaction(
+      this.pool,
+      tenantContext({ accountType: 'PlatformOwner' }, clinicId),
+      async (client) => {
+        const row = (
+          await client.query(
+            `SELECT a.application_id, a.clinic_id, a.status,
+                    p.plan_id, p.plan_key, p.display_name, p.tagline,
+                    p.description, p.monthly_amount_minor,
+                    p.annual_amount_minor, p.currency, p.is_recommended,
+                    p.sort_order, p.entitlements
+               FROM clinic_applications a
+               JOIN plans p ON p.plan_key = a.selected_plan AND p.active = true
+              WHERE a.application_id = $1`,
+            [applicationId],
+          )
+        ).rows[0];
+        validateApplicationPaymentTarget(row, { applicationId, clinicId });
+        return this.#mapBillingPlan(row);
+      },
+    );
   }
 
   async getClinicSubscription(auth, clinicId) {
@@ -915,6 +918,29 @@ export class SubscriptionService {
     const normalized = String(planKey).toUpperCase();
     const cycle = normalizeCycle(billingCycle).toUpperCase();
     return this.environment[`PAYSTACK_${normalized}_${cycle}_PLAN_CODE`] ?? null;
+  }
+
+  #mapBillingPlan(row) {
+    const monthlyPlanCode = this.#configuredPlanCode(row.plan_key, 'monthly');
+    const annualPlanCode = this.#configuredPlanCode(row.plan_key, 'annual');
+    return {
+      id: row.plan_id,
+      code: row.plan_key,
+      name: row.display_name,
+      tagline: row.tagline,
+      description: row.description,
+      monthlyAmountMinor: toOptionalNumber(row.monthly_amount_minor),
+      annualAmountMinor: toOptionalNumber(row.annual_amount_minor),
+      currency: row.currency,
+      monthlyCheckoutConfigured: Boolean(
+        row.monthly_amount_minor != null && monthlyPlanCode && this.gateway.configured,
+      ),
+      annualCheckoutConfigured: Boolean(
+        row.annual_amount_minor != null && annualPlanCode && this.gateway.configured,
+      ),
+      isRecommended: row.is_recommended,
+      entitlements: row.entitlements,
+    };
   }
 }
 

@@ -53,13 +53,13 @@ test('payment references are unique and do not expose secrets', () => {
 test('payment verification rejects status, amount, currency, and reference mismatches', () => {
   const expected = {
     reference: 'AVERA-1',
-    amount_minor: 250000,
+    amount_minor: 500000,
     currency: 'NGN',
   };
   const valid = {
     reference: 'AVERA-1',
     status: 'success',
-    amount: 250000,
+    amount: 500000,
     currency: 'NGN',
   };
   assert.equal(validateVerifiedPayment(expected, valid), null);
@@ -293,6 +293,32 @@ test('clinic application returns a scoped payment capability that cannot cross a
   assert.equal(claims.clinicId, application.clinicId);
   assert.equal(claims.selectedPlan, 'Enterprise');
 
+  const planCalls = [];
+  app.subscriptionService.getApplicationPaymentPlan = async (input) => {
+    planCalls.push(input);
+    return {
+      code: 'Enterprise',
+      name: 'Enterprise',
+      monthlyAmountMinor: 1000000,
+      annualAmountMinor: 10000000,
+      currency: 'NGN',
+      monthlyCheckoutConfigured: true,
+      annualCheckoutConfigured: true,
+    };
+  };
+  const paymentPlan = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications/application-1/payments/plan',
+    payload: { accessToken: application.paymentAccessToken },
+  });
+  assert.equal(paymentPlan.statusCode, 200);
+  assert.equal(paymentPlan.json().plan.monthlyAmountMinor, 1000000);
+  assert.equal(paymentPlan.json().plan.annualAmountMinor, 10000000);
+  assert.deepEqual(planCalls, [{
+    applicationId: 'application-1',
+    clinicId: application.clinicId,
+  }]);
+
   const calls = [];
   app.subscriptionService.initializeApplicationCheckout = async (input) => {
     calls.push(input);
@@ -328,6 +354,18 @@ test('clinic application returns a scoped payment capability that cannot cross a
   assert.equal(crossApplication.statusCode, 403);
   assert.equal(crossApplication.json().error, 'registration_payment_access_denied');
   assert.equal(calls.length, 1);
+
+  const crossApplicationPlan = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications/application-2/payments/plan',
+    payload: { accessToken: application.paymentAccessToken },
+  });
+  assert.equal(crossApplicationPlan.statusCode, 403);
+  assert.equal(
+    crossApplicationPlan.json().error,
+    'registration_payment_access_denied',
+  );
+  assert.equal(planCalls.length, 1);
 
   const expiredToken = app.jwt.sign({
     scope: 'clinic-application-payment',
@@ -379,8 +417,8 @@ test('checkout price and currency come from the server plan, not the client', as
         rows: [{
           plan_key: 'Professional',
           display_name: 'Professional',
-          monthly_amount_minor: 250000,
-          annual_amount_minor: 2500000,
+          monthly_amount_minor: 500000,
+          annual_amount_minor: 5000000,
           currency: 'NGN',
         }],
       };
@@ -423,12 +461,160 @@ test('checkout price and currency come from the server plan, not the client', as
     amountMinor: 1,
   });
 
-  assert.equal(gatewayCalls[0].amountMinor, 250000);
+  assert.equal(gatewayCalls[0].amountMinor, 500000);
   assert.equal(gatewayCalls[0].currency, 'NGN');
   assert.equal(gatewayCalls[0].planCode, 'PLN_professional_test');
   assert.equal(JSON.stringify(checkout).includes('test-secret'), false);
   assert.equal(Object.hasOwn(checkout, 'secretKey'), false);
 });
+
+for (const pricing of [
+  {
+    plan: 'Professional',
+    cycle: 'monthly',
+    amountMinor: 500000,
+    planCode: 'PLN_professional_monthly_test',
+    environmentKey: 'PAYSTACK_PROFESSIONAL_MONTHLY_PLAN_CODE',
+  },
+  {
+    plan: 'Professional',
+    cycle: 'annual',
+    amountMinor: 5000000,
+    planCode: 'PLN_professional_annual_test',
+    environmentKey: 'PAYSTACK_PROFESSIONAL_ANNUAL_PLAN_CODE',
+  },
+  {
+    plan: 'Enterprise',
+    cycle: 'monthly',
+    amountMinor: 1000000,
+    planCode: 'PLN_enterprise_monthly_test',
+    environmentKey: 'PAYSTACK_ENTERPRISE_MONTHLY_PLAN_CODE',
+  },
+  {
+    plan: 'Enterprise',
+    cycle: 'annual',
+    amountMinor: 10000000,
+    planCode: 'PLN_enterprise_annual_test',
+    environmentKey: 'PAYSTACK_ENTERPRISE_ANNUAL_PLAN_CODE',
+  },
+]) {
+  test(`${pricing.plan} ${pricing.cycle} checkout uses canonical pricing and configured Paystack plan`, async () => {
+    const gatewayCalls = [];
+    const application = {
+      application_id: 'application-1',
+      clinic_id: 'clinic-1',
+      status: 'Pending',
+      selected_plan: pricing.plan,
+      payment_status: 'Pending',
+      payment_reference: null,
+      administrator_email: 'applicant@avera.test',
+      application_reference: 'AVR-20260818-PRICING',
+    };
+    const client = transactionClient((sql) => {
+      if (sql.includes('FROM clinic_applications') && sql.includes('FOR UPDATE')) {
+        return { rows: [application] };
+      }
+      if (sql.includes('FROM plans')) {
+        return {
+          rows: [{
+            plan_key: pricing.plan,
+            display_name: pricing.plan,
+            monthly_amount_minor:
+              pricing.plan === 'Professional' ? 500000 : 1000000,
+            annual_amount_minor:
+              pricing.plan === 'Professional' ? 5000000 : 10000000,
+            currency: 'NGN',
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+    const service = new SubscriptionService({
+      pool: transactionPool(client),
+      environment: {
+        PAYSTACK_MODE: 'test',
+        PAYSTACK_CURRENCY: 'NGN',
+        [pricing.environmentKey]: pricing.planCode,
+        registrationPaymentCallbackUrl:
+          'avera://app/payments/registration-callback',
+      },
+      gateway: {
+        configured: true,
+        async initializeCheckout(input) {
+          gatewayCalls.push(input);
+          return {
+            authorization_url: 'https://checkout.paystack.test/pricing',
+            access_code: 'public-checkout-code',
+          };
+        },
+      },
+    });
+
+    await service.initializeApplicationCheckout({
+      applicationId: application.application_id,
+      clinicId: application.clinic_id,
+      billingCycle: pricing.cycle,
+    });
+
+    assert.equal(gatewayCalls.length, 1);
+    assert.equal(gatewayCalls[0].amountMinor, pricing.amountMinor);
+    assert.equal(gatewayCalls[0].currency, 'NGN');
+    assert.equal(gatewayCalls[0].planCode, pricing.planCode);
+    assert.equal(gatewayCalls[0].metadata.planCode, pricing.plan);
+  });
+}
+
+for (const missing of ['price', 'plan code']) {
+  test(`application checkout rejects a missing ${missing} configuration`, async () => {
+    const application = {
+      application_id: 'application-1',
+      clinic_id: 'clinic-1',
+      status: 'Pending',
+      selected_plan: 'Professional',
+      payment_status: 'Pending',
+      payment_reference: null,
+      administrator_email: 'applicant@avera.test',
+      application_reference: 'AVR-20260818-MISSING',
+    };
+    const client = transactionClient((sql) => {
+      if (sql.includes('FROM clinic_applications') && sql.includes('FOR UPDATE')) {
+        return { rows: [application] };
+      }
+      if (sql.includes('FROM plans')) {
+        return {
+          rows: [{
+            plan_key: 'Professional',
+            display_name: 'Professional',
+            monthly_amount_minor: missing === 'price' ? null : 500000,
+            annual_amount_minor: 5000000,
+            currency: 'NGN',
+          }],
+        };
+      }
+      return { rows: [] };
+    });
+    const service = new SubscriptionService({
+      pool: transactionPool(client),
+      environment: {
+        PAYSTACK_MODE: 'test',
+        PAYSTACK_CURRENCY: 'NGN',
+        ...(missing === 'price'
+          ? { PAYSTACK_PROFESSIONAL_MONTHLY_PLAN_CODE: 'PLN_professional_test' }
+          : {}),
+      },
+      gateway: { configured: true },
+    });
+
+    await assert.rejects(
+      service.initializeApplicationCheckout({
+        applicationId: application.application_id,
+        clinicId: application.clinic_id,
+        billingCycle: 'monthly',
+      }),
+      (error) => error.code === 'plan_not_configured',
+    );
+  });
+}
 
 test('application checkout uses the persisted plan and applicant email', async () => {
   const gatewayCalls = [];
@@ -451,8 +637,8 @@ test('application checkout uses the persisted plan and applicant email', async (
         rows: [{
           plan_key: 'Enterprise',
           display_name: 'Enterprise',
-          monthly_amount_minor: 500000,
-          annual_amount_minor: 5000000,
+          monthly_amount_minor: 1000000,
+          annual_amount_minor: 10000000,
           currency: 'NGN',
         }],
       };
@@ -492,7 +678,7 @@ test('application checkout uses the persisted plan and applicant email', async (
   assert.equal(checkout.reference.startsWith('AVERA-'), true);
   assert.equal(gatewayCalls.length, 1);
   assert.equal(gatewayCalls[0].email, 'applicant@crest.test');
-  assert.equal(gatewayCalls[0].amountMinor, 5000000);
+  assert.equal(gatewayCalls[0].amountMinor, 10000000);
   assert.equal(gatewayCalls[0].currency, 'NGN');
   assert.equal(gatewayCalls[0].planCode, 'PLN_enterprise_annual_test');
   assert.equal(
@@ -543,8 +729,8 @@ test('application payment retry replaces only the pending checkout', async () =>
         rows: [{
           plan_key: 'Enterprise',
           display_name: 'Enterprise',
-          monthly_amount_minor: 500000,
-          annual_amount_minor: 5000000,
+          monthly_amount_minor: 1000000,
+          annual_amount_minor: 10000000,
           currency: 'NGN',
         }],
       };
@@ -1214,7 +1400,7 @@ function pendingPayment() {
     gateway: 'paystack',
     plan_code: 'Professional',
     billing_cycle: 'monthly',
-    amount_minor: 250000,
+    amount_minor: 500000,
     currency: 'NGN',
     status: 'Pending',
     created_at: new Date('2026-07-31T09:00:00Z'),

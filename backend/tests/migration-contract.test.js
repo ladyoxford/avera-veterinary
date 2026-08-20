@@ -11,6 +11,7 @@ import {
   createVaccinationSchema,
   formatPatientHospitalNumber,
   patientStatusSchema,
+  patientsShareBillingOwner,
   suggestedPatientPrefix,
   cancelAppointmentSchema,
   updateAppointmentSchema,
@@ -471,6 +472,21 @@ test('multi-patient invoices accept attributed and shared lines', () => {
   }).success, false);
 });
 
+test('multi-patient invoices recognize legacy duplicate owner rows safely', () => {
+  assert.equal(patientsShareBillingOwner([
+    { owner_id: 'owner-1', owner_phone: '0801 234 5678', owner_email: null },
+    { owner_id: 'owner-2', owner_phone: '+234 801 234 5678', owner_email: null },
+  ]), true);
+  assert.equal(patientsShareBillingOwner([
+    { owner_id: 'owner-1', owner_phone: '', owner_email: 'OWNER@example.com' },
+    { owner_id: 'owner-2', owner_phone: '', owner_email: 'owner@example.com' },
+  ]), true);
+  assert.equal(patientsShareBillingOwner([
+    { owner_id: 'owner-1', owner_phone: '08012345678', owner_email: 'one@example.com' },
+    { owner_id: 'owner-2', owner_phone: '08099999999', owner_email: 'two@example.com' },
+  ]), false);
+});
+
 test('multi-patient invoice migration is scoped, idempotent, and preserves records', () => {
   const migration = fs.readFileSync(
     new URL('../migrations/022_multi_patient_invoices.sql', import.meta.url),
@@ -486,9 +502,9 @@ test('multi-patient invoice migration is scoped, idempotent, and preserves recor
     new URL('../src/routes/clinical-routes.js', import.meta.url),
     'utf8',
   );
-  assert.match(routes, /ownerIds\.size !== 1/);
+  assert.match(routes, /patientsShareBillingOwner\(patients\.rows\)/);
   assert.match(routes, /invoice_owner_mismatch/);
-  assert.match(routes, /WHERE clinic_id=\$1 AND patient_id = ANY/);
+  assert.match(routes, /WHERE p\.clinic_id=\$1 AND p\.patient_id = ANY/);
   assert.match(routes, /duplicateSubmission: true/);
   assert.match(routes, /existing\.status === 'Draft' && input\.status === 'Paid'/);
   assert.match(routes, /SET status='Paid', amount_paid=total, balance=0/);

@@ -28,6 +28,7 @@ class RemotePatient {
     required this.status,
     required this.ownerName,
     required this.ownerPhone,
+    this.ownerId,
     this.breed,
     this.sex,
     this.ownerEmail,
@@ -51,6 +52,7 @@ class RemotePatient {
   final String status;
   final String ownerName;
   final String ownerPhone;
+  final String? ownerId;
   final String? breed;
   final String? sex;
   final String? ownerEmail;
@@ -74,6 +76,7 @@ class RemotePatient {
     status: value['status'] as String? ?? 'Active',
     ownerName: value['owner_name'] as String? ?? 'Unknown owner',
     ownerPhone: value['owner_phone'] as String? ?? '',
+    ownerId: value['owner_id'] as String?,
     breed: value['breed'] as String?,
     sex: value['sex'] as String?,
     ownerEmail: value['owner_email'] as String?,
@@ -101,6 +104,7 @@ class RemotePatient {
     'status': status,
     'owner_name': ownerName,
     'owner_phone': ownerPhone,
+    'owner_id': ownerId,
     'breed': breed,
     'sex': sex,
     'owner_email': ownerEmail,
@@ -817,6 +821,10 @@ class ClinicalRemoteDataSource {
   ) async => Map<String, dynamic>.from(
     await _client.post('/api/v1/invoices', body: payload, authenticated: true),
   );
+  Future<Map<String, dynamic>> invoice(String invoiceId) async =>
+      Map<String, dynamic>.from(
+        await _client.get('/api/v1/invoices/$invoiceId'),
+      );
   Future<RemotePage<Map<String, dynamic>>> payments({
     int page = 1,
     String? search,

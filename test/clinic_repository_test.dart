@@ -425,6 +425,101 @@ void main() {
     );
   });
 
+  test('one invoice supports same-owner animals and shared charges', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = ClinicRepository(database);
+    await repository.seedSampleData();
+    final session = (await repository.authenticateUser(
+      username: 'admin@avera.test',
+      password: 'admin123',
+    ))!;
+    final primary = (await database.select(database.animals).get()).first;
+    final secondId = await database
+        .into(database.animals)
+        .insert(
+          AnimalsCompanion.insert(
+            clinicId: Value(primary.clinicId),
+            hospitalNumber: '${primary.hospitalNumber}-SIBLING',
+            animalName: 'Same Owner Animal',
+            species: primary.species,
+            ownerId: primary.ownerId,
+            dateRegistered: DateTime(2026, 8, 20),
+          ),
+        );
+    final draft = await repository.saveInvoiceDraft(
+      session: session,
+      animalId: primary.id,
+      additionalAnimalIds: [secondId],
+      products: const [],
+      services: [
+        InvoiceServiceDraft(
+          description: 'Consultation',
+          amount: 5000,
+          animalId: primary.id,
+        ),
+        InvoiceServiceDraft(
+          description: 'Treatment',
+          amount: 7000,
+          animalId: secondId,
+        ),
+        const InvoiceServiceDraft(
+          description: 'Farm call',
+          amount: 10000,
+          isGeneral: true,
+        ),
+      ],
+      consultationFee: 0,
+      homeServiceFee: 0,
+    );
+    expect(draft.invoice.total, 22000);
+    expect(
+      draft.animals.map((animal) => animal.id),
+      containsAll([primary.id, secondId]),
+    );
+    expect(
+      draft.services.map((line) => line.animalId),
+      containsAll([primary.id, secondId, null]),
+    );
+    expect(
+      await (database.select(
+        database.invoices,
+      )..where((invoice) => invoice.id.equals(draft.invoice.id))).get(),
+      hasLength(1),
+    );
+  });
+
+  test(
+    'combined invoice rejects animals belonging to different owners',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final animals = await database.select(database.animals).get();
+      final primary = animals.first;
+      final other = animals.firstWhere(
+        (animal) => animal.ownerId != primary.ownerId,
+      );
+      await expectLater(
+        repository.saveInvoiceDraft(
+          session: session,
+          animalId: primary.id,
+          additionalAnimalIds: [other.id],
+          products: const [],
+          services: const [],
+          consultationFee: 0,
+          homeServiceFee: 0,
+        ),
+        throwsA(isA<StateError>()),
+      );
+    },
+  );
+
   test(
     'configured inventory category access is tenant-scoped and persistent',
     () async {

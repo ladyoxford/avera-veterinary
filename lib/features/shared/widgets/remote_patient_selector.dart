@@ -6,9 +6,18 @@ import '../../../core/remote/clinical_remote_data_source.dart';
 import 'avera_ui.dart';
 
 class RemotePatientSelectorSheet extends ConsumerStatefulWidget {
-  const RemotePatientSelectorSheet({super.key, this.selectedId});
+  const RemotePatientSelectorSheet({
+    super.key,
+    this.selectedId,
+    this.ownerId,
+    this.excludedIds = const {},
+    this.title = 'Select Patient',
+  });
 
   final String? selectedId;
+  final String? ownerId;
+  final Set<String> excludedIds;
+  final String title;
 
   @override
   ConsumerState<RemotePatientSelectorSheet> createState() =>
@@ -25,6 +34,10 @@ class _RemotePatientSelectorSheetState
     final query = _query.trim().toLowerCase();
     final patients = directory.items
         .where((patient) {
+          if (widget.excludedIds.contains(patient.id)) return false;
+          if (widget.ownerId != null && patient.ownerId != widget.ownerId) {
+            return false;
+          }
           if (query.isEmpty) return true;
           return '${patient.name} ${patient.hospitalNumber} ${patient.ownerName} ${patient.ownerPhone}'
               .toLowerCase()
@@ -38,7 +51,7 @@ class _RemotePatientSelectorSheetState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Select Patient', style: averaText(context).sectionTitle),
+            Text(widget.title, style: averaText(context).sectionTitle),
             const SizedBox(height: 12),
             TextField(
               autofocus: true,

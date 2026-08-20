@@ -282,17 +282,28 @@ class InvoiceProductDraft {
   const InvoiceProductDraft({
     required this.inventoryItemId,
     required this.quantity,
+    this.animalId,
+    this.isGeneral = false,
   });
 
   final int inventoryItemId;
   final int quantity;
+  final int? animalId;
+  final bool isGeneral;
 }
 
 class InvoiceServiceDraft {
-  const InvoiceServiceDraft({required this.description, required this.amount});
+  const InvoiceServiceDraft({
+    required this.description,
+    required this.amount,
+    this.animalId,
+    this.isGeneral = false,
+  });
 
   final String description;
   final double amount;
+  final int? animalId;
+  final bool isGeneral;
 }
 
 class InvoiceDetail {
@@ -300,12 +311,14 @@ class InvoiceDetail {
     required this.invoice,
     required this.products,
     required this.services,
+    this.animals = const [],
     this.payments = const [],
   });
 
   final Invoice invoice;
   final List<InvoiceProductLine> products;
   final List<InvoiceServiceLine> services;
+  final List<Animal> animals;
   final List<InvoicePayment> payments;
 }
 
@@ -7374,6 +7387,7 @@ class ClinicRepository {
     required UserSession session,
     int? invoiceId,
     required int animalId,
+    List<int> additionalAnimalIds = const [],
     required List<InvoiceProductDraft> products,
     required List<InvoiceServiceDraft> services,
     required double consultationFee,
@@ -7384,15 +7398,30 @@ class ClinicRepository {
     if (consultationFee < 0 || homeServiceFee < 0) {
       throw StateError('Fees cannot be negative.');
     }
-    final animal =
+    final requestedAnimalIds = <int>{animalId, ...additionalAnimalIds};
+    for (final product in products) {
+      if (!product.isGeneral && product.animalId != null) {
+        requestedAnimalIds.add(product.animalId!);
+      }
+    }
+    for (final service in services) {
+      if (!service.isGeneral && service.animalId != null) {
+        requestedAnimalIds.add(service.animalId!);
+      }
+    }
+    final selectedAnimals =
         await (db.select(db.animals)..where(
               (row) =>
-                  row.id.equals(animalId) &
-                  row.clinicId.equals(session.clinic.clinicId),
+                  row.clinicId.equals(session.clinic.clinicId) &
+                  row.id.isIn(requestedAnimalIds),
             ))
-            .getSingleOrNull();
-    if (animal == null) {
-      throw StateError('Select a patient from the active clinic.');
+            .get();
+    if (selectedAnimals.length != requestedAnimalIds.length) {
+      throw StateError('Select patients from the active clinic.');
+    }
+    final ownerIds = selectedAnimals.map((animal) => animal.ownerId).toSet();
+    if (ownerIds.length != 1) {
+      throw StateError('All animals on one invoice must belong to one client.');
     }
     final seen = <int>{};
     for (final product in products) {
@@ -7468,6 +7497,9 @@ class ClinicRepository {
               InvoiceProductLinesCompanion.insert(
                 invoiceId: targetId,
                 inventoryItemId: item.id,
+                animalId: Value(
+                  product.isGeneral ? null : product.animalId ?? animalId,
+                ),
                 productNameSnapshot: item.drugName,
                 categoryNameSnapshot: item.category,
                 batchNumberSnapshot: Value(item.batchNumber),
@@ -7488,6 +7520,9 @@ class ClinicRepository {
             .insert(
               InvoiceServiceLinesCompanion.insert(
                 invoiceId: targetId,
+                animalId: Value(
+                  service.isGeneral ? null : service.animalId ?? animalId,
+                ),
                 description: service.description.trim(),
                 amount: service.amount,
               ),
@@ -7973,11 +8008,22 @@ class ClinicRepository {
               )
               ..orderBy([(payment) => OrderingTerm.desc(payment.createdAt)]))
             .get();
+    final animalIds = <int>{invoice.animalId};
+    animalIds.addAll(products.map((line) => line.animalId).whereType<int>());
+    animalIds.addAll(services.map((line) => line.animalId).whereType<int>());
+    final animals =
+        await (db.select(db.animals)..where(
+              (animal) =>
+                  animal.clinicId.equals(session.clinic.clinicId) &
+                  animal.id.isIn(animalIds),
+            ))
+            .get();
     return InvoiceDetail(
       invoice: invoice,
       products: products,
       services: services,
       payments: payments,
+      animals: animals,
     );
   }
 

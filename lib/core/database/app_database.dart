@@ -488,6 +488,7 @@ class InvoiceProductLines extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get invoiceId => integer().references(Invoices, #id)();
   IntColumn get inventoryItemId => integer().references(InventoryItems, #id)();
+  IntColumn get animalId => integer().nullable().references(Animals, #id)();
   TextColumn get productNameSnapshot => text()();
   TextColumn get categoryNameSnapshot => text()();
   TextColumn get batchNumberSnapshot => text().nullable()();
@@ -499,6 +500,7 @@ class InvoiceProductLines extends Table {
 class InvoiceServiceLines extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get invoiceId => integer().references(Invoices, #id)();
+  IntColumn get animalId => integer().nullable().references(Animals, #id)();
   TextColumn get description => text()();
   RealColumn get amount => real()();
 }
@@ -1131,7 +1133,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 24;
+  static const currentSchemaVersion = 25;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1634,6 +1636,32 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE INDEX IF NOT EXISTS animals_clinic_birth_date_index '
           'ON animals (clinic_id, date_of_birth)',
+        );
+      }
+      if (from < 25) {
+        if (!await _hasColumn('invoice_product_lines', 'animal_id')) {
+          await m.addColumn(invoiceProductLines, invoiceProductLines.animalId);
+        }
+        if (!await _hasColumn('invoice_service_lines', 'animal_id')) {
+          await m.addColumn(invoiceServiceLines, invoiceServiceLines.animalId);
+        }
+        await customStatement(
+          'UPDATE invoice_product_lines SET animal_id = '
+          '(SELECT animal_id FROM invoices WHERE invoices.id = invoice_product_lines.invoice_id) '
+          'WHERE animal_id IS NULL',
+        );
+        await customStatement(
+          'UPDATE invoice_service_lines SET animal_id = '
+          '(SELECT animal_id FROM invoices WHERE invoices.id = invoice_service_lines.invoice_id) '
+          'WHERE animal_id IS NULL',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS invoice_product_lines_animal_index '
+          'ON invoice_product_lines (invoice_id, animal_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS invoice_service_lines_animal_index '
+          'ON invoice_service_lines (invoice_id, animal_id)',
         );
       }
     },

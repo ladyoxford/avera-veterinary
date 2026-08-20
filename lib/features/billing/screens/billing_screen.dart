@@ -25,16 +25,17 @@ class BillingScreen extends ConsumerStatefulWidget {
 }
 
 class _BillingScreenState extends ConsumerState<BillingScreen> {
-  Animal? _patient;
-  RemotePatient? _remotePatient;
+  final List<Animal> _patients = [];
+  final List<RemotePatient> _remotePatients = [];
   late final String _submissionId = const Uuid().v4();
-  final Map<int, int> _products = {};
-  final List<InvoiceServiceDraft> _services = [];
+  final List<_ProductCharge> _products = [];
+  final List<_ServiceCharge> _services = [];
   final _consultationFee = TextEditingController(text: '0');
   final _homeFee = TextEditingController(text: '0');
   bool _consultationEnabled = false;
   bool _homeEnabled = false;
   int? _invoiceId;
+  String? _remoteInvoiceId;
   bool _busy = false;
 
   @override
@@ -76,14 +77,11 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     !item.isArchived;
               })
               .toList();
-          final productSubtotal = _products.entries.fold<double>(0, (
-            sum,
-            entry,
-          ) {
+          final productSubtotal = _products.fold<double>(0, (sum, charge) {
             final item = allowedProducts
-                .where((item) => item.id == entry.key)
+                .where((item) => item.id == charge.inventoryItemId)
                 .firstOrNull;
-            return sum + (item?.sellingPrice ?? 0) * entry.value;
+            return sum + (item?.sellingPrice ?? 0) * charge.quantity;
           });
           final servicesSubtotal = _services.fold<double>(
             0,
@@ -106,10 +104,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             ),
             children: [
               _PatientCard(
-                patientName: _remotePatient?.name ?? _patient?.animalName,
-                hospitalNumber:
-                    _remotePatient?.hospitalNumber ?? _patient?.hospitalNumber,
-                onChange: _selectPatient,
+                patients: _selectedPatientLabels,
+                onSelect: () => _selectPatient(replace: true),
+                onAdd: _hasPatient ? () => _selectPatient() : null,
+                onRemove: _removePatient,
               ),
               const SizedBox(height: 24),
               _SectionAction(
@@ -121,11 +119,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
               AveraSurfaceCard(
                 child: _ProductLines(
                   items: allowedProducts,
-                  quantities: _products,
-                  onChanged: (id, quantity) => setState(() {
-                    quantity <= 0
-                        ? _products.remove(id)
-                        : _products[id] = quantity;
+                  charges: _products,
+                  onChanged: (index, quantity) => setState(() {
+                    if (quantity <= 0) {
+                      _products.removeAt(index);
+                    } else {
+                      _products[index] = _products[index].copyWith(
+                        quantity: quantity,
+                      );
+                    }
                   }),
                 ),
               ),
@@ -190,7 +192,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     label: const Text('Save Draft'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _invoiceId == null
+                    onPressed: _invoiceId == null && _remoteInvoiceId == null
                         ? null
                         : () => _print(session),
                     icon: const Icon(Icons.print_outlined),
@@ -205,7 +207,40 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     );
   }
 
-  Future<void> _selectPatient() async {
+  bool get _hasPatient => _patients.isNotEmpty || _remotePatients.isNotEmpty;
+
+  List<_SelectedPatientLabel> get _selectedPatientLabels => [
+    for (final patient in _remotePatients)
+      _SelectedPatientLabel(
+        id: patient.id,
+        name: patient.name,
+        hospitalNumber: patient.hospitalNumber,
+      ),
+    for (final patient in _patients)
+      _SelectedPatientLabel(
+        id: '${patient.id}',
+        name: patient.animalName,
+        hospitalNumber: patient.hospitalNumber,
+      ),
+  ];
+
+  List<_BillingTarget> get _targets => [
+    const _BillingTarget.general(),
+    for (final patient in _remotePatients)
+      _BillingTarget.remote(
+        patientId: patient.id,
+        label: patient.name,
+        hospitalNumber: patient.hospitalNumber,
+      ),
+    for (final patient in _patients)
+      _BillingTarget.local(
+        animalId: patient.id,
+        label: patient.animalName,
+        hospitalNumber: patient.hospitalNumber,
+      ),
+  ];
+
+  Future<void> _selectPatient({bool replace = false}) async {
     if (BackendConfiguration.isConfigured) {
       final patient = await showModalBottomSheet<RemotePatient>(
         context: context,
@@ -214,13 +249,28 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         showDragHandle: true,
         builder: (context) => FractionallySizedBox(
           heightFactor: 0.86,
-          child: RemotePatientSelectorSheet(selectedId: _remotePatient?.id),
+          child: RemotePatientSelectorSheet(
+            selectedId: replace && _remotePatients.length == 1
+                ? _remotePatients.first.id
+                : null,
+            ownerId: replace || _remotePatients.isEmpty
+                ? null
+                : _remotePatients.first.ownerId,
+            excludedIds: replace
+                ? const {}
+                : _remotePatients.map((patient) => patient.id).toSet(),
+            title: replace ? 'Select Client Animal' : 'Add Animal',
+          ),
         ),
       );
       if (patient != null && mounted) {
         setState(() {
-          _remotePatient = patient;
-          _patient = null;
+          if (replace) _remotePatients.clear();
+          if (!_remotePatients.any((value) => value.id == patient.id)) {
+            _remotePatients.add(patient);
+          }
+          _patients.clear();
+          _removeOrphanedCharges();
         });
       }
       return;
@@ -228,9 +278,54 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final patient = await showModalBottomSheet<Animal>(
       context: context,
       useSafeArea: true,
-      builder: (context) => const _BillingPatientPicker(),
+      builder: (context) => _BillingPatientPicker(
+        ownerId: replace || _patients.isEmpty ? null : _patients.first.ownerId,
+        excludedIds: replace
+            ? const {}
+            : _patients.map((patient) => patient.id).toSet(),
+        title: replace ? 'Select Client Animal' : 'Add Animal',
+      ),
     );
-    if (patient != null && mounted) setState(() => _patient = patient);
+    if (patient != null && mounted) {
+      setState(() {
+        if (replace) _patients.clear();
+        if (!_patients.any((value) => value.id == patient.id)) {
+          _patients.add(patient);
+        }
+        _remotePatients.clear();
+        _removeOrphanedCharges();
+      });
+    }
+  }
+
+  void _removePatient(String id) {
+    if (_selectedPatientLabels.length <= 1) return;
+    setState(() {
+      _remotePatients.removeWhere((patient) => patient.id == id);
+      _patients.removeWhere((patient) => '${patient.id}' == id);
+      _removeOrphanedCharges();
+    });
+  }
+
+  void _removeOrphanedCharges() {
+    final remoteIds = _remotePatients.map((patient) => patient.id).toSet();
+    final localIds = _patients.map((patient) => patient.id).toSet();
+    _products.removeWhere(
+      (charge) =>
+          !charge.target.isGeneral &&
+          ((charge.target.remotePatientId != null &&
+                  !remoteIds.contains(charge.target.remotePatientId)) ||
+              (charge.target.localAnimalId != null &&
+                  !localIds.contains(charge.target.localAnimalId))),
+    );
+    _services.removeWhere(
+      (charge) =>
+          !charge.target.isGeneral &&
+          ((charge.target.remotePatientId != null &&
+                  !remoteIds.contains(charge.target.remotePatientId)) ||
+              (charge.target.localAnimalId != null &&
+                  !localIds.contains(charge.target.localAnimalId))),
+    );
   }
 
   Future<void> _addProduct(List<InventoryItem> items) async {
@@ -240,20 +335,30 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       builder: (context) => _BillingProductPicker(items: items),
     );
     if (product != null && mounted) {
-      setState(
-        () => _products.update(
-          product.id,
-          (value) => value + 1,
-          ifAbsent: () => 1,
-        ),
-      );
+      final target = await _selectChargeTarget();
+      if (target != null && mounted) {
+        setState(() => _products.add(_ProductCharge(product.id, 1, target)));
+      }
     }
+  }
+
+  Future<_BillingTarget?> _selectChargeTarget() async {
+    if (!_hasPatient) {
+      _message('Select at least one animal before adding charges.');
+      return null;
+    }
+    return showModalBottomSheet<_BillingTarget>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => _ChargeTargetSheet(targets: _targets),
+    );
   }
 
   Future<void> _addService() async {
     final description = TextEditingController();
     final amount = TextEditingController();
-    await showDialog<void>(
+    final result = await showDialog<(String, double)>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Add Service'),
@@ -286,42 +391,58 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                   value < 0) {
                 return;
               }
-              setState(
-                () => _services.add(
-                  InvoiceServiceDraft(
-                    description: description.text,
-                    amount: value,
-                  ),
-                ),
-              );
-              Navigator.pop(context);
+              Navigator.pop(context, (description.text.trim(), value));
             },
             child: const Text('Add'),
           ),
         ],
       ),
     );
+    description.dispose();
+    amount.dispose();
+    if (result == null || !mounted) return;
+    final target = await _selectChargeTarget();
+    if (target != null && mounted) {
+      setState(
+        () => _services.add(_ServiceCharge(result.$1, result.$2, target)),
+      );
+    }
   }
 
   Future<InvoiceDetail?> _persistDraft(UserSession session) async {
-    if (_patient == null) {
-      _message('Select a patient before billing.');
+    if (_patients.isEmpty) {
+      _message('Select at least one animal before billing.');
       return null;
     }
+    final primary = _patients.first;
     final result = await ref
         .read(clinicRepositoryProvider)
         .saveInvoiceDraft(
           session: session,
           invoiceId: _invoiceId,
-          animalId: _patient!.id,
+          animalId: primary.id,
+          additionalAnimalIds: _patients
+              .skip(1)
+              .map((animal) => animal.id)
+              .toList(),
           products: [
-            for (final entry in _products.entries)
+            for (final charge in _products)
               InvoiceProductDraft(
-                inventoryItemId: entry.key,
-                quantity: entry.value,
+                inventoryItemId: charge.inventoryItemId,
+                quantity: charge.quantity,
+                animalId: charge.target.localAnimalId,
+                isGeneral: charge.target.isGeneral,
               ),
           ],
-          services: _services,
+          services: [
+            for (final charge in _services)
+              InvoiceServiceDraft(
+                description: charge.description,
+                amount: charge.amount,
+                animalId: charge.target.localAnimalId,
+                isGeneral: charge.target.isGeneral,
+              ),
+          ],
           consultationFee: _consultationEnabled
               ? double.tryParse(_consultationFee.text) ?? 0
               : 0,
@@ -375,10 +496,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   }
 
   Future<void> _persistRemoteInvoice({required bool paid}) async {
-    final patient = _remotePatient;
-    if (patient == null) {
-      throw StateError('Select a patient before billing.');
+    if (_remotePatients.isEmpty) {
+      throw StateError('Select at least one animal before billing.');
     }
+    final patient = _remotePatients.first;
     if (_products.isNotEmpty) {
       throw StateError(
         'Refresh inventory before recording product sales in production.',
@@ -393,21 +514,55 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         : 0;
     final home = _homeEnabled ? double.tryParse(_homeFee.text) ?? 0 : 0;
     final total = services + consultation + home;
-    await ref.read(clinicalRemoteDataSourceProvider).createInvoice({
-      'submissionId': _submissionId,
-      'patientId': patient.id,
-      'status': paid ? 'Paid' : 'Draft',
-      'subtotal': total,
-      'total': total,
-      'services': [
-        for (final service in _services)
-          {'description': service.description, 'amount': service.amount},
-      ],
-    });
-    ref.invalidate(remotePatientMedicalFileProvider(patient.id));
+    final created = await ref
+        .read(clinicalRemoteDataSourceProvider)
+        .createInvoice({
+          'submissionId': _submissionId,
+          'patientId': patient.id,
+          'patientIds': _remotePatients.map((patient) => patient.id).toList(),
+          'status': paid ? 'Paid' : 'Draft',
+          'subtotal': total,
+          'total': total,
+          'services': [
+            for (final service in _services)
+              {
+                'description': service.description,
+                'amount': service.amount,
+                'quantity': 1,
+                'unitPrice': service.amount,
+                'patientId': service.target.remotePatientId,
+              },
+            if (consultation > 0)
+              {
+                'description': 'Consultation fee',
+                'amount': consultation,
+                'quantity': 1,
+                'unitPrice': consultation,
+                'patientId': null,
+              },
+            if (home > 0)
+              {
+                'description': 'Home service fee',
+                'amount': home,
+                'quantity': 1,
+                'unitPrice': home,
+                'patientId': null,
+              },
+          ],
+        });
+    if (mounted) {
+      setState(() => _remoteInvoiceId = created['invoice_id']?.toString());
+    }
+    for (final selected in _remotePatients) {
+      ref.invalidate(remotePatientMedicalFileProvider(selected.id));
+    }
   }
 
   Future<void> _print(UserSession session) async {
+    if (BackendConfiguration.isConfigured) {
+      await _printRemoteInvoice(session);
+      return;
+    }
     final invoice = await ref
         .read(clinicRepositoryProvider)
         .getInvoiceDetail(session, _invoiceId!);
@@ -438,7 +593,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           ),
           pw.Text('Invoice: ${invoice.invoice.reference}'),
           pw.Text(
-            'Patient: ${_patient?.animalName ?? 'Patient'} / ${_patient?.hospitalNumber ?? ''}',
+            'Animals: ${invoice.animals.map((animal) => '${animal.animalName} (${animal.hospitalNumber})').join(', ')}',
           ),
           pw.SizedBox(height: 12),
           pw.TableHelper.fromTextArray(
@@ -446,7 +601,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             data: [
               for (final line in invoice.products)
                 [
-                  line.productNameSnapshot,
+                  '${_invoiceLineTarget(invoice, line.animalId)}: ${line.productNameSnapshot}',
                   '${line.quantity}',
                   formatNaira(line.unitPrice),
                   formatNaira(line.lineTotal),
@@ -461,6 +616,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text(service.description),
+                  pw.Text(_invoiceLineTarget(invoice, service.animalId)),
                   pw.Text(formatNaira(service.amount)),
                 ],
               ),
@@ -498,6 +654,62 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     );
   }
 
+  Future<void> _printRemoteInvoice(UserSession session) async {
+    final invoiceId = _remoteInvoiceId;
+    if (invoiceId == null) return;
+    final payload = await ref
+        .read(clinicalRemoteDataSourceProvider)
+        .invoice(invoiceId);
+    final invoice = Map<String, dynamic>.from(payload['invoice'] as Map);
+    final lines = (payload['lineItems'] as List? ?? const [])
+        .map((line) => Map<String, dynamic>.from(line as Map))
+        .toList();
+    final animals = <String>{
+      for (final line in lines)
+        if (line['patient_name'] != null)
+          '${line['patient_name']} (${line['hospital_number'] ?? ''})',
+    };
+    final document = pw.Document();
+    document.addPage(
+      pw.MultiPage(
+        build: (_) => [
+          pw.Text(
+            session.clinic.clinicName,
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20),
+          ),
+          pw.Text('Invoice: ${invoice['invoice_number']}'),
+          pw.Text('Client: ${invoice['owner_name']}'),
+          pw.Text('Animals: ${animals.join(', ')}'),
+          pw.SizedBox(height: 12),
+          pw.TableHelper.fromTextArray(
+            headers: const ['Animal / Group', 'Description', 'Qty', 'Total'],
+            data: [
+              for (final line in lines)
+                [
+                  line['patient_name'] ?? 'General / Shared',
+                  line['description'],
+                  line['quantity'],
+                  formatNaira(_remoteNumber(line['line_total'])),
+                ],
+            ],
+          ),
+          pw.Divider(),
+          pw.Text(
+            'TOTAL: ${formatNaira(_remoteNumber(invoice['total']))}',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+    await Printing.layoutPdf(
+      onLayout: (_) => document.save(),
+      name: '${invoice['invoice_number']}.pdf',
+    );
+  }
+
+  double _remoteNumber(Object? value) =>
+      value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+
   void _message(String message) {
     if (mounted) {
       ScaffoldMessenger.of(
@@ -505,35 +717,166 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
+
+  String _invoiceLineTarget(InvoiceDetail invoice, int? animalId) {
+    if (animalId == null) return 'General / Shared';
+    return invoice.animals
+            .where((animal) => animal.id == animalId)
+            .firstOrNull
+            ?.animalName ??
+        'Animal';
+  }
+}
+
+class _SelectedPatientLabel {
+  const _SelectedPatientLabel({
+    required this.id,
+    required this.name,
+    required this.hospitalNumber,
+  });
+
+  final String id;
+  final String name;
+  final String hospitalNumber;
+}
+
+class _BillingTarget {
+  const _BillingTarget.general()
+    : isGeneral = true,
+      localAnimalId = null,
+      remotePatientId = null,
+      label = 'General / Shared',
+      hospitalNumber = null;
+
+  const _BillingTarget.local({
+    required int animalId,
+    required this.label,
+    required this.hospitalNumber,
+  }) : isGeneral = false,
+       localAnimalId = animalId,
+       remotePatientId = null;
+
+  const _BillingTarget.remote({
+    required String patientId,
+    required this.label,
+    required this.hospitalNumber,
+  }) : isGeneral = false,
+       localAnimalId = null,
+       remotePatientId = patientId;
+
+  final bool isGeneral;
+  final int? localAnimalId;
+  final String? remotePatientId;
+  final String label;
+  final String? hospitalNumber;
+}
+
+class _ProductCharge {
+  const _ProductCharge(this.inventoryItemId, this.quantity, this.target);
+  final int inventoryItemId;
+  final int quantity;
+  final _BillingTarget target;
+
+  _ProductCharge copyWith({int? quantity}) =>
+      _ProductCharge(inventoryItemId, quantity ?? this.quantity, target);
+}
+
+class _ServiceCharge {
+  const _ServiceCharge(this.description, this.amount, this.target);
+  final String description;
+  final double amount;
+  final _BillingTarget target;
 }
 
 class _PatientCard extends StatelessWidget {
   const _PatientCard({
-    required this.patientName,
-    required this.hospitalNumber,
-    required this.onChange,
+    required this.patients,
+    required this.onSelect,
+    required this.onAdd,
+    required this.onRemove,
   });
-  final String? patientName;
-  final String? hospitalNumber;
-  final VoidCallback onChange;
+  final List<_SelectedPatientLabel> patients;
+  final VoidCallback onSelect;
+  final VoidCallback? onAdd;
+  final ValueChanged<String> onRemove;
+
   @override
-  Widget build(BuildContext context) => AveraSurfaceCard(
-    child: Row(
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('ANIMALS', style: averaText(context).sectionLabel),
+      const SizedBox(height: 8),
+      AveraSurfaceCard(
+        child: patients.isEmpty
+            ? ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(child: Icon(Icons.pets_outlined)),
+                title: const Text('Select client animal'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: onSelect,
+              )
+            : Column(
+                children: [
+                  for (var index = 0; index < patients.length; index++) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        child: Text(
+                          patients[index].name.characters.first.toUpperCase(),
+                        ),
+                      ),
+                      title: Text(patients[index].name),
+                      subtitle: Text(patients[index].hospitalNumber),
+                      trailing: patients.length > 1
+                          ? IconButton(
+                              tooltip: 'Remove animal',
+                              onPressed: () => onRemove(patients[index].id),
+                              icon: const Icon(Icons.close_rounded),
+                            )
+                          : null,
+                    ),
+                    if (index < patients.length - 1) const Divider(height: 1),
+                  ],
+                  const Divider(height: 1),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: onAdd,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Select more animals'),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    ],
+  );
+}
+
+class _ChargeTargetSheet extends StatelessWidget {
+  const _ChargeTargetSheet({required this.targets});
+  final List<_BillingTarget> targets;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const CircleAvatar(child: Icon(Icons.pets_outlined)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            patientName == null
-                ? 'Select patient'
-                : '$patientName / $hospitalNumber',
-            style: averaText(context).fieldValue,
+        Text('Apply charge to', style: averaText(context).sectionTitle),
+        const SizedBox(height: 8),
+        for (final target in targets)
+          ListTile(
+            leading: Icon(
+              target.isGeneral ? Icons.groups_outlined : Icons.pets_outlined,
+            ),
+            title: Text(target.label),
+            subtitle: target.hospitalNumber == null
+                ? const Text('Client or visit-level charge')
+                : Text(target.hospitalNumber!),
+            onTap: () => Navigator.pop(context, target),
           ),
-        ),
-        TextButton(
-          onPressed: onChange,
-          child: Text(patientName == null ? 'Select' : 'Change'),
-        ),
       ],
     ),
   );
@@ -563,22 +906,27 @@ class _SectionAction extends StatelessWidget {
 class _ProductLines extends StatelessWidget {
   const _ProductLines({
     required this.items,
-    required this.quantities,
+    required this.charges,
     required this.onChanged,
   });
   final List<InventoryItem> items;
-  final Map<int, int> quantities;
+  final List<_ProductCharge> charges;
   final void Function(int, int) onChanged;
   @override
   Widget build(BuildContext context) {
-    if (quantities.isEmpty) return const Text('No products added.');
+    if (charges.isEmpty) return const Text('No products added.');
     return Column(
       children: [
-        for (final entry in quantities.entries)
-          if (items.where((item) => item.id == entry.key).isNotEmpty)
+        for (var index = 0; index < charges.length; index++)
+          if (items
+              .where((item) => item.id == charges[index].inventoryItemId)
+              .isNotEmpty)
             Builder(
               builder: (context) {
-                final item = items.firstWhere((item) => item.id == entry.key);
+                final charge = charges[index];
+                final item = items.firstWhere(
+                  (item) => item.id == charge.inventoryItemId,
+                );
                 return Column(
                   children: [
                     Row(
@@ -592,14 +940,14 @@ class _ProductLines extends StatelessWidget {
                                 style: averaText(context).fieldValue,
                               ),
                               Text(
-                                'Qty ${entry.value} x ${formatNaira(item.sellingPrice)}',
+                                '${charge.target.label} | Qty ${charge.quantity} x ${formatNaira(item.sellingPrice)}',
                                 style: averaText(context).caption,
                               ),
                             ],
                           ),
                         ),
                         Text(
-                          formatNaira(item.sellingPrice * entry.value),
+                          formatNaira(item.sellingPrice * charge.quantity),
                           style: averaText(context).fieldValue,
                         ),
                       ],
@@ -608,18 +956,19 @@ class _ProductLines extends StatelessWidget {
                       spacing: 8,
                       children: [
                         IconButton(
-                          onPressed: () => onChanged(item.id, entry.value - 1),
+                          onPressed: () =>
+                              onChanged(index, charge.quantity - 1),
                           icon: const Icon(Icons.remove_circle_outline),
                         ),
-                        Text('${entry.value}'),
+                        Text('${charge.quantity}'),
                         IconButton(
-                          onPressed: entry.value < item.quantity
-                              ? () => onChanged(item.id, entry.value + 1)
+                          onPressed: charge.quantity < item.quantity
+                              ? () => onChanged(index, charge.quantity + 1)
                               : null,
                           icon: const Icon(Icons.add_circle_outline),
                         ),
                         TextButton(
-                          onPressed: () => onChanged(item.id, 0),
+                          onPressed: () => onChanged(index, 0),
                           child: const Text('Remove'),
                         ),
                       ],
@@ -636,7 +985,7 @@ class _ProductLines extends StatelessWidget {
 
 class _ServiceLines extends StatelessWidget {
   const _ServiceLines({required this.services, required this.onRemove});
-  final List<InvoiceServiceDraft> services;
+  final List<_ServiceCharge> services;
   final void Function(int) onRemove;
   @override
   Widget build(BuildContext context) {
@@ -647,6 +996,7 @@ class _ServiceLines extends StatelessWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(services[i].description),
+            subtitle: Text(services[i].target.label),
             trailing: Wrap(
               children: [
                 Text(formatNaira(services[i].amount)),
@@ -754,28 +1104,45 @@ class _TotalRow extends StatelessWidget {
 }
 
 class _BillingPatientPicker extends ConsumerWidget {
-  const _BillingPatientPicker();
+  const _BillingPatientPicker({
+    required this.ownerId,
+    required this.excludedIds,
+    required this.title,
+  });
+  final int? ownerId;
+  final Set<int> excludedIds;
+  final String title;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => SafeArea(
     child: Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          Text('Select Patient', style: averaText(context).sectionTitle),
+          Text(title, style: averaText(context).sectionTitle),
           Expanded(
             child: StreamBuilder<List<Animal>>(
               stream: ref.watch(clinicRepositoryProvider).watchAnimals(),
-              builder: (context, snapshot) => ListView.builder(
-                itemCount: snapshot.data?.length ?? 0,
-                itemBuilder: (context, index) {
-                  final animal = snapshot.data![index];
-                  return ListTile(
-                    title: Text(animal.animalName),
-                    subtitle: Text(animal.hospitalNumber),
-                    onTap: () => Navigator.pop(context, animal),
-                  );
-                },
-              ),
+              builder: (context, snapshot) {
+                final animals = (snapshot.data ?? const <Animal>[])
+                    .where(
+                      (animal) =>
+                          !excludedIds.contains(animal.id) &&
+                          (ownerId == null || animal.ownerId == ownerId),
+                    )
+                    .toList();
+                return ListView.builder(
+                  itemCount: animals.length,
+                  itemBuilder: (context, index) {
+                    final animal = animals[index];
+                    return ListTile(
+                      title: Text(animal.animalName),
+                      subtitle: Text(animal.hospitalNumber),
+                      onTap: () => Navigator.pop(context, animal),
+                    );
+                  },
+                );
+              },
             ),
           ),
         ],

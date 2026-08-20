@@ -19513,6 +19513,20 @@ class $InvoiceProductLinesTable extends InvoiceProductLines
       'REFERENCES inventory_items (id)',
     ),
   );
+  static const VerificationMeta _animalIdMeta = const VerificationMeta(
+    'animalId',
+  );
+  @override
+  late final GeneratedColumn<int> animalId = GeneratedColumn<int>(
+    'animal_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES animals (id)',
+    ),
+  );
   static const VerificationMeta _productNameSnapshotMeta =
       const VerificationMeta('productNameSnapshot');
   @override
@@ -19584,6 +19598,7 @@ class $InvoiceProductLinesTable extends InvoiceProductLines
     id,
     invoiceId,
     inventoryItemId,
+    animalId,
     productNameSnapshot,
     categoryNameSnapshot,
     batchNumberSnapshot,
@@ -19624,6 +19639,12 @@ class $InvoiceProductLinesTable extends InvoiceProductLines
       );
     } else if (isInserting) {
       context.missing(_inventoryItemIdMeta);
+    }
+    if (data.containsKey('animal_id')) {
+      context.handle(
+        _animalIdMeta,
+        animalId.isAcceptableOrUnknown(data['animal_id']!, _animalIdMeta),
+      );
     }
     if (data.containsKey('product_name_snapshot')) {
       context.handle(
@@ -19701,6 +19722,10 @@ class $InvoiceProductLinesTable extends InvoiceProductLines
         DriftSqlType.int,
         data['${effectivePrefix}inventory_item_id'],
       )!,
+      animalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}animal_id'],
+      ),
       productNameSnapshot: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}product_name_snapshot'],
@@ -19739,6 +19764,7 @@ class InvoiceProductLine extends DataClass
   final int id;
   final int invoiceId;
   final int inventoryItemId;
+  final int? animalId;
   final String productNameSnapshot;
   final String categoryNameSnapshot;
   final String? batchNumberSnapshot;
@@ -19749,6 +19775,7 @@ class InvoiceProductLine extends DataClass
     required this.id,
     required this.invoiceId,
     required this.inventoryItemId,
+    this.animalId,
     required this.productNameSnapshot,
     required this.categoryNameSnapshot,
     this.batchNumberSnapshot,
@@ -19762,6 +19789,9 @@ class InvoiceProductLine extends DataClass
     map['id'] = Variable<int>(id);
     map['invoice_id'] = Variable<int>(invoiceId);
     map['inventory_item_id'] = Variable<int>(inventoryItemId);
+    if (!nullToAbsent || animalId != null) {
+      map['animal_id'] = Variable<int>(animalId);
+    }
     map['product_name_snapshot'] = Variable<String>(productNameSnapshot);
     map['category_name_snapshot'] = Variable<String>(categoryNameSnapshot);
     if (!nullToAbsent || batchNumberSnapshot != null) {
@@ -19778,6 +19808,9 @@ class InvoiceProductLine extends DataClass
       id: Value(id),
       invoiceId: Value(invoiceId),
       inventoryItemId: Value(inventoryItemId),
+      animalId: animalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(animalId),
       productNameSnapshot: Value(productNameSnapshot),
       categoryNameSnapshot: Value(categoryNameSnapshot),
       batchNumberSnapshot: batchNumberSnapshot == null && nullToAbsent
@@ -19798,6 +19831,7 @@ class InvoiceProductLine extends DataClass
       id: serializer.fromJson<int>(json['id']),
       invoiceId: serializer.fromJson<int>(json['invoiceId']),
       inventoryItemId: serializer.fromJson<int>(json['inventoryItemId']),
+      animalId: serializer.fromJson<int?>(json['animalId']),
       productNameSnapshot: serializer.fromJson<String>(
         json['productNameSnapshot'],
       ),
@@ -19819,6 +19853,7 @@ class InvoiceProductLine extends DataClass
       'id': serializer.toJson<int>(id),
       'invoiceId': serializer.toJson<int>(invoiceId),
       'inventoryItemId': serializer.toJson<int>(inventoryItemId),
+      'animalId': serializer.toJson<int?>(animalId),
       'productNameSnapshot': serializer.toJson<String>(productNameSnapshot),
       'categoryNameSnapshot': serializer.toJson<String>(categoryNameSnapshot),
       'batchNumberSnapshot': serializer.toJson<String?>(batchNumberSnapshot),
@@ -19832,6 +19867,7 @@ class InvoiceProductLine extends DataClass
     int? id,
     int? invoiceId,
     int? inventoryItemId,
+    Value<int?> animalId = const Value.absent(),
     String? productNameSnapshot,
     String? categoryNameSnapshot,
     Value<String?> batchNumberSnapshot = const Value.absent(),
@@ -19842,6 +19878,7 @@ class InvoiceProductLine extends DataClass
     id: id ?? this.id,
     invoiceId: invoiceId ?? this.invoiceId,
     inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+    animalId: animalId.present ? animalId.value : this.animalId,
     productNameSnapshot: productNameSnapshot ?? this.productNameSnapshot,
     categoryNameSnapshot: categoryNameSnapshot ?? this.categoryNameSnapshot,
     batchNumberSnapshot: batchNumberSnapshot.present
@@ -19858,6 +19895,7 @@ class InvoiceProductLine extends DataClass
       inventoryItemId: data.inventoryItemId.present
           ? data.inventoryItemId.value
           : this.inventoryItemId,
+      animalId: data.animalId.present ? data.animalId.value : this.animalId,
       productNameSnapshot: data.productNameSnapshot.present
           ? data.productNameSnapshot.value
           : this.productNameSnapshot,
@@ -19879,6 +19917,7 @@ class InvoiceProductLine extends DataClass
           ..write('id: $id, ')
           ..write('invoiceId: $invoiceId, ')
           ..write('inventoryItemId: $inventoryItemId, ')
+          ..write('animalId: $animalId, ')
           ..write('productNameSnapshot: $productNameSnapshot, ')
           ..write('categoryNameSnapshot: $categoryNameSnapshot, ')
           ..write('batchNumberSnapshot: $batchNumberSnapshot, ')
@@ -19894,6 +19933,7 @@ class InvoiceProductLine extends DataClass
     id,
     invoiceId,
     inventoryItemId,
+    animalId,
     productNameSnapshot,
     categoryNameSnapshot,
     batchNumberSnapshot,
@@ -19908,6 +19948,7 @@ class InvoiceProductLine extends DataClass
           other.id == this.id &&
           other.invoiceId == this.invoiceId &&
           other.inventoryItemId == this.inventoryItemId &&
+          other.animalId == this.animalId &&
           other.productNameSnapshot == this.productNameSnapshot &&
           other.categoryNameSnapshot == this.categoryNameSnapshot &&
           other.batchNumberSnapshot == this.batchNumberSnapshot &&
@@ -19920,6 +19961,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
   final Value<int> id;
   final Value<int> invoiceId;
   final Value<int> inventoryItemId;
+  final Value<int?> animalId;
   final Value<String> productNameSnapshot;
   final Value<String> categoryNameSnapshot;
   final Value<String?> batchNumberSnapshot;
@@ -19930,6 +19972,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     this.id = const Value.absent(),
     this.invoiceId = const Value.absent(),
     this.inventoryItemId = const Value.absent(),
+    this.animalId = const Value.absent(),
     this.productNameSnapshot = const Value.absent(),
     this.categoryNameSnapshot = const Value.absent(),
     this.batchNumberSnapshot = const Value.absent(),
@@ -19941,6 +19984,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     this.id = const Value.absent(),
     required int invoiceId,
     required int inventoryItemId,
+    this.animalId = const Value.absent(),
     required String productNameSnapshot,
     required String categoryNameSnapshot,
     this.batchNumberSnapshot = const Value.absent(),
@@ -19958,6 +20002,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     Expression<int>? id,
     Expression<int>? invoiceId,
     Expression<int>? inventoryItemId,
+    Expression<int>? animalId,
     Expression<String>? productNameSnapshot,
     Expression<String>? categoryNameSnapshot,
     Expression<String>? batchNumberSnapshot,
@@ -19969,6 +20014,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
       if (id != null) 'id': id,
       if (invoiceId != null) 'invoice_id': invoiceId,
       if (inventoryItemId != null) 'inventory_item_id': inventoryItemId,
+      if (animalId != null) 'animal_id': animalId,
       if (productNameSnapshot != null)
         'product_name_snapshot': productNameSnapshot,
       if (categoryNameSnapshot != null)
@@ -19985,6 +20031,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     Value<int>? id,
     Value<int>? invoiceId,
     Value<int>? inventoryItemId,
+    Value<int?>? animalId,
     Value<String>? productNameSnapshot,
     Value<String>? categoryNameSnapshot,
     Value<String?>? batchNumberSnapshot,
@@ -19996,6 +20043,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
       id: id ?? this.id,
       invoiceId: invoiceId ?? this.invoiceId,
       inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+      animalId: animalId ?? this.animalId,
       productNameSnapshot: productNameSnapshot ?? this.productNameSnapshot,
       categoryNameSnapshot: categoryNameSnapshot ?? this.categoryNameSnapshot,
       batchNumberSnapshot: batchNumberSnapshot ?? this.batchNumberSnapshot,
@@ -20016,6 +20064,9 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     }
     if (inventoryItemId.present) {
       map['inventory_item_id'] = Variable<int>(inventoryItemId.value);
+    }
+    if (animalId.present) {
+      map['animal_id'] = Variable<int>(animalId.value);
     }
     if (productNameSnapshot.present) {
       map['product_name_snapshot'] = Variable<String>(
@@ -20050,6 +20101,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
           ..write('id: $id, ')
           ..write('invoiceId: $invoiceId, ')
           ..write('inventoryItemId: $inventoryItemId, ')
+          ..write('animalId: $animalId, ')
           ..write('productNameSnapshot: $productNameSnapshot, ')
           ..write('categoryNameSnapshot: $categoryNameSnapshot, ')
           ..write('batchNumberSnapshot: $batchNumberSnapshot, ')
@@ -20094,6 +20146,20 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
       'REFERENCES invoices (id)',
     ),
   );
+  static const VerificationMeta _animalIdMeta = const VerificationMeta(
+    'animalId',
+  );
+  @override
+  late final GeneratedColumn<int> animalId = GeneratedColumn<int>(
+    'animal_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES animals (id)',
+    ),
+  );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -20115,7 +20181,13 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, invoiceId, description, amount];
+  List<GeneratedColumn> get $columns => [
+    id,
+    invoiceId,
+    animalId,
+    description,
+    amount,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -20138,6 +20210,12 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
       );
     } else if (isInserting) {
       context.missing(_invoiceIdMeta);
+    }
+    if (data.containsKey('animal_id')) {
+      context.handle(
+        _animalIdMeta,
+        animalId.isAcceptableOrUnknown(data['animal_id']!, _animalIdMeta),
+      );
     }
     if (data.containsKey('description')) {
       context.handle(
@@ -20175,6 +20253,10 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
         DriftSqlType.int,
         data['${effectivePrefix}invoice_id'],
       )!,
+      animalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}animal_id'],
+      ),
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -20196,11 +20278,13 @@ class InvoiceServiceLine extends DataClass
     implements Insertable<InvoiceServiceLine> {
   final int id;
   final int invoiceId;
+  final int? animalId;
   final String description;
   final double amount;
   const InvoiceServiceLine({
     required this.id,
     required this.invoiceId,
+    this.animalId,
     required this.description,
     required this.amount,
   });
@@ -20209,6 +20293,9 @@ class InvoiceServiceLine extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['invoice_id'] = Variable<int>(invoiceId);
+    if (!nullToAbsent || animalId != null) {
+      map['animal_id'] = Variable<int>(animalId);
+    }
     map['description'] = Variable<String>(description);
     map['amount'] = Variable<double>(amount);
     return map;
@@ -20218,6 +20305,9 @@ class InvoiceServiceLine extends DataClass
     return InvoiceServiceLinesCompanion(
       id: Value(id),
       invoiceId: Value(invoiceId),
+      animalId: animalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(animalId),
       description: Value(description),
       amount: Value(amount),
     );
@@ -20231,6 +20321,7 @@ class InvoiceServiceLine extends DataClass
     return InvoiceServiceLine(
       id: serializer.fromJson<int>(json['id']),
       invoiceId: serializer.fromJson<int>(json['invoiceId']),
+      animalId: serializer.fromJson<int?>(json['animalId']),
       description: serializer.fromJson<String>(json['description']),
       amount: serializer.fromJson<double>(json['amount']),
     );
@@ -20241,6 +20332,7 @@ class InvoiceServiceLine extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'invoiceId': serializer.toJson<int>(invoiceId),
+      'animalId': serializer.toJson<int?>(animalId),
       'description': serializer.toJson<String>(description),
       'amount': serializer.toJson<double>(amount),
     };
@@ -20249,11 +20341,13 @@ class InvoiceServiceLine extends DataClass
   InvoiceServiceLine copyWith({
     int? id,
     int? invoiceId,
+    Value<int?> animalId = const Value.absent(),
     String? description,
     double? amount,
   }) => InvoiceServiceLine(
     id: id ?? this.id,
     invoiceId: invoiceId ?? this.invoiceId,
+    animalId: animalId.present ? animalId.value : this.animalId,
     description: description ?? this.description,
     amount: amount ?? this.amount,
   );
@@ -20261,6 +20355,7 @@ class InvoiceServiceLine extends DataClass
     return InvoiceServiceLine(
       id: data.id.present ? data.id.value : this.id,
       invoiceId: data.invoiceId.present ? data.invoiceId.value : this.invoiceId,
+      animalId: data.animalId.present ? data.animalId.value : this.animalId,
       description: data.description.present
           ? data.description.value
           : this.description,
@@ -20273,6 +20368,7 @@ class InvoiceServiceLine extends DataClass
     return (StringBuffer('InvoiceServiceLine(')
           ..write('id: $id, ')
           ..write('invoiceId: $invoiceId, ')
+          ..write('animalId: $animalId, ')
           ..write('description: $description, ')
           ..write('amount: $amount')
           ..write(')'))
@@ -20280,13 +20376,14 @@ class InvoiceServiceLine extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(id, invoiceId, description, amount);
+  int get hashCode => Object.hash(id, invoiceId, animalId, description, amount);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is InvoiceServiceLine &&
           other.id == this.id &&
           other.invoiceId == this.invoiceId &&
+          other.animalId == this.animalId &&
           other.description == this.description &&
           other.amount == this.amount);
 }
@@ -20294,17 +20391,20 @@ class InvoiceServiceLine extends DataClass
 class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
   final Value<int> id;
   final Value<int> invoiceId;
+  final Value<int?> animalId;
   final Value<String> description;
   final Value<double> amount;
   const InvoiceServiceLinesCompanion({
     this.id = const Value.absent(),
     this.invoiceId = const Value.absent(),
+    this.animalId = const Value.absent(),
     this.description = const Value.absent(),
     this.amount = const Value.absent(),
   });
   InvoiceServiceLinesCompanion.insert({
     this.id = const Value.absent(),
     required int invoiceId,
+    this.animalId = const Value.absent(),
     required String description,
     required double amount,
   }) : invoiceId = Value(invoiceId),
@@ -20313,12 +20413,14 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
   static Insertable<InvoiceServiceLine> custom({
     Expression<int>? id,
     Expression<int>? invoiceId,
+    Expression<int>? animalId,
     Expression<String>? description,
     Expression<double>? amount,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (invoiceId != null) 'invoice_id': invoiceId,
+      if (animalId != null) 'animal_id': animalId,
       if (description != null) 'description': description,
       if (amount != null) 'amount': amount,
     });
@@ -20327,12 +20429,14 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
   InvoiceServiceLinesCompanion copyWith({
     Value<int>? id,
     Value<int>? invoiceId,
+    Value<int?>? animalId,
     Value<String>? description,
     Value<double>? amount,
   }) {
     return InvoiceServiceLinesCompanion(
       id: id ?? this.id,
       invoiceId: invoiceId ?? this.invoiceId,
+      animalId: animalId ?? this.animalId,
       description: description ?? this.description,
       amount: amount ?? this.amount,
     );
@@ -20346,6 +20450,9 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     }
     if (invoiceId.present) {
       map['invoice_id'] = Variable<int>(invoiceId.value);
+    }
+    if (animalId.present) {
+      map['animal_id'] = Variable<int>(animalId.value);
     }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
@@ -20361,6 +20468,7 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     return (StringBuffer('InvoiceServiceLinesCompanion(')
           ..write('id: $id, ')
           ..write('invoiceId: $invoiceId, ')
+          ..write('animalId: $animalId, ')
           ..write('description: $description, ')
           ..write('amount: $amount')
           ..write(')'))
@@ -49749,6 +49857,60 @@ final class $$AnimalsTableReferences
     );
   }
 
+  static MultiTypedResultKey<
+    $InvoiceProductLinesTable,
+    List<InvoiceProductLine>
+  >
+  _invoiceProductLinesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.invoiceProductLines,
+        aliasName: $_aliasNameGenerator(
+          db.animals.id,
+          db.invoiceProductLines.animalId,
+        ),
+      );
+
+  $$InvoiceProductLinesTableProcessedTableManager get invoiceProductLinesRefs {
+    final manager = $$InvoiceProductLinesTableTableManager(
+      $_db,
+      $_db.invoiceProductLines,
+    ).filter((f) => f.animalId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _invoiceProductLinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $InvoiceServiceLinesTable,
+    List<InvoiceServiceLine>
+  >
+  _invoiceServiceLinesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.invoiceServiceLines,
+        aliasName: $_aliasNameGenerator(
+          db.animals.id,
+          db.invoiceServiceLines.animalId,
+        ),
+      );
+
+  $$InvoiceServiceLinesTableProcessedTableManager get invoiceServiceLinesRefs {
+    final manager = $$InvoiceServiceLinesTableTableManager(
+      $_db,
+      $_db.invoiceServiceLines,
+    ).filter((f) => f.animalId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _invoiceServiceLinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$NotificationsTable, List<Notification>>
   _notificationsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.notifications,
@@ -50094,6 +50256,56 @@ class $$AnimalsTableFilterComposer
           }) => $$InvoicesTableFilterComposer(
             $db: $db,
             $table: $db.invoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> invoiceProductLinesRefs(
+    Expression<bool> Function($$InvoiceProductLinesTableFilterComposer f) f,
+  ) {
+    final $$InvoiceProductLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.invoiceProductLines,
+      getReferencedColumn: (t) => t.animalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoiceProductLinesTableFilterComposer(
+            $db: $db,
+            $table: $db.invoiceProductLines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> invoiceServiceLinesRefs(
+    Expression<bool> Function($$InvoiceServiceLinesTableFilterComposer f) f,
+  ) {
+    final $$InvoiceServiceLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.invoiceServiceLines,
+      getReferencedColumn: (t) => t.animalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoiceServiceLinesTableFilterComposer(
+            $db: $db,
+            $table: $db.invoiceServiceLines,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -50622,6 +50834,58 @@ class $$AnimalsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> invoiceProductLinesRefs<T extends Object>(
+    Expression<T> Function($$InvoiceProductLinesTableAnnotationComposer a) f,
+  ) {
+    final $$InvoiceProductLinesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.invoiceProductLines,
+          getReferencedColumn: (t) => t.animalId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$InvoiceProductLinesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.invoiceProductLines,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> invoiceServiceLinesRefs<T extends Object>(
+    Expression<T> Function($$InvoiceServiceLinesTableAnnotationComposer a) f,
+  ) {
+    final $$InvoiceServiceLinesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.invoiceServiceLines,
+          getReferencedColumn: (t) => t.animalId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$InvoiceServiceLinesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.invoiceServiceLines,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> notificationsRefs<T extends Object>(
     Expression<T> Function($$NotificationsTableAnnotationComposer a) f,
   ) {
@@ -50695,6 +50959,8 @@ class $$AnimalsTableTableManager
             bool vaccinationsRefs,
             bool appointmentsRefs,
             bool invoicesRefs,
+            bool invoiceProductLinesRefs,
+            bool invoiceServiceLinesRefs,
             bool notificationsRefs,
             bool clinicActivityEventsRefs,
           })
@@ -50843,6 +51109,8 @@ class $$AnimalsTableTableManager
                 vaccinationsRefs = false,
                 appointmentsRefs = false,
                 invoicesRefs = false,
+                invoiceProductLinesRefs = false,
+                invoiceServiceLinesRefs = false,
                 notificationsRefs = false,
                 clinicActivityEventsRefs = false,
               }) {
@@ -50855,6 +51123,8 @@ class $$AnimalsTableTableManager
                     if (vaccinationsRefs) db.vaccinations,
                     if (appointmentsRefs) db.appointments,
                     if (invoicesRefs) db.invoices,
+                    if (invoiceProductLinesRefs) db.invoiceProductLines,
+                    if (invoiceServiceLinesRefs) db.invoiceServiceLines,
                     if (notificationsRefs) db.notifications,
                     if (clinicActivityEventsRefs) db.clinicActivityEvents,
                   ],
@@ -51006,6 +51276,48 @@ class $$AnimalsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (invoiceProductLinesRefs)
+                        await $_getPrefetchedData<
+                          Animal,
+                          $AnimalsTable,
+                          InvoiceProductLine
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AnimalsTableReferences
+                              ._invoiceProductLinesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AnimalsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).invoiceProductLinesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.animalId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (invoiceServiceLinesRefs)
+                        await $_getPrefetchedData<
+                          Animal,
+                          $AnimalsTable,
+                          InvoiceServiceLine
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AnimalsTableReferences
+                              ._invoiceServiceLinesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AnimalsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).invoiceServiceLinesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.animalId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (notificationsRefs)
                         await $_getPrefetchedData<
                           Animal,
@@ -51076,6 +51388,8 @@ typedef $$AnimalsTableProcessedTableManager =
         bool vaccinationsRefs,
         bool appointmentsRefs,
         bool invoicesRefs,
+        bool invoiceProductLinesRefs,
+        bool invoiceServiceLinesRefs,
         bool notificationsRefs,
         bool clinicActivityEventsRefs,
       })
@@ -63000,6 +63314,7 @@ typedef $$InvoiceProductLinesTableCreateCompanionBuilder =
       Value<int> id,
       required int invoiceId,
       required int inventoryItemId,
+      Value<int?> animalId,
       required String productNameSnapshot,
       required String categoryNameSnapshot,
       Value<String?> batchNumberSnapshot,
@@ -63012,6 +63327,7 @@ typedef $$InvoiceProductLinesTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int> invoiceId,
       Value<int> inventoryItemId,
+      Value<int?> animalId,
       Value<String> productNameSnapshot,
       Value<String> categoryNameSnapshot,
       Value<String?> batchNumberSnapshot,
@@ -63068,6 +63384,25 @@ final class $$InvoiceProductLinesTableReferences
       $_db.inventoryItems,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_inventoryItemIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AnimalsTable _animalIdTable(_$AppDatabase db) =>
+      db.animals.createAlias(
+        $_aliasNameGenerator(db.invoiceProductLines.animalId, db.animals.id),
+      );
+
+  $$AnimalsTableProcessedTableManager? get animalId {
+    final $_column = $_itemColumn<int>('animal_id');
+    if ($_column == null) return null;
+    final manager = $$AnimalsTableTableManager(
+      $_db,
+      $_db.animals,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_animalIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -63156,6 +63491,29 @@ class $$InvoiceProductLinesTableFilterComposer
           }) => $$InventoryItemsTableFilterComposer(
             $db: $db,
             $table: $db.inventoryItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AnimalsTableFilterComposer get animalId {
+    final $$AnimalsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableFilterComposer(
+            $db: $db,
+            $table: $db.animals,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -63255,6 +63613,29 @@ class $$InvoiceProductLinesTableOrderingComposer
     );
     return composer;
   }
+
+  $$AnimalsTableOrderingComposer get animalId {
+    final $$AnimalsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableOrderingComposer(
+            $db: $db,
+            $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$InvoiceProductLinesTableAnnotationComposer
@@ -63338,6 +63719,29 @@ class $$InvoiceProductLinesTableAnnotationComposer
     );
     return composer;
   }
+
+  $$AnimalsTableAnnotationComposer get animalId {
+    final $$AnimalsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$InvoiceProductLinesTableTableManager
@@ -63353,7 +63757,11 @@ class $$InvoiceProductLinesTableTableManager
           $$InvoiceProductLinesTableUpdateCompanionBuilder,
           (InvoiceProductLine, $$InvoiceProductLinesTableReferences),
           InvoiceProductLine,
-          PrefetchHooks Function({bool invoiceId, bool inventoryItemId})
+          PrefetchHooks Function({
+            bool invoiceId,
+            bool inventoryItemId,
+            bool animalId,
+          })
         > {
   $$InvoiceProductLinesTableTableManager(
     _$AppDatabase db,
@@ -63379,6 +63787,7 @@ class $$InvoiceProductLinesTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> invoiceId = const Value.absent(),
                 Value<int> inventoryItemId = const Value.absent(),
+                Value<int?> animalId = const Value.absent(),
                 Value<String> productNameSnapshot = const Value.absent(),
                 Value<String> categoryNameSnapshot = const Value.absent(),
                 Value<String?> batchNumberSnapshot = const Value.absent(),
@@ -63389,6 +63798,7 @@ class $$InvoiceProductLinesTableTableManager
                 id: id,
                 invoiceId: invoiceId,
                 inventoryItemId: inventoryItemId,
+                animalId: animalId,
                 productNameSnapshot: productNameSnapshot,
                 categoryNameSnapshot: categoryNameSnapshot,
                 batchNumberSnapshot: batchNumberSnapshot,
@@ -63401,6 +63811,7 @@ class $$InvoiceProductLinesTableTableManager
                 Value<int> id = const Value.absent(),
                 required int invoiceId,
                 required int inventoryItemId,
+                Value<int?> animalId = const Value.absent(),
                 required String productNameSnapshot,
                 required String categoryNameSnapshot,
                 Value<String?> batchNumberSnapshot = const Value.absent(),
@@ -63411,6 +63822,7 @@ class $$InvoiceProductLinesTableTableManager
                 id: id,
                 invoiceId: invoiceId,
                 inventoryItemId: inventoryItemId,
+                animalId: animalId,
                 productNameSnapshot: productNameSnapshot,
                 categoryNameSnapshot: categoryNameSnapshot,
                 batchNumberSnapshot: batchNumberSnapshot,
@@ -63427,7 +63839,7 @@ class $$InvoiceProductLinesTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({invoiceId = false, inventoryItemId = false}) {
+              ({invoiceId = false, inventoryItemId = false, animalId = false}) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [],
@@ -63477,6 +63889,21 @@ class $$InvoiceProductLinesTableTableManager
                                   )
                                   as T;
                         }
+                        if (animalId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.animalId,
+                                    referencedTable:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._animalIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._animalIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
                         return state;
                       },
@@ -63501,12 +63928,17 @@ typedef $$InvoiceProductLinesTableProcessedTableManager =
       $$InvoiceProductLinesTableUpdateCompanionBuilder,
       (InvoiceProductLine, $$InvoiceProductLinesTableReferences),
       InvoiceProductLine,
-      PrefetchHooks Function({bool invoiceId, bool inventoryItemId})
+      PrefetchHooks Function({
+        bool invoiceId,
+        bool inventoryItemId,
+        bool animalId,
+      })
     >;
 typedef $$InvoiceServiceLinesTableCreateCompanionBuilder =
     InvoiceServiceLinesCompanion Function({
       Value<int> id,
       required int invoiceId,
+      Value<int?> animalId,
       required String description,
       required double amount,
     });
@@ -63514,6 +63946,7 @@ typedef $$InvoiceServiceLinesTableUpdateCompanionBuilder =
     InvoiceServiceLinesCompanion Function({
       Value<int> id,
       Value<int> invoiceId,
+      Value<int?> animalId,
       Value<String> description,
       Value<double> amount,
     });
@@ -63544,6 +63977,25 @@ final class $$InvoiceServiceLinesTableReferences
       $_db.invoices,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_invoiceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AnimalsTable _animalIdTable(_$AppDatabase db) =>
+      db.animals.createAlias(
+        $_aliasNameGenerator(db.invoiceServiceLines.animalId, db.animals.id),
+      );
+
+  $$AnimalsTableProcessedTableManager? get animalId {
+    final $_column = $_itemColumn<int>('animal_id');
+    if ($_column == null) return null;
+    final manager = $$AnimalsTableTableManager(
+      $_db,
+      $_db.animals,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_animalIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -63589,6 +64041,29 @@ class $$InvoiceServiceLinesTableFilterComposer
           }) => $$InvoicesTableFilterComposer(
             $db: $db,
             $table: $db.invoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AnimalsTableFilterComposer get animalId {
+    final $$AnimalsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableFilterComposer(
+            $db: $db,
+            $table: $db.animals,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -63645,6 +64120,29 @@ class $$InvoiceServiceLinesTableOrderingComposer
     );
     return composer;
   }
+
+  $$AnimalsTableOrderingComposer get animalId {
+    final $$AnimalsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableOrderingComposer(
+            $db: $db,
+            $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$InvoiceServiceLinesTableAnnotationComposer
@@ -63689,6 +64187,29 @@ class $$InvoiceServiceLinesTableAnnotationComposer
     );
     return composer;
   }
+
+  $$AnimalsTableAnnotationComposer get animalId {
+    final $$AnimalsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$InvoiceServiceLinesTableTableManager
@@ -63704,7 +64225,7 @@ class $$InvoiceServiceLinesTableTableManager
           $$InvoiceServiceLinesTableUpdateCompanionBuilder,
           (InvoiceServiceLine, $$InvoiceServiceLinesTableReferences),
           InvoiceServiceLine,
-          PrefetchHooks Function({bool invoiceId})
+          PrefetchHooks Function({bool invoiceId, bool animalId})
         > {
   $$InvoiceServiceLinesTableTableManager(
     _$AppDatabase db,
@@ -63729,11 +64250,13 @@ class $$InvoiceServiceLinesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> invoiceId = const Value.absent(),
+                Value<int?> animalId = const Value.absent(),
                 Value<String> description = const Value.absent(),
                 Value<double> amount = const Value.absent(),
               }) => InvoiceServiceLinesCompanion(
                 id: id,
                 invoiceId: invoiceId,
+                animalId: animalId,
                 description: description,
                 amount: amount,
               ),
@@ -63741,11 +64264,13 @@ class $$InvoiceServiceLinesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required int invoiceId,
+                Value<int?> animalId = const Value.absent(),
                 required String description,
                 required double amount,
               }) => InvoiceServiceLinesCompanion.insert(
                 id: id,
                 invoiceId: invoiceId,
+                animalId: animalId,
                 description: description,
                 amount: amount,
               ),
@@ -63757,7 +64282,7 @@ class $$InvoiceServiceLinesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({invoiceId = false}) {
+          prefetchHooksCallback: ({invoiceId = false, animalId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -63792,6 +64317,21 @@ class $$InvoiceServiceLinesTableTableManager
                               )
                               as T;
                     }
+                    if (animalId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.animalId,
+                                referencedTable:
+                                    $$InvoiceServiceLinesTableReferences
+                                        ._animalIdTable(db),
+                                referencedColumn:
+                                    $$InvoiceServiceLinesTableReferences
+                                        ._animalIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
 
                     return state;
                   },
@@ -63816,7 +64356,7 @@ typedef $$InvoiceServiceLinesTableProcessedTableManager =
       $$InvoiceServiceLinesTableUpdateCompanionBuilder,
       (InvoiceServiceLine, $$InvoiceServiceLinesTableReferences),
       InvoiceServiceLine,
-      PrefetchHooks Function({bool invoiceId})
+      PrefetchHooks Function({bool invoiceId, bool animalId})
     >;
 typedef $$InventoryStockMovementsTableCreateCompanionBuilder =
     InventoryStockMovementsCompanion Function({

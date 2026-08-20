@@ -453,20 +453,20 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
           pw.Text('Invoice ${detail.invoice.reference}'),
           pw.SizedBox(height: 12),
           pw.Text(
-            'Patient: ${entry.animal.animalName} '
-            '(${entry.animal.hospitalNumber})',
+            'Animals: ${detail.animals.map((animal) => '${animal.animalName} (${animal.hospitalNumber})').join(', ')}',
           ),
           pw.Text('Owner: ${entry.owner.fullName}'),
           pw.Text('Status: ${detail.invoice.status}'),
           pw.SizedBox(height: 16),
           for (final line in detail.products)
             pw.Text(
+              '${_linePatientName(detail, line.animalId)}: '
               '${line.productNameSnapshot} x ${line.quantity}  '
               '${session.clinic.currency} ${line.lineTotal.toStringAsFixed(2)}',
             ),
           for (final line in detail.services)
             pw.Text(
-              '${line.description}  '
+              '${_linePatientName(detail, line.animalId)}: ${line.description}  '
               '${session.clinic.currency} ${line.amount.toStringAsFixed(2)}',
             ),
           pw.Divider(),
@@ -650,7 +650,11 @@ class _InvoiceDetailSheet extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '${entry.animal.animalName} - ${entry.animal.hospitalNumber}',
+          detail.animals
+              .map(
+                (animal) => '${animal.animalName} - ${animal.hospitalNumber}',
+              )
+              .join('\n'),
           style: averaText(context).listItemSubtitle,
         ),
         Text(entry.owner.fullName, style: averaText(context).caption),
@@ -691,14 +695,15 @@ class _InvoiceDetailSheet extends StatelessWidget {
               for (final line in detail.products)
                 _LineItem(
                   title: line.productNameSnapshot,
-                  subtitle: 'Quantity ${line.quantity}',
+                  subtitle:
+                      '${_linePatientName(detail, line.animalId)} | Quantity ${line.quantity}',
                   amount: line.lineTotal,
                   currency: session.clinic.currency,
                 ),
               for (final line in detail.services)
                 _LineItem(
                   title: line.description,
-                  subtitle: 'Service',
+                  subtitle: _linePatientName(detail, line.animalId),
                   amount: line.amount,
                   currency: session.clinic.currency,
                 ),
@@ -760,6 +765,15 @@ class _InvoiceDetailSheet extends StatelessWidget {
       ],
     ),
   );
+}
+
+String _linePatientName(InvoiceDetail detail, int? animalId) {
+  if (animalId == null) return 'General / Shared';
+  return detail.animals
+          .where((animal) => animal.id == animalId)
+          .firstOrNull
+          ?.animalName ??
+      'Animal';
 }
 
 class _BillingStatus extends StatelessWidget {

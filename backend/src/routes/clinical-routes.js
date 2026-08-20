@@ -149,12 +149,16 @@ export const cancelAppointmentSchema = z.object({
 export const createInvoiceSchema = z.object({
   submissionId: z.string().uuid(),
   patientId: z.string().uuid(),
+  patientIds: z.array(z.string().uuid()).min(1).max(100).optional(),
   status: z.enum(['Draft', 'Paid']),
   subtotal: z.number().min(0).max(1000000000000),
   total: z.number().min(0).max(1000000000000),
   services: z.array(z.object({
     description: z.string().trim().min(1).max(500),
     amount: z.number().min(0).max(1000000000000),
+    patientId: z.string().uuid().nullable().optional(),
+    quantity: z.number().positive().max(1000000).default(1),
+    unitPrice: z.number().min(0).max(1000000000000).optional(),
   })).max(100).default([]),
 });
 
@@ -633,8 +637,19 @@ const movementsList = {
 
 const invoiceList = {
   from: 'invoices i LEFT JOIN patients p ON p.patient_id = i.patient_id LEFT JOIN owners o ON o.owner_id = i.owner_id',
-  select: 'i.invoice_id, i.invoice_number, i.status, i.subtotal, i.tax, i.discount, i.total, i.amount_paid, i.balance, i.issued_at, i.due_at, p.name AS patient_name, o.full_name AS owner_name',
-  where: `i.clinic_id = $1 AND ($2::text IS NULL OR i.invoice_number ILIKE $3 OR p.name ILIKE $3 OR o.full_name ILIKE $3) AND ($4::text IS NULL OR i.status = $4) AND ($5::timestamptz IS NULL OR i.issued_at >= $5) AND ($6::timestamptz IS NULL OR i.issued_at <= $6)`,
+  select: `i.invoice_id, i.invoice_number, i.status, i.subtotal, i.tax,
+           i.discount, i.total, i.amount_paid, i.balance, i.issued_at, i.due_at,
+           p.name AS patient_name, o.full_name AS owner_name,
+           (SELECT count(DISTINCT linked.patient_id)::int
+              FROM invoice_line_items linked
+             WHERE linked.clinic_id=i.clinic_id AND linked.invoice_id=i.invoice_id
+               AND linked.patient_id IS NOT NULL) AS patient_count`,
+  where: `i.clinic_id = $1 AND ($2::text IS NULL OR i.invoice_number ILIKE $3 OR p.name ILIKE $3 OR o.full_name ILIKE $3 OR EXISTS (
+            SELECT 1 FROM invoice_line_items linked_search
+            JOIN patients linked_patient ON linked_patient.patient_id=linked_search.patient_id
+            WHERE linked_search.clinic_id=i.clinic_id AND linked_search.invoice_id=i.invoice_id
+              AND linked_patient.name ILIKE $3
+          )) AND ($4::text IS NULL OR i.status = $4) AND ($5::timestamptz IS NULL OR i.issued_at >= $5) AND ($6::timestamptz IS NULL OR i.issued_at <= $6)`,
   values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.status ?? null, query.from ?? null, query.to ?? null],
   order: (query) => orderBy(query.sort, query.direction, { date: 'i.issued_at', number: 'i.invoice_number', balance: 'i.balance' }, 'i.issued_at'),
 };
@@ -1084,7 +1099,16 @@ export async function clinicalRoutes(app) {
         client.query('SELECT count(*)::int AS count, max(admitted_at) AS latest_at FROM hospitalizations WHERE clinic_id=$1 AND patient_id=$2', [clinicId, patientId]),
         client.query('SELECT count(*)::int AS count, max(performed_at) AS latest_at FROM surgeries WHERE clinic_id=$1 AND patient_id=$2', [clinicId, patientId]),
         client.query('SELECT count(*)::int AS count, max(prescribed_at) AS latest_at FROM prescriptions WHERE clinic_id=$1 AND patient_id=$2', [clinicId, patientId]),
-        client.query('SELECT count(*)::int AS count, coalesce(sum(balance), 0) AS outstanding_balance FROM invoices WHERE clinic_id=$1 AND patient_id=$2', [clinicId, patientId]),
+        client.query(`SELECT count(*)::int AS count,
+                             coalesce(sum(i.balance), 0) AS outstanding_balance
+                        FROM invoices i
+                       WHERE i.clinic_id=$1
+                         AND (i.patient_id=$2 OR EXISTS (
+                           SELECT 1 FROM invoice_line_items l
+                            WHERE l.clinic_id=i.clinic_id
+                              AND l.invoice_id=i.invoice_id
+                              AND l.patient_id=$2
+                         ))`, [clinicId, patientId]),
         client.query('SELECT count(*)::int AS count FROM media_assets WHERE clinic_id=$1 AND patient_id=$2', [clinicId, patientId]),
         client.query(`SELECT type, occurred_at, summary FROM (
           SELECT 'Consultation' AS type, occurred_at, coalesce(final_diagnosis, chief_complaint) AS summary FROM consultations WHERE clinic_id=$1 AND patient_id=$2
@@ -1098,8 +1122,40 @@ export async function clinicalRoutes(app) {
 
   for (const [path, table, id, permission, order] of [
     ['consultations', 'consultations', 'consultation_id', permissions.consultationsView, 'occurred_at'], ['vaccinations', 'vaccinations', 'vaccination_id', permissions.vaccinationsView, 'administered_at'], ['laboratory', 'laboratory_reports', 'laboratory_report_id', permissions.laboratoryView, 'requested_at'], ['hospitalizations', 'hospitalizations', 'hospitalization_id', permissions.hospitalizationView, 'admitted_at'], ['surgeries', 'surgeries', 'surgery_id', permissions.surgeryView, 'performed_at'], ['prescriptions', 'prescriptions', 'prescription_id', permissions.prescriptionsView, 'prescribed_at'],
-    ['billing', 'invoices', 'invoice_id', permissions.billingView, 'issued_at'], ['appointments', 'schedule_entries', 'schedule_entry_id', permissions.appointmentsView, 'scheduled_at'], ['documents', 'media_assets', 'media_asset_id', permissions.mediaView, 'created_at'], ['images', 'media_assets', 'media_asset_id', permissions.mediaView, 'created_at'],
+    ['appointments', 'schedule_entries', 'schedule_entry_id', permissions.appointmentsView, 'scheduled_at'], ['documents', 'media_assets', 'media_asset_id', permissions.mediaView, 'created_at'], ['images', 'media_assets', 'media_asset_id', permissions.mediaView, 'created_at'],
   ]) app.get(`/api/v1/patients/:patientId/${path}`, { preHandler: [authenticate, requirePermission(permission)] }, (request, reply) => patientSection(request, reply, table, id, permission, order));
+
+  app.get('/api/v1/patients/:patientId/billing', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = uuidSchema.safeParse(request.params);
+    const query = parsePage(request, reply);
+    if (!params.success || !query) return reply.code(400).send({ error: 'validation_error', message: 'Patient or billing parameters are invalid.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      if (!await patientExists(client, request.auth.clinicId, params.data.patientId)) {
+        return reply.code(404).send({ error: 'not_found', message: 'The patient was not found in this clinic.' });
+      }
+      const offset = (query.page - 1) * query.pageSize;
+      const values = [request.auth.clinicId, params.data.patientId];
+      const predicate = `i.clinic_id=$1 AND (i.patient_id=$2 OR EXISTS (
+        SELECT 1 FROM invoice_line_items linked
+         WHERE linked.clinic_id=i.clinic_id AND linked.invoice_id=i.invoice_id
+           AND linked.patient_id=$2))`;
+      const [count, rows] = await Promise.all([
+        client.query(`SELECT count(*)::int AS total FROM invoices i WHERE ${predicate}`, values),
+        client.query(
+          `SELECT i.*,
+                  coalesce((SELECT sum(l.line_total) FROM invoice_line_items l
+                             WHERE l.clinic_id=i.clinic_id AND l.invoice_id=i.invoice_id
+                               AND l.patient_id=$2), 0) AS patient_attributed_total
+             FROM invoices i WHERE ${predicate}
+            ORDER BY i.issued_at DESC LIMIT $3 OFFSET $4`,
+          [...values, query.pageSize, offset],
+        ),
+      ]);
+      const total = count.rows[0].total;
+      return { items: rows.rows, page: query.page, pageSize: query.pageSize, total, hasNextPage: offset + rows.rows.length < total };
+    });
+  });
 
   app.get('/api/v1/patients/:patientId/clinical-operations', { preHandler: [authenticate] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
@@ -1717,29 +1773,131 @@ export async function clinicalRoutes(app) {
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the invoice information.' });
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const input = parsed.data;
-      const patient = await client.query(
-        'SELECT patient_id, owner_id FROM patients WHERE clinic_id=$1 AND patient_id=$2 AND status ILIKE $3 AND deleted_at IS NULL',
-        [request.auth.clinicId, input.patientId, 'active'],
+      const duplicate = await client.query(
+        `SELECT invoice_id, invoice_number, patient_id, status, subtotal,
+                total, amount_paid, balance, issued_at
+           FROM invoices
+          WHERE clinic_id=$1 AND submission_id=$2`,
+        [request.auth.clinicId, input.submissionId],
       );
-      if (!patient.rows[0]) return reply.code(404).send({ error: 'patient_not_found', message: 'The selected active patient was not found in this clinic.' });
+      if (duplicate.rows[0]) {
+        const existing = duplicate.rows[0];
+        if (existing.status === 'Draft' && input.status === 'Paid') {
+          const promoted = await client.query(
+            `UPDATE invoices
+                SET status='Paid', amount_paid=total, balance=0
+              WHERE clinic_id=$1 AND invoice_id=$2 AND status='Draft'
+              RETURNING invoice_id, invoice_number, patient_id, status, subtotal,
+                        total, amount_paid, balance, issued_at`,
+            [request.auth.clinicId, existing.invoice_id],
+          );
+          if (promoted.rows[0]) {
+            const total = Number(promoted.rows[0].total);
+            if (total > 0) {
+              await client.query(
+                `INSERT INTO payments (clinic_id, invoice_id, paid_at, amount, method)
+                 VALUES ($1,$2,now(),$3,'Clinic Billing')`,
+                [request.auth.clinicId, existing.invoice_id, total],
+              );
+            }
+            await writeAudit(client, {
+              clinicId: request.auth.clinicId,
+              actingUserId: request.auth.userId,
+              targetType: 'Invoice',
+              targetId: existing.invoice_id,
+              action: 'billing.sale_recorded',
+              previousSummary: { status: 'Draft' },
+              newSummary: { status: 'Paid', total },
+              sessionId: request.auth.sessionId,
+            });
+            return { ...promoted.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
+          }
+          const current = await client.query(
+            `SELECT invoice_id, invoice_number, patient_id, status, subtotal,
+                    total, amount_paid, balance, issued_at
+               FROM invoices
+              WHERE clinic_id=$1 AND invoice_id=$2`,
+            [request.auth.clinicId, existing.invoice_id],
+          );
+          return { ...current.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
+        }
+        return { ...existing, submissionId: input.submissionId, duplicateSubmission: true };
+      }
+      const patientIds = [...new Set([
+        input.patientId,
+        ...(input.patientIds ?? []),
+        ...input.services.map((line) => line.patientId).filter(Boolean),
+      ])];
+      const patients = await client.query(
+        `SELECT patient_id, owner_id
+           FROM patients
+          WHERE clinic_id=$1 AND patient_id = ANY($2::uuid[])
+            AND status ILIKE $3 AND deleted_at IS NULL`,
+        [request.auth.clinicId, patientIds, 'active'],
+      );
+      if (patients.rows.length !== patientIds.length) {
+        return reply.code(404).send({ error: 'patient_not_found', message: 'One or more selected active patients were not found in this clinic.' });
+      }
+      const ownerIds = new Set(patients.rows.map((row) => row.owner_id));
+      if (ownerIds.size !== 1) {
+        return reply.code(409).send({ error: 'invoice_owner_mismatch', message: 'All animals on one invoice must belong to the same client.' });
+      }
+      const allowedPatients = new Set(patients.rows.map((row) => row.patient_id));
+      if (input.services.some((line) => line.patientId && !allowedPatients.has(line.patientId))) {
+        return reply.code(409).send({ error: 'invoice_patient_mismatch', message: 'An invoice item references an animal outside this invoice.' });
+      }
+      const lines = input.services.map((line) => {
+        const quantity = Number(line.quantity);
+        const unitPrice = line.unitPrice == null
+          ? Number(line.amount) / quantity
+          : Number(line.unitPrice);
+        const lineTotal = Number((quantity * unitPrice).toFixed(2));
+        return { ...line, quantity, unitPrice, lineTotal };
+      });
+      const itemizedTotal = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
+      if (itemizedTotal > input.total + 0.01) {
+        return reply.code(400).send({ error: 'invoice_total_mismatch', message: 'Invoice items exceed the submitted total.' });
+      }
+      // Older app releases submitted consultation/home fees only in the total.
+      // Preserve that compatibility as one general line while new clients send
+      // every charge explicitly.
+      if (input.total - itemizedTotal > 0.01) {
+        lines.push({
+          description: 'General clinic services', patientId: null,
+          quantity: 1, unitPrice: Number((input.total - itemizedTotal).toFixed(2)),
+          lineTotal: Number((input.total - itemizedTotal).toFixed(2)),
+        });
+      }
+      const authoritativeTotal = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
       const invoiceNumber = `INV-${Date.now()}-${input.submissionId.slice(0, 8).toUpperCase()}`;
-      const paid = input.status === 'Paid' ? input.total : 0;
+      const paid = input.status === 'Paid' ? authoritativeTotal : 0;
       const inserted = await client.query(
         `INSERT INTO invoices
            (clinic_id, owner_id, patient_id, invoice_number, status, subtotal,
-            tax, discount, total, amount_paid, balance, issued_at)
-         VALUES ($1,$2,$3,$4,$5,$6,0,0,$7,$8,$9,now())
+            tax, discount, total, amount_paid, balance, issued_at, submission_id)
+         VALUES ($1,$2,$3,$4,$5,$6,0,0,$7,$8,$9,now(),$10)
          RETURNING invoice_id, invoice_number, patient_id, status, subtotal,
                    total, amount_paid, balance, issued_at`,
-        [request.auth.clinicId, patient.rows[0].owner_id, input.patientId,
-          invoiceNumber, input.status, input.subtotal, input.total, paid,
-          input.total - paid],
+        [request.auth.clinicId, patients.rows[0].owner_id, input.patientId,
+          invoiceNumber, input.status, authoritativeTotal, authoritativeTotal, paid,
+          authoritativeTotal - paid, input.submissionId],
       );
-      if (input.status === 'Paid' && input.total > 0) {
+      for (const line of lines) {
+        await client.query(
+          `INSERT INTO invoice_line_items
+             (clinic_id, invoice_id, patient_id, line_type, description,
+              quantity, unit_price, line_total)
+           VALUES ($1,$2,$3,'Service',$4,$5,$6,$7)`,
+          [request.auth.clinicId, inserted.rows[0].invoice_id,
+            line.patientId ?? null, line.description, line.quantity,
+            line.unitPrice, line.lineTotal],
+        );
+      }
+      if (input.status === 'Paid' && authoritativeTotal > 0) {
         await client.query(
           `INSERT INTO payments (clinic_id, invoice_id, paid_at, amount, method)
            VALUES ($1,$2,now(),$3,'Clinic Billing')`,
-          [request.auth.clinicId, inserted.rows[0].invoice_id, input.total],
+          [request.auth.clinicId, inserted.rows[0].invoice_id, authoritativeTotal],
         );
       }
       await writeAudit(client, {
@@ -1748,11 +1906,37 @@ export async function clinicalRoutes(app) {
         targetType: 'Invoice',
         targetId: inserted.rows[0].invoice_id,
         action: input.status === 'Paid' ? 'billing.sale_recorded' : 'billing.draft_created',
-        newSummary: { patientId: input.patientId, total: input.total, serviceCount: input.services.length },
+        newSummary: { patientId: input.patientId, patientIds, total: authoritativeTotal, serviceCount: lines.length },
         sessionId: request.auth.sessionId,
       });
       reply.code(201);
-      return { ...inserted.rows[0], submissionId: input.submissionId };
+      return { ...inserted.rows[0], submissionId: input.submissionId, duplicateSubmission: false, patientIds };
+    });
+  });
+
+  app.get('/api/v1/invoices/:invoiceId', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = z.object({ invoiceId: z.string().uuid() }).safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'The invoice identifier is invalid.' });
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const invoice = await client.query(
+        `SELECT i.*, o.full_name AS owner_name
+           FROM invoices i JOIN owners o ON o.owner_id=i.owner_id
+          WHERE i.clinic_id=$1 AND i.invoice_id=$2`,
+        [request.auth.clinicId, parsed.data.invoiceId],
+      );
+      if (!invoice.rows[0]) return reply.code(404).send({ error: 'not_found', message: 'The invoice was not found in this clinic.' });
+      const lines = await client.query(
+        `SELECT l.invoice_line_item_id, l.patient_id, l.line_type,
+                l.description, l.quantity, l.unit_price, l.line_total,
+                p.name AS patient_name, p.hospital_number
+           FROM invoice_line_items l
+           LEFT JOIN patients p ON p.patient_id=l.patient_id AND p.clinic_id=l.clinic_id
+          WHERE l.clinic_id=$1 AND l.invoice_id=$2
+          ORDER BY p.name NULLS LAST, l.created_at, l.invoice_line_item_id`,
+        [request.auth.clinicId, parsed.data.invoiceId],
+      );
+      return { invoice: invoice.rows[0], lineItems: lines.rows };
     });
   });
 

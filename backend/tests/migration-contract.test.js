@@ -296,7 +296,7 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     routes.match(/ON CONFLICT \(clinic_id, submission_id\)/g)?.length,
     4,
   );
-  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 10);
+  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 13);
   assert.match(
     routes,
     /app\.get\('\/api\/v1\/consultations\/:consultationId'[\s\S]*permissions\.consultationsView/,
@@ -335,8 +335,11 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     routes,
     /consultation_id AS record_id, patient_id/,
   );
+  assert.match(
+    routes,
+    /app\.get\('\/api\/v1\/patients\/:patientId\/billing'[\s\S]*?permissions\.billingView/,
+  );
   for (const [path, permission] of [
-    ['billing', 'billingView'],
     ['appointments', 'appointmentsView'],
     ['documents', 'mediaView'],
     ['images', 'mediaView'],
@@ -442,6 +445,54 @@ test('sign-in validation accepts omitted optional fields but rejects null values
   assert.equal(signInSchema.safeParse({ email: 'admin@avera.test', password: 'unchanged', deviceName: null }).success, false);
   assert.equal(signInSchema.safeParse({ email: 'not-an-email', password: 'unchanged' }).success, false);
   assert.equal(signInSchema.safeParse({ email: 'admin@avera.test', password: '' }).success, false);
+});
+
+test('multi-patient invoices accept attributed and shared lines', () => {
+  const patientId = 'a6c10dd9-2501-43db-b083-b613faaf8ea4';
+  const secondPatientId = 'b6c10dd9-2501-43db-b083-b613faaf8ea5';
+  const result = createInvoiceSchema.safeParse({
+    submissionId: 'ae12d6d7-ee38-48db-9937-a5de1633f102',
+    patientId,
+    patientIds: [patientId, secondPatientId],
+    status: 'Draft', subtotal: 15000, total: 15000,
+    services: [
+      { description: 'Vaccination', amount: 5000, patientId, quantity: 1, unitPrice: 5000 },
+      { description: 'Farm call', amount: 10000, patientId: null, quantity: 1, unitPrice: 10000 },
+    ],
+  });
+  assert.equal(result.success, true);
+  assert.equal(result.data.services[1].patientId, null);
+  assert.equal(createInvoiceSchema.safeParse({
+    submissionId: 'ae12d6d7-ee38-48db-9937-a5de1633f102',
+    patientId,
+    patientIds: [patientId],
+    status: 'Draft', subtotal: 5000, total: 5000,
+    services: [{ description: 'Invalid', amount: 5000, patientId: 'OTHER-CLINIC' }],
+  }).success, false);
+});
+
+test('multi-patient invoice migration is scoped, idempotent, and preserves records', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/022_multi_patient_invoices.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS invoice_line_items/);
+  assert.match(migration, /patient_id UUID REFERENCES patients/);
+  assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS invoices_clinic_submission_unique/);
+  assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration, /clinic_id::text = current_setting\('avera\.clinic_id'/);
+  assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM/i);
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(routes, /ownerIds\.size !== 1/);
+  assert.match(routes, /invoice_owner_mismatch/);
+  assert.match(routes, /WHERE clinic_id=\$1 AND patient_id = ANY/);
+  assert.match(routes, /duplicateSubmission: true/);
+  assert.match(routes, /existing\.status === 'Draft' && input\.status === 'Paid'/);
+  assert.match(routes, /SET status='Paid', amount_paid=total, balance=0/);
+  assert.match(routes, /action: 'billing\.sale_recorded'/);
 });
 
 test('production reminders are durable, tenant scoped, and deduplicated', () => {

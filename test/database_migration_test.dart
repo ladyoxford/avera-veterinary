@@ -97,4 +97,42 @@ void main() {
       expect(animal.age, 3);
     },
   );
+
+  test('version 25 preserves invoice lines and attributes legacy lines', () async {
+    final database = AppDatabase.forTesting(
+      NativeDatabase.memory(
+        setup: (sqlite) {
+          sqlite.execute(
+            'CREATE TABLE invoices (id INTEGER PRIMARY KEY, animal_id INTEGER NOT NULL)',
+          );
+          sqlite.execute(
+            'CREATE TABLE invoice_product_lines ('
+            'id INTEGER PRIMARY KEY, invoice_id INTEGER NOT NULL, '
+            'inventory_item_id INTEGER NOT NULL, product_name_snapshot TEXT NOT NULL, '
+            'category_name_snapshot TEXT NOT NULL, batch_number_snapshot TEXT, '
+            'quantity INTEGER NOT NULL, unit_price REAL NOT NULL, line_total REAL NOT NULL)',
+          );
+          sqlite.execute(
+            'CREATE TABLE invoice_service_lines ('
+            'id INTEGER PRIMARY KEY, invoice_id INTEGER NOT NULL, '
+            'description TEXT NOT NULL, amount REAL NOT NULL)',
+          );
+          sqlite.execute('INSERT INTO invoices VALUES (1, 42)');
+          sqlite.execute(
+            "INSERT INTO invoice_service_lines VALUES (1, 1, 'Consultation', 5000)",
+          );
+          sqlite.execute('PRAGMA user_version = 24');
+        },
+      ),
+    );
+    addTearDown(database.close);
+
+    final line = await database
+        .customSelect(
+          'SELECT description, animal_id FROM invoice_service_lines',
+        )
+        .getSingle();
+    expect(line.read<String>('description'), 'Consultation');
+    expect(line.read<int>('animal_id'), 42);
+  });
 }

@@ -10,10 +10,11 @@ const CURRENT_STATUSES = [
 ];
 
 export class SubscriptionService {
-  constructor({ pool, environment, gateway }) {
+  constructor({ pool, environment, gateway, onApplicationPaymentVerified }) {
     this.pool = pool;
     this.environment = environment;
     this.gateway = gateway;
+    this.onApplicationPaymentVerified = onApplicationPaymentVerified;
   }
 
   async listPlans() {
@@ -419,7 +420,7 @@ export class SubscriptionService {
       );
     }
     const mode = this.#paymentMode();
-    return this.#verifyWithoutApplying({
+    const verification = await this.#verifyWithoutApplying({
       reference,
       auth: { clinicId, accountType: 'ClinicApplication' },
       mode,
@@ -470,6 +471,17 @@ export class SubscriptionService {
         };
       },
     });
+    const approval = await this.onApplicationPaymentVerified?.({
+      applicationId,
+      clinicId,
+      reference,
+      mode,
+    });
+    return {
+      ...verification,
+      applicationApproved: approval?.approved === true,
+      activation: safeActivationSummary(approval?.activation),
+    };
   }
 
   async #verifyWithoutApplying({
@@ -942,6 +954,15 @@ export class SubscriptionService {
       entitlements: row.entitlements,
     };
   }
+}
+
+function safeActivationSummary(activation) {
+  if (!activation || typeof activation !== 'object') return null;
+  return {
+    status: activation.status ?? null,
+    deliveryMethod: activation.deliveryMethod ?? null,
+    expiresAt: activation.expiresAt ?? null,
+  };
 }
 
 export function serviceError(code, message, statusCode) {

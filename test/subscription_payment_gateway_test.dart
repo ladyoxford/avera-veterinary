@@ -102,6 +102,26 @@ void main() {
     expect(verification.payment?.status, 'Successful');
   });
 
+  test(
+    'verified registration payment reports automatic approval and email',
+    () {
+      final verification = SubscriptionPaymentVerification.fromJson({
+        'verified': true,
+        'mode': 'test',
+        'subscriptionApplied': false,
+        'applicationApproved': true,
+        'activation': {'deliveryMethod': 'email'},
+      });
+
+      expect(verification.applicationApproved, isTrue);
+      expect(verification.activationDeliveryMethod, 'email');
+      expect(
+        subscriptionPaymentVerificationMessage(verification),
+        contains('activation email was sent'),
+      );
+    },
+  );
+
   test('unconfigured gateway exposes all plans without fake prices', () async {
     const gateway = UnconfiguredSubscriptionPaymentGateway();
     final plans = await gateway.loadPlans();
@@ -387,6 +407,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.text('Complete Payment'), findsOneWidget);
+      expect(find.text('Continue to Payment'), findsNothing);
       expect(find.text('Enterprise Monthly'), findsOneWidget);
       expect(find.text('₦10,000'), findsOneWidget);
       expect(find.text('1000000'), findsNothing);

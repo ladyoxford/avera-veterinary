@@ -794,7 +794,7 @@ test('application payment retry replaces only the pending checkout', async () =>
 });
 
 for (const mode of ['test', 'live']) {
-  test(`application ${mode} verification records payment without approval or subscription mutation`, async () => {
+  test(`application ${mode} verification triggers idempotent automatic approval after payment`, async () => {
     const reference = `AVERA-APPLICATION-${mode.toUpperCase()}`;
     const application = {
       application_id: 'application-1',
@@ -867,6 +867,7 @@ for (const mode of ['test', 'live']) {
         return { rows: [] };
       },
     };
+    const approvalCalls = [];
     const service = new SubscriptionService({
       pool,
       environment: { PAYSTACK_MODE: mode },
@@ -877,6 +878,18 @@ for (const mode of ['test', 'live']) {
             metadata: expected.gateway_response_summary,
           });
         },
+      },
+      async onApplicationPaymentVerified(payment) {
+        approvalCalls.push(payment);
+        return {
+          approved: true,
+          activation: {
+            status: 'PendingActivation',
+            deliveryMethod: 'email',
+            activationUrl:
+              'https://accounts.averavet.sbs/activate-clinic-admin?token=secret',
+          },
+        };
       },
     });
 
@@ -890,6 +903,11 @@ for (const mode of ['test', 'live']) {
     assert.equal(result.mode, mode);
     assert.equal(result.subscriptionApplied, false);
     assert.equal(result.subscription, null);
+    assert.equal(result.applicationApproved, true);
+    assert.equal(result.activation.deliveryMethod, 'email');
+    assert.equal(result.activation.status, 'PendingActivation');
+    assert.equal('activationUrl' in result.activation, false);
+    assert.equal(JSON.stringify(result).includes('token=secret'), false);
     assert.equal(result.application.status, 'Pending');
     assert.equal(
       result.application.paymentStatus,
@@ -898,6 +916,12 @@ for (const mode of ['test', 'live']) {
     assert.equal(application.status, 'Pending');
     assert.equal(application.payment_status, 'Pending');
     assert.equal(client.calls.some((call) => forbiddenMutation.test(call.sql)), false);
+    assert.deepEqual(approvalCalls, [{
+      applicationId: application.application_id,
+      clinicId: application.clinic_id,
+      reference,
+      mode,
+    }]);
   });
 }
 

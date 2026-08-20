@@ -162,6 +162,8 @@ class SubscriptionPaymentVerification {
     required this.verified,
     required this.mode,
     required this.subscriptionApplied,
+    this.applicationApproved = false,
+    this.activationDeliveryMethod,
   });
 
   final SubscriptionPaymentRecord? payment;
@@ -169,6 +171,8 @@ class SubscriptionPaymentVerification {
   final bool verified;
   final String mode;
   final bool subscriptionApplied;
+  final bool applicationApproved;
+  final String? activationDeliveryMethod;
 
   bool get isTestMode => mode == 'test';
 
@@ -192,6 +196,10 @@ class SubscriptionPaymentVerification {
       mode:
           json['mode'] as String? ?? (subscriptionApplied ? 'live' : 'unknown'),
       subscriptionApplied: subscriptionApplied,
+      applicationApproved: json['applicationApproved'] as bool? ?? false,
+      activationDeliveryMethod:
+          (json['activation'] as Map<String, dynamic>?)?['deliveryMethod']
+              as String?,
     );
   }
 }
@@ -476,9 +484,20 @@ DateTime? _date(dynamic value) =>
 String subscriptionPaymentVerificationMessage(
   SubscriptionPaymentVerification verification,
 ) {
-  if (verification.isTestMode) {
-    return 'Payment verified successfully in test mode.\n'
-        'No subscription changes were applied.';
+  if (verification.applicationApproved) {
+    return switch (verification.activationDeliveryMethod) {
+      'email' =>
+        'Payment confirmed. Your clinic was approved and the administrator activation email was sent.',
+      'email_failed' =>
+        'Payment confirmed and your clinic was approved, but the activation email could not be delivered. Contact AVERA support.',
+      'manual' =>
+        'Payment confirmed and your clinic was approved. Email delivery is not configured; contact AVERA support for the activation link.',
+      _ =>
+        'Payment confirmed. Your clinic was approved and administrator activation is pending.',
+    };
+  }
+  if (verification.isTestMode && !verification.subscriptionApplied) {
+    return 'Payment verified successfully in test mode. No subscription changes were applied.';
   }
   if (!verification.subscriptionApplied) {
     return 'Payment confirmed. Your clinic application remains pending approval.';

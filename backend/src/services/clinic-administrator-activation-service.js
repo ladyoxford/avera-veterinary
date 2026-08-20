@@ -20,6 +20,105 @@ export class ClinicAdministratorActivationService {
     this.deliveryService = deliveryService;
   }
 
+  async approveAfterVerifiedPayment(context) {
+    const result = await withTenantTransaction(
+      this.pool,
+      { isPlatformOwner: true },
+      async (client) => {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+          `clinic-payment-approval:${context.applicationId}`,
+        ]);
+        const target = (
+          await client.query(
+            `SELECT a.application_id, a.clinic_id, a.status AS application_status,
+                    a.payment_status, a.payment_reference, c.name AS clinic_name,
+                    c.status AS clinic_status, p.status AS transaction_status
+               FROM clinic_applications a
+               JOIN clinics c ON c.clinic_id = a.clinic_id
+               JOIN subscription_payment_transactions p
+                 ON p.reference = a.payment_reference
+                AND p.clinic_id = a.clinic_id
+              WHERE a.application_id = $1 AND a.clinic_id = $2
+              FOR UPDATE OF a, c, p`,
+            [context.applicationId, context.clinicId],
+          )
+        ).rows[0];
+        if (!target) {
+          throw serviceError(
+            'clinic_application_not_found',
+            'The paid clinic application could not be found.',
+            404,
+          );
+        }
+        if (
+          target.payment_reference !== context.reference ||
+          target.transaction_status !== 'Successful' ||
+          !['Paid', 'TestVerified'].includes(target.payment_status)
+        ) {
+          throw serviceError(
+            'payment_not_verified',
+            'The clinic application payment has not been verified.',
+            409,
+          );
+        }
+
+        const alreadyApproved =
+          target.clinic_status === 'Active' &&
+          target.application_status === 'Approved';
+        if (alreadyApproved) {
+          return { approved: true, issued: null };
+        }
+        if (
+          !['Pending', 'PendingApproval'].includes(target.clinic_status) ||
+          !['Pending', 'PendingApproval'].includes(target.application_status)
+        ) {
+          throw serviceError(
+            'automatic_approval_not_allowed',
+            'This clinic requires Platform Owner review before its status can change.',
+            409,
+          );
+        }
+
+        await client.query(
+          `UPDATE clinics
+              SET status = 'Active', updated_at = now(), revision = revision + 1
+            WHERE clinic_id = $1`,
+          [context.clinicId],
+        );
+        const administrator = await this.provisionOnApproval(client, {
+          clinicId: context.clinicId,
+          clinicName: target.clinic_name,
+          actorUserId: null,
+          sessionId: null,
+          ipAddress: context.ipAddress,
+        });
+        await writeAudit(client, {
+          clinicId: context.clinicId,
+          actingUserId: null,
+          targetType: 'Clinic',
+          targetId: context.clinicId,
+          action: 'clinic.auto_approved_after_verified_payment',
+          previousSummary: {
+            clinicStatus: target.clinic_status,
+            applicationStatus: target.application_status,
+          },
+          newSummary: {
+            clinicStatus: 'Active',
+            applicationStatus: 'Approved',
+            paymentStatus: target.payment_status,
+            paymentReference: context.reference,
+          },
+          ipAddress: context.ipAddress,
+        });
+        return { approved: true, issued: administrator.issued };
+      },
+    );
+    const activation = result.issued
+      ? await this.deliverIssuedToken(result.issued)
+      : await this.activationStatus(context.clinicId);
+    return { approved: result.approved, activation };
+  }
+
   async provisionOnApproval(client, context) {
     const application = (
       await client.query(

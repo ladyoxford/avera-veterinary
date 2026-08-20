@@ -224,12 +224,18 @@ class _ClinicRegistrationPaymentScreenState
             40,
           ),
           children: [
-            AveraPageHeader(
-              title: verified ? 'Payment confirmed' : 'Continue to Payment',
-              subtitle: verified
-                  ? 'Your clinic application remains pending Platform Owner approval.'
-                  : 'Complete the payment step for your submitted clinic application.',
-            ),
+            if (verified)
+              AveraPageHeader(
+                title: 'Payment confirmed',
+                subtitle: _verification!.applicationApproved
+                    ? 'Your clinic has been approved. Check the administrator email for the activation link.'
+                    : 'Your clinic application is awaiting approval.',
+              )
+            else
+              Text(
+                'Complete the payment step for your submitted clinic application.',
+                style: averaText(context).listItemSubtitle,
+              ),
             const SizedBox(height: AveraSpacing.subtitleToContentGap),
             AveraSurfaceCard(
               child: Column(
@@ -247,7 +253,9 @@ class _ClinicRegistrationPaymentScreenState
                   const SizedBox(height: 12),
                   _SummaryLine(
                     label: 'Approval status',
-                    value: 'Pending approval',
+                    value: _verification?.applicationApproved == true
+                        ? 'Approved'
+                        : 'Pending approval',
                   ),
                 ],
               ),
@@ -412,11 +420,12 @@ class _ClinicRegistrationPaymentScreenState
               ),
             ],
             const SizedBox(height: 14),
-            Text(
-              'Payment does not approve or activate the clinic. Platform Owner review and administrator activation remain required.',
-              style: averaText(context).caption,
-              textAlign: TextAlign.center,
-            ),
+            if (!verified)
+              Text(
+                'A verified payment automatically approves the clinic and sends the administrator activation email.',
+                style: averaText(context).caption,
+                textAlign: TextAlign.center,
+              ),
           ],
         ),
       ),

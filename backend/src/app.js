@@ -64,14 +64,12 @@ export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
   const activationDeliveryService = new ActivationEmailDeliveryService({
     environment,
   });
-  app.decorate(
-    'activationService',
-    new ClinicAdministratorActivationService({
-      pool: databasePool,
-      environment,
-      deliveryService: activationDeliveryService,
-    }),
-  );
+  const activationService = new ClinicAdministratorActivationService({
+    pool: databasePool,
+    environment,
+    deliveryService: activationDeliveryService,
+  });
+  app.decorate('activationService', activationService);
   const subscriptionGateway = new PaystackSubscriptionGateway({
     secretKey: environment.PAYSTACK_SECRET_KEY,
     publicKey: environment.PAYSTACK_PUBLIC_KEY,
@@ -83,6 +81,8 @@ export async function buildApp({ environment = loadEnvironment(), pool } = {}) {
       pool: databasePool,
       environment,
       gateway: subscriptionGateway,
+      onApplicationPaymentVerified: (payment) =>
+        activationService.approveAfterVerifiedPayment(payment),
     }),
   );
   app.addHook('onRequest', async (request, reply) => {

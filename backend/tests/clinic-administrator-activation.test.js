@@ -251,6 +251,83 @@ test('approval provisions exactly one passwordless pending administrator and is 
   assert.equal(harness.state.calls.filter((call) => call.sql.includes('INSERT INTO users')).length, 1);
 });
 
+test('verified clinic payment automatically approves and delivers activation email', async () => {
+  const calls = [];
+  const client = {
+    async query(sql, parameters = []) {
+      calls.push({ sql, parameters });
+      if (
+        sql === 'BEGIN' ||
+        sql === 'COMMIT' ||
+        sql === 'ROLLBACK' ||
+        sql.includes("set_config('avera.") ||
+        sql.includes('pg_advisory_xact_lock') ||
+        sql.includes('INSERT INTO audit_logs')
+      ) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM clinic_applications a')) {
+        return {
+          rows: [{
+            application_id: 'application-paid',
+            clinic_id: 'clinic-paid',
+            application_status: 'Pending',
+            payment_status: 'TestVerified',
+            payment_reference: 'AVERA-PAID-1',
+            clinic_name: 'Paid Veterinary Clinic',
+            clinic_status: 'PendingApproval',
+            transaction_status: 'Successful',
+          }],
+        };
+      }
+      if (sql.includes("UPDATE clinics") && sql.includes("status = 'Active'")) {
+        return { rows: [] };
+      }
+      throw new Error(`Unexpected automatic approval query: ${sql}`);
+    },
+    release() {},
+  };
+  const activation = service({
+    connect: async () => client,
+    query: (...arguments_) => client.query(...arguments_),
+  });
+  activation.provisionOnApproval = async (_client, context) => {
+    assert.equal(context.clinicId, 'clinic-paid');
+    assert.equal(context.actorUserId, null);
+    return {
+      issued: {
+        tokenId: 'activation-token-1',
+        rawToken: 'not-returned-to-the-payment-client',
+      },
+    };
+  };
+  activation.deliverIssuedToken = async (issued) => {
+    assert.equal(issued.tokenId, 'activation-token-1');
+    return { status: 'PendingActivation', deliveryMethod: 'email' };
+  };
+
+  const result = await activation.approveAfterVerifiedPayment({
+    applicationId: 'application-paid',
+    clinicId: 'clinic-paid',
+    reference: 'AVERA-PAID-1',
+    mode: 'test',
+  });
+
+  assert.equal(result.approved, true);
+  assert.equal(result.activation.deliveryMethod, 'email');
+  assert.equal(
+    calls.some((call) =>
+      call.sql.includes("UPDATE clinics") && call.sql.includes("status = 'Active'")),
+    true,
+  );
+  assert.equal(
+    calls.some((call) =>
+      call.sql.includes('INSERT INTO audit_logs') &&
+      call.parameters[4] === 'clinic.auto_approved_after_verified_payment'),
+    true,
+  );
+});
+
 test('activation token is hashed and plaintext is never passed to persistence', async () => {
   const harness = approvalHarness();
   const result = await service(harness.pool).provisionOnApproval(harness.client, {

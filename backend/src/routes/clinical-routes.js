@@ -57,6 +57,24 @@ const vaccinationUuidSchema = z.object({ vaccinationId: z.string().uuid() });
 const appointmentUuidSchema = z.object({ appointmentId: z.string().uuid() });
 const inventoryUuidSchema = z.object({ inventoryProductId: z.string().uuid() });
 const clinicalOperationUuidSchema = z.object({ operationId: z.string().uuid() });
+
+function normalizedBillingPhone(value) {
+  const digits = String(value ?? '').replace(/[^0-9]/g, '');
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+export function patientsShareBillingOwner(rows) {
+  if (rows.length < 2) return rows.length === 1;
+  const ownerIds = new Set(rows.map((row) => row.owner_id));
+  if (ownerIds.size === 1) return true;
+  const phones = rows.map((row) => normalizedBillingPhone(row.owner_phone));
+  if (phones[0]?.length >= 7 && phones.every((value) => value === phones[0])) {
+    return true;
+  }
+  const emails = rows.map((row) => String(row.owner_email ?? '').trim().toLowerCase());
+  return emails[0]?.length > 0 && emails.every((value) => value === emails[0]);
+}
+
 const patientPhotoSchema = z.object({
   contentType: z.enum(['image/jpeg', 'image/png']),
   data: z.string().min(1),
@@ -1829,17 +1847,19 @@ export async function clinicalRoutes(app) {
         ...input.services.map((line) => line.patientId).filter(Boolean),
       ])];
       const patients = await client.query(
-        `SELECT patient_id, owner_id
-           FROM patients
-          WHERE clinic_id=$1 AND patient_id = ANY($2::uuid[])
-            AND status ILIKE $3 AND deleted_at IS NULL`,
+        `SELECT p.patient_id, p.owner_id, o.phone AS owner_phone,
+                o.email AS owner_email
+           FROM patients p
+           JOIN owners o ON o.owner_id=p.owner_id AND o.clinic_id=p.clinic_id
+          WHERE p.clinic_id=$1 AND p.patient_id = ANY($2::uuid[])
+            AND p.status ILIKE $3 AND p.deleted_at IS NULL
+            AND o.deleted_at IS NULL`,
         [request.auth.clinicId, patientIds, 'active'],
       );
       if (patients.rows.length !== patientIds.length) {
         return reply.code(404).send({ error: 'patient_not_found', message: 'One or more selected active patients were not found in this clinic.' });
       }
-      const ownerIds = new Set(patients.rows.map((row) => row.owner_id));
-      if (ownerIds.size !== 1) {
+      if (!patientsShareBillingOwner(patients.rows)) {
         return reply.code(409).send({ error: 'invoice_owner_mismatch', message: 'All animals on one invoice must belong to the same client.' });
       }
       const allowedPatients = new Set(patients.rows.map((row) => row.patient_id));
@@ -1878,7 +1898,9 @@ export async function clinicalRoutes(app) {
          VALUES ($1,$2,$3,$4,$5,$6,0,0,$7,$8,$9,now(),$10)
          RETURNING invoice_id, invoice_number, patient_id, status, subtotal,
                    total, amount_paid, balance, issued_at`,
-        [request.auth.clinicId, patients.rows[0].owner_id, input.patientId,
+        [request.auth.clinicId,
+          patients.rows.find((row) => row.patient_id === input.patientId).owner_id,
+          input.patientId,
           invoiceNumber, input.status, authoritativeTotal, authoritativeTotal, paid,
           authoritativeTotal - paid, input.submissionId],
       );

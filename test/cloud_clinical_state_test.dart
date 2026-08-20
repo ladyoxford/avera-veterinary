@@ -112,6 +112,58 @@ void main() {
     },
   );
 
+  test(
+    'billing owner matching supports canonical and legacy owner records',
+    () {
+      final anchor = RemotePatient(
+        id: _patientId,
+        hospitalNumber: 'AVR-2026-00001',
+        name: 'Luna',
+        species: 'Cat',
+        status: 'Active',
+        ownerId: 'owner-1',
+        ownerName: 'Luna Owner',
+        ownerPhone: '0801 234 5678',
+        ownerEmail: 'OWNER@example.com',
+      );
+      final canonicalSibling = RemotePatient(
+        id: 'f597f97e-639a-48dc-af20-d36da83c6bcc',
+        hospitalNumber: 'AVR-2026-00002',
+        name: 'Milo',
+        species: 'Cat',
+        status: 'Active',
+        ownerId: 'owner-1',
+        ownerName: 'Luna Owner',
+        ownerPhone: '',
+      );
+      final legacySibling = RemotePatient(
+        id: 'f597f97e-639a-48dc-af20-d36da83c6bcd',
+        hospitalNumber: 'AVR-2026-00003',
+        name: 'Bella',
+        species: 'Dog',
+        status: 'Active',
+        ownerId: 'legacy-owner-row',
+        ownerName: 'Luna Owner',
+        ownerPhone: '+234 801 234 5678',
+      );
+      final differentOwner = RemotePatient(
+        id: 'f597f97e-639a-48dc-af20-d36da83c6bce',
+        hospitalNumber: 'AVR-2026-00004',
+        name: 'Max',
+        species: 'Dog',
+        status: 'Active',
+        ownerId: 'owner-2',
+        ownerName: 'Different Owner',
+        ownerPhone: '0809 999 9999',
+        ownerEmail: 'different@example.com',
+      );
+
+      expect(anchor.hasSameBillingOwnerAs(canonicalSibling), isTrue);
+      expect(anchor.hasSameBillingOwnerAs(legacySibling), isTrue);
+      expect(anchor.hasSameBillingOwnerAs(differentOwner), isFalse);
+    },
+  );
+
   test('inventory falls back to clinic-scoped Drift cache', () async {
     source.inventoryValue = [_inventoryItem()];
     final controller = RemoteInventoryListController(

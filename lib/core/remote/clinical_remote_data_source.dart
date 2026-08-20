@@ -120,6 +120,27 @@ class RemotePatient {
     'registered_at': registeredAt?.toIso8601String(),
     'revision': revision,
   };
+
+  bool hasSameBillingOwnerAs(RemotePatient other) {
+    final thisOwnerId = ownerId?.trim();
+    final otherOwnerId = other.ownerId?.trim();
+    if (thisOwnerId?.isNotEmpty == true &&
+        otherOwnerId?.isNotEmpty == true &&
+        thisOwnerId == otherOwnerId) {
+      return true;
+    }
+    final thisPhone = _billingPhone(ownerPhone);
+    final otherPhone = _billingPhone(other.ownerPhone);
+    if (thisPhone.length >= 7 && thisPhone == otherPhone) return true;
+    final thisEmail = ownerEmail?.trim().toLowerCase() ?? '';
+    final otherEmail = other.ownerEmail?.trim().toLowerCase() ?? '';
+    return thisEmail.isNotEmpty && thisEmail == otherEmail;
+  }
+
+  static String _billingPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.length > 10 ? digits.substring(digits.length - 10) : digits;
+  }
 }
 
 class RemoteAppointmentDetail {
@@ -144,6 +165,7 @@ class RemoteAppointmentDetail {
   final String visitType;
   final String status;
   final int revision;
+
   final RemotePatient? patient;
   final String? notes;
   final String? assignedStaffId;

@@ -253,9 +253,9 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             selectedId: replace && _remotePatients.length == 1
                 ? _remotePatients.first.id
                 : null,
-            ownerId: replace || _remotePatients.isEmpty
+            billingOwner: replace || _remotePatients.isEmpty
                 ? null
-                : _remotePatients.first.ownerId,
+                : _remotePatients.first,
             excludedIds: replace
                 ? const {}
                 : _remotePatients.map((patient) => patient.id).toSet(),

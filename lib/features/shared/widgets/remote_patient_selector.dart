@@ -9,13 +9,13 @@ class RemotePatientSelectorSheet extends ConsumerStatefulWidget {
   const RemotePatientSelectorSheet({
     super.key,
     this.selectedId,
-    this.ownerId,
+    this.billingOwner,
     this.excludedIds = const {},
     this.title = 'Select Patient',
   });
 
   final String? selectedId;
-  final String? ownerId;
+  final RemotePatient? billingOwner;
   final Set<String> excludedIds;
   final String title;
 
@@ -35,7 +35,8 @@ class _RemotePatientSelectorSheetState
     final patients = directory.items
         .where((patient) {
           if (widget.excludedIds.contains(patient.id)) return false;
-          if (widget.ownerId != null && patient.ownerId != widget.ownerId) {
+          if (widget.billingOwner != null &&
+              !widget.billingOwner!.hasSameBillingOwnerAs(patient)) {
             return false;
           }
           if (query.isEmpty) return true;
@@ -67,6 +68,7 @@ class _RemotePatientSelectorSheetState
                 state: directory,
                 patients: patients,
                 hasQuery: query.isNotEmpty,
+                hasOwnerFilter: widget.billingOwner != null,
                 selectedId: widget.selectedId,
                 onRetry: () =>
                     ref.read(remotePatientDirectoryProvider.notifier).refresh(),
@@ -84,6 +86,7 @@ class _DirectoryBody extends StatelessWidget {
     required this.state,
     required this.patients,
     required this.hasQuery,
+    required this.hasOwnerFilter,
     required this.selectedId,
     required this.onRetry,
   });
@@ -91,6 +94,7 @@ class _DirectoryBody extends StatelessWidget {
   final RemotePatientDirectoryState state;
   final List<RemotePatient> patients;
   final bool hasQuery;
+  final bool hasOwnerFilter;
   final String? selectedId;
   final VoidCallback onRetry;
 
@@ -118,12 +122,17 @@ class _DirectoryBody extends StatelessWidget {
         ),
       );
     }
+    if (state.isLoading && patients.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (patients.isEmpty) {
       return Center(
         child: Text(
           hasQuery
               ? 'No active patients match this search.'
-              : 'No active patients are registered for this clinic.',
+              : !hasOwnerFilter
+              ? 'No active patients are registered for this clinic.'
+              : 'No other active animals are registered for this client.',
           textAlign: TextAlign.center,
         ),
       );

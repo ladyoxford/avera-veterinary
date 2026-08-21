@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -18,7 +20,35 @@ import '../../../core/services/animal_age_service.dart';
 import '../../../core/services/hospital_numbering.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/avera_photo_actions.dart';
 import '../../shared/widgets/catalogue_selector.dart';
+
+typedef PatientPhotoUploader =
+    Future<void> Function({
+      required String patientId,
+      required String contentType,
+      required String base64Data,
+    });
+
+@visibleForTesting
+Future<bool> uploadRegisteredPatientPhoto({
+  required XFile photo,
+  required String patientId,
+  required PatientPhotoUploader upload,
+}) async {
+  try {
+    final bytes = await photo.readAsBytes();
+    if (bytes.length > 1024 * 1024) return false;
+    await upload(
+      patientId: patientId,
+      contentType: 'image/jpeg',
+      base64Data: base64Encode(bytes),
+    );
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
 
 class AnimalRegistrationScreen extends HookConsumerWidget {
   const AnimalRegistrationScreen({super.key, this.returnResult = false});
@@ -123,7 +153,7 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
     }
 
     Future<void> pickPhoto() async {
-      final photo = await ImagePicker().pickImage(source: ImageSource.gallery);
+      final photo = await pickAndCropAveraPhoto(AveraPhotoAction.uploadPhoto);
       photoPath.value = photo?.path;
     }
 
@@ -205,16 +235,32 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
                   'address': _nullIfEmpty(ownerAddress.text),
                 },
               });
+          var photoUploaded = true;
+          final selectedPhotoPath = photoPath.value;
+          if (selectedPhotoPath != null) {
+            photoUploaded = await uploadRegisteredPatientPhoto(
+              photo: XFile(selectedPhotoPath),
+              patientId: registration.patient.id,
+              upload: ref
+                  .read(clinicalRemoteDataSourceProvider)
+                  .updatePatientPhoto,
+            );
+          }
           await ref.read(remotePatientListProvider.notifier).refresh();
           await ref.read(remotePatientDirectoryProvider.notifier).refresh();
           ref
             ..invalidate(remoteDashboardProvider)
+            ..invalidate(
+              remotePatientMedicalFileProvider(registration.patient.id),
+            )
             ..invalidate(remoteHospitalNumberPreviewProvider);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Patient registered successfully as ${registration.patient.hospitalNumber}.',
+                  photoUploaded
+                      ? 'Patient registered successfully as ${registration.patient.hospitalNumber}.'
+                      : 'Patient registered as ${registration.patient.hospitalNumber}, but the photo could not be uploaded. You can add it from the Medical File.',
                 ),
               ),
             );

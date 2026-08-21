@@ -190,7 +190,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Medical File'), findsOneWidget);
-      expect(find.text('Luna \u2022 AVR-2026-00001'), findsOneWidget);
+      expect(find.text('Luna \u2022 AVR-2026-00001'), findsNothing);
       expect(find.textContaining('1 year, 4 months'), findsOneWidget);
       expect(find.textContaining('AVR-2026-00001'), findsWidgets);
       expect(find.textContaining('15.0 kg'), findsOneWidget);
@@ -198,7 +198,13 @@ void main() {
         find.byKey(const Key('medical-file-patient-facts')),
         findsOneWidget,
       );
-      expect(find.text('Hospital number'), findsNothing);
+      expect(find.text('HOSPITAL NUMBER'), findsOneWidget);
+      expect(find.text('WEIGHT'), findsOneWidget);
+      final avatar = tester.widget<AveraIdentityAvatar>(
+        find.byKey(const Key('medical-file-patient-avatar')),
+      );
+      expect(avatar.borderRadius, BorderRadius.circular(18));
+      expect(avatar.size, greaterThanOrEqualTo(92));
       expect(find.text('Species'), findsNothing);
       expect(
         find.byKey(const Key('medical-file-quick-access-grid')),

@@ -1,12 +1,63 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:avera/core/config/app_providers.dart';
 import 'package:avera/core/services/hospital_numbering.dart';
 import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/features/animals/screens/animal_registration_screen.dart';
 
 void main() {
+  test(
+    'backend registration photo is uploaded against the created patient id',
+    () async {
+      String? uploadedPatientId;
+      String? uploadedContentType;
+      String? uploadedData;
+      final result = await uploadRegisteredPatientPhoto(
+        photo: XFile.fromData(Uint8List.fromList([1, 2, 3])),
+        patientId: 'patient-uuid',
+        upload:
+            ({
+              required patientId,
+              required contentType,
+              required base64Data,
+            }) async {
+              uploadedPatientId = patientId;
+              uploadedContentType = contentType;
+              uploadedData = base64Data;
+            },
+      );
+
+      expect(result, isTrue);
+      expect(uploadedPatientId, 'patient-uuid');
+      expect(uploadedContentType, 'image/jpeg');
+      expect(uploadedData, base64Encode([1, 2, 3]));
+    },
+  );
+
+  test('oversized registration photo is rejected before upload', () async {
+    var uploadCalled = false;
+    final result = await uploadRegisteredPatientPhoto(
+      photo: XFile.fromData(Uint8List(1024 * 1024 + 1)),
+      patientId: 'patient-uuid',
+      upload:
+          ({
+            required patientId,
+            required contentType,
+            required base64Data,
+          }) async {
+            uploadCalled = true;
+          },
+    );
+
+    expect(result, isFalse);
+    expect(uploadCalled, isFalse);
+  });
+
   testWidgets('species controls searchable compatible breed selection', (
     tester,
   ) async {

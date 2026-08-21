@@ -13,6 +13,7 @@ import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/services/animal_age_service.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_photo_actions.dart';
 import '../../shared/widgets/identity_avatar.dart';
 import 'animal_profile_screen.dart';
@@ -257,24 +258,8 @@ class _MedicalFileHubContentState
 
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 82,
         titleSpacing: 20,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('Medical File', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 3),
-            Text(
-              '${widget.patientName} \u2022 ${widget.hospitalNumber}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+        title: Text('Medical File', style: theme.textTheme.headlineSmall),
         actions: [
           IconButton(
             tooltip: 'Ask Vera about this patient',
@@ -785,81 +770,185 @@ class _CloudPatientSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final age = _medicalProfileAge(patient, referenceDate);
     return Semantics(
       container: true,
       label: '${patient.name} patient summary',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  AveraIdentityAvatar(
-                    key: const Key('medical-file-patient-avatar'),
-                    name: patient.name,
-                    photoReference: patient.photoUrl,
-                    size: 58,
-                    onTap: savingPhoto ? null : onPhotoPressed,
-                  ),
-                  if (savingPhoto)
-                    const SizedBox.square(
-                      dimension: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        key: const Key('medical-file-patient-card'),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: .7),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: scheme.shadow.withValues(alpha: .08),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final avatarSize = constraints.maxWidth < 300 ? 92.0 : 112.0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(patient.name, style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      [
-                        patient.species,
-                        patient.breed,
-                        patient.sex,
-                        age,
-                      ].whereType<String>().join(' \u2022 '),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        AveraIdentityAvatar(
+                          key: const Key('medical-file-patient-avatar'),
+                          name: patient.name,
+                          photoReference: patient.photoUrl,
+                          size: avatarSize,
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: savingPhoto ? null : onPhotoPressed,
+                        ),
+                        if (savingPhoto)
+                          const SizedBox.square(
+                            dimension: 28,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Chip(
-                      visualDensity: VisualDensity.compact,
-                      label: Text(patient.status),
+                    const SizedBox(width: 18),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            patient.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            [
+                              patient.species,
+                              patient.breed,
+                              patient.sex,
+                              age,
+                            ].whereType<String>().join(' \u2022 '),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _MedicalFileStatusBadge(status: patient.status),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                const Divider(height: 1),
+                const SizedBox(height: 16),
+                Row(
+                  key: const Key('medical-file-patient-facts'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _PatientFact(
+                        label: 'Hospital Number',
+                        value: patient.hospitalNumber,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      flex: 2,
+                      child: _PatientFact(
+                        label: 'Weight',
+                        value: patient.currentWeightKg == null
+                            ? 'Not recorded'
+                            : '${patient.currentWeightKg} kg',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PatientFact extends StatelessWidget {
+  const _PatientFact({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 18),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          Text(
-            [
-              patient.hospitalNumber,
-              patient.currentWeightKg == null
-                  ? 'Weight not recorded'
-                  : '${patient.currentWeightKg} kg',
-            ].join(' • '),
-            key: const Key('medical-file-patient-facts'),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w700,
           ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MedicalFileStatusBadge extends StatelessWidget {
+  const _MedicalFileStatusBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
+    final normalized = status.trim().toLowerCase();
+    final color = switch (normalized) {
+      'active' => semantic.success,
+      'deceased' => semantic.danger,
+      'relocated' => semantic.warning,
+      _ => semantic.info,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: .55)),
+      ),
+      child: Text(
+        status,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -1349,6 +1438,14 @@ class _RecordIcon extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.primaryContainer,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.primary.withValues(alpha: .28)),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: .08),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Icon(
         record.icon,

@@ -24,12 +24,14 @@ class AveraIdentityAvatar extends StatelessWidget {
     required this.name,
     this.photoReference,
     this.size = 46,
+    this.borderRadius,
     this.onTap,
   });
 
   final String name;
   final String? photoReference;
   final double size;
+  final BorderRadius? borderRadius;
   final VoidCallback? onTap;
 
   @override
@@ -53,6 +55,7 @@ class AveraIdentityAvatar extends StatelessWidget {
         ),
       ),
     );
+    final resolvedRadius = borderRadius ?? BorderRadius.circular(size / 2);
     final avatar = Semantics(
       image: onTap == null,
       button: onTap != null,
@@ -62,12 +65,14 @@ class AveraIdentityAvatar extends StatelessWidget {
         height: size,
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
+          shape: borderRadius == null ? BoxShape.circle : BoxShape.rectangle,
+          borderRadius: borderRadius,
           border: Border.all(
             color: Theme.of(context).colorScheme.primary.withValues(alpha: .6),
           ),
         ),
-        child: ClipOval(
+        child: ClipRRect(
+          borderRadius: resolvedRadius,
           child: image == null
               ? fallback
               : Image(
@@ -80,10 +85,6 @@ class AveraIdentityAvatar extends StatelessWidget {
     );
     return onTap == null
         ? avatar
-        : InkWell(
-            borderRadius: BorderRadius.circular(size / 2),
-            onTap: onTap,
-            child: avatar,
-          );
+        : InkWell(borderRadius: resolvedRadius, onTap: onTap, child: avatar);
   }
 }

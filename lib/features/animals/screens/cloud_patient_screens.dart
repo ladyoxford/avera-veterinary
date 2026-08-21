@@ -293,8 +293,17 @@ class CloudPatientCard extends ConsumerWidget {
             for (final status in const ['Active', 'Deceased', 'Relocated'])
               if (status != patient.status)
                 ListTile(
-                  leading: Icon(_statusIcon(status)),
-                  title: Text(_statusAction(status)),
+                  leading: Icon(
+                    _statusIcon(status),
+                    color: _patientStatusColor(sheetContext, status),
+                  ),
+                  title: Text(
+                    _statusAction(status),
+                    style: TextStyle(
+                      color: _patientStatusColor(sheetContext, status),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   subtitle: Text(_statusDescription(status)),
                   onTap: () => Navigator.of(sheetContext).pop(status),
                 ),
@@ -393,19 +402,33 @@ class _CloudPatientStatusBadge extends StatelessWidget {
   final String status;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(
-      status,
-      style: averaText(context).caption.copyWith(
-        color: Theme.of(context).colorScheme.onSecondaryContainer,
+  Widget build(BuildContext context) {
+    final color = _patientStatusColor(context, status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: .45)),
       ),
-    ),
-  );
+      child: Text(
+        status,
+        style: averaText(
+          context,
+        ).caption.copyWith(color: color, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+Color _patientStatusColor(BuildContext context, String status) {
+  final semantic = Theme.of(context).extension<AppSemanticColors>()!;
+  return switch (status.trim().toLowerCase()) {
+    'active' => semantic.success,
+    'deceased' => semantic.danger,
+    'relocated' => semantic.warning,
+    _ => semantic.info,
+  };
 }
 
 class _OfflineRecordsNotice extends StatelessWidget {

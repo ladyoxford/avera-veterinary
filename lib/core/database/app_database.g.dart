@@ -17217,6 +17217,18 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
     requiredDuringInsert: false,
     defaultValue: const Constant('Pending'),
   );
+  static const VerificationMeta _contextTypeMeta = const VerificationMeta(
+    'contextType',
+  );
+  @override
+  late final GeneratedColumn<String> contextType = GeneratedColumn<String>(
+    'context_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('clinic_visit'),
+  );
   static const VerificationMeta _productsSubtotalMeta = const VerificationMeta(
     'productsSubtotal',
   );
@@ -17484,6 +17496,7 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
     consultationId,
     reference,
     status,
+    contextType,
     productsSubtotal,
     servicesSubtotal,
     consultationFee,
@@ -17568,6 +17581,15 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
       context.handle(
         _statusMeta,
         status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('context_type')) {
+      context.handle(
+        _contextTypeMeta,
+        contextType.isAcceptableOrUnknown(
+          data['context_type']!,
+          _contextTypeMeta,
+        ),
       );
     }
     if (data.containsKey('products_subtotal')) {
@@ -17791,6 +17813,10 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
         DriftSqlType.string,
         data['${effectivePrefix}status'],
       )!,
+      contextType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}context_type'],
+      )!,
       productsSubtotal: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}products_subtotal'],
@@ -17896,6 +17922,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   final int? consultationId;
   final String reference;
   final String status;
+  final String contextType;
   final double productsSubtotal;
   final double servicesSubtotal;
   final double consultationFee;
@@ -17926,6 +17953,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     this.consultationId,
     required this.reference,
     required this.status,
+    required this.contextType,
     required this.productsSubtotal,
     required this.servicesSubtotal,
     required this.consultationFee,
@@ -17963,6 +17991,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     }
     map['reference'] = Variable<String>(reference);
     map['status'] = Variable<String>(status);
+    map['context_type'] = Variable<String>(contextType);
     map['products_subtotal'] = Variable<double>(productsSubtotal);
     map['services_subtotal'] = Variable<double>(servicesSubtotal);
     map['consultation_fee'] = Variable<double>(consultationFee);
@@ -18025,6 +18054,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           : Value(consultationId),
       reference: Value(reference),
       status: Value(status),
+      contextType: Value(contextType),
       productsSubtotal: Value(productsSubtotal),
       servicesSubtotal: Value(servicesSubtotal),
       consultationFee: Value(consultationFee),
@@ -18086,6 +18116,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       consultationId: serializer.fromJson<int?>(json['consultationId']),
       reference: serializer.fromJson<String>(json['reference']),
       status: serializer.fromJson<String>(json['status']),
+      contextType: serializer.fromJson<String>(json['contextType']),
       productsSubtotal: serializer.fromJson<double>(json['productsSubtotal']),
       servicesSubtotal: serializer.fromJson<double>(json['servicesSubtotal']),
       consultationFee: serializer.fromJson<double>(json['consultationFee']),
@@ -18131,6 +18162,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       'consultationId': serializer.toJson<int?>(consultationId),
       'reference': serializer.toJson<String>(reference),
       'status': serializer.toJson<String>(status),
+      'contextType': serializer.toJson<String>(contextType),
       'productsSubtotal': serializer.toJson<double>(productsSubtotal),
       'servicesSubtotal': serializer.toJson<double>(servicesSubtotal),
       'consultationFee': serializer.toJson<double>(consultationFee),
@@ -18168,6 +18200,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     Value<int?> consultationId = const Value.absent(),
     String? reference,
     String? status,
+    String? contextType,
     double? productsSubtotal,
     double? servicesSubtotal,
     double? consultationFee,
@@ -18202,6 +18235,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
         : this.consultationId,
     reference: reference ?? this.reference,
     status: status ?? this.status,
+    contextType: contextType ?? this.contextType,
     productsSubtotal: productsSubtotal ?? this.productsSubtotal,
     servicesSubtotal: servicesSubtotal ?? this.servicesSubtotal,
     consultationFee: consultationFee ?? this.consultationFee,
@@ -18250,6 +18284,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           : this.consultationId,
       reference: data.reference.present ? data.reference.value : this.reference,
       status: data.status.present ? data.status.value : this.status,
+      contextType: data.contextType.present
+          ? data.contextType.value
+          : this.contextType,
       productsSubtotal: data.productsSubtotal.present
           ? data.productsSubtotal.value
           : this.productsSubtotal,
@@ -18317,6 +18354,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           ..write('consultationId: $consultationId, ')
           ..write('reference: $reference, ')
           ..write('status: $status, ')
+          ..write('contextType: $contextType, ')
           ..write('productsSubtotal: $productsSubtotal, ')
           ..write('servicesSubtotal: $servicesSubtotal, ')
           ..write('consultationFee: $consultationFee, ')
@@ -18352,6 +18390,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     consultationId,
     reference,
     status,
+    contextType,
     productsSubtotal,
     servicesSubtotal,
     consultationFee,
@@ -18386,6 +18425,7 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           other.consultationId == this.consultationId &&
           other.reference == this.reference &&
           other.status == this.status &&
+          other.contextType == this.contextType &&
           other.productsSubtotal == this.productsSubtotal &&
           other.servicesSubtotal == this.servicesSubtotal &&
           other.consultationFee == this.consultationFee &&
@@ -18418,6 +18458,7 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
   final Value<int?> consultationId;
   final Value<String> reference;
   final Value<String> status;
+  final Value<String> contextType;
   final Value<double> productsSubtotal;
   final Value<double> servicesSubtotal;
   final Value<double> consultationFee;
@@ -18448,6 +18489,7 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     this.consultationId = const Value.absent(),
     this.reference = const Value.absent(),
     this.status = const Value.absent(),
+    this.contextType = const Value.absent(),
     this.productsSubtotal = const Value.absent(),
     this.servicesSubtotal = const Value.absent(),
     this.consultationFee = const Value.absent(),
@@ -18479,6 +18521,7 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     this.consultationId = const Value.absent(),
     required String reference,
     this.status = const Value.absent(),
+    this.contextType = const Value.absent(),
     this.productsSubtotal = const Value.absent(),
     this.servicesSubtotal = const Value.absent(),
     this.consultationFee = const Value.absent(),
@@ -18515,6 +18558,7 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     Expression<int>? consultationId,
     Expression<String>? reference,
     Expression<String>? status,
+    Expression<String>? contextType,
     Expression<double>? productsSubtotal,
     Expression<double>? servicesSubtotal,
     Expression<double>? consultationFee,
@@ -18546,6 +18590,7 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
       if (consultationId != null) 'consultation_id': consultationId,
       if (reference != null) 'reference': reference,
       if (status != null) 'status': status,
+      if (contextType != null) 'context_type': contextType,
       if (productsSubtotal != null) 'products_subtotal': productsSubtotal,
       if (servicesSubtotal != null) 'services_subtotal': servicesSubtotal,
       if (consultationFee != null) 'consultation_fee': consultationFee,
@@ -18584,6 +18629,7 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     Value<int?>? consultationId,
     Value<String>? reference,
     Value<String>? status,
+    Value<String>? contextType,
     Value<double>? productsSubtotal,
     Value<double>? servicesSubtotal,
     Value<double>? consultationFee,
@@ -18615,6 +18661,7 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
       consultationId: consultationId ?? this.consultationId,
       reference: reference ?? this.reference,
       status: status ?? this.status,
+      contextType: contextType ?? this.contextType,
       productsSubtotal: productsSubtotal ?? this.productsSubtotal,
       servicesSubtotal: servicesSubtotal ?? this.servicesSubtotal,
       consultationFee: consultationFee ?? this.consultationFee,
@@ -18665,6 +18712,9 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
+    }
+    if (contextType.present) {
+      map['context_type'] = Variable<String>(contextType.value);
     }
     if (productsSubtotal.present) {
       map['products_subtotal'] = Variable<double>(productsSubtotal.value);
@@ -18753,6 +18803,7 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
           ..write('consultationId: $consultationId, ')
           ..write('reference: $reference, ')
           ..write('status: $status, ')
+          ..write('contextType: $contextType, ')
           ..write('productsSubtotal: $productsSubtotal, ')
           ..write('servicesSubtotal: $servicesSubtotal, ')
           ..write('consultationFee: $consultationFee, ')
@@ -19582,6 +19633,17 @@ class $InvoiceProductLinesTable extends InvoiceProductLines
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _unitCostSnapshotMeta = const VerificationMeta(
+    'unitCostSnapshot',
+  );
+  @override
+  late final GeneratedColumn<double> unitCostSnapshot = GeneratedColumn<double>(
+    'unit_cost_snapshot',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lineTotalMeta = const VerificationMeta(
     'lineTotal',
   );
@@ -19604,6 +19666,7 @@ class $InvoiceProductLinesTable extends InvoiceProductLines
     batchNumberSnapshot,
     quantity,
     unitPrice,
+    unitCostSnapshot,
     lineTotal,
   ];
   @override
@@ -19693,6 +19756,15 @@ class $InvoiceProductLinesTable extends InvoiceProductLines
     } else if (isInserting) {
       context.missing(_unitPriceMeta);
     }
+    if (data.containsKey('unit_cost_snapshot')) {
+      context.handle(
+        _unitCostSnapshotMeta,
+        unitCostSnapshot.isAcceptableOrUnknown(
+          data['unit_cost_snapshot']!,
+          _unitCostSnapshotMeta,
+        ),
+      );
+    }
     if (data.containsKey('line_total')) {
       context.handle(
         _lineTotalMeta,
@@ -19746,6 +19818,10 @@ class $InvoiceProductLinesTable extends InvoiceProductLines
         DriftSqlType.double,
         data['${effectivePrefix}unit_price'],
       )!,
+      unitCostSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}unit_cost_snapshot'],
+      ),
       lineTotal: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}line_total'],
@@ -19770,6 +19846,7 @@ class InvoiceProductLine extends DataClass
   final String? batchNumberSnapshot;
   final int quantity;
   final double unitPrice;
+  final double? unitCostSnapshot;
   final double lineTotal;
   const InvoiceProductLine({
     required this.id,
@@ -19781,6 +19858,7 @@ class InvoiceProductLine extends DataClass
     this.batchNumberSnapshot,
     required this.quantity,
     required this.unitPrice,
+    this.unitCostSnapshot,
     required this.lineTotal,
   });
   @override
@@ -19799,6 +19877,9 @@ class InvoiceProductLine extends DataClass
     }
     map['quantity'] = Variable<int>(quantity);
     map['unit_price'] = Variable<double>(unitPrice);
+    if (!nullToAbsent || unitCostSnapshot != null) {
+      map['unit_cost_snapshot'] = Variable<double>(unitCostSnapshot);
+    }
     map['line_total'] = Variable<double>(lineTotal);
     return map;
   }
@@ -19818,6 +19899,9 @@ class InvoiceProductLine extends DataClass
           : Value(batchNumberSnapshot),
       quantity: Value(quantity),
       unitPrice: Value(unitPrice),
+      unitCostSnapshot: unitCostSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unitCostSnapshot),
       lineTotal: Value(lineTotal),
     );
   }
@@ -19843,6 +19927,7 @@ class InvoiceProductLine extends DataClass
       ),
       quantity: serializer.fromJson<int>(json['quantity']),
       unitPrice: serializer.fromJson<double>(json['unitPrice']),
+      unitCostSnapshot: serializer.fromJson<double?>(json['unitCostSnapshot']),
       lineTotal: serializer.fromJson<double>(json['lineTotal']),
     );
   }
@@ -19859,6 +19944,7 @@ class InvoiceProductLine extends DataClass
       'batchNumberSnapshot': serializer.toJson<String?>(batchNumberSnapshot),
       'quantity': serializer.toJson<int>(quantity),
       'unitPrice': serializer.toJson<double>(unitPrice),
+      'unitCostSnapshot': serializer.toJson<double?>(unitCostSnapshot),
       'lineTotal': serializer.toJson<double>(lineTotal),
     };
   }
@@ -19873,6 +19959,7 @@ class InvoiceProductLine extends DataClass
     Value<String?> batchNumberSnapshot = const Value.absent(),
     int? quantity,
     double? unitPrice,
+    Value<double?> unitCostSnapshot = const Value.absent(),
     double? lineTotal,
   }) => InvoiceProductLine(
     id: id ?? this.id,
@@ -19886,6 +19973,9 @@ class InvoiceProductLine extends DataClass
         : this.batchNumberSnapshot,
     quantity: quantity ?? this.quantity,
     unitPrice: unitPrice ?? this.unitPrice,
+    unitCostSnapshot: unitCostSnapshot.present
+        ? unitCostSnapshot.value
+        : this.unitCostSnapshot,
     lineTotal: lineTotal ?? this.lineTotal,
   );
   InvoiceProductLine copyWithCompanion(InvoiceProductLinesCompanion data) {
@@ -19907,6 +19997,9 @@ class InvoiceProductLine extends DataClass
           : this.batchNumberSnapshot,
       quantity: data.quantity.present ? data.quantity.value : this.quantity,
       unitPrice: data.unitPrice.present ? data.unitPrice.value : this.unitPrice,
+      unitCostSnapshot: data.unitCostSnapshot.present
+          ? data.unitCostSnapshot.value
+          : this.unitCostSnapshot,
       lineTotal: data.lineTotal.present ? data.lineTotal.value : this.lineTotal,
     );
   }
@@ -19923,6 +20016,7 @@ class InvoiceProductLine extends DataClass
           ..write('batchNumberSnapshot: $batchNumberSnapshot, ')
           ..write('quantity: $quantity, ')
           ..write('unitPrice: $unitPrice, ')
+          ..write('unitCostSnapshot: $unitCostSnapshot, ')
           ..write('lineTotal: $lineTotal')
           ..write(')'))
         .toString();
@@ -19939,6 +20033,7 @@ class InvoiceProductLine extends DataClass
     batchNumberSnapshot,
     quantity,
     unitPrice,
+    unitCostSnapshot,
     lineTotal,
   );
   @override
@@ -19954,6 +20049,7 @@ class InvoiceProductLine extends DataClass
           other.batchNumberSnapshot == this.batchNumberSnapshot &&
           other.quantity == this.quantity &&
           other.unitPrice == this.unitPrice &&
+          other.unitCostSnapshot == this.unitCostSnapshot &&
           other.lineTotal == this.lineTotal);
 }
 
@@ -19967,6 +20063,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
   final Value<String?> batchNumberSnapshot;
   final Value<int> quantity;
   final Value<double> unitPrice;
+  final Value<double?> unitCostSnapshot;
   final Value<double> lineTotal;
   const InvoiceProductLinesCompanion({
     this.id = const Value.absent(),
@@ -19978,6 +20075,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     this.batchNumberSnapshot = const Value.absent(),
     this.quantity = const Value.absent(),
     this.unitPrice = const Value.absent(),
+    this.unitCostSnapshot = const Value.absent(),
     this.lineTotal = const Value.absent(),
   });
   InvoiceProductLinesCompanion.insert({
@@ -19990,6 +20088,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     this.batchNumberSnapshot = const Value.absent(),
     required int quantity,
     required double unitPrice,
+    this.unitCostSnapshot = const Value.absent(),
     required double lineTotal,
   }) : invoiceId = Value(invoiceId),
        inventoryItemId = Value(inventoryItemId),
@@ -20008,6 +20107,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     Expression<String>? batchNumberSnapshot,
     Expression<int>? quantity,
     Expression<double>? unitPrice,
+    Expression<double>? unitCostSnapshot,
     Expression<double>? lineTotal,
   }) {
     return RawValuesInsertable({
@@ -20023,6 +20123,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
         'batch_number_snapshot': batchNumberSnapshot,
       if (quantity != null) 'quantity': quantity,
       if (unitPrice != null) 'unit_price': unitPrice,
+      if (unitCostSnapshot != null) 'unit_cost_snapshot': unitCostSnapshot,
       if (lineTotal != null) 'line_total': lineTotal,
     });
   }
@@ -20037,6 +20138,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     Value<String?>? batchNumberSnapshot,
     Value<int>? quantity,
     Value<double>? unitPrice,
+    Value<double?>? unitCostSnapshot,
     Value<double>? lineTotal,
   }) {
     return InvoiceProductLinesCompanion(
@@ -20049,6 +20151,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
       batchNumberSnapshot: batchNumberSnapshot ?? this.batchNumberSnapshot,
       quantity: quantity ?? this.quantity,
       unitPrice: unitPrice ?? this.unitPrice,
+      unitCostSnapshot: unitCostSnapshot ?? this.unitCostSnapshot,
       lineTotal: lineTotal ?? this.lineTotal,
     );
   }
@@ -20089,6 +20192,9 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
     if (unitPrice.present) {
       map['unit_price'] = Variable<double>(unitPrice.value);
     }
+    if (unitCostSnapshot.present) {
+      map['unit_cost_snapshot'] = Variable<double>(unitCostSnapshot.value);
+    }
     if (lineTotal.present) {
       map['line_total'] = Variable<double>(lineTotal.value);
     }
@@ -20107,6 +20213,7 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
           ..write('batchNumberSnapshot: $batchNumberSnapshot, ')
           ..write('quantity: $quantity, ')
           ..write('unitPrice: $unitPrice, ')
+          ..write('unitCostSnapshot: $unitCostSnapshot, ')
           ..write('lineTotal: $lineTotal')
           ..write(')'))
         .toString();
@@ -20180,6 +20287,17 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _costSnapshotMeta = const VerificationMeta(
+    'costSnapshot',
+  );
+  @override
+  late final GeneratedColumn<double> costSnapshot = GeneratedColumn<double>(
+    'cost_snapshot',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -20187,6 +20305,7 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
     animalId,
     description,
     amount,
+    costSnapshot,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -20236,6 +20355,15 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
     } else if (isInserting) {
       context.missing(_amountMeta);
     }
+    if (data.containsKey('cost_snapshot')) {
+      context.handle(
+        _costSnapshotMeta,
+        costSnapshot.isAcceptableOrUnknown(
+          data['cost_snapshot']!,
+          _costSnapshotMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -20265,6 +20393,10 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
         DriftSqlType.double,
         data['${effectivePrefix}amount'],
       )!,
+      costSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cost_snapshot'],
+      ),
     );
   }
 
@@ -20281,12 +20413,14 @@ class InvoiceServiceLine extends DataClass
   final int? animalId;
   final String description;
   final double amount;
+  final double? costSnapshot;
   const InvoiceServiceLine({
     required this.id,
     required this.invoiceId,
     this.animalId,
     required this.description,
     required this.amount,
+    this.costSnapshot,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -20298,6 +20432,9 @@ class InvoiceServiceLine extends DataClass
     }
     map['description'] = Variable<String>(description);
     map['amount'] = Variable<double>(amount);
+    if (!nullToAbsent || costSnapshot != null) {
+      map['cost_snapshot'] = Variable<double>(costSnapshot);
+    }
     return map;
   }
 
@@ -20310,6 +20447,9 @@ class InvoiceServiceLine extends DataClass
           : Value(animalId),
       description: Value(description),
       amount: Value(amount),
+      costSnapshot: costSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(costSnapshot),
     );
   }
 
@@ -20324,6 +20464,7 @@ class InvoiceServiceLine extends DataClass
       animalId: serializer.fromJson<int?>(json['animalId']),
       description: serializer.fromJson<String>(json['description']),
       amount: serializer.fromJson<double>(json['amount']),
+      costSnapshot: serializer.fromJson<double?>(json['costSnapshot']),
     );
   }
   @override
@@ -20335,6 +20476,7 @@ class InvoiceServiceLine extends DataClass
       'animalId': serializer.toJson<int?>(animalId),
       'description': serializer.toJson<String>(description),
       'amount': serializer.toJson<double>(amount),
+      'costSnapshot': serializer.toJson<double?>(costSnapshot),
     };
   }
 
@@ -20344,12 +20486,14 @@ class InvoiceServiceLine extends DataClass
     Value<int?> animalId = const Value.absent(),
     String? description,
     double? amount,
+    Value<double?> costSnapshot = const Value.absent(),
   }) => InvoiceServiceLine(
     id: id ?? this.id,
     invoiceId: invoiceId ?? this.invoiceId,
     animalId: animalId.present ? animalId.value : this.animalId,
     description: description ?? this.description,
     amount: amount ?? this.amount,
+    costSnapshot: costSnapshot.present ? costSnapshot.value : this.costSnapshot,
   );
   InvoiceServiceLine copyWithCompanion(InvoiceServiceLinesCompanion data) {
     return InvoiceServiceLine(
@@ -20360,6 +20504,9 @@ class InvoiceServiceLine extends DataClass
           ? data.description.value
           : this.description,
       amount: data.amount.present ? data.amount.value : this.amount,
+      costSnapshot: data.costSnapshot.present
+          ? data.costSnapshot.value
+          : this.costSnapshot,
     );
   }
 
@@ -20370,13 +20517,15 @@ class InvoiceServiceLine extends DataClass
           ..write('invoiceId: $invoiceId, ')
           ..write('animalId: $animalId, ')
           ..write('description: $description, ')
-          ..write('amount: $amount')
+          ..write('amount: $amount, ')
+          ..write('costSnapshot: $costSnapshot')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, invoiceId, animalId, description, amount);
+  int get hashCode =>
+      Object.hash(id, invoiceId, animalId, description, amount, costSnapshot);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -20385,7 +20534,8 @@ class InvoiceServiceLine extends DataClass
           other.invoiceId == this.invoiceId &&
           other.animalId == this.animalId &&
           other.description == this.description &&
-          other.amount == this.amount);
+          other.amount == this.amount &&
+          other.costSnapshot == this.costSnapshot);
 }
 
 class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
@@ -20394,12 +20544,14 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
   final Value<int?> animalId;
   final Value<String> description;
   final Value<double> amount;
+  final Value<double?> costSnapshot;
   const InvoiceServiceLinesCompanion({
     this.id = const Value.absent(),
     this.invoiceId = const Value.absent(),
     this.animalId = const Value.absent(),
     this.description = const Value.absent(),
     this.amount = const Value.absent(),
+    this.costSnapshot = const Value.absent(),
   });
   InvoiceServiceLinesCompanion.insert({
     this.id = const Value.absent(),
@@ -20407,6 +20559,7 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     this.animalId = const Value.absent(),
     required String description,
     required double amount,
+    this.costSnapshot = const Value.absent(),
   }) : invoiceId = Value(invoiceId),
        description = Value(description),
        amount = Value(amount);
@@ -20416,6 +20569,7 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     Expression<int>? animalId,
     Expression<String>? description,
     Expression<double>? amount,
+    Expression<double>? costSnapshot,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -20423,6 +20577,7 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
       if (animalId != null) 'animal_id': animalId,
       if (description != null) 'description': description,
       if (amount != null) 'amount': amount,
+      if (costSnapshot != null) 'cost_snapshot': costSnapshot,
     });
   }
 
@@ -20432,6 +20587,7 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     Value<int?>? animalId,
     Value<String>? description,
     Value<double>? amount,
+    Value<double?>? costSnapshot,
   }) {
     return InvoiceServiceLinesCompanion(
       id: id ?? this.id,
@@ -20439,6 +20595,7 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
       animalId: animalId ?? this.animalId,
       description: description ?? this.description,
       amount: amount ?? this.amount,
+      costSnapshot: costSnapshot ?? this.costSnapshot,
     );
   }
 
@@ -20460,6 +20617,9 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     if (amount.present) {
       map['amount'] = Variable<double>(amount.value);
     }
+    if (costSnapshot.present) {
+      map['cost_snapshot'] = Variable<double>(costSnapshot.value);
+    }
     return map;
   }
 
@@ -20470,7 +20630,8 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
           ..write('invoiceId: $invoiceId, ')
           ..write('animalId: $animalId, ')
           ..write('description: $description, ')
-          ..write('amount: $amount')
+          ..write('amount: $amount, ')
+          ..write('costSnapshot: $costSnapshot')
           ..write(')'))
         .toString();
   }
@@ -39569,6 +39730,28 @@ class $FarmHealthRecordsTable extends FarmHealthRecords
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _manufacturerMeta = const VerificationMeta(
+    'manufacturer',
+  );
+  @override
+  late final GeneratedColumn<String> manufacturer = GeneratedColumn<String>(
+    'manufacturer',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _batchNumberMeta = const VerificationMeta(
+    'batchNumber',
+  );
+  @override
+  late final GeneratedColumn<String> batchNumber = GeneratedColumn<String>(
+    'batch_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _purposeMeta = const VerificationMeta(
     'purpose',
   );
@@ -39593,6 +39776,28 @@ class $FarmHealthRecordsTable extends FarmHealthRecords
   @override
   late final GeneratedColumn<String> route = GeneratedColumn<String>(
     'route',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _animalsCoveredMeta = const VerificationMeta(
+    'animalsCovered',
+  );
+  @override
+  late final GeneratedColumn<int> animalsCovered = GeneratedColumn<int>(
+    'animals_covered',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _administeredByMeta = const VerificationMeta(
+    'administeredBy',
+  );
+  @override
+  late final GeneratedColumn<String> administeredBy = GeneratedColumn<String>(
+    'administered_by',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -39642,9 +39847,13 @@ class $FarmHealthRecordsTable extends FarmHealthRecords
     occurredAt,
     eventType,
     product,
+    manufacturer,
+    batchNumber,
     purpose,
     dose,
     route,
+    animalsCovered,
+    administeredBy,
     nextDueDate,
     notes,
     createdByUserId,
@@ -39720,6 +39929,24 @@ class $FarmHealthRecordsTable extends FarmHealthRecords
         product.isAcceptableOrUnknown(data['product']!, _productMeta),
       );
     }
+    if (data.containsKey('manufacturer')) {
+      context.handle(
+        _manufacturerMeta,
+        manufacturer.isAcceptableOrUnknown(
+          data['manufacturer']!,
+          _manufacturerMeta,
+        ),
+      );
+    }
+    if (data.containsKey('batch_number')) {
+      context.handle(
+        _batchNumberMeta,
+        batchNumber.isAcceptableOrUnknown(
+          data['batch_number']!,
+          _batchNumberMeta,
+        ),
+      );
+    }
     if (data.containsKey('purpose')) {
       context.handle(
         _purposeMeta,
@@ -39736,6 +39963,24 @@ class $FarmHealthRecordsTable extends FarmHealthRecords
       context.handle(
         _routeMeta,
         route.isAcceptableOrUnknown(data['route']!, _routeMeta),
+      );
+    }
+    if (data.containsKey('animals_covered')) {
+      context.handle(
+        _animalsCoveredMeta,
+        animalsCovered.isAcceptableOrUnknown(
+          data['animals_covered']!,
+          _animalsCoveredMeta,
+        ),
+      );
+    }
+    if (data.containsKey('administered_by')) {
+      context.handle(
+        _administeredByMeta,
+        administeredBy.isAcceptableOrUnknown(
+          data['administered_by']!,
+          _administeredByMeta,
+        ),
       );
     }
     if (data.containsKey('next_due_date')) {
@@ -39805,6 +40050,14 @@ class $FarmHealthRecordsTable extends FarmHealthRecords
         DriftSqlType.string,
         data['${effectivePrefix}product'],
       ),
+      manufacturer: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}manufacturer'],
+      ),
+      batchNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}batch_number'],
+      ),
       purpose: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}purpose'],
@@ -39816,6 +40069,14 @@ class $FarmHealthRecordsTable extends FarmHealthRecords
       route: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}route'],
+      ),
+      animalsCovered: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}animals_covered'],
+      ),
+      administeredBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}administered_by'],
       ),
       nextDueDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -39848,9 +40109,13 @@ class FarmHealthRecord extends DataClass
   final DateTime occurredAt;
   final String eventType;
   final String? product;
+  final String? manufacturer;
+  final String? batchNumber;
   final String? purpose;
   final String? dose;
   final String? route;
+  final int? animalsCovered;
+  final String? administeredBy;
   final DateTime? nextDueDate;
   final String? notes;
   final String createdByUserId;
@@ -39863,9 +40128,13 @@ class FarmHealthRecord extends DataClass
     required this.occurredAt,
     required this.eventType,
     this.product,
+    this.manufacturer,
+    this.batchNumber,
     this.purpose,
     this.dose,
     this.route,
+    this.animalsCovered,
+    this.administeredBy,
     this.nextDueDate,
     this.notes,
     required this.createdByUserId,
@@ -39887,6 +40156,12 @@ class FarmHealthRecord extends DataClass
     if (!nullToAbsent || product != null) {
       map['product'] = Variable<String>(product);
     }
+    if (!nullToAbsent || manufacturer != null) {
+      map['manufacturer'] = Variable<String>(manufacturer);
+    }
+    if (!nullToAbsent || batchNumber != null) {
+      map['batch_number'] = Variable<String>(batchNumber);
+    }
     if (!nullToAbsent || purpose != null) {
       map['purpose'] = Variable<String>(purpose);
     }
@@ -39895,6 +40170,12 @@ class FarmHealthRecord extends DataClass
     }
     if (!nullToAbsent || route != null) {
       map['route'] = Variable<String>(route);
+    }
+    if (!nullToAbsent || animalsCovered != null) {
+      map['animals_covered'] = Variable<int>(animalsCovered);
+    }
+    if (!nullToAbsent || administeredBy != null) {
+      map['administered_by'] = Variable<String>(administeredBy);
     }
     if (!nullToAbsent || nextDueDate != null) {
       map['next_due_date'] = Variable<DateTime>(nextDueDate);
@@ -39922,6 +40203,12 @@ class FarmHealthRecord extends DataClass
       product: product == null && nullToAbsent
           ? const Value.absent()
           : Value(product),
+      manufacturer: manufacturer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(manufacturer),
+      batchNumber: batchNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(batchNumber),
       purpose: purpose == null && nullToAbsent
           ? const Value.absent()
           : Value(purpose),
@@ -39929,6 +40216,12 @@ class FarmHealthRecord extends DataClass
       route: route == null && nullToAbsent
           ? const Value.absent()
           : Value(route),
+      animalsCovered: animalsCovered == null && nullToAbsent
+          ? const Value.absent()
+          : Value(animalsCovered),
+      administeredBy: administeredBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(administeredBy),
       nextDueDate: nextDueDate == null && nullToAbsent
           ? const Value.absent()
           : Value(nextDueDate),
@@ -39953,9 +40246,13 @@ class FarmHealthRecord extends DataClass
       occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
       eventType: serializer.fromJson<String>(json['eventType']),
       product: serializer.fromJson<String?>(json['product']),
+      manufacturer: serializer.fromJson<String?>(json['manufacturer']),
+      batchNumber: serializer.fromJson<String?>(json['batchNumber']),
       purpose: serializer.fromJson<String?>(json['purpose']),
       dose: serializer.fromJson<String?>(json['dose']),
       route: serializer.fromJson<String?>(json['route']),
+      animalsCovered: serializer.fromJson<int?>(json['animalsCovered']),
+      administeredBy: serializer.fromJson<String?>(json['administeredBy']),
       nextDueDate: serializer.fromJson<DateTime?>(json['nextDueDate']),
       notes: serializer.fromJson<String?>(json['notes']),
       createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
@@ -39973,9 +40270,13 @@ class FarmHealthRecord extends DataClass
       'occurredAt': serializer.toJson<DateTime>(occurredAt),
       'eventType': serializer.toJson<String>(eventType),
       'product': serializer.toJson<String?>(product),
+      'manufacturer': serializer.toJson<String?>(manufacturer),
+      'batchNumber': serializer.toJson<String?>(batchNumber),
       'purpose': serializer.toJson<String?>(purpose),
       'dose': serializer.toJson<String?>(dose),
       'route': serializer.toJson<String?>(route),
+      'animalsCovered': serializer.toJson<int?>(animalsCovered),
+      'administeredBy': serializer.toJson<String?>(administeredBy),
       'nextDueDate': serializer.toJson<DateTime?>(nextDueDate),
       'notes': serializer.toJson<String?>(notes),
       'createdByUserId': serializer.toJson<String>(createdByUserId),
@@ -39991,9 +40292,13 @@ class FarmHealthRecord extends DataClass
     DateTime? occurredAt,
     String? eventType,
     Value<String?> product = const Value.absent(),
+    Value<String?> manufacturer = const Value.absent(),
+    Value<String?> batchNumber = const Value.absent(),
     Value<String?> purpose = const Value.absent(),
     Value<String?> dose = const Value.absent(),
     Value<String?> route = const Value.absent(),
+    Value<int?> animalsCovered = const Value.absent(),
+    Value<String?> administeredBy = const Value.absent(),
     Value<DateTime?> nextDueDate = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     String? createdByUserId,
@@ -40008,9 +40313,17 @@ class FarmHealthRecord extends DataClass
     occurredAt: occurredAt ?? this.occurredAt,
     eventType: eventType ?? this.eventType,
     product: product.present ? product.value : this.product,
+    manufacturer: manufacturer.present ? manufacturer.value : this.manufacturer,
+    batchNumber: batchNumber.present ? batchNumber.value : this.batchNumber,
     purpose: purpose.present ? purpose.value : this.purpose,
     dose: dose.present ? dose.value : this.dose,
     route: route.present ? route.value : this.route,
+    animalsCovered: animalsCovered.present
+        ? animalsCovered.value
+        : this.animalsCovered,
+    administeredBy: administeredBy.present
+        ? administeredBy.value
+        : this.administeredBy,
     nextDueDate: nextDueDate.present ? nextDueDate.value : this.nextDueDate,
     notes: notes.present ? notes.value : this.notes,
     createdByUserId: createdByUserId ?? this.createdByUserId,
@@ -40031,9 +40344,21 @@ class FarmHealthRecord extends DataClass
           : this.occurredAt,
       eventType: data.eventType.present ? data.eventType.value : this.eventType,
       product: data.product.present ? data.product.value : this.product,
+      manufacturer: data.manufacturer.present
+          ? data.manufacturer.value
+          : this.manufacturer,
+      batchNumber: data.batchNumber.present
+          ? data.batchNumber.value
+          : this.batchNumber,
       purpose: data.purpose.present ? data.purpose.value : this.purpose,
       dose: data.dose.present ? data.dose.value : this.dose,
       route: data.route.present ? data.route.value : this.route,
+      animalsCovered: data.animalsCovered.present
+          ? data.animalsCovered.value
+          : this.animalsCovered,
+      administeredBy: data.administeredBy.present
+          ? data.administeredBy.value
+          : this.administeredBy,
       nextDueDate: data.nextDueDate.present
           ? data.nextDueDate.value
           : this.nextDueDate,
@@ -40055,9 +40380,13 @@ class FarmHealthRecord extends DataClass
           ..write('occurredAt: $occurredAt, ')
           ..write('eventType: $eventType, ')
           ..write('product: $product, ')
+          ..write('manufacturer: $manufacturer, ')
+          ..write('batchNumber: $batchNumber, ')
           ..write('purpose: $purpose, ')
           ..write('dose: $dose, ')
           ..write('route: $route, ')
+          ..write('animalsCovered: $animalsCovered, ')
+          ..write('administeredBy: $administeredBy, ')
           ..write('nextDueDate: $nextDueDate, ')
           ..write('notes: $notes, ')
           ..write('createdByUserId: $createdByUserId')
@@ -40075,9 +40404,13 @@ class FarmHealthRecord extends DataClass
     occurredAt,
     eventType,
     product,
+    manufacturer,
+    batchNumber,
     purpose,
     dose,
     route,
+    animalsCovered,
+    administeredBy,
     nextDueDate,
     notes,
     createdByUserId,
@@ -40094,9 +40427,13 @@ class FarmHealthRecord extends DataClass
           other.occurredAt == this.occurredAt &&
           other.eventType == this.eventType &&
           other.product == this.product &&
+          other.manufacturer == this.manufacturer &&
+          other.batchNumber == this.batchNumber &&
           other.purpose == this.purpose &&
           other.dose == this.dose &&
           other.route == this.route &&
+          other.animalsCovered == this.animalsCovered &&
+          other.administeredBy == this.administeredBy &&
           other.nextDueDate == this.nextDueDate &&
           other.notes == this.notes &&
           other.createdByUserId == this.createdByUserId);
@@ -40111,9 +40448,13 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
   final Value<DateTime> occurredAt;
   final Value<String> eventType;
   final Value<String?> product;
+  final Value<String?> manufacturer;
+  final Value<String?> batchNumber;
   final Value<String?> purpose;
   final Value<String?> dose;
   final Value<String?> route;
+  final Value<int?> animalsCovered;
+  final Value<String?> administeredBy;
   final Value<DateTime?> nextDueDate;
   final Value<String?> notes;
   final Value<String> createdByUserId;
@@ -40126,9 +40467,13 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
     this.occurredAt = const Value.absent(),
     this.eventType = const Value.absent(),
     this.product = const Value.absent(),
+    this.manufacturer = const Value.absent(),
+    this.batchNumber = const Value.absent(),
     this.purpose = const Value.absent(),
     this.dose = const Value.absent(),
     this.route = const Value.absent(),
+    this.animalsCovered = const Value.absent(),
+    this.administeredBy = const Value.absent(),
     this.nextDueDate = const Value.absent(),
     this.notes = const Value.absent(),
     this.createdByUserId = const Value.absent(),
@@ -40142,9 +40487,13 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
     required DateTime occurredAt,
     required String eventType,
     this.product = const Value.absent(),
+    this.manufacturer = const Value.absent(),
+    this.batchNumber = const Value.absent(),
     this.purpose = const Value.absent(),
     this.dose = const Value.absent(),
     this.route = const Value.absent(),
+    this.animalsCovered = const Value.absent(),
+    this.administeredBy = const Value.absent(),
     this.nextDueDate = const Value.absent(),
     this.notes = const Value.absent(),
     required String createdByUserId,
@@ -40162,9 +40511,13 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
     Expression<DateTime>? occurredAt,
     Expression<String>? eventType,
     Expression<String>? product,
+    Expression<String>? manufacturer,
+    Expression<String>? batchNumber,
     Expression<String>? purpose,
     Expression<String>? dose,
     Expression<String>? route,
+    Expression<int>? animalsCovered,
+    Expression<String>? administeredBy,
     Expression<DateTime>? nextDueDate,
     Expression<String>? notes,
     Expression<String>? createdByUserId,
@@ -40178,9 +40531,13 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
       if (occurredAt != null) 'occurred_at': occurredAt,
       if (eventType != null) 'event_type': eventType,
       if (product != null) 'product': product,
+      if (manufacturer != null) 'manufacturer': manufacturer,
+      if (batchNumber != null) 'batch_number': batchNumber,
       if (purpose != null) 'purpose': purpose,
       if (dose != null) 'dose': dose,
       if (route != null) 'route': route,
+      if (animalsCovered != null) 'animals_covered': animalsCovered,
+      if (administeredBy != null) 'administered_by': administeredBy,
       if (nextDueDate != null) 'next_due_date': nextDueDate,
       if (notes != null) 'notes': notes,
       if (createdByUserId != null) 'created_by_user_id': createdByUserId,
@@ -40196,9 +40553,13 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
     Value<DateTime>? occurredAt,
     Value<String>? eventType,
     Value<String?>? product,
+    Value<String?>? manufacturer,
+    Value<String?>? batchNumber,
     Value<String?>? purpose,
     Value<String?>? dose,
     Value<String?>? route,
+    Value<int?>? animalsCovered,
+    Value<String?>? administeredBy,
     Value<DateTime?>? nextDueDate,
     Value<String?>? notes,
     Value<String>? createdByUserId,
@@ -40212,9 +40573,13 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
       occurredAt: occurredAt ?? this.occurredAt,
       eventType: eventType ?? this.eventType,
       product: product ?? this.product,
+      manufacturer: manufacturer ?? this.manufacturer,
+      batchNumber: batchNumber ?? this.batchNumber,
       purpose: purpose ?? this.purpose,
       dose: dose ?? this.dose,
       route: route ?? this.route,
+      animalsCovered: animalsCovered ?? this.animalsCovered,
+      administeredBy: administeredBy ?? this.administeredBy,
       nextDueDate: nextDueDate ?? this.nextDueDate,
       notes: notes ?? this.notes,
       createdByUserId: createdByUserId ?? this.createdByUserId,
@@ -40248,6 +40613,12 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
     if (product.present) {
       map['product'] = Variable<String>(product.value);
     }
+    if (manufacturer.present) {
+      map['manufacturer'] = Variable<String>(manufacturer.value);
+    }
+    if (batchNumber.present) {
+      map['batch_number'] = Variable<String>(batchNumber.value);
+    }
     if (purpose.present) {
       map['purpose'] = Variable<String>(purpose.value);
     }
@@ -40256,6 +40627,12 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
     }
     if (route.present) {
       map['route'] = Variable<String>(route.value);
+    }
+    if (animalsCovered.present) {
+      map['animals_covered'] = Variable<int>(animalsCovered.value);
+    }
+    if (administeredBy.present) {
+      map['administered_by'] = Variable<String>(administeredBy.value);
     }
     if (nextDueDate.present) {
       map['next_due_date'] = Variable<DateTime>(nextDueDate.value);
@@ -40280,9 +40657,13 @@ class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
           ..write('occurredAt: $occurredAt, ')
           ..write('eventType: $eventType, ')
           ..write('product: $product, ')
+          ..write('manufacturer: $manufacturer, ')
+          ..write('batchNumber: $batchNumber, ')
           ..write('purpose: $purpose, ')
           ..write('dose: $dose, ')
           ..write('route: $route, ')
+          ..write('animalsCovered: $animalsCovered, ')
+          ..write('administeredBy: $administeredBy, ')
           ..write('nextDueDate: $nextDueDate, ')
           ..write('notes: $notes, ')
           ..write('createdByUserId: $createdByUserId')
@@ -60724,6 +61105,7 @@ typedef $$InvoicesTableCreateCompanionBuilder =
       Value<int?> consultationId,
       required String reference,
       Value<String> status,
+      Value<String> contextType,
       Value<double> productsSubtotal,
       Value<double> servicesSubtotal,
       Value<double> consultationFee,
@@ -60756,6 +61138,7 @@ typedef $$InvoicesTableUpdateCompanionBuilder =
       Value<int?> consultationId,
       Value<String> reference,
       Value<String> status,
+      Value<String> contextType,
       Value<double> productsSubtotal,
       Value<double> servicesSubtotal,
       Value<double> consultationFee,
@@ -61068,6 +61451,11 @@ class $$InvoicesTableFilterComposer
 
   ColumnFilters<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contextType => $composableBuilder(
+    column: $table.contextType,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -61472,6 +61860,11 @@ class $$InvoicesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get contextType => $composableBuilder(
+    column: $table.contextType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get productsSubtotal => $composableBuilder(
     column: $table.productsSubtotal,
     builder: (column) => ColumnOrderings(column),
@@ -61766,6 +62159,11 @@ class $$InvoicesTableAnnotationComposer
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get contextType => $composableBuilder(
+    column: $table.contextType,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<double> get productsSubtotal => $composableBuilder(
     column: $table.productsSubtotal,
@@ -62184,6 +62582,7 @@ class $$InvoicesTableTableManager
                 Value<int?> consultationId = const Value.absent(),
                 Value<String> reference = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<String> contextType = const Value.absent(),
                 Value<double> productsSubtotal = const Value.absent(),
                 Value<double> servicesSubtotal = const Value.absent(),
                 Value<double> consultationFee = const Value.absent(),
@@ -62214,6 +62613,7 @@ class $$InvoicesTableTableManager
                 consultationId: consultationId,
                 reference: reference,
                 status: status,
+                contextType: contextType,
                 productsSubtotal: productsSubtotal,
                 servicesSubtotal: servicesSubtotal,
                 consultationFee: consultationFee,
@@ -62246,6 +62646,7 @@ class $$InvoicesTableTableManager
                 Value<int?> consultationId = const Value.absent(),
                 required String reference,
                 Value<String> status = const Value.absent(),
+                Value<String> contextType = const Value.absent(),
                 Value<double> productsSubtotal = const Value.absent(),
                 Value<double> servicesSubtotal = const Value.absent(),
                 Value<double> consultationFee = const Value.absent(),
@@ -62276,6 +62677,7 @@ class $$InvoicesTableTableManager
                 consultationId: consultationId,
                 reference: reference,
                 status: status,
+                contextType: contextType,
                 productsSubtotal: productsSubtotal,
                 servicesSubtotal: servicesSubtotal,
                 consultationFee: consultationFee,
@@ -63320,6 +63722,7 @@ typedef $$InvoiceProductLinesTableCreateCompanionBuilder =
       Value<String?> batchNumberSnapshot,
       required int quantity,
       required double unitPrice,
+      Value<double?> unitCostSnapshot,
       required double lineTotal,
     });
 typedef $$InvoiceProductLinesTableUpdateCompanionBuilder =
@@ -63333,6 +63736,7 @@ typedef $$InvoiceProductLinesTableUpdateCompanionBuilder =
       Value<String?> batchNumberSnapshot,
       Value<int> quantity,
       Value<double> unitPrice,
+      Value<double?> unitCostSnapshot,
       Value<double> lineTotal,
     });
 
@@ -63446,6 +63850,11 @@ class $$InvoiceProductLinesTableFilterComposer
 
   ColumnFilters<double> get unitPrice => $composableBuilder(
     column: $table.unitPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get unitCostSnapshot => $composableBuilder(
+    column: $table.unitCostSnapshot,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -63563,6 +63972,11 @@ class $$InvoiceProductLinesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get unitCostSnapshot => $composableBuilder(
+    column: $table.unitCostSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get lineTotal => $composableBuilder(
     column: $table.lineTotal,
     builder: (column) => ColumnOrderings(column),
@@ -63670,6 +64084,11 @@ class $$InvoiceProductLinesTableAnnotationComposer
 
   GeneratedColumn<double> get unitPrice =>
       $composableBuilder(column: $table.unitPrice, builder: (column) => column);
+
+  GeneratedColumn<double> get unitCostSnapshot => $composableBuilder(
+    column: $table.unitCostSnapshot,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<double> get lineTotal =>
       $composableBuilder(column: $table.lineTotal, builder: (column) => column);
@@ -63793,6 +64212,7 @@ class $$InvoiceProductLinesTableTableManager
                 Value<String?> batchNumberSnapshot = const Value.absent(),
                 Value<int> quantity = const Value.absent(),
                 Value<double> unitPrice = const Value.absent(),
+                Value<double?> unitCostSnapshot = const Value.absent(),
                 Value<double> lineTotal = const Value.absent(),
               }) => InvoiceProductLinesCompanion(
                 id: id,
@@ -63804,6 +64224,7 @@ class $$InvoiceProductLinesTableTableManager
                 batchNumberSnapshot: batchNumberSnapshot,
                 quantity: quantity,
                 unitPrice: unitPrice,
+                unitCostSnapshot: unitCostSnapshot,
                 lineTotal: lineTotal,
               ),
           createCompanionCallback:
@@ -63817,6 +64238,7 @@ class $$InvoiceProductLinesTableTableManager
                 Value<String?> batchNumberSnapshot = const Value.absent(),
                 required int quantity,
                 required double unitPrice,
+                Value<double?> unitCostSnapshot = const Value.absent(),
                 required double lineTotal,
               }) => InvoiceProductLinesCompanion.insert(
                 id: id,
@@ -63828,6 +64250,7 @@ class $$InvoiceProductLinesTableTableManager
                 batchNumberSnapshot: batchNumberSnapshot,
                 quantity: quantity,
                 unitPrice: unitPrice,
+                unitCostSnapshot: unitCostSnapshot,
                 lineTotal: lineTotal,
               ),
           withReferenceMapper: (p0) => p0
@@ -63941,6 +64364,7 @@ typedef $$InvoiceServiceLinesTableCreateCompanionBuilder =
       Value<int?> animalId,
       required String description,
       required double amount,
+      Value<double?> costSnapshot,
     });
 typedef $$InvoiceServiceLinesTableUpdateCompanionBuilder =
     InvoiceServiceLinesCompanion Function({
@@ -63949,6 +64373,7 @@ typedef $$InvoiceServiceLinesTableUpdateCompanionBuilder =
       Value<int?> animalId,
       Value<String> description,
       Value<double> amount,
+      Value<double?> costSnapshot,
     });
 
 final class $$InvoiceServiceLinesTableReferences
@@ -64027,6 +64452,11 @@ class $$InvoiceServiceLinesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get costSnapshot => $composableBuilder(
+    column: $table.costSnapshot,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$InvoicesTableFilterComposer get invoiceId {
     final $$InvoicesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -64098,6 +64528,11 @@ class $$InvoiceServiceLinesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get costSnapshot => $composableBuilder(
+    column: $table.costSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$InvoicesTableOrderingComposer get invoiceId {
     final $$InvoicesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -64164,6 +64599,11 @@ class $$InvoiceServiceLinesTableAnnotationComposer
 
   GeneratedColumn<double> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<double> get costSnapshot => $composableBuilder(
+    column: $table.costSnapshot,
+    builder: (column) => column,
+  );
 
   $$InvoicesTableAnnotationComposer get invoiceId {
     final $$InvoicesTableAnnotationComposer composer = $composerBuilder(
@@ -64253,12 +64693,14 @@ class $$InvoiceServiceLinesTableTableManager
                 Value<int?> animalId = const Value.absent(),
                 Value<String> description = const Value.absent(),
                 Value<double> amount = const Value.absent(),
+                Value<double?> costSnapshot = const Value.absent(),
               }) => InvoiceServiceLinesCompanion(
                 id: id,
                 invoiceId: invoiceId,
                 animalId: animalId,
                 description: description,
                 amount: amount,
+                costSnapshot: costSnapshot,
               ),
           createCompanionCallback:
               ({
@@ -64267,12 +64709,14 @@ class $$InvoiceServiceLinesTableTableManager
                 Value<int?> animalId = const Value.absent(),
                 required String description,
                 required double amount,
+                Value<double?> costSnapshot = const Value.absent(),
               }) => InvoiceServiceLinesCompanion.insert(
                 id: id,
                 invoiceId: invoiceId,
                 animalId: animalId,
                 description: description,
                 amount: amount,
+                costSnapshot: costSnapshot,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -81861,9 +82305,13 @@ typedef $$FarmHealthRecordsTableCreateCompanionBuilder =
       required DateTime occurredAt,
       required String eventType,
       Value<String?> product,
+      Value<String?> manufacturer,
+      Value<String?> batchNumber,
       Value<String?> purpose,
       Value<String?> dose,
       Value<String?> route,
+      Value<int?> animalsCovered,
+      Value<String?> administeredBy,
       Value<DateTime?> nextDueDate,
       Value<String?> notes,
       required String createdByUserId,
@@ -81878,9 +82326,13 @@ typedef $$FarmHealthRecordsTableUpdateCompanionBuilder =
       Value<DateTime> occurredAt,
       Value<String> eventType,
       Value<String?> product,
+      Value<String?> manufacturer,
+      Value<String?> batchNumber,
       Value<String?> purpose,
       Value<String?> dose,
       Value<String?> route,
+      Value<int?> animalsCovered,
+      Value<String?> administeredBy,
       Value<DateTime?> nextDueDate,
       Value<String?> notes,
       Value<String> createdByUserId,
@@ -82032,6 +82484,16 @@ class $$FarmHealthRecordsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get manufacturer => $composableBuilder(
+    column: $table.manufacturer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get batchNumber => $composableBuilder(
+    column: $table.batchNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get purpose => $composableBuilder(
     column: $table.purpose,
     builder: (column) => ColumnFilters(column),
@@ -82044,6 +82506,16 @@ class $$FarmHealthRecordsTableFilterComposer
 
   ColumnFilters<String> get route => $composableBuilder(
     column: $table.route,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get animalsCovered => $composableBuilder(
+    column: $table.animalsCovered,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get administeredBy => $composableBuilder(
+    column: $table.administeredBy,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -82202,6 +82674,16 @@ class $$FarmHealthRecordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get manufacturer => $composableBuilder(
+    column: $table.manufacturer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get batchNumber => $composableBuilder(
+    column: $table.batchNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get purpose => $composableBuilder(
     column: $table.purpose,
     builder: (column) => ColumnOrderings(column),
@@ -82214,6 +82696,16 @@ class $$FarmHealthRecordsTableOrderingComposer
 
   ColumnOrderings<String> get route => $composableBuilder(
     column: $table.route,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get animalsCovered => $composableBuilder(
+    column: $table.animalsCovered,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get administeredBy => $composableBuilder(
+    column: $table.administeredBy,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -82366,6 +82858,16 @@ class $$FarmHealthRecordsTableAnnotationComposer
   GeneratedColumn<String> get product =>
       $composableBuilder(column: $table.product, builder: (column) => column);
 
+  GeneratedColumn<String> get manufacturer => $composableBuilder(
+    column: $table.manufacturer,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get batchNumber => $composableBuilder(
+    column: $table.batchNumber,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get purpose =>
       $composableBuilder(column: $table.purpose, builder: (column) => column);
 
@@ -82374,6 +82876,16 @@ class $$FarmHealthRecordsTableAnnotationComposer
 
   GeneratedColumn<String> get route =>
       $composableBuilder(column: $table.route, builder: (column) => column);
+
+  GeneratedColumn<int> get animalsCovered => $composableBuilder(
+    column: $table.animalsCovered,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get administeredBy => $composableBuilder(
+    column: $table.administeredBy,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get nextDueDate => $composableBuilder(
     column: $table.nextDueDate,
@@ -82546,9 +83058,13 @@ class $$FarmHealthRecordsTableTableManager
                 Value<DateTime> occurredAt = const Value.absent(),
                 Value<String> eventType = const Value.absent(),
                 Value<String?> product = const Value.absent(),
+                Value<String?> manufacturer = const Value.absent(),
+                Value<String?> batchNumber = const Value.absent(),
                 Value<String?> purpose = const Value.absent(),
                 Value<String?> dose = const Value.absent(),
                 Value<String?> route = const Value.absent(),
+                Value<int?> animalsCovered = const Value.absent(),
+                Value<String?> administeredBy = const Value.absent(),
                 Value<DateTime?> nextDueDate = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String> createdByUserId = const Value.absent(),
@@ -82561,9 +83077,13 @@ class $$FarmHealthRecordsTableTableManager
                 occurredAt: occurredAt,
                 eventType: eventType,
                 product: product,
+                manufacturer: manufacturer,
+                batchNumber: batchNumber,
                 purpose: purpose,
                 dose: dose,
                 route: route,
+                animalsCovered: animalsCovered,
+                administeredBy: administeredBy,
                 nextDueDate: nextDueDate,
                 notes: notes,
                 createdByUserId: createdByUserId,
@@ -82578,9 +83098,13 @@ class $$FarmHealthRecordsTableTableManager
                 required DateTime occurredAt,
                 required String eventType,
                 Value<String?> product = const Value.absent(),
+                Value<String?> manufacturer = const Value.absent(),
+                Value<String?> batchNumber = const Value.absent(),
                 Value<String?> purpose = const Value.absent(),
                 Value<String?> dose = const Value.absent(),
                 Value<String?> route = const Value.absent(),
+                Value<int?> animalsCovered = const Value.absent(),
+                Value<String?> administeredBy = const Value.absent(),
                 Value<DateTime?> nextDueDate = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 required String createdByUserId,
@@ -82593,9 +83117,13 @@ class $$FarmHealthRecordsTableTableManager
                 occurredAt: occurredAt,
                 eventType: eventType,
                 product: product,
+                manufacturer: manufacturer,
+                batchNumber: batchNumber,
                 purpose: purpose,
                 dose: dose,
                 route: route,
+                animalsCovered: animalsCovered,
+                administeredBy: administeredBy,
                 nextDueDate: nextDueDate,
                 notes: notes,
                 createdByUserId: createdByUserId,

@@ -1305,5 +1305,13 @@ List<_QuickAction> _dashboardActionsFor(
     permission: Permissions.inventoryView,
     feature: AveraFeature.inventory,
   );
+  add(
+    label: 'Revenue',
+    icon: Icons.trending_up_rounded,
+    path: '/revenue',
+    tone: _ActionTone.green,
+    permission: Permissions.billingHistory,
+    feature: AveraFeature.billing,
+  );
   return actions;
 }

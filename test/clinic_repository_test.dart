@@ -326,6 +326,94 @@ void main() {
     },
   );
 
+  test(
+    'farm unit treatments persist clinical details and enforce population',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+
+      final farm = await repository.createFarm(
+        session: session,
+        name: 'Treatment Test Farm',
+        speciesIds: const ['species_goat'],
+        breedIds: const ['breed_goat_red_sokoto'],
+      );
+      final unit = await repository.createFarmUnit(
+        session: session,
+        farmId: farm.id,
+        name: 'Goat Pen',
+        unitType: 'Pen',
+        speciesId: 'species_goat',
+        breedId: 'breed_goat_red_sokoto',
+        capacity: 13,
+        maleCount: 3,
+        femaleCount: 10,
+      );
+      final administeredAt = DateTime(2026, 8, 1);
+      final nextDueAt = DateTime(2026, 12, 1);
+
+      final treatment = await repository.recordFarmUnitTreatment(
+        session: session,
+        farmId: farm.id,
+        unitId: unit.id,
+        treatmentType: 'Vaccination',
+        product: 'CDT',
+        administeredAt: administeredAt,
+        animalsCovered: 13,
+        manufacturer: 'Veterinary Biologics',
+        batchNumber: 'CDT-2608',
+        dose: '2 ml',
+        route: 'Subcutaneous',
+        nextDueDate: nextDueAt,
+        notes: 'Whole-pen vaccination.',
+      );
+
+      expect(treatment.clinicId, session.clinic.clinicId);
+      expect(treatment.farmId, farm.id);
+      expect(treatment.farmUnitId, unit.id);
+      expect(treatment.eventType, 'Vaccination');
+      expect(treatment.product, 'CDT');
+      expect(treatment.animalsCovered, 13);
+      expect(treatment.administeredBy, session.user.fullName);
+      expect(treatment.manufacturer, 'Veterinary Biologics');
+      expect(treatment.batchNumber, 'CDT-2608');
+      expect(treatment.nextDueDate, nextDueAt);
+      expect(
+        await repository.getFarmUnitTreatments(
+          farmId: farm.id,
+          unitId: unit.id,
+        ),
+        hasLength(1),
+      );
+      expect(
+        await (database.select(database.auditLogs)..where(
+              (row) => row.action.equals('farm.unit_treatment_recorded'),
+            ))
+            .get(),
+        hasLength(1),
+      );
+
+      await expectLater(
+        repository.recordFarmUnitTreatment(
+          session: session,
+          farmId: farm.id,
+          unitId: unit.id,
+          treatmentType: 'Deworming',
+          product: 'Albendazole',
+          administeredAt: administeredAt,
+          animalsCovered: 14,
+        ),
+        throwsA(isA<StateError>()),
+      );
+    },
+  );
+
   test('paid invoice deducts stock once and void restores it once', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);
@@ -435,6 +523,60 @@ void main() {
       history.where((entry) => entry.invoice.id == draft.invoice.id),
       hasLength(1),
     );
+  });
+
+  test('revenue summary uses paid ledger and immutable product cost', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = ClinicRepository(database);
+    await repository.seedSampleData();
+    final session = (await repository.authenticateUser(
+      username: 'admin@avera.test',
+      password: 'admin123',
+    ))!;
+    final patient = (await database.select(database.animals).get()).first;
+    final item = (await database.select(database.inventoryItems).get()).first;
+    await (database.update(
+      database.inventoryItems,
+    )..where((row) => row.id.equals(item.id))).write(
+      const InventoryItemsCompanion(
+        buyingPrice: Value(2500),
+        sellingPrice: Value(5000),
+      ),
+    );
+
+    final draft = await repository.saveInvoiceDraft(
+      session: session,
+      animalId: patient.id,
+      products: [InvoiceProductDraft(inventoryItemId: item.id, quantity: 2)],
+      services: const [],
+      consultationFee: 0,
+      homeServiceFee: 0,
+    );
+    await repository.issueInvoice(
+      session: session,
+      invoiceId: draft.invoice.id,
+    );
+    await repository.recordInvoicePayment(
+      session: session,
+      invoiceId: draft.invoice.id,
+      amount: 10000,
+      paymentMethod: 'Cash',
+      paidAt: DateTime(2026, 8, 21),
+    );
+    await (database.update(database.inventoryItems)
+          ..where((row) => row.id.equals(item.id)))
+        .write(const InventoryItemsCompanion(buyingPrice: Value(4000)));
+
+    final summary = await repository.getRevenueProfitSummary(session: session);
+    expect(summary.revenue, 10000);
+    expect(summary.clinicRevenue, 10000);
+    expect(summary.farmRevenue, 0);
+    expect(summary.cost, 5000);
+    expect(summary.profit, 5000);
+    expect(summary.margin, 0.5);
+    expect(summary.transactionCount, 1);
+    expect(summary.missingCostLines, 0);
   });
 
   test('one invoice supports same-owner animals and shared charges', () async {

@@ -336,6 +336,27 @@ class BillingHistoryEntry {
   final AppUser? processedBy;
 }
 
+class RevenueProfitSummary {
+  const RevenueProfitSummary({
+    required this.revenue,
+    required this.cost,
+    required this.clinicRevenue,
+    required this.farmRevenue,
+    required this.transactionCount,
+    required this.missingCostLines,
+  });
+
+  final double revenue;
+  final double cost;
+  final double clinicRevenue;
+  final double farmRevenue;
+  final int transactionCount;
+  final int missingCostLines;
+
+  double get profit => revenue - cost;
+  double get margin => revenue <= 0 ? 0 : profit / revenue;
+}
+
 class ClinicalOperationDetail {
   const ClinicalOperationDetail({
     required this.record,
@@ -5316,6 +5337,110 @@ class ClinicRepository {
         .getSingleOrNull();
   }
 
+  Future<List<FarmHealthRecord>> getFarmUnitTreatments({
+    required String farmId,
+    required int unitId,
+  }) =>
+      (db.select(db.farmHealthRecords)
+            ..where(
+              (row) =>
+                  row.clinicId.equals(activeClinicId) &
+                  row.farmId.equals(farmId) &
+                  row.farmUnitId.equals(unitId),
+            )
+            ..orderBy([(row) => OrderingTerm.desc(row.occurredAt)]))
+          .get();
+
+  Future<FarmHealthRecord> recordFarmUnitTreatment({
+    required UserSession session,
+    required String farmId,
+    required int unitId,
+    required String treatmentType,
+    required String product,
+    required DateTime administeredAt,
+    required int animalsCovered,
+    String? manufacturer,
+    String? batchNumber,
+    String? dose,
+    String? route,
+    DateTime? nextDueDate,
+    String? notes,
+  }) async {
+    _requireFarmPermission(session, Permissions.farmHealthRecord);
+    await _farmForSession(farmId, session);
+    final unit = await getFarmUnit(farmId, unitId);
+    if (unit == null) {
+      throw StateError('This farm unit is not available in the active clinic.');
+    }
+    final normalizedType = treatmentType.trim();
+    final normalizedProduct = product.trim();
+    if (normalizedType.isEmpty || normalizedProduct.isEmpty) {
+      throw StateError('Select a treatment and enter the product used.');
+    }
+    final population = unit.maleCount + unit.femaleCount + unit.unknownCount;
+    if (animalsCovered <= 0 ||
+        (population > 0 && animalsCovered > population)) {
+      throw StateError('Enter a valid number of animals treated.');
+    }
+    if (nextDueDate != null && nextDueDate.isBefore(administeredAt)) {
+      throw StateError('Next due date cannot be before treatment date.');
+    }
+    final now = _clock.nowForClinic(session.clinic);
+    if (administeredAt.isAfter(now.add(const Duration(days: 1)))) {
+      throw StateError('Treatment date cannot be in the future.');
+    }
+    return db.transaction(() async {
+      final id = await db
+          .into(db.farmHealthRecords)
+          .insert(
+            FarmHealthRecordsCompanion.insert(
+              clinicId: session.clinic.clinicId,
+              farmId: farmId,
+              farmUnitId: Value(unitId),
+              occurredAt: administeredAt,
+              eventType: normalizedType,
+              product: Value(normalizedProduct),
+              manufacturer: Value(_nullIfBlank(manufacturer)),
+              batchNumber: Value(_nullIfBlank(batchNumber)),
+              purpose: Value(normalizedType),
+              dose: Value(_nullIfBlank(dose)),
+              route: Value(_nullIfBlank(route)),
+              animalsCovered: Value(animalsCovered),
+              administeredBy: Value(session.user.fullName),
+              nextDueDate: Value(nextDueDate),
+              notes: Value(_nullIfBlank(notes)),
+              createdByUserId: session.user.userId,
+            ),
+          );
+      await _writeFarmAudit(
+        session: session,
+        action: 'farm.unit_treatment_recorded',
+        farmId: farmId,
+        details: {
+          'unitId': unitId,
+          'treatmentId': id,
+          'treatmentType': normalizedType,
+          'product': normalizedProduct,
+          'animalsCovered': animalsCovered,
+          'nextDueDate': nextDueDate?.toIso8601String(),
+        },
+        createdAt: now,
+      );
+      await _writeFarmActivity(
+        session: session,
+        type: 'farmTreatmentRecorded',
+        title: '$normalizedType recorded for ${unit.name}',
+        description:
+            '$normalizedProduct administered to $animalsCovered animals.',
+        farmId: farmId,
+        occurredAt: now,
+      );
+      return (db.select(
+        db.farmHealthRecords,
+      )..where((row) => row.id.equals(id))).getSingle();
+    });
+  }
+
   Future<FarmUnit> updateFarmUnit({
     required UserSession session,
     required String farmId,
@@ -7505,6 +7630,7 @@ class ClinicRepository {
                 batchNumberSnapshot: Value(item.batchNumber),
                 quantity: product.quantity,
                 unitPrice: item.sellingPrice,
+                unitCostSnapshot: Value(item.buyingPrice),
                 lineTotal: lineTotal,
               ),
             );
@@ -7755,6 +7881,102 @@ class ClinicRepository {
             ),
           )
           .toList(),
+    );
+  }
+
+  Future<RevenueProfitSummary> getRevenueProfitSummary({
+    required UserSession session,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    _requireBillingPermission(session, Permissions.billingHistory);
+    final paymentQuery = db.select(db.invoicePayments)
+      ..where((row) => row.clinicId.equals(activeClinicId));
+    if (from != null) {
+      paymentQuery.where((row) => row.createdAt.isBiggerOrEqualValue(from));
+    }
+    if (to != null) {
+      paymentQuery.where((row) => row.createdAt.isSmallerThanValue(to));
+    }
+    final payments = await paymentQuery.get();
+    if (payments.isEmpty) {
+      return const RevenueProfitSummary(
+        revenue: 0,
+        cost: 0,
+        clinicRevenue: 0,
+        farmRevenue: 0,
+        transactionCount: 0,
+        missingCostLines: 0,
+      );
+    }
+    final invoiceIds = payments.map((payment) => payment.invoiceId).toSet();
+    final invoices =
+        await (db.select(db.invoices)..where(
+              (row) =>
+                  row.clinicId.equals(activeClinicId) & row.id.isIn(invoiceIds),
+            ))
+            .get();
+    final invoiceById = {for (final invoice in invoices) invoice.id: invoice};
+    final productLines = await (db.select(
+      db.invoiceProductLines,
+    )..where((row) => row.invoiceId.isIn(invoiceIds))).get();
+    final serviceLines = await (db.select(
+      db.invoiceServiceLines,
+    )..where((row) => row.invoiceId.isIn(invoiceIds))).get();
+    final costByInvoice = <int, double>{};
+    var missingCostLines = 0;
+    for (final line in productLines) {
+      final cost = line.unitCostSnapshot;
+      if (cost == null) {
+        missingCostLines++;
+      } else {
+        costByInvoice.update(
+          line.invoiceId,
+          (value) => value + cost * line.quantity,
+          ifAbsent: () => cost * line.quantity,
+        );
+      }
+    }
+    for (final line in serviceLines) {
+      final cost = line.costSnapshot;
+      if (cost == null) {
+        missingCostLines++;
+      } else {
+        costByInvoice.update(
+          line.invoiceId,
+          (value) => value + cost,
+          ifAbsent: () => cost,
+        );
+      }
+    }
+    var revenue = 0.0;
+    var cost = 0.0;
+    var clinicRevenue = 0.0;
+    var farmRevenue = 0.0;
+    for (final payment in payments) {
+      final invoice = invoiceById[payment.invoiceId];
+      if (invoice == null) continue;
+      final signedAmount = payment.transactionType == 'Refund'
+          ? -payment.amount
+          : payment.amount;
+      revenue += signedAmount;
+      if (invoice.contextType == 'farm') {
+        farmRevenue += signedAmount;
+      } else {
+        clinicRevenue += signedAmount;
+      }
+      if (payment.transactionType != 'Refund' && invoice.total > 0) {
+        final paidShare = (payment.amount / invoice.total).clamp(0.0, 1.0);
+        cost += (costByInvoice[invoice.id] ?? 0) * paidShare;
+      }
+    }
+    return RevenueProfitSummary(
+      revenue: revenue,
+      cost: cost,
+      clinicRevenue: clinicRevenue,
+      farmRevenue: farmRevenue,
+      transactionCount: payments.length,
+      missingCostLines: missingCostLines,
     );
   }
 

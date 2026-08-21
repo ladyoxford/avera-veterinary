@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/animal_catalogue.dart';
+import '../../../core/models/vaccine_catalogue.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
@@ -141,7 +142,7 @@ class FarmUnitDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
-  late Future<FarmUnit?> _unit;
+  late Future<_FarmUnitTreatmentData?> _data;
 
   @override
   void initState() {
@@ -150,9 +151,18 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
   }
 
   void _reload() {
-    _unit = ref
-        .read(clinicRepositoryProvider)
-        .getFarmUnit(widget.farmId, widget.unitId);
+    _data = _load();
+  }
+
+  Future<_FarmUnitTreatmentData?> _load() async {
+    final repository = ref.read(clinicRepositoryProvider);
+    final unit = await repository.getFarmUnit(widget.farmId, widget.unitId);
+    if (unit == null) return null;
+    final treatments = await repository.getFarmUnitTreatments(
+      farmId: widget.farmId,
+      unitId: widget.unitId,
+    );
+    return _FarmUnitTreatmentData(unit: unit, treatments: treatments);
   }
 
   @override
@@ -166,7 +176,8 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
             IconButton(
               tooltip: 'Edit unit',
               onPressed: () async {
-                final unit = await _unit;
+                final data = await _data;
+                final unit = data?.unit;
                 if (!context.mounted || unit == null) return;
                 final changed = await showModalBottomSheet<bool>(
                   context: context,
@@ -184,19 +195,20 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
             ),
         ],
       ),
-      body: FutureBuilder<FarmUnit?>(
-        future: _unit,
+      body: FutureBuilder<_FarmUnitTreatmentData?>(
+        future: _data,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final unit = snapshot.data;
-          if (unit == null) {
+          final data = snapshot.data;
+          if (data == null) {
             return const _DetailMessage(
               title: 'Unit unavailable',
               message: 'This unit is not available in the active clinic.',
             );
           }
+          final unit = data.unit;
           final total = unit.maleCount + unit.femaleCount + unit.unknownCount;
           return ListView(
             padding: const EdgeInsets.fromLTRB(
@@ -206,22 +218,13 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
               AveraSpacing.bottomContentClearance,
             ),
             children: [
-              AveraPageHeader(title: unit.name, subtitle: unit.unitType),
-              const SizedBox(height: AveraSpacing.subtitleToContentGap),
-              _InfoCard(
-                rows: {
-                  'Species': _speciesName(unit.speciesId),
-                  'Breed': _breedName(unit.breedId),
-                  'Male': '${unit.maleCount}',
-                  'Female': '${unit.femaleCount}',
-                  'Unknown sex': '${unit.unknownCount}',
-                  'Total': '$total',
-                  'Capacity': unit.capacity == null
-                      ? 'Not set'
-                      : '$total / ${unit.capacity}',
-                  'Status': unit.status,
-                },
+              AveraPageHeader(
+                title: unit.name,
+                subtitle:
+                    '${unit.unitType} • $total/${unit.capacity ?? total} • ${unit.status}',
               ),
+              const SizedBox(height: AveraSpacing.subtitleToContentGap),
+              _UnitSummaryCard(unit: unit),
               if (unit.notes?.trim().isNotEmpty == true) ...[
                 const SizedBox(height: AveraSpacing.cardGap),
                 AveraLabeledFieldCard(
@@ -239,40 +242,504 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
                     'Health, reproduction, transfers and individual animal records.',
               ),
               const SizedBox(height: AveraSpacing.cardGap),
-              const _DetailMessage(
-                title: 'No individual records linked',
-                message:
-                    'Use Record Event as farm animal and unit event workflows are added.',
-              ),
-              if (session?.can(Permissions.farmUnitsManage) == true) ...[
-                const SizedBox(height: AveraSpacing.sectionGap),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add Animals'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.event_note_outlined),
-                      label: const Text('Record Event'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.swap_horiz_rounded),
-                      label: const Text('Transfer Animals'),
-                    ),
-                  ],
+              if (session?.can(Permissions.farmHealthRecord) == true) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _recordTreatment(unit, session!),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Record Treatment'),
+                  ),
                 ),
+                const SizedBox(height: AveraSpacing.cardGap),
               ],
+              _TreatmentOverviewGrid(treatments: data.treatments),
+              const SizedBox(height: AveraSpacing.sectionGap),
+              const AveraSectionHeader(title: 'Recent Treatments'),
+              const SizedBox(height: AveraSpacing.cardGap),
+              if (data.treatments.isEmpty)
+                const _DetailMessage(
+                  title: 'No treatments recorded',
+                  message:
+                      'Record a treatment to begin this unit health history.',
+                )
+              else
+                for (final treatment in data.treatments) ...[
+                  _TreatmentListTile(
+                    treatment: treatment,
+                    onTap: () => _showTreatmentDetails(treatment),
+                  ),
+                  const SizedBox(height: AveraSpacing.cardGap),
+                ],
             ],
           );
         },
       ),
     );
+  }
+
+  Future<void> _recordTreatment(FarmUnit unit, UserSession session) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _RecordTreatmentSheet(
+        farmId: widget.farmId,
+        unit: unit,
+        session: session,
+      ),
+    );
+    if (saved == true && mounted) setState(_reload);
+  }
+
+  Future<void> _showTreatmentDetails(FarmHealthRecord treatment) =>
+      showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (context) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(treatment.eventType, style: averaText(context).pageTitle),
+              const SizedBox(height: 8),
+              Text(
+                treatment.product ?? 'Product not recorded',
+                style: averaText(context).fieldValue,
+              ),
+              const SizedBox(height: 16),
+              _InfoCard(
+                rows: {
+                  'Date': DateFormat.yMMMd().format(treatment.occurredAt),
+                  'Animals treated': '${treatment.animalsCovered ?? 0}',
+                  'Dose': treatment.dose ?? 'Not recorded',
+                  'Route': treatment.route ?? 'Not recorded',
+                  'Batch': treatment.batchNumber ?? 'Not recorded',
+                  'Administered by': treatment.administeredBy ?? 'Not recorded',
+                  'Next due': treatment.nextDueDate == null
+                      ? 'Not scheduled'
+                      : DateFormat.yMMMd().format(treatment.nextDueDate!),
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _FarmUnitTreatmentData {
+  const _FarmUnitTreatmentData({required this.unit, required this.treatments});
+  final FarmUnit unit;
+  final List<FarmHealthRecord> treatments;
+}
+
+class _UnitSummaryCard extends StatelessWidget {
+  const _UnitSummaryCard({required this.unit});
+  final FarmUnit unit;
+
+  @override
+  Widget build(BuildContext context) => AveraSurfaceCard(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _SummaryValue('SPECIES', _speciesName(unit.speciesId))),
+        Expanded(child: _SummaryValue('BREED', _breedName(unit.breedId))),
+        Expanded(
+          child: _SummaryValue(
+            'MALE / FEMALE',
+            '${unit.maleCount} / ${unit.femaleCount}',
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _SummaryValue extends StatelessWidget {
+  const _SummaryValue(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: averaText(context).sectionLabel),
+        const SizedBox(height: 5),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: averaText(context).listItemTitle,
+        ),
+      ],
+    ),
+  );
+}
+
+class _TreatmentOverviewGrid extends StatelessWidget {
+  const _TreatmentOverviewGrid({required this.treatments});
+  final List<FarmHealthRecord> treatments;
+
+  @override
+  Widget build(BuildContext context) {
+    const types = [
+      ('Deworming', Icons.check_circle_outline_rounded),
+      ('Pour-On (Ticks)', Icons.south_rounded),
+      ('Antitrypanocide', Icons.medication_outlined),
+      ('Vaccination', Icons.vaccines_outlined),
+    ];
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.7,
+      children: [
+        for (final type in types)
+          _TreatmentSummaryCard(
+            title: type.$1,
+            icon: type.$2,
+            treatment: treatments
+                .where((record) => record.eventType == type.$1)
+                .firstOrNull,
+          ),
+      ],
+    );
+  }
+}
+
+class _TreatmentSummaryCard extends StatelessWidget {
+  const _TreatmentSummaryCard({
+    required this.title,
+    required this.icon,
+    required this.treatment,
+  });
+  final String title;
+  final IconData icon;
+  final FarmHealthRecord? treatment;
+
+  @override
+  Widget build(BuildContext context) {
+    final due = treatment?.nextDueDate;
+    final overdue = due != null && due.isBefore(DateTime.now());
+    final color = overdue
+        ? Theme.of(context).extension<AppSemanticColors>()!.warning
+        : Theme.of(context).colorScheme.primary;
+    return AveraSurfaceCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Icon(icon, color: color, size: 22),
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            treatment == null
+                ? 'Not recorded'
+                : 'Last: ${DateFormat.MMMd().format(treatment!.occurredAt)}'
+                      '${due == null ? '' : ' • Next: ${DateFormat.MMMd().format(due)}'}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: averaText(context).listItemSubtitle.copyWith(color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TreatmentListTile extends StatelessWidget {
+  const _TreatmentListTile({required this.treatment, required this.onTap});
+  final FarmHealthRecord treatment;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => AveraAdministrationCard(
+    icon: treatment.eventType == 'Vaccination'
+        ? Icons.vaccines_outlined
+        : Icons.medication_outlined,
+    title: '${treatment.eventType} — ${treatment.product ?? 'Not recorded'}',
+    subtitle:
+        '${DateFormat.yMMMd().format(treatment.occurredAt)} • ${treatment.animalsCovered ?? 0} animals • ${treatment.administeredBy ?? 'Not recorded'}',
+    onTap: onTap,
+  );
+}
+
+class _RecordTreatmentSheet extends ConsumerStatefulWidget {
+  const _RecordTreatmentSheet({
+    required this.farmId,
+    required this.unit,
+    required this.session,
+  });
+  final String farmId;
+  final FarmUnit unit;
+  final UserSession session;
+
+  @override
+  ConsumerState<_RecordTreatmentSheet> createState() =>
+      _RecordTreatmentSheetState();
+}
+
+class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _product = TextEditingController();
+  final _manufacturer = TextEditingController();
+  final _batch = TextEditingController();
+  final _dose = TextEditingController();
+  final _route = TextEditingController();
+  final _animals = TextEditingController();
+  final _notes = TextEditingController();
+  String _type = 'Deworming';
+  VaccineProtocolDefinition? _protocol;
+  DateTime _date = DateTime.now();
+  DateTime? _nextDue;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final total =
+        widget.unit.maleCount +
+        widget.unit.femaleCount +
+        widget.unit.unknownCount;
+    _animals.text = '$total';
+  }
+
+  @override
+  void dispose() {
+    for (final controller in [
+      _product,
+      _manufacturer,
+      _batch,
+      _dose,
+      _route,
+      _animals,
+      _notes,
+    ]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final protocols = VaccineCatalogue.forSpecies(widget.unit.speciesId ?? '');
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AveraSpacing.pageHorizontalPadding,
+        4,
+        AveraSpacing.pageHorizontalPadding,
+        MediaQuery.viewInsetsOf(context).bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Record Treatment', style: averaText(context).pageTitle),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _type,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Treatment type'),
+                items:
+                    const [
+                          'Deworming',
+                          'Pour-On (Ticks)',
+                          'Antitrypanocide',
+                          'Vaccination',
+                          'Other',
+                        ]
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text(value),
+                          ),
+                        )
+                        .toList(),
+                onChanged: (value) => setState(() {
+                  _type = value ?? _type;
+                  _protocol = null;
+                }),
+              ),
+              const SizedBox(height: 12),
+              if (_type == 'Vaccination')
+                DropdownButtonFormField<VaccineProtocolDefinition>(
+                  value: _protocol,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: protocols.isEmpty
+                        ? 'No compatible vaccine protocols'
+                        : 'Vaccine',
+                  ),
+                  items: protocols
+                      .map(
+                        (protocol) => DropdownMenuItem(
+                          value: protocol,
+                          child: Text(protocol.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: protocols.isEmpty
+                      ? null
+                      : (value) => setState(() {
+                          _protocol = value;
+                          if (value != null) {
+                            _product.text = value.name;
+                            _route.text = value.defaultRoute.label;
+                            _nextDue = value.suggestedDueDate(_date);
+                          }
+                        }),
+                  validator: (_) => _type == 'Vaccination' && _protocol == null
+                      ? 'Select a vaccine.'
+                      : null,
+                )
+              else
+                TextFormField(
+                  controller: _product,
+                  decoration: const InputDecoration(labelText: 'Product used'),
+                  validator: (value) => value?.trim().isEmpty == true
+                      ? 'Enter the product used.'
+                      : null,
+                ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _animals,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Animals treated'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _dose,
+                decoration: const InputDecoration(labelText: 'Dose'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _route,
+                decoration: const InputDecoration(labelText: 'Route'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _manufacturer,
+                decoration: const InputDecoration(labelText: 'Manufacturer'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _batch,
+                decoration: const InputDecoration(labelText: 'Batch number'),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Date administered'),
+                subtitle: Text(DateFormat.yMMMd().format(_date)),
+                trailing: const Icon(Icons.calendar_today_outlined),
+                onTap: _pickDate,
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Next due'),
+                subtitle: Text(
+                  _nextDue == null
+                      ? 'Not scheduled'
+                      : DateFormat.yMMMd().format(_nextDue!),
+                ),
+                trailing: const Icon(Icons.event_repeat_outlined),
+                onTap: _pickNextDue,
+              ),
+              TextFormField(
+                controller: _notes,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Notes (optional)',
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: const Text('Save Treatment'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDate() async {
+    final value = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (value == null) return;
+    setState(() {
+      _date = value;
+      if (_protocol != null) _nextDue = _protocol!.suggestedDueDate(value);
+    });
+  }
+
+  Future<void> _pickNextDue() async {
+    final value = await showDatePicker(
+      context: context,
+      initialDate: _nextDue ?? _date.add(const Duration(days: 30)),
+      firstDate: _date,
+      lastDate: DateTime(_date.year + 10),
+    );
+    if (value != null) setState(() => _nextDue = value);
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(clinicRepositoryProvider)
+          .recordFarmUnitTreatment(
+            session: widget.session,
+            farmId: widget.farmId,
+            unitId: widget.unit.id,
+            treatmentType: _type,
+            product: _product.text,
+            administeredAt: _date,
+            animalsCovered: int.tryParse(_animals.text) ?? 0,
+            manufacturer: _manufacturer.text,
+            batchNumber: _batch.text,
+            dose: _dose.text,
+            route: _route.text,
+            nextDueDate: _nextDue,
+            notes: _notes.text,
+          );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Bad state: ', '')),
+          ),
+        );
+        setState(() => _saving = false);
+      }
+    }
   }
 }
 

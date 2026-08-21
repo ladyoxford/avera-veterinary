@@ -428,6 +428,8 @@ class Invoices extends Table {
       integer().nullable().references(Visits, #id)();
   TextColumn get reference => text()();
   TextColumn get status => text().withDefault(const Constant('Pending'))();
+  TextColumn get contextType =>
+      text().withDefault(const Constant('clinic_visit'))();
   RealColumn get productsSubtotal => real().withDefault(const Constant(0))();
   RealColumn get servicesSubtotal => real().withDefault(const Constant(0))();
   RealColumn get consultationFee => real().withDefault(const Constant(0))();
@@ -494,6 +496,7 @@ class InvoiceProductLines extends Table {
   TextColumn get batchNumberSnapshot => text().nullable()();
   IntColumn get quantity => integer()();
   RealColumn get unitPrice => real()();
+  RealColumn get unitCostSnapshot => real().nullable()();
   RealColumn get lineTotal => real()();
 }
 
@@ -503,6 +506,7 @@ class InvoiceServiceLines extends Table {
   IntColumn get animalId => integer().nullable().references(Animals, #id)();
   TextColumn get description => text()();
   RealColumn get amount => real()();
+  RealColumn get costSnapshot => real().nullable()();
 }
 
 class InventoryStockMovements extends Table {
@@ -1051,9 +1055,13 @@ class FarmHealthRecords extends Table {
   DateTimeColumn get occurredAt => dateTime()();
   TextColumn get eventType => text()();
   TextColumn get product => text().nullable()();
+  TextColumn get manufacturer => text().nullable()();
+  TextColumn get batchNumber => text().nullable()();
   TextColumn get purpose => text().nullable()();
   TextColumn get dose => text().nullable()();
   TextColumn get route => text().nullable()();
+  IntColumn get animalsCovered => integer().nullable()();
+  TextColumn get administeredBy => text().nullable()();
   DateTimeColumn get nextDueDate => dateTime().nullable()();
   TextColumn get notes => text().nullable()();
   TextColumn get createdByUserId => text().references(AppUsers, #userId)();
@@ -1133,7 +1141,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 25;
+  static const currentSchemaVersion = 26;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1663,6 +1671,41 @@ class AppDatabase extends _$AppDatabase {
           'CREATE INDEX IF NOT EXISTS invoice_service_lines_animal_index '
           'ON invoice_service_lines (invoice_id, animal_id)',
         );
+      }
+      if (from < 26) {
+        if (!await _hasColumn('invoices', 'context_type')) {
+          await m.addColumn(invoices, invoices.contextType);
+        }
+        if (!await _hasColumn('invoice_product_lines', 'unit_cost_snapshot')) {
+          await m.addColumn(
+            invoiceProductLines,
+            invoiceProductLines.unitCostSnapshot,
+          );
+        }
+        if (!await _hasColumn('invoice_service_lines', 'cost_snapshot')) {
+          await m.addColumn(
+            invoiceServiceLines,
+            invoiceServiceLines.costSnapshot,
+          );
+        }
+        if (!await _hasColumn('farm_health_records', 'manufacturer')) {
+          await m.addColumn(farmHealthRecords, farmHealthRecords.manufacturer);
+        }
+        if (!await _hasColumn('farm_health_records', 'batch_number')) {
+          await m.addColumn(farmHealthRecords, farmHealthRecords.batchNumber);
+        }
+        if (!await _hasColumn('farm_health_records', 'animals_covered')) {
+          await m.addColumn(
+            farmHealthRecords,
+            farmHealthRecords.animalsCovered,
+          );
+        }
+        if (!await _hasColumn('farm_health_records', 'administered_by')) {
+          await m.addColumn(
+            farmHealthRecords,
+            farmHealthRecords.administeredBy,
+          );
+        }
       }
     },
   );

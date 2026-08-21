@@ -28,6 +28,7 @@ import '../../features/administration/screens/clinic_work_hours_screen.dart';
 import '../../features/administration/screens/patient_numbering_screen.dart';
 import '../../features/billing/screens/billing_screen.dart';
 import '../../features/billing/screens/billing_history_screen.dart';
+import '../../features/billing/screens/revenue_profit_screen.dart';
 import '../../features/consultation/screens/consultation_screen.dart';
 import '../../features/consultation/screens/cloud_consultation_detail_screen.dart';
 import '../../features/consultation/screens/cloud_consultation_edit_screen.dart';
@@ -589,6 +590,10 @@ final appRouter = GoRouter(
               state.uri.queryParameters['invoiceId'] ?? '',
             ),
           ),
+        ),
+        GoRoute(
+          path: '/revenue',
+          builder: (context, state) => const RevenueProfitScreen(),
         ),
         GoRoute(
           path: '/reports',

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:uuid/uuid.dart';
 
@@ -16,6 +15,9 @@ import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../../shared/widgets/remote_patient_selector.dart';
+import '../services/invoice_pdf_service.dart';
+import '../services/invoice_presentation_factory.dart';
+import '../widgets/payment_capture_dialog.dart';
 
 class BillingScreen extends ConsumerStatefulWidget {
   const BillingScreen({super.key});
@@ -36,6 +38,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   bool _homeEnabled = false;
   int? _invoiceId;
   String? _remoteInvoiceId;
+  String _invoiceStatus = 'UNSAVED';
   bool _busy = false;
 
   @override
@@ -171,15 +174,21 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 total: total,
               ),
               const SizedBox(height: 8),
-              Chip(label: Text(_invoiceId == null ? 'Pending' : 'Draft saved')),
+              Chip(label: Text(_invoiceStatus)),
               const SizedBox(height: 16),
               AveraPrimaryActionButton(
-                label: 'Record Sale & Deduct Stock',
+                label: _products.isEmpty
+                    ? 'Record Payment'
+                    : 'Record Payment & Deduct Stock',
                 icon: Icons.receipt_long_outlined,
                 loading: _busy,
-                onPressed: _busy || !session.can(Permissions.inventorySell)
+                onPressed:
+                    _busy ||
+                        !session.can(Permissions.billingRecordPayment) ||
+                        (_products.isNotEmpty &&
+                            !session.can(Permissions.inventorySell))
                     ? null
-                    : () => _pay(session),
+                    : () => _pay(session, total),
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -190,6 +199,13 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     onPressed: _busy ? null : () => _saveDraft(session),
                     icon: const Icon(Icons.save_outlined),
                     label: const Text('Save Draft'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _busy || total <= 0
+                        ? null
+                        : () => _issueInvoice(session),
+                    icon: const Icon(Icons.send_outlined),
+                    label: const Text('Issue Invoice'),
                   ),
                   OutlinedButton.icon(
                     onPressed: _invoiceId == null && _remoteInvoiceId == null
@@ -450,7 +466,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
               ? double.tryParse(_homeFee.text) ?? 0
               : 0,
         );
-    if (mounted) setState(() => _invoiceId = result.invoice.id);
+    if (mounted) {
+      setState(() {
+        _invoiceId = result.invoice.id;
+        _invoiceStatus = result.invoice.status.toUpperCase();
+      });
+    }
     return result;
   }
 
@@ -458,7 +479,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     setState(() => _busy = true);
     try {
       if (BackendConfiguration.isConfigured) {
-        await _persistRemoteInvoice(paid: false);
+        await _persistRemoteInvoice(status: 'Draft');
         _message('Draft saved. Stock was not deducted.');
         return;
       }
@@ -471,20 +492,99 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     }
   }
 
-  Future<void> _pay(UserSession session) async {
+  Future<void> _issueInvoice(UserSession session) async {
     setState(() => _busy = true);
     try {
       if (BackendConfiguration.isConfigured) {
-        await _persistRemoteInvoice(paid: true);
+        await _persistRemoteInvoice(status: 'Unpaid');
+      } else {
+        final draft = await _persistDraft(session);
+        if (draft == null) return;
+        final issued = await ref
+            .read(clinicRepositoryProvider)
+            .issueInvoice(session: session, invoiceId: draft.invoice.id);
+        if (mounted) {
+          setState(() => _invoiceStatus = issued.invoice.status.toUpperCase());
+        }
+      }
+      _message('Invoice issued with an unpaid balance.');
+    } catch (error) {
+      _message('$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pay(UserSession session, double total) async {
+    if (total <= 0) {
+      _message('Add at least one billable item before recording payment.');
+      return;
+    }
+    final payment = await showPaymentCaptureDialog(
+      context: context,
+      outstanding: total,
+      currency: session.clinic.currency,
+    );
+    if (payment == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      if (BackendConfiguration.isConfigured) {
+        final invoiceId = await _persistRemoteInvoice(status: 'Unpaid');
+        final invoice = await ref
+            .read(clinicalRemoteDataSourceProvider)
+            .invoice(invoiceId);
+        final invoiceMap = Map<String, dynamic>.from(
+          invoice['invoice'] as Map? ?? const {},
+        );
+        final outstanding = _remoteNumber(invoiceMap['balance']);
+        if (outstanding > 0) {
+          await ref
+              .read(clinicalRemoteDataSourceProvider)
+              .recordInvoicePayment(
+                invoiceId: invoiceId,
+                payload: {
+                  'submissionId': const Uuid().v4(),
+                  'amount': payment.amount.clamp(0, outstanding).toDouble(),
+                  'method': payment.method,
+                  'paidAt': payment.paidAt.toUtc().toIso8601String(),
+                  'reference': payment.reference,
+                },
+              );
+        }
+        final updated = await ref
+            .read(clinicalRemoteDataSourceProvider)
+            .invoice(invoiceId);
+        final updatedInvoice = Map<String, dynamic>.from(
+          updated['invoice'] as Map? ?? const {},
+        );
+        if (mounted) {
+          setState(
+            () => _invoiceStatus =
+                updatedInvoice['status']?.toString().toUpperCase() ?? 'UNPAID',
+          );
+        }
         ref.invalidate(remoteDashboardProvider);
-        _message('Sale recorded.');
+        _message('Payment recorded.');
         return;
       }
       final draft = await _persistDraft(session);
       if (draft == null) return;
       await ref
           .read(clinicRepositoryProvider)
-          .payInvoice(session: session, invoiceId: draft.invoice.id);
+          .issueInvoice(session: session, invoiceId: draft.invoice.id);
+      final paid = await ref
+          .read(clinicRepositoryProvider)
+          .recordInvoicePayment(
+            session: session,
+            invoiceId: draft.invoice.id,
+            amount: payment.amount,
+            paymentMethod: payment.method,
+            paidAt: payment.paidAt,
+            reference: payment.reference,
+          );
+      if (mounted) {
+        setState(() => _invoiceStatus = paid.invoice.status.toUpperCase());
+      }
       ref.invalidate(inventoryProvider);
       ref.invalidate(dashboardStatsProvider);
       _message('Sale recorded and stock deducted.');
@@ -495,7 +595,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     }
   }
 
-  Future<void> _persistRemoteInvoice({required bool paid}) async {
+  Future<String> _persistRemoteInvoice({required String status}) async {
     if (_remotePatients.isEmpty) {
       throw StateError('Select at least one animal before billing.');
     }
@@ -520,7 +620,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           'submissionId': _submissionId,
           'patientId': patient.id,
           'patientIds': _remotePatients.map((patient) => patient.id).toList(),
-          'status': paid ? 'Paid' : 'Draft',
+          'status': status,
           'subtotal': total,
           'total': total,
           'services': [
@@ -551,11 +651,20 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           ],
         });
     if (mounted) {
-      setState(() => _remoteInvoiceId = created['invoice_id']?.toString());
+      setState(() {
+        _remoteInvoiceId = created['invoice_id']?.toString();
+        _invoiceStatus =
+            created['status']?.toString().toUpperCase() ?? status.toUpperCase();
+      });
     }
     for (final selected in _remotePatients) {
       ref.invalidate(remotePatientMedicalFileProvider(selected.id));
     }
+    final invoiceId = created['invoice_id']?.toString();
+    if (invoiceId == null || invoiceId.isEmpty) {
+      throw StateError('The invoice was saved without a valid reference.');
+    }
+    return invoiceId;
   }
 
   Future<void> _print(UserSession session) async {
@@ -567,88 +676,24 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         .read(clinicRepositoryProvider)
         .getInvoiceDetail(session, _invoiceId!);
     if (invoice == null) return;
-    final document = pw.Document();
-    final type = switch (invoice.invoice.status) {
-      'Paid' => 'PAYMENT RECEIPT',
-      'Voided' => 'VOIDED INVOICE',
-      _ => 'DRAFT INVOICE',
-    };
-    document.addPage(
-      pw.MultiPage(
-        build: (_) => [
-          pw.Text(
-            invoice.invoice.clinicNameSnapshot,
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20),
-          ),
-          if ((invoice.invoice.clinicAddressSnapshot ?? '').isNotEmpty)
-            pw.Text(invoice.invoice.clinicAddressSnapshot!),
-          if ((invoice.invoice.clinicPhoneSnapshot ?? '').isNotEmpty)
-            pw.Text('Phone: ${invoice.invoice.clinicPhoneSnapshot}'),
-          if ((invoice.invoice.clinicEmailSnapshot ?? '').isNotEmpty)
-            pw.Text('Email: ${invoice.invoice.clinicEmailSnapshot}'),
-          pw.SizedBox(height: 16),
-          pw.Text(
-            type,
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16),
-          ),
-          pw.Text('Invoice: ${invoice.invoice.reference}'),
-          pw.Text(
-            'Animals: ${invoice.animals.map((animal) => '${animal.animalName} (${animal.hospitalNumber})').join(', ')}',
-          ),
-          pw.SizedBox(height: 12),
-          pw.TableHelper.fromTextArray(
-            headers: const ['Product', 'Qty', 'Unit Price', 'Total'],
-            data: [
-              for (final line in invoice.products)
-                [
-                  '${_invoiceLineTarget(invoice, line.animalId)}: ${line.productNameSnapshot}',
-                  '${line.quantity}',
-                  formatNaira(line.unitPrice),
-                  formatNaira(line.lineTotal),
-                ],
-            ],
-          ),
-          if (invoice.services.isNotEmpty) ...[
-            pw.SizedBox(height: 12),
-            pw.Text('Services'),
-            for (final service in invoice.services)
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(service.description),
-                  pw.Text(_invoiceLineTarget(invoice, service.animalId)),
-                  pw.Text(formatNaira(service.amount)),
-                ],
-              ),
-          ],
-          pw.Divider(),
-          pw.Text(
-            'Products subtotal: ${formatNaira(invoice.invoice.productsSubtotal)}',
-          ),
-          pw.Text(
-            'Services subtotal: ${formatNaira(invoice.invoice.servicesSubtotal)}',
-          ),
-          pw.Text(
-            'Consultation fee: ${formatNaira(invoice.invoice.consultationFee)}',
-          ),
-          pw.Text(
-            'Home service fee: ${formatNaira(invoice.invoice.homeServiceFee)}',
-          ),
-          pw.SizedBox(height: 6),
-          pw.Text(
-            'INVOICE TOTAL: ${formatNaira(invoice.invoice.total)}',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16),
-          ),
-          pw.SizedBox(height: 24),
-          pw.Text(
-            'Thank you for choosing ${invoice.invoice.clinicNameSnapshot}.',
-          ),
-          pw.Text('Generated by AVERA Veterinary Practice Management.'),
-        ],
-      ),
+    final entry = await ref
+        .read(clinicRepositoryProvider)
+        .watchBillingHistory(session)
+        .first
+        .then(
+          (items) => items
+              .where((item) => item.invoice.id == invoice.invoice.id)
+              .firstOrNull,
+        );
+    if (entry == null) return;
+    final presentation = InvoicePresentationFactory.local(
+      detail: invoice,
+      entry: entry,
+      session: session,
     );
+    final bytes = await const InvoicePdfService().build(presentation);
     await Printing.layoutPdf(
-      onLayout: (_) => document.save(),
+      onLayout: (_) async => bytes,
       name:
           '${invoice.invoice.clinicNameSnapshot.replaceAll(RegExp(r'[^A-Za-z0-9]'), '_')}_${invoice.invoice.reference}.pdf',
     );
@@ -660,50 +705,14 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final payload = await ref
         .read(clinicalRemoteDataSourceProvider)
         .invoice(invoiceId);
-    final invoice = Map<String, dynamic>.from(payload['invoice'] as Map);
-    final lines = (payload['lineItems'] as List? ?? const [])
-        .map((line) => Map<String, dynamic>.from(line as Map))
-        .toList();
-    final animals = <String>{
-      for (final line in lines)
-        if (line['patient_name'] != null)
-          '${line['patient_name']} (${line['hospital_number'] ?? ''})',
-    };
-    final document = pw.Document();
-    document.addPage(
-      pw.MultiPage(
-        build: (_) => [
-          pw.Text(
-            session.clinic.clinicName,
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20),
-          ),
-          pw.Text('Invoice: ${invoice['invoice_number']}'),
-          pw.Text('Client: ${invoice['owner_name']}'),
-          pw.Text('Animals: ${animals.join(', ')}'),
-          pw.SizedBox(height: 12),
-          pw.TableHelper.fromTextArray(
-            headers: const ['Animal / Group', 'Description', 'Qty', 'Total'],
-            data: [
-              for (final line in lines)
-                [
-                  line['patient_name'] ?? 'General / Shared',
-                  line['description'],
-                  line['quantity'],
-                  formatNaira(_remoteNumber(line['line_total'])),
-                ],
-            ],
-          ),
-          pw.Divider(),
-          pw.Text(
-            'TOTAL: ${formatNaira(_remoteNumber(invoice['total']))}',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16),
-          ),
-        ],
-      ),
+    final presentation = InvoicePresentationFactory.remote(
+      payload: payload,
+      session: session,
     );
+    final bytes = await const InvoicePdfService().build(presentation);
     await Printing.layoutPdf(
-      onLayout: (_) => document.save(),
-      name: '${invoice['invoice_number']}.pdf',
+      onLayout: (_) async => bytes,
+      name: '${presentation.invoiceNumber}.pdf',
     );
   }
 
@@ -716,15 +725,6 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
     }
-  }
-
-  String _invoiceLineTarget(InvoiceDetail invoice, int? animalId) {
-    if (animalId == null) return 'General / Shared';
-    return invoice.animals
-            .where((animal) => animal.id == animalId)
-            .firstOrNull
-            ?.animalName ??
-        'Animal';
   }
 }
 

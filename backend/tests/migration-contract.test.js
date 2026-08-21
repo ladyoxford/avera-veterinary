@@ -12,6 +12,7 @@ import {
   formatPatientHospitalNumber,
   patientStatusSchema,
   patientsShareBillingOwner,
+  recordInvoicePaymentSchema,
   suggestedPatientPrefix,
   cancelAppointmentSchema,
   updateAppointmentSchema,
@@ -284,6 +285,7 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     'appointmentsEdit',
     'appointmentsCancel',
     'billingCreate',
+    'billingRecordPayment',
   ]) {
     assert.match(
       routes,
@@ -297,7 +299,11 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     routes.match(/ON CONFLICT \(clinic_id, submission_id\)/g)?.length,
     4,
   );
-  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 13);
+  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 15);
+  assert.match(
+    routes,
+    /app\.post\('\/api\/v1\/invoices\/:invoiceId\/payments'[\s\S]*permissions\.billingRecordPayment[\s\S]*duplicateSubmission: true/,
+  );
   assert.match(
     routes,
     /app\.get\('\/api\/v1\/consultations\/:consultationId'[\s\S]*permissions\.consultationsView/,
@@ -487,6 +493,42 @@ test('multi-patient invoices recognize legacy duplicate owner rows safely', () =
   ]), false);
 });
 
+test('invoice payment ledger migration is additive and idempotent', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/023_invoice_payment_ledger.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS reference TEXT/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS recorded_by UUID REFERENCES users\(user_id\)/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS submission_id UUID/);
+  assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS payments_clinic_submission_unique/);
+  assert.match(migration, /WHERE submission_id IS NOT NULL/);
+});
+
+test('invoice payment payload is strict, idempotent, and uses canonical methods', () => {
+  const valid = {
+    submissionId: 'ae12d6d7-ee38-48db-9937-a5de1633f103',
+    amount: 12500,
+    method: 'Transfer',
+    paidAt: '2026-08-20T12:00:00.000Z',
+    reference: 'TRX-12500',
+  };
+  assert.equal(recordInvoicePaymentSchema.safeParse(valid).success, true);
+  assert.equal(recordInvoicePaymentSchema.safeParse({ ...valid, amount: 0 }).success, false);
+  assert.equal(recordInvoicePaymentSchema.safeParse({ ...valid, method: 'Cheque' }).success, false);
+  assert.equal(recordInvoicePaymentSchema.safeParse({ ...valid, unexpected: true }).success, false);
+
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(routes, /\/api\/v1\/invoices\/:invoiceId\/payments/);
+  assert.match(routes, /FOR UPDATE/);
+  assert.match(routes, /submission_id/);
+  assert.match(routes, /payment_exceeds_balance/);
+  assert.match(routes, /billing\.payment_recorded/);
+});
+
 test('multi-patient invoice migration is scoped, idempotent, and preserves records', () => {
   const migration = fs.readFileSync(
     new URL('../migrations/022_multi_patient_invoices.sql', import.meta.url),
@@ -507,6 +549,9 @@ test('multi-patient invoice migration is scoped, idempotent, and preserves recor
   assert.match(routes, /WHERE p\.clinic_id=\$1 AND p\.patient_id = ANY/);
   assert.match(routes, /duplicateSubmission: true/);
   assert.match(routes, /existing\.status === 'Draft' && input\.status === 'Paid'/);
+  assert.match(routes, /existing\.status === 'Draft' && input\.status === 'Unpaid'/);
+  assert.match(routes, /SET status='Unpaid', balance=total/);
+  assert.match(routes, /action: 'billing\.invoice_issued'/);
   assert.match(routes, /SET status='Paid', amount_paid=total, balance=0/);
   assert.match(routes, /action: 'billing\.sale_recorded'/);
 });

@@ -835,8 +835,14 @@ class ClinicalRemoteDataSource {
   );
   Future<RemotePage<Map<String, dynamic>>> invoices({
     int page = 1,
+    int pageSize = 100,
     String? search,
-  }) => _generic('/api/v1/invoices', page: page, search: search);
+  }) => _generic(
+    '/api/v1/invoices',
+    page: page,
+    pageSize: pageSize,
+    search: search,
+  );
 
   Future<Map<String, dynamic>> createInvoice(
     Map<String, dynamic> payload,
@@ -847,6 +853,16 @@ class ClinicalRemoteDataSource {
       Map<String, dynamic>.from(
         await _client.get('/api/v1/invoices/$invoiceId'),
       );
+  Future<Map<String, dynamic>> recordInvoicePayment({
+    required String invoiceId,
+    required Map<String, dynamic> payload,
+  }) async => Map<String, dynamic>.from(
+    await _client.post(
+      '/api/v1/invoices/$invoiceId/payments',
+      body: payload,
+      authenticated: true,
+    ),
+  );
   Future<RemotePage<Map<String, dynamic>>> payments({
     int page = 1,
     String? search,
@@ -928,12 +944,13 @@ class ClinicalRemoteDataSource {
   Future<RemotePage<Map<String, dynamic>>> _generic(
     String path, {
     required int page,
+    int pageSize = 25,
     String? search,
   }) async {
     final response = await _client.get(
       _path(path, {
         'page': '$page',
-        'pageSize': '25',
+        'pageSize': '$pageSize',
         if (search?.isNotEmpty ?? false) 'search': search!,
       }),
     );

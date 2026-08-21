@@ -10,6 +10,7 @@ import 'package:printing/printing.dart';
 
 import '../../../core/models/animal_catalogue.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/services/clinic_document_branding.dart';
 
 class FarmReportService {
   const FarmReportService();
@@ -17,8 +18,10 @@ class FarmReportService {
   Future<Uint8List> buildDailyRecordPdf({
     required FarmDailyRecordDetail detail,
     required String preparedBy,
-    String? clinicName,
+    ClinicDocumentBranding? branding,
   }) async {
+    final brandingService = const ClinicDocumentBrandingService();
+    final logo = await brandingService.loadLogo(branding?.logoReference);
     final document = pw.Document();
     final record = detail.record;
     final generatedAt = DateTime.now();
@@ -67,11 +70,10 @@ class FarmReportService {
         header: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            if (clinicName?.trim().isNotEmpty == true)
-              pw.Text(
-                clinicName!,
-                style: pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
-              ),
+            if (branding != null) ...[
+              brandingService.identity(branding: branding, logo: logo),
+              pw.SizedBox(height: 10),
+            ],
             pw.Text(
               detail.farm.name,
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
@@ -277,12 +279,12 @@ class FarmReportService {
   Future<String> saveDailyRecordPdf({
     required FarmDailyRecordDetail detail,
     required String preparedBy,
-    String? clinicName,
+    ClinicDocumentBranding? branding,
   }) async {
     final bytes = await buildDailyRecordPdf(
       detail: detail,
       preparedBy: preparedBy,
-      clinicName: clinicName,
+      branding: branding,
     );
     final directory =
         await getDownloadsDirectory() ??
@@ -303,14 +305,14 @@ class FarmReportService {
   Future<void> printDailyRecord({
     required FarmDailyRecordDetail detail,
     required String preparedBy,
-    String? clinicName,
+    ClinicDocumentBranding? branding,
   }) {
     return Printing.layoutPdf(
       name: '${detail.farm.name} Daily Farm Record',
       onLayout: (_) => buildDailyRecordPdf(
         detail: detail,
         preparedBy: preparedBy,
-        clinicName: clinicName,
+        branding: branding,
       ),
     );
   }
@@ -318,12 +320,12 @@ class FarmReportService {
   Future<void> shareDailyRecord({
     required FarmDailyRecordDetail detail,
     required String preparedBy,
-    String? clinicName,
+    ClinicDocumentBranding? branding,
   }) async {
     final bytes = await buildDailyRecordPdf(
       detail: detail,
       preparedBy: preparedBy,
-      clinicName: clinicName,
+      branding: branding,
     );
     await Printing.sharePdf(
       bytes: bytes,

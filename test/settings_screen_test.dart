@@ -233,4 +233,31 @@ void main() {
     expect(find.text('Theme'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('branded app bar reads the active clinic banner', (tester) async {
+    final bannerSession = UserSession(
+      user: session.user,
+      clinic: session.clinic.copyWith(
+        banner: const Value('missing-local-banner.jpg'),
+      ),
+      backendPermissions: session.backendPermissions,
+      rolePolicyPermissions: session.rolePolicyPermissions,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...providerOverrides,
+          userSessionProvider.overrideWith((ref) async => bannerSession),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: const Scaffold(appBar: BrandedAppBar()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('clinic-dashboard-banner')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

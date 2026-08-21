@@ -392,17 +392,29 @@ void main() {
       consultationFee: 0,
       homeServiceFee: 0,
     );
+    expect(draft.invoice.status, 'Draft');
+
+    final issued = await repository.issueInvoice(
+      session: session,
+      invoiceId: draft.invoice.id,
+    );
+    expect(issued.invoice.status, 'Unpaid');
+    expect(issued.invoice.balance, 100);
 
     var detail = await repository.recordInvoicePayment(
       session: session,
       invoiceId: draft.invoice.id,
       amount: 40,
-      paymentMethod: 'Cash',
+      paymentMethod: 'Transfer',
+      paidAt: DateTime(2026, 8, 21, 9, 30),
+      reference: 'TRX-LOCAL-1',
     );
     expect(detail.invoice.status, 'Partially paid');
     expect(detail.invoice.amountPaid, 40);
     expect(detail.invoice.balance, 60);
     expect(detail.payments.single.transactionType, 'Payment');
+    expect(detail.payments.single.paymentMethod, 'Transfer');
+    expect(detail.payments.single.reason, 'TRX-LOCAL-1');
 
     detail = await repository.refundInvoicePayment(
       session: session,

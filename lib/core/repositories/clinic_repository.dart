@@ -7534,6 +7534,9 @@ class ClinicRepository {
         db.invoices,
       )..where((row) => row.id.equals(targetId))).write(
         InvoicesCompanion(
+          status: Value(
+            existing.status == 'Pending' ? 'Draft' : existing.status,
+          ),
           productsSubtotal: Value(productsTotal),
           servicesSubtotal: Value(servicesTotal),
           consultationFee: Value(consultationFee),
@@ -7553,6 +7556,40 @@ class ClinicRepository {
     });
   }
 
+  Future<InvoiceDetail> issueInvoice({
+    required UserSession session,
+    required int invoiceId,
+  }) async {
+    _requireBillingPermission(session, Permissions.billingCreate);
+    await _requireActiveFeature(AveraFeature.billing);
+    return db.transaction(() async {
+      final invoice = await _invoiceForSession(invoiceId, session);
+      if (!{'Pending', 'Draft', 'Unpaid'}.contains(invoice.status)) {
+        throw StateError('Only a draft invoice can be issued.');
+      }
+      if (invoice.total <= 0) {
+        throw StateError('Add at least one billable item before issuing.');
+      }
+      final now = _clock.nowForClinic(session.clinic);
+      await (db.update(
+        db.invoices,
+      )..where((row) => row.id.equals(invoiceId))).write(
+        InvoicesCompanion(
+          status: const Value('Unpaid'),
+          balance: Value(invoice.total - invoice.amountPaid),
+          updatedAt: Value(now),
+        ),
+      );
+      await _writeInvoiceAudit(
+        session: session,
+        invoiceId: invoiceId,
+        action: 'invoice.issued',
+        details: {'total': invoice.total, 'status': 'Unpaid'},
+      );
+      return _invoiceDetailForSession(invoiceId, session);
+    });
+  }
+
   Future<InvoiceDetail> payInvoice({
     required UserSession session,
     required int invoiceId,
@@ -7562,8 +7599,8 @@ class ClinicRepository {
     await _requireActiveFeature(AveraFeature.billing);
     return db.transaction(() async {
       final invoice = await _invoiceForSession(invoiceId, session);
-      if (invoice.status != 'Pending') {
-        throw StateError('Only a pending invoice can be paid.');
+      if (!{'Pending', 'Draft', 'Unpaid'}.contains(invoice.status)) {
+        throw StateError('Only an open invoice can be paid.');
       }
       final products = await (db.select(
         db.invoiceProductLines,
@@ -7726,6 +7763,8 @@ class ClinicRepository {
     required int invoiceId,
     required double amount,
     required String paymentMethod,
+    DateTime? paidAt,
+    String? reference,
   }) async {
     _requireBillingPermission(session, Permissions.billingRecordPayment);
     if (amount <= 0) throw StateError('Enter a payment greater than zero.');
@@ -7744,7 +7783,7 @@ class ClinicRepository {
           'Payment exceeds the outstanding balance of ${outstanding.toStringAsFixed(2)}.',
         );
       }
-      final now = _clock.nowForClinic(session.clinic);
+      final now = paidAt ?? _clock.nowForClinic(session.clinic);
       if (invoice.amountPaid == 0) {
         await _deductInvoiceStock(invoice: invoice, session: session, now: now);
       }
@@ -7768,6 +7807,9 @@ class ClinicRepository {
               amount: amount,
               paymentMethod: paymentMethod,
               processedByUserId: session.user.userId,
+              reason: Value(
+                reference?.trim().isEmpty == true ? null : reference,
+              ),
               createdAt: now,
             ),
           );

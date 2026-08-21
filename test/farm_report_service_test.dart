@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:avera/core/database/app_database.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
+import 'package:avera/core/services/clinic_document_branding.dart';
 import 'package:avera/features/farm/services/farm_report_service.dart';
 
 void main() {
@@ -64,7 +65,7 @@ void main() {
     final bytes = await const FarmReportService().buildDailyRecordPdf(
       detail: detail!,
       preparedBy: session.user.fullName,
-      clinicName: session.clinic.clinicName,
+      branding: ClinicDocumentBranding.fromSession(session),
     );
     expect(bytes.length, greaterThan(3000));
     expect(String.fromCharCodes(bytes.take(4)), '%PDF');

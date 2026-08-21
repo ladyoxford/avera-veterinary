@@ -14,6 +14,7 @@ import 'package:printing/printing.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/services/clinic_document_branding.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 
@@ -372,7 +373,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         }
     }
     return _ReportData(
-      clinicName: session.clinic.clinicName,
+      branding: ClinicDocumentBranding.fromSession(session),
       title: _title,
       rangeLabel: widget.type == ClinicReportType.inventoryValue
           ? 'Current inventory'
@@ -412,6 +413,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
       await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
 
   Future<Uint8List> _pdfBytes(_ReportData data) async {
+    final brandingService = const ClinicDocumentBrandingService();
+    final logo = await brandingService.loadLogo(data.branding.logoReference);
     final document = pw.Document();
     document.addPage(
       pw.MultiPage(
@@ -420,10 +423,8 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         header: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text(
-              data.clinicName,
-              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
-            ),
+            brandingService.identity(branding: data.branding, logo: logo),
+            pw.SizedBox(height: 8),
             pw.Text(
               data.title,
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
@@ -545,13 +546,13 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
 class _ReportData {
   const _ReportData({
-    required this.clinicName,
+    required this.branding,
     required this.title,
     required this.rangeLabel,
     required this.headers,
     required this.rows,
   });
-  final String clinicName;
+  final ClinicDocumentBranding branding;
   final String title;
   final String rangeLabel;
   final List<String> headers;

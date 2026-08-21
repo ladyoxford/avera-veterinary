@@ -11,6 +11,7 @@ import '../../../core/models/animal_catalogue.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/clinic_document_branding.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../services/farm_report_service.dart';
 
@@ -467,7 +468,9 @@ class _FarmDailyRecordDetailScreenState
         () => const FarmReportService().printDailyRecord(
           detail: detail,
           preparedBy: session?.user.fullName ?? detail.record.createdByUserId,
-          clinicName: session?.clinic.clinicName,
+          branding: session == null
+              ? null
+              : ClinicDocumentBranding.fromSession(session),
         ),
       );
 
@@ -476,7 +479,9 @@ class _FarmDailyRecordDetailScreenState
         final path = await const FarmReportService().saveDailyRecordPdf(
           detail: detail,
           preparedBy: session?.user.fullName ?? detail.record.createdByUserId,
-          clinicName: session?.clinic.clinicName,
+          branding: session == null
+              ? null
+              : ClinicDocumentBranding.fromSession(session),
         );
         if (mounted) {
           ScaffoldMessenger.of(
@@ -490,7 +495,9 @@ class _FarmDailyRecordDetailScreenState
         () => const FarmReportService().shareDailyRecord(
           detail: detail,
           preparedBy: session?.user.fullName ?? detail.record.createdByUserId,
-          clinicName: session?.clinic.clinicName,
+          branding: session == null
+              ? null
+              : ClinicDocumentBranding.fromSession(session),
         ),
       );
 

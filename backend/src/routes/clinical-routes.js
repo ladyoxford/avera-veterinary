@@ -168,7 +168,7 @@ export const createInvoiceSchema = z.object({
   submissionId: z.string().uuid(),
   patientId: z.string().uuid(),
   patientIds: z.array(z.string().uuid()).min(1).max(100).optional(),
-  status: z.enum(['Draft', 'Paid']),
+  status: z.enum(['Draft', 'Unpaid', 'Paid']),
   subtotal: z.number().min(0).max(1000000000000),
   total: z.number().min(0).max(1000000000000),
   services: z.array(z.object({
@@ -179,6 +179,14 @@ export const createInvoiceSchema = z.object({
     unitPrice: z.number().min(0).max(1000000000000).optional(),
   })).max(100).default([]),
 });
+
+export const recordInvoicePaymentSchema = z.object({
+  submissionId: z.string().uuid(),
+  amount: z.number().positive().max(1000000000000),
+  method: z.enum(['Cash', 'Card', 'Transfer', 'POS', 'Other']),
+  paidAt: z.string().datetime(),
+  reference: z.string().trim().max(240).nullish(),
+}).strict();
 
 const clinicalOperationTypes = ['Surgery', 'Prescription', 'Imaging', 'Document', 'Treatment'];
 export const createClinicalOperationSchema = z.object({
@@ -657,7 +665,11 @@ const invoiceList = {
   from: 'invoices i LEFT JOIN patients p ON p.patient_id = i.patient_id LEFT JOIN owners o ON o.owner_id = i.owner_id',
   select: `i.invoice_id, i.invoice_number, i.status, i.subtotal, i.tax,
            i.discount, i.total, i.amount_paid, i.balance, i.issued_at, i.due_at,
-           p.name AS patient_name, o.full_name AS owner_name,
+           p.name AS patient_name, o.full_name AS owner_name, o.phone AS owner_phone,
+           (SELECT string_agg(DISTINCT linked_patient.name, ', ' ORDER BY linked_patient.name)
+              FROM invoice_line_items linked_names
+              JOIN patients linked_patient ON linked_patient.patient_id=linked_names.patient_id
+             WHERE linked_names.clinic_id=i.clinic_id AND linked_names.invoice_id=i.invoice_id) AS patient_names,
            (SELECT count(DISTINCT linked.patient_id)::int
               FROM invoice_line_items linked
              WHERE linked.clinic_id=i.clinic_id AND linked.invoice_id=i.invoice_id
@@ -1800,6 +1812,29 @@ export async function clinicalRoutes(app) {
       );
       if (duplicate.rows[0]) {
         const existing = duplicate.rows[0];
+        if (existing.status === 'Draft' && input.status === 'Unpaid') {
+          const issued = await client.query(
+            `UPDATE invoices
+                SET status='Unpaid', balance=total
+              WHERE clinic_id=$1 AND invoice_id=$2 AND status='Draft'
+              RETURNING invoice_id, invoice_number, patient_id, status, subtotal,
+                        total, amount_paid, balance, issued_at`,
+            [request.auth.clinicId, existing.invoice_id],
+          );
+          if (issued.rows[0]) {
+            await writeAudit(client, {
+              clinicId: request.auth.clinicId,
+              actingUserId: request.auth.userId,
+              targetType: 'Invoice',
+              targetId: existing.invoice_id,
+              action: 'billing.invoice_issued',
+              previousSummary: { status: 'Draft' },
+              newSummary: { status: 'Unpaid', total: Number(issued.rows[0].total) },
+              sessionId: request.auth.sessionId,
+            });
+            return { ...issued.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
+          }
+        }
         if (existing.status === 'Draft' && input.status === 'Paid') {
           const promoted = await client.query(
             `UPDATE invoices
@@ -1927,7 +1962,11 @@ export async function clinicalRoutes(app) {
         actingUserId: request.auth.userId,
         targetType: 'Invoice',
         targetId: inserted.rows[0].invoice_id,
-        action: input.status === 'Paid' ? 'billing.sale_recorded' : 'billing.draft_created',
+        action: input.status === 'Paid'
+          ? 'billing.sale_recorded'
+          : input.status === 'Unpaid'
+            ? 'billing.invoice_issued'
+            : 'billing.draft_created',
         newSummary: { patientId: input.patientId, patientIds, total: authoritativeTotal, serviceCount: lines.length },
         sessionId: request.auth.sessionId,
       });
@@ -1942,7 +1981,8 @@ export async function clinicalRoutes(app) {
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'The invoice identifier is invalid.' });
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const invoice = await client.query(
-        `SELECT i.*, o.full_name AS owner_name
+        `SELECT i.*, o.full_name AS owner_name, o.phone AS owner_phone,
+                o.email AS owner_email
            FROM invoices i JOIN owners o ON o.owner_id=i.owner_id
           WHERE i.clinic_id=$1 AND i.invoice_id=$2`,
         [request.auth.clinicId, parsed.data.invoiceId],
@@ -1958,7 +1998,77 @@ export async function clinicalRoutes(app) {
           ORDER BY p.name NULLS LAST, l.created_at, l.invoice_line_item_id`,
         [request.auth.clinicId, parsed.data.invoiceId],
       );
-      return { invoice: invoice.rows[0], lineItems: lines.rows };
+      const payments = await client.query(
+        `SELECT payment_id, amount, method, paid_at, reference
+           FROM payments
+          WHERE clinic_id=$1 AND invoice_id=$2
+          ORDER BY paid_at DESC, payment_id DESC`,
+        [request.auth.clinicId, parsed.data.invoiceId],
+      );
+      return { invoice: invoice.rows[0], lineItems: lines.rows, payments: payments.rows };
+    });
+  });
+
+  app.post('/api/v1/invoices/:invoiceId/payments', { preHandler: [authenticate, requirePermission(permissions.billingRecordPayment)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = z.object({ invoiceId: z.string().uuid() }).safeParse(request.params);
+    const parsed = recordInvoicePaymentSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the payment information.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const input = parsed.data;
+      const duplicate = await client.query(
+        `SELECT p.payment_id, p.invoice_id, p.amount, p.method, p.paid_at, p.reference,
+                i.status AS invoice_status, i.amount_paid, i.balance
+           FROM payments p JOIN invoices i ON i.invoice_id=p.invoice_id AND i.clinic_id=p.clinic_id
+          WHERE p.clinic_id=$1 AND p.invoice_id=$2 AND p.submission_id=$3`,
+        [request.auth.clinicId, params.data.invoiceId, input.submissionId],
+      );
+      if (duplicate.rows[0]) return { payment: duplicate.rows[0], duplicateSubmission: true };
+      const invoice = await client.query(
+        `SELECT invoice_id, invoice_number, status, total, amount_paid, balance
+           FROM invoices WHERE clinic_id=$1 AND invoice_id=$2 FOR UPDATE`,
+        [request.auth.clinicId, params.data.invoiceId],
+      );
+      if (!invoice.rows[0]) return reply.code(404).send({ error: 'not_found', message: 'The invoice was not found in this clinic.' });
+      if (['Cancelled', 'Voided', 'Refunded'].includes(invoice.rows[0].status)) {
+        return reply.code(409).send({ error: 'invoice_not_payable', message: 'This invoice cannot accept a payment.' });
+      }
+      const outstanding = Number(invoice.rows[0].balance);
+      if (input.amount > outstanding + 0.001) {
+        return reply.code(409).send({ error: 'payment_exceeds_balance', message: 'The payment exceeds the outstanding invoice balance.' });
+      }
+      const payment = await client.query(
+        `INSERT INTO payments
+           (clinic_id, invoice_id, paid_at, amount, method, reference,
+            recorded_by, submission_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         RETURNING payment_id, invoice_id, amount, method, paid_at, reference`,
+        [request.auth.clinicId, params.data.invoiceId, input.paidAt, input.amount,
+          input.method, input.reference || null, request.auth.userId, input.submissionId],
+      );
+      const amountPaid = Number(invoice.rows[0].amount_paid) + input.amount;
+      const balance = Math.max(0, Number(invoice.rows[0].total) - amountPaid);
+      const status = balance <= 0.001 ? 'Paid' : 'Partially paid';
+      const updated = await client.query(
+        `UPDATE invoices SET status=$3, amount_paid=$4, balance=$5
+          WHERE clinic_id=$1 AND invoice_id=$2
+          RETURNING invoice_id, invoice_number, status, total, amount_paid, balance, issued_at`,
+        [request.auth.clinicId, params.data.invoiceId, status, amountPaid, balance],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Invoice',
+        targetId: params.data.invoiceId,
+        action: 'billing.payment_recorded',
+        previousSummary: { status: invoice.rows[0].status, amountPaid: Number(invoice.rows[0].amount_paid), balance: outstanding },
+        newSummary: { status, amountPaid, balance, method: input.method },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { payment: payment.rows[0], invoice: updated.rows[0], duplicateSubmission: false };
     });
   });
 

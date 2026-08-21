@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/backend_configuration.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../models/invoice_presentation.dart';
+import '../services/invoice_pdf_service.dart';
+import '../services/invoice_presentation_factory.dart';
+import '../widgets/invoice_preview_sheet.dart';
+import '../widgets/payment_capture_dialog.dart';
+import 'remote_billing_history_screen.dart';
 
 class BillingHistoryScreen extends ConsumerStatefulWidget {
   const BillingHistoryScreen({super.key, this.initialInvoiceId});
@@ -41,6 +47,9 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
           message: 'Your role does not permit access to invoice history.',
         ),
       );
+    }
+    if (BackendConfiguration.isConfigured) {
+      return RemoteBillingHistoryScreen(session: session);
     }
     final repository = ref.read(clinicRepositoryProvider);
     return Scaffold(
@@ -108,7 +117,8 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
                   children: [
                     for (final status in const [
                       'All',
-                      'Pending',
+                      'Draft',
+                      'Unpaid',
                       'Partially paid',
                       'Paid',
                       'Refunded',
@@ -159,7 +169,8 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
   }
 
   bool _matches(BillingHistoryEntry entry) {
-    if (_status != 'All' && entry.invoice.status != _status) return false;
+    final state = _stateFor(entry);
+    if (_status != 'All' && state.label != _status.toUpperCase()) return false;
     final now = DateTime.now();
     if (_period == '30 days' &&
         entry.invoice.createdAt.isBefore(
@@ -211,15 +222,21 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
               items.where((item) => item.invoice.id == invoiceId).firstOrNull,
         );
     if (!mounted || entry == null) return;
+    final presentation = InvoicePresentationFactory.local(
+      detail: detail,
+      entry: entry,
+      session: session,
+    );
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _InvoiceDetailSheet(
-        detail: detail,
-        entry: entry,
-        session: session,
-        onPayment: session.can(Permissions.billingRecordPayment)
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => InvoicePreviewSheet(
+        invoice: presentation,
+        onRecordPayment:
+            session.can(Permissions.billingRecordPayment) &&
+                detail.invoice.balance > 0
             ? () {
                 Navigator.pop(sheetContext);
                 _recordPayment(invoiceId, detail.invoice.balance, session);
@@ -242,7 +259,7 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
               }
             : null,
         onPrint: session.can(Permissions.billingPrint)
-            ? () => _print(detail, entry, session)
+            ? () => _print(presentation)
             : null,
       ),
     );
@@ -253,67 +270,11 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
     double outstanding,
     UserSession session,
   ) async {
-    final amount = TextEditingController(
-      text: outstanding > 0 ? outstanding.toStringAsFixed(2) : '',
-    );
-    var method = 'Cash';
-    final result = await showDialog<(double, String)>(
+    final result = await showPaymentCaptureDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Record Payment'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: amount,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Amount'),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: method,
-                isExpanded: true,
-                items: const [
-                  DropdownMenuItem(value: 'Cash', child: Text('Cash')),
-                  DropdownMenuItem(
-                    value: 'Bank transfer',
-                    child: Text('Bank transfer'),
-                  ),
-                  DropdownMenuItem(value: 'Card', child: Text('Card')),
-                  DropdownMenuItem(
-                    value: 'Mobile money',
-                    child: Text('Mobile money'),
-                  ),
-                ],
-                onChanged: (value) =>
-                    setDialogState(() => method = value ?? method),
-                decoration: const InputDecoration(labelText: 'Method'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final parsed = double.tryParse(amount.text.trim());
-                if (parsed != null && parsed > 0) {
-                  Navigator.pop(dialogContext, (parsed, method));
-                }
-              },
-              child: const Text('Record'),
-            ),
-          ],
-        ),
-      ),
+      outstanding: outstanding,
+      currency: session.clinic.currency,
     );
-    amount.dispose();
     if (result == null) return;
     try {
       await ref
@@ -321,8 +282,10 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
           .recordInvoicePayment(
             session: session,
             invoiceId: invoiceId,
-            amount: result.$1,
-            paymentMethod: result.$2,
+            amount: result.amount,
+            paymentMethod: result.method,
+            paidAt: result.paidAt,
+            reference: result.reference,
           );
       _message('Payment recorded.');
     } catch (error) {
@@ -437,71 +400,9 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
     }
   }
 
-  Future<void> _print(
-    InvoiceDetail detail,
-    BillingHistoryEntry entry,
-    UserSession session,
-  ) async {
-    final document = pw.Document();
-    document.addPage(
-      pw.MultiPage(
-        build: (_) => [
-          pw.Text(
-            session.clinic.clinicName,
-            style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.Text('Invoice ${detail.invoice.reference}'),
-          pw.SizedBox(height: 12),
-          pw.Text(
-            'Animals: ${detail.animals.map((animal) => '${animal.animalName} (${animal.hospitalNumber})').join(', ')}',
-          ),
-          pw.Text('Owner: ${entry.owner.fullName}'),
-          pw.Text('Status: ${detail.invoice.status}'),
-          pw.SizedBox(height: 16),
-          for (final line in detail.products)
-            pw.Text(
-              '${_linePatientName(detail, line.animalId)}: '
-              '${line.productNameSnapshot} x ${line.quantity}  '
-              '${session.clinic.currency} ${line.lineTotal.toStringAsFixed(2)}',
-            ),
-          for (final line in detail.services)
-            pw.Text(
-              '${_linePatientName(detail, line.animalId)}: ${line.description}  '
-              '${session.clinic.currency} ${line.amount.toStringAsFixed(2)}',
-            ),
-          pw.Divider(),
-          pw.Text(
-            'Total: ${session.clinic.currency} '
-            '${detail.invoice.total.toStringAsFixed(2)}',
-          ),
-          pw.Text(
-            'Paid: ${session.clinic.currency} '
-            '${detail.invoice.amountPaid.toStringAsFixed(2)}',
-          ),
-          pw.Text(
-            'Refunded: ${session.clinic.currency} '
-            '${detail.invoice.refundTotal.toStringAsFixed(2)}',
-          ),
-          pw.Text(
-            'Balance: ${session.clinic.currency} '
-            '${detail.invoice.balance.toStringAsFixed(2)}',
-          ),
-          if (detail.payments.isNotEmpty) ...[
-            pw.SizedBox(height: 18),
-            pw.Text(
-              'Payment history',
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            ),
-            for (final payment in detail.payments)
-              pw.Text(
-                '${payment.receiptNumber} - ${payment.transactionType} - '
-                '${session.clinic.currency} ${payment.amount.toStringAsFixed(2)}',
-              ),
-          ],
-        ],
-      ),
-    );
-    await Printing.layoutPdf(onLayout: (_) => document.save());
+  Future<void> _print(InvoicePresentation presentation) async {
+    final bytes = await const InvoicePdfService().build(presentation);
+    await Printing.layoutPdf(onLayout: (_) async => bytes);
   }
 
   void _message(String value) {
@@ -511,6 +412,14 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
     );
   }
 }
+
+InvoicePaymentState _stateFor(BillingHistoryEntry entry) =>
+    resolveInvoicePaymentState(
+      status: entry.invoice.status,
+      total: entry.invoice.total,
+      amountPaid: entry.invoice.amountPaid,
+      balance: entry.invoice.balance,
+    );
 
 class _InvoiceHistoryCard extends StatelessWidget {
   const _InvoiceHistoryCard({
@@ -574,7 +483,7 @@ class _InvoiceHistoryCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _BillingStatus(entry.invoice.status),
+                _BillingStatus(_stateFor(entry)),
                 const SizedBox(height: 10),
                 Text(
                   '$currency ${entry.invoice.total.toStringAsFixed(2)}',
@@ -597,197 +506,21 @@ class _InvoiceHistoryCard extends StatelessWidget {
   );
 }
 
-class _InvoiceDetailSheet extends StatelessWidget {
-  const _InvoiceDetailSheet({
-    required this.detail,
-    required this.entry,
-    required this.session,
-    this.onPayment,
-    this.onRefund,
-    this.onVoid,
-    this.onPrint,
-  });
-
-  final InvoiceDetail detail;
-  final BillingHistoryEntry entry;
-  final UserSession session;
-  final VoidCallback? onPayment;
-  final VoidCallback? onRefund;
-  final VoidCallback? onVoid;
-  final VoidCallback? onPrint;
-
-  @override
-  Widget build(BuildContext context) => DraggableScrollableSheet(
-    expand: false,
-    initialChildSize: 0.82,
-    minChildSize: 0.5,
-    maxChildSize: 0.96,
-    builder: (context, controller) => ListView(
-      controller: controller,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-      children: [
-        Center(
-          child: Container(
-            width: 42,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.outlineVariant,
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                detail.invoice.reference,
-                style: averaText(context).sectionTitle,
-              ),
-            ),
-            _BillingStatus(detail.invoice.status),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          detail.animals
-              .map(
-                (animal) => '${animal.animalName} - ${animal.hospitalNumber}',
-              )
-              .join('\n'),
-          style: averaText(context).listItemSubtitle,
-        ),
-        Text(entry.owner.fullName, style: averaText(context).caption),
-        const SizedBox(height: 20),
-        AveraSurfaceCard(
-          child: Column(
-            children: [
-              _AmountLine(
-                label: 'Invoice total',
-                amount: detail.invoice.total,
-                currency: session.clinic.currency,
-              ),
-              _AmountLine(
-                label: 'Paid',
-                amount: detail.invoice.amountPaid,
-                currency: session.clinic.currency,
-              ),
-              _AmountLine(
-                label: 'Refunded',
-                amount: detail.invoice.refundTotal,
-                currency: session.clinic.currency,
-              ),
-              _AmountLine(
-                label: 'Outstanding',
-                amount: detail.invoice.balance,
-                currency: session.clinic.currency,
-                emphasized: true,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        Text('Invoice Items', style: averaText(context).sectionLabel),
-        const SizedBox(height: 8),
-        AveraSurfaceCard(
-          child: Column(
-            children: [
-              for (final line in detail.products)
-                _LineItem(
-                  title: line.productNameSnapshot,
-                  subtitle:
-                      '${_linePatientName(detail, line.animalId)} | Quantity ${line.quantity}',
-                  amount: line.lineTotal,
-                  currency: session.clinic.currency,
-                ),
-              for (final line in detail.services)
-                _LineItem(
-                  title: line.description,
-                  subtitle: _linePatientName(detail, line.animalId),
-                  amount: line.amount,
-                  currency: session.clinic.currency,
-                ),
-            ],
-          ),
-        ),
-        if (detail.payments.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          Text('Payment History', style: averaText(context).sectionLabel),
-          const SizedBox(height: 8),
-          AveraSurfaceCard(
-            child: Column(
-              children: [
-                for (final payment in detail.payments)
-                  _LineItem(
-                    title: payment.receiptNumber,
-                    subtitle:
-                        '${payment.transactionType} - ${payment.paymentMethod}',
-                    amount: payment.transactionType == 'Refund'
-                        ? -payment.amount
-                        : payment.amount,
-                    currency: session.clinic.currency,
-                  ),
-              ],
-            ),
-          ),
-        ],
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            if (onPayment != null && detail.invoice.balance > 0)
-              FilledButton.icon(
-                onPressed: onPayment,
-                icon: const Icon(Icons.payments_outlined),
-                label: const Text('Record Payment'),
-              ),
-            if (onRefund != null)
-              OutlinedButton.icon(
-                onPressed: onRefund,
-                icon: const Icon(Icons.currency_exchange_rounded),
-                label: const Text('Refund'),
-              ),
-            if (onPrint != null)
-              OutlinedButton.icon(
-                onPressed: onPrint,
-                icon: const Icon(Icons.print_outlined),
-                label: const Text('Print / PDF'),
-              ),
-            if (onVoid != null)
-              TextButton.icon(
-                onPressed: onVoid,
-                icon: const Icon(Icons.block_rounded),
-                label: const Text('Void'),
-              ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-
-String _linePatientName(InvoiceDetail detail, int? animalId) {
-  if (animalId == null) return 'General / Shared';
-  return detail.animals
-          .where((animal) => animal.id == animalId)
-          .firstOrNull
-          ?.animalName ??
-      'Animal';
-}
-
 class _BillingStatus extends StatelessWidget {
-  const _BillingStatus(this.status);
+  const _BillingStatus(this.state);
 
-  final String status;
+  final InvoicePaymentState state;
 
   @override
   Widget build(BuildContext context) {
     final semantic = Theme.of(context).extension<AppSemanticColors>()!;
-    final color = switch (status) {
-      'Paid' => semantic.success,
-      'Partially paid' || 'Pending' => semantic.warning,
-      'Refunded' || 'Voided' => Theme.of(context).colorScheme.error,
+    final color = switch (state) {
+      InvoicePaymentState.paid => semantic.success,
+      InvoicePaymentState.partiallyPaid ||
+      InvoicePaymentState.unpaid => semantic.warning,
+      InvoicePaymentState.refunded ||
+      InvoicePaymentState.voided ||
+      InvoicePaymentState.cancelled => Theme.of(context).colorScheme.error,
       _ => Theme.of(context).colorScheme.primary,
     };
     return Container(
@@ -797,83 +530,13 @@ class _BillingStatus extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status,
+        state.label,
         style: averaText(
           context,
         ).caption.copyWith(color: color, fontWeight: FontWeight.w700),
       ),
     );
   }
-}
-
-class _AmountLine extends StatelessWidget {
-  const _AmountLine({
-    required this.label,
-    required this.amount,
-    required this.currency,
-    this.emphasized = false,
-  });
-
-  final String label;
-  final double amount;
-  final String currency;
-  final bool emphasized;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(label, style: averaText(context).listItemSubtitle),
-        ),
-        Text(
-          '$currency ${amount.toStringAsFixed(2)}',
-          style: emphasized
-              ? averaText(context).listItemTitle
-              : averaText(context).fieldValue,
-        ),
-      ],
-    ),
-  );
-}
-
-class _LineItem extends StatelessWidget {
-  const _LineItem({
-    required this.title,
-    required this.subtitle,
-    required this.amount,
-    required this.currency,
-  });
-
-  final String title;
-  final String subtitle;
-  final double amount;
-  final String currency;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: averaText(context).fieldValue),
-              Text(subtitle, style: averaText(context).caption),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          '$currency ${amount.toStringAsFixed(2)}',
-          style: averaText(context).fieldValue,
-        ),
-      ],
-    ),
-  );
 }
 
 class _BillingState extends StatelessWidget {

@@ -116,6 +116,34 @@ test('settings permissions follow the administrative role policy', () => {
   }
 });
 
+test('payment capture follows the clinic billing role policy', () => {
+  const allowed = ['cashier', 'practice_manager', 'sales_representative'];
+  for (const roleCode of allowed) {
+    const template = defaultClinicRoleTemplates.find(
+      (candidate) => candidate.code === roleCode,
+    );
+    assert.ok(template, `Missing default role template: ${roleCode}`);
+    assert.ok(template.permissions.includes('billing.record_payment'));
+  }
+  assert.ok(clinicAdministratorPermissionKeys.includes('billing.record_payment'));
+
+  const restricted = [
+    'veterinarian',
+    'veterinary_nurse',
+    'receptionist',
+    'laboratory_staff',
+    'pharmacist',
+    'inventory_officer',
+  ];
+  for (const roleCode of restricted) {
+    const template = defaultClinicRoleTemplates.find(
+      (candidate) => candidate.code === roleCode,
+    );
+    assert.ok(template, `Missing default role template: ${roleCode}`);
+    assert.equal(template.permissions.includes('billing.record_payment'), false);
+  }
+});
+
 test('every default role permission exists in the production permission catalog', () => {
   const migration = fs.readFileSync(
     new URL('../migrations/010_production_permission_catalog.sql', import.meta.url),

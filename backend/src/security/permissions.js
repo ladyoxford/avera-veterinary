@@ -29,6 +29,7 @@ export const permissions = {
   appointmentsEdit: 'appointments.edit', appointmentsCancel: 'appointments.cancel',
   appointmentsStartConsultation: 'appointments.start_consultation',
   billingView: 'billing.view', billingCreate: 'billing.create', billingManage: 'billing.manage',
+  billingRecordPayment: 'billing.record_payment',
   mediaView: 'media.view',
   clinicSettingsView: 'clinic_settings.view', clinicSettingsEdit: 'clinic_settings.edit',
   clinicWorkHoursManage: 'clinic.work_hours.manage',

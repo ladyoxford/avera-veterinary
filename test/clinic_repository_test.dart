@@ -414,6 +414,241 @@ void main() {
     },
   );
 
+  test(
+    'farm invoices preserve unselected treatments and prevent duplicate billing',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final farm = await repository.createFarm(
+        session: session,
+        name: 'Invoice Test Farm',
+        ownerOrganization: 'Invoice Test Client',
+        contactNumber: '08030000000',
+        speciesIds: const ['species_goat', 'species_sheep'],
+      );
+      final goatUnit = await repository.createFarmUnit(
+        session: session,
+        farmId: farm.id,
+        name: 'Goat Pen',
+        unitType: 'Pen',
+        speciesId: 'species_goat',
+        capacity: 13,
+        maleCount: 3,
+        femaleCount: 10,
+      );
+      final sheepUnit = await repository.createFarmUnit(
+        session: session,
+        farmId: farm.id,
+        name: 'Sheep Pen',
+        unitType: 'Pen',
+        speciesId: 'species_sheep',
+        capacity: 8,
+        maleCount: 3,
+        femaleCount: 5,
+      );
+      final visitDate = DateTime.now().subtract(const Duration(days: 1));
+      final goatTreatment = await repository.recordFarmUnitTreatment(
+        session: session,
+        farmId: farm.id,
+        unitId: goatUnit.id,
+        treatmentType: 'Deworming',
+        product: 'Albendazole',
+        administeredAt: visitDate,
+        animalsCovered: 13,
+        billableAmount: 26000,
+      );
+      final sheepTreatment = await repository.recordFarmUnitTreatment(
+        session: session,
+        farmId: farm.id,
+        unitId: sheepUnit.id,
+        treatmentType: 'Pour-On',
+        product: 'Ivermectin',
+        administeredAt: visitDate,
+        animalsCovered: 8,
+        billableAmount: 16000,
+      );
+
+      expect(
+        await repository.getFarmInvoiceCandidates(
+          session: session,
+          farmId: farm.id,
+          visitDate: visitDate,
+        ),
+        hasLength(2),
+      );
+      final invoice = await repository.saveFarmInvoiceDraft(
+        session: session,
+        farmId: farm.id,
+        visitDate: visitDate,
+        treatmentRecordIds: {goatTreatment.id},
+        sharedFarmFee: 5000,
+        sharedFeeDescription: 'Farm call-out fee',
+      );
+      expect(invoice.invoice.contextType, 'farm_visit');
+      expect(invoice.invoice.farmId, farm.id);
+      expect(invoice.invoice.animalId, equals(null));
+      expect(invoice.invoice.total, 31000);
+      expect(invoice.services, hasLength(2));
+      expect(
+        invoice.services
+            .singleWhere((line) => line.sourceTreatmentRecordId != null)
+            .sourceTreatmentRecordId,
+        goatTreatment.id,
+      );
+      expect(
+        invoice.services
+            .singleWhere((line) => line.sourceTreatmentRecordId == null)
+            .description,
+        'Farm call-out fee',
+      );
+
+      final remaining = await repository.getFarmInvoiceCandidates(
+        session: session,
+        farmId: farm.id,
+        visitDate: visitDate,
+      );
+      expect(remaining.map((candidate) => candidate.record.id), [
+        sheepTreatment.id,
+      ]);
+      expect(
+        await repository.getFarmUnitTreatments(
+          farmId: farm.id,
+          unitId: sheepUnit.id,
+        ),
+        hasLength(1),
+      );
+      await expectLater(
+        repository.saveFarmInvoiceDraft(
+          session: session,
+          farmId: farm.id,
+          visitDate: visitDate,
+          treatmentRecordIds: {goatTreatment.id},
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      await repository.issueInvoice(
+        session: session,
+        invoiceId: invoice.invoice.id,
+      );
+      await repository.recordInvoicePayment(
+        session: session,
+        invoiceId: invoice.invoice.id,
+        amount: invoice.invoice.total,
+        paymentMethod: 'Cash',
+        paidAt: visitDate,
+      );
+      final history = await repository.watchBillingHistory(session).first;
+      final historyEntry = history.singleWhere(
+        (entry) => entry.invoice.id == invoice.invoice.id,
+      );
+      expect(historyEntry.farm?.id, farm.id);
+      expect(historyEntry.animal, equals(null));
+      final revenue = await repository.getRevenueProfitSummary(
+        session: session,
+      );
+      expect(revenue.farmRevenue, 31000);
+      expect(revenue.clinicRevenue, 0);
+    },
+  );
+
+  test(
+    'product units derive every package count from one base stock',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final item = (await database.select(database.inventoryItems).get()).first;
+      await (database.update(database.inventoryItems)
+            ..where((row) => row.id.equals(item.id)))
+          .write(const InventoryItemsCompanion(quantity: Value(84)));
+
+      await repository.replaceProductUnits(
+        session: session,
+        inventoryItemId: item.id,
+        units: const [
+          (
+            label: 'Vial',
+            conversionToBase: 1,
+            sellingPrice: 3200.0,
+            isBase: true,
+          ),
+          (
+            label: 'Box',
+            conversionToBase: 10,
+            sellingPrice: 30000.0,
+            isBase: false,
+          ),
+          (
+            label: 'Carton',
+            conversionToBase: 100,
+            sellingPrice: 280000.0,
+            isBase: false,
+          ),
+        ],
+      );
+      final units = await repository
+          .watchProductUnits(session: session, inventoryItemId: item.id)
+          .first;
+      expect(units, hasLength(3));
+      expect(units.where((unit) => unit.isBaseUnit), hasLength(1));
+      expect(
+        ClinicRepository.displayedStockForUnit(
+          baseStock: 84,
+          conversionToBase: 1,
+        ),
+        84,
+      );
+      expect(
+        ClinicRepository.displayedStockForUnit(
+          baseStock: 84,
+          conversionToBase: 10,
+        ),
+        8,
+      );
+      expect(
+        ClinicRepository.displayedStockForUnit(
+          baseStock: 84,
+          conversionToBase: 100,
+        ),
+        0,
+      );
+      expect(
+        ClinicRepository.displayedStockForUnit(
+          baseStock: 74,
+          conversionToBase: 10,
+        ),
+        7,
+      );
+      await expectLater(
+        repository.replaceProductUnits(
+          session: session,
+          inventoryItemId: item.id,
+          units: const [
+            (
+              label: 'Box',
+              conversionToBase: 10,
+              sellingPrice: 30000.0,
+              isBase: true,
+            ),
+          ],
+        ),
+        throwsA(isA<StateError>()),
+      );
+    },
+  );
+
   test('paid invoice deducts stock once and void restores it once', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);

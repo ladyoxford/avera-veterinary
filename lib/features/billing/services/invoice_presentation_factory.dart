@@ -11,6 +11,7 @@ class InvoicePresentationFactory {
     required UserSession session,
   }) {
     final animals = {for (final animal in detail.animals) animal.id: animal};
+    final farmUnits = {for (final unit in detail.farmUnits) unit.id: unit};
     final lines = <InvoicePresentationLine>[
       for (final line in detail.products)
         InvoicePresentationLine(
@@ -29,8 +30,10 @@ class InvoicePresentationFactory {
           unitPrice: line.amount,
           amount: line.amount,
           patientId: line.animalId?.toString(),
-          patientName: animals[line.animalId]?.animalName,
           hospitalNumber: animals[line.animalId]?.hospitalNumber,
+          patientName:
+              animals[line.animalId]?.animalName ??
+              farmUnits[line.farmUnitId]?.name,
         ),
       if (detail.invoice.consultationFee > 0)
         InvoicePresentationLine(
@@ -51,8 +54,12 @@ class InvoicePresentationFactory {
       invoiceId: detail.invoice.id.toString(),
       invoiceNumber: detail.invoice.reference,
       issuedAt: detail.invoice.createdAt,
-      clientName: entry.owner.fullName,
-      clientPhone: entry.owner.phone,
+      clientName:
+          entry.owner?.fullName ??
+          detail.invoice.clientNameSnapshot ??
+          entry.farm?.name ??
+          'Farm client',
+      clientPhone: entry.owner?.phone ?? detail.invoice.clientPhoneSnapshot,
       branding: branding(session),
       lines: lines,
       total: detail.invoice.total,

@@ -249,16 +249,26 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 child: _InventoryCard(
                   item: item,
                   canSeeCost: session.can(Permissions.inventoryCostView),
-                  onTap:
-                      item.remote != null &&
-                          session.can(Permissions.inventoryEdit)
-                      ? () => _showItemDialog(
-                          context,
-                          ref,
-                          session,
-                          initial: InventoryItemDraft.fromRemote(item.remote!),
-                        )
-                      : null,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _InventoryProductDetailsScreen(
+                        item: item,
+                        session: session,
+                        onEdit: session.can(Permissions.inventoryEdit)
+                            ? () => _showItemDialog(
+                                context,
+                                ref,
+                                session,
+                                initial: item.remote == null
+                                    ? null
+                                    : InventoryItemDraft.fromRemote(
+                                        item.remote!,
+                                      ),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -548,6 +558,17 @@ class _InventoryDisplayItem {
     this.batchNumber,
     this.expiryDate,
     this.remote,
+    this.localId,
+    this.manufacturer,
+    this.supplier,
+    this.baseUnitLabel = 'unit',
+    this.activeIngredient,
+    this.dosageAndRoute,
+    this.withdrawalMeat,
+    this.withdrawalMilk,
+    this.withdrawalEggs,
+    this.warnings,
+    this.imagePath,
   });
 
   final String name;
@@ -561,6 +582,17 @@ class _InventoryDisplayItem {
   final String? batchNumber;
   final DateTime? expiryDate;
   final RemoteInventoryItem? remote;
+  final int? localId;
+  final String? manufacturer;
+  final String? supplier;
+  final String baseUnitLabel;
+  final String? activeIngredient;
+  final String? dosageAndRoute;
+  final String? withdrawalMeat;
+  final String? withdrawalMilk;
+  final String? withdrawalEggs;
+  final String? warnings;
+  final String? imagePath;
 
   factory _InventoryDisplayItem.fromLocal(InventoryItem item) =>
       _InventoryDisplayItem(
@@ -575,24 +607,44 @@ class _InventoryDisplayItem {
         isSellable: item.isSellable,
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
+        localId: item.id,
+        manufacturer: item.manufacturer,
+        supplier: item.supplier,
+        baseUnitLabel: item.baseUnitLabel,
+        activeIngredient: item.activeIngredient,
+        dosageAndRoute: item.dosageAndRoute,
+        withdrawalMeat: item.withdrawalMeat,
+        withdrawalMilk: item.withdrawalMilk,
+        withdrawalEggs: item.withdrawalEggs,
+        warnings: item.warnings,
+        imagePath: item.imagePath,
       );
 
-  factory _InventoryDisplayItem.fromRemote(
-    RemoteInventoryItem item,
-  ) => _InventoryDisplayItem(
-    name: item.name,
-    categoryId: item.categoryId,
-    categoryName:
-        InventoryCategories.byId(item.categoryId)?.name ?? item.categoryName,
-    quantity: item.quantity,
-    minimumQuantity: item.reorderLevel,
-    buyingPrice: item.purchasePrice.toDouble(),
-    sellingPrice: item.sellingPrice.toDouble(),
-    isSellable: InventoryCategories.byId(item.categoryId)?.isSellable ?? true,
-    batchNumber: item.batchNumber,
-    expiryDate: item.expiryDate,
-    remote: item,
-  );
+  factory _InventoryDisplayItem.fromRemote(RemoteInventoryItem item) =>
+      _InventoryDisplayItem(
+        name: item.name,
+        categoryId: item.categoryId,
+        categoryName:
+            InventoryCategories.byId(item.categoryId)?.name ??
+            item.categoryName,
+        quantity: item.quantity,
+        minimumQuantity: item.reorderLevel,
+        buyingPrice: item.purchasePrice.toDouble(),
+        sellingPrice: item.sellingPrice.toDouble(),
+        isSellable: item.isSellable,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+        manufacturer: item.manufacturer,
+        supplier: item.supplier,
+        baseUnitLabel: item.baseUnitLabel,
+        activeIngredient: item.activeIngredient ?? item.genericName,
+        dosageAndRoute: item.dosageAndRoute,
+        withdrawalMeat: item.withdrawalMeat,
+        withdrawalMilk: item.withdrawalMilk,
+        withdrawalEggs: item.withdrawalEggs,
+        warnings: item.warnings,
+        remote: item,
+      );
 }
 
 class _InventoryCard extends StatelessWidget {
@@ -680,6 +732,692 @@ class _InventoryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _InventoryProductDetailsScreen extends ConsumerWidget {
+  const _InventoryProductDetailsScreen({
+    required this.item,
+    required this.session,
+    this.onEdit,
+  });
+
+  final _InventoryDisplayItem item;
+  final UserSession session;
+  final Future<void> Function()? onEdit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final remoteId = item.remote?.id;
+    final refreshedRemote = remoteId == null
+        ? null
+        : ref
+              .watch(remoteInventoryListProvider)
+              .items
+              .where((candidate) => candidate.id == remoteId)
+              .firstOrNull;
+    final displayItem = refreshedRemote == null
+        ? item
+        : _InventoryDisplayItem.fromRemote(refreshedRemote);
+    final localId = displayItem.localId;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Product Details'),
+        actions: [
+          if (onEdit != null)
+            TextButton.icon(
+              onPressed: () async {
+                await onEdit!();
+                if (context.mounted) Navigator.of(context).pop();
+              },
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit'),
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+        children: [
+          _ProductHero(item: displayItem),
+          const SizedBox(height: 24),
+          _ProductSectionTitle(
+            title: 'Unit & Stock',
+            action:
+                (localId != null || remoteId != null) &&
+                    session.can(Permissions.inventoryEdit)
+                ? TextButton.icon(
+                    onPressed: () => _configureUnits(
+                      context,
+                      ref,
+                      localId: localId,
+                      remote: refreshedRemote ?? displayItem.remote,
+                    ),
+                    icon: const Icon(Icons.tune_rounded),
+                    label: const Text('Configure'),
+                  )
+                : null,
+          ),
+          if (remoteId != null)
+            _UnitCards(
+              item: displayItem,
+              units: (refreshedRemote ?? displayItem.remote)!.productUnits
+                  .map(
+                    (unit) => _ProductUnitView(
+                      id: unit.id,
+                      label: unit.label,
+                      conversionToBase: unit.conversionToBase,
+                      sellingPrice: unit.sellingPrice.toDouble(),
+                      isBase: unit.isBaseUnit,
+                    ),
+                  )
+                  .toList(growable: false),
+            )
+          else if (localId == null)
+            _UnitCards(
+              item: displayItem,
+              units: [
+                _ProductUnitView(
+                  label: displayItem.baseUnitLabel,
+                  conversionToBase: 1,
+                  sellingPrice: displayItem.sellingPrice,
+                  isBase: true,
+                ),
+              ],
+            )
+          else
+            StreamBuilder<List<ProductUnit>>(
+              stream: ref
+                  .read(clinicRepositoryProvider)
+                  .watchProductUnits(
+                    session: session,
+                    inventoryItemId: localId,
+                  ),
+              builder: (context, snapshot) {
+                final units = snapshot.data ?? const <ProductUnit>[];
+                return _UnitCards(
+                  item: displayItem,
+                  units: units
+                      .map(
+                        (unit) => _ProductUnitView(
+                          label: unit.unitLabel,
+                          conversionToBase: unit.conversionToBase,
+                          sellingPrice: unit.sellingPrice,
+                          isBase: unit.isBaseUnit,
+                        ),
+                      )
+                      .toList(growable: false),
+                );
+              },
+            ),
+          const SizedBox(height: 24),
+          const _ProductSectionTitle(title: 'Stock Information'),
+          _StockFacts(item: displayItem),
+          const SizedBox(height: 24),
+          const _ProductSectionTitle(title: 'Product Information'),
+          _ProductInformation(item: displayItem),
+          const SizedBox(height: 24),
+          const _ProductSectionTitle(title: 'Supplier'),
+          AveraSurfaceCard(
+            child: Row(
+              children: [
+                CircleAvatar(
+                  child: Text(
+                    (displayItem.supplier ?? displayItem.manufacturer ?? 'S')
+                        .trim()
+                        .substring(0, 1)
+                        .toUpperCase(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayItem.supplier ?? 'Supplier not set',
+                        style: averaText(context).listItemTitle,
+                      ),
+                      Text(
+                        displayItem.manufacturer ?? 'Manufacturer not set',
+                        style: averaText(context).listItemSubtitle,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed:
+                remoteId != null &&
+                    displayItem.quantity <= displayItem.minimumQuantity &&
+                    session.can(Permissions.inventoryAdjust)
+                ? () =>
+                      _requestRemoteReorder(context, ref, displayItem, remoteId)
+                : null,
+            icon: const Icon(Icons.local_shipping_outlined),
+            label: const Text('Request Reorder from Supplier'),
+          ),
+          if (remoteId != null) ...[
+            const SizedBox(height: 24),
+            const _ProductSectionTitle(title: 'Related Products'),
+            FutureBuilder<List<RemoteInventoryItem>>(
+              future: ref
+                  .read(remoteInventoryListProvider.notifier)
+                  .relatedProducts(remoteId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final related = snapshot.data ?? const <RemoteInventoryItem>[];
+                if (related.isEmpty) {
+                  return const AveraSurfaceCard(
+                    child: Text('No related products found.'),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final product in related)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(product.name),
+                          subtitle: Text(product.categoryName),
+                          trailing: Text(formatNaira(product.sellingPrice)),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _configureUnits(
+    BuildContext context,
+    WidgetRef ref, {
+    int? localId,
+    RemoteInventoryItem? remote,
+  }) async {
+    final localUnits = localId == null
+        ? const <ProductUnit>[]
+        : await ref
+              .read(clinicRepositoryProvider)
+              .watchProductUnits(session: session, inventoryItemId: localId)
+              .first;
+    if (!context.mounted) return;
+    final result = await showDialog<List<_ProductUnitView>>(
+      context: context,
+      builder: (_) => _ProductUnitsDialog(
+        initial: remote != null
+            ? remote.productUnits
+                  .map(
+                    (unit) => _ProductUnitView(
+                      id: unit.id,
+                      label: unit.label,
+                      conversionToBase: unit.conversionToBase,
+                      sellingPrice: unit.sellingPrice.toDouble(),
+                      isBase: unit.isBaseUnit,
+                    ),
+                  )
+                  .toList()
+            : localUnits
+                  .map(
+                    (unit) => _ProductUnitView(
+                      label: unit.unitLabel,
+                      conversionToBase: unit.conversionToBase,
+                      sellingPrice: unit.sellingPrice,
+                      isBase: unit.isBaseUnit,
+                    ),
+                  )
+                  .toList(),
+      ),
+    );
+    if (result == null) return;
+    if (remote != null) {
+      await ref
+          .read(remoteInventoryListProvider.notifier)
+          .replaceUnits(
+            itemId: remote.id,
+            units: [
+              for (final unit in result)
+                {
+                  if (unit.id != null) 'productUnitId': unit.id,
+                  'unitLabel': unit.label,
+                  'conversionToBase': unit.conversionToBase,
+                  'sellingPrice': unit.sellingPrice,
+                  'isBaseUnit': unit.isBase,
+                },
+            ],
+          );
+    } else if (localId != null) {
+      await ref
+          .read(clinicRepositoryProvider)
+          .replaceProductUnits(
+            session: session,
+            inventoryItemId: localId,
+            units: [
+              for (final unit in result)
+                (
+                  label: unit.label,
+                  conversionToBase: unit.conversionToBase,
+                  sellingPrice: unit.sellingPrice,
+                  isBase: unit.isBase,
+                ),
+            ],
+          );
+    }
+  }
+
+  Future<void> _requestRemoteReorder(
+    BuildContext context,
+    WidgetRef ref,
+    _InventoryDisplayItem item,
+    String remoteId,
+  ) async {
+    final quantity = (item.minimumQuantity - item.quantity)
+        .clamp(1, 100000000)
+        .toInt();
+    try {
+      await ref
+          .read(remoteInventoryListProvider.notifier)
+          .requestReorder(itemId: remoteId, requestedQuantity: quantity);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Reorder request sent to ${item.supplier}.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The reorder request could not be sent.')),
+      );
+    }
+  }
+}
+
+class _ProductHero extends StatelessWidget {
+  const _ProductHero({required this.item});
+  final _InventoryDisplayItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final expired = item.expiryDate?.isBefore(DateTime.now()) ?? false;
+    final low = !expired && item.quantity <= item.minimumQuantity;
+    return AveraSurfaceCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 84,
+            height: 84,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.inventory_2_outlined, size: 40),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name, style: averaText(context).sectionTitle),
+                Text(
+                  [item.categoryName, item.manufacturer]
+                      .whereType<String>()
+                      .where((value) => value.trim().isNotEmpty)
+                      .join(' / '),
+                  style: averaText(context).listItemSubtitle,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    Chip(
+                      label: Text(
+                        expired
+                            ? 'EXPIRED'
+                            : low
+                            ? 'LOW STOCK'
+                            : 'IN STOCK',
+                      ),
+                    ),
+                    Chip(label: Text(item.categoryName.toUpperCase())),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  formatNaira(item.sellingPrice),
+                  style: averaText(context).sectionTitle,
+                ),
+                Text(
+                  'per ${item.baseUnitLabel}',
+                  style: averaText(context).caption,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductSectionTitle extends StatelessWidget {
+  const _ProductSectionTitle({required this.title, this.action});
+  final String title;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(child: Text(title, style: averaText(context).sectionTitle)),
+      if (action != null) action!,
+    ],
+  );
+}
+
+class _ProductUnitView {
+  const _ProductUnitView({
+    this.id,
+    required this.label,
+    required this.conversionToBase,
+    required this.sellingPrice,
+    required this.isBase,
+  });
+  final String? id;
+  final String label;
+  final int conversionToBase;
+  final double sellingPrice;
+  final bool isBase;
+}
+
+class _UnitCards extends StatelessWidget {
+  const _UnitCards({required this.item, required this.units});
+  final _InventoryDisplayItem item;
+  final List<_ProductUnitView> units;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolved = units.isEmpty
+        ? [
+            _ProductUnitView(
+              label: item.baseUnitLabel,
+              conversionToBase: 1,
+              sellingPrice: item.sellingPrice,
+              isBase: true,
+            ),
+          ]
+        : units;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth < 430
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 12) / 2;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final unit in resolved)
+              SizedBox(
+                width: width,
+                child: AveraSurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${unit.label}${unit.isBase ? ' (base)' : ''}',
+                        style: averaText(context).listItemTitle,
+                      ),
+                      Text(formatNaira(unit.sellingPrice)),
+                      Text(
+                        '${ClinicRepository.displayedStockForUnit(baseStock: item.quantity, conversionToBase: unit.conversionToBase)} in stock',
+                        style: averaText(context).listItemSubtitle,
+                      ),
+                      if (!unit.isBase)
+                        Text(
+                          '1 ${unit.label} = ${unit.conversionToBase} ${item.baseUnitLabel}',
+                          style: averaText(context).caption,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _StockFacts extends StatelessWidget {
+  const _StockFacts({required this.item});
+  final _InventoryDisplayItem item;
+
+  @override
+  Widget build(BuildContext context) => AveraSurfaceCard(
+    child: Wrap(
+      spacing: 28,
+      runSpacing: 18,
+      children: [
+        _Fact('CURRENT STOCK', '${item.quantity} ${item.baseUnitLabel}'),
+        _Fact('REORDER LEVEL', '${item.minimumQuantity} ${item.baseUnitLabel}'),
+        _Fact('BATCH NUMBER', item.batchNumber ?? 'Not set'),
+        _Fact(
+          'EXPIRY DATE',
+          item.expiryDate == null
+              ? 'Not set'
+              : DateFormat.yMMMd().format(item.expiryDate!),
+        ),
+      ],
+    ),
+  );
+}
+
+class _Fact extends StatelessWidget {
+  const _Fact(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 160,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: averaText(context).caption),
+        const SizedBox(height: 4),
+        Text(value, style: averaText(context).listItemTitle),
+      ],
+    ),
+  );
+}
+
+class _ProductInformation extends StatelessWidget {
+  const _ProductInformation({required this.item});
+  final _InventoryDisplayItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final withdrawals = <String>[
+      if (item.withdrawalMeat?.trim().isNotEmpty ?? false)
+        'Meat: ${item.withdrawalMeat}',
+      if (item.withdrawalMilk?.trim().isNotEmpty ?? false)
+        'Milk: ${item.withdrawalMilk}',
+      if (item.withdrawalEggs?.trim().isNotEmpty ?? false)
+        'Eggs: ${item.withdrawalEggs}',
+    ];
+    return AveraSurfaceCard(
+      child: Column(
+        children: [
+          _InformationRow('ACTIVE INGREDIENT', item.activeIngredient),
+          const Divider(),
+          _InformationRow('DOSAGE & ROUTE', item.dosageAndRoute),
+          if (withdrawals.isNotEmpty) ...[
+            const Divider(),
+            _InformationRow('WITHDRAWAL PERIOD', withdrawals.join('\n')),
+          ],
+          const Divider(),
+          _InformationRow('WARNINGS', item.warnings),
+        ],
+      ),
+    );
+  }
+}
+
+class _InformationRow extends StatelessWidget {
+  const _InformationRow(this.label, this.value);
+  final String label;
+  final String? value;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.centerLeft,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: averaText(context).caption),
+        const SizedBox(height: 6),
+        Text(
+          value?.trim().isNotEmpty ?? false ? value! : 'Not set',
+          style: averaText(context).listItemSubtitle,
+        ),
+      ],
+    ),
+  );
+}
+
+class _ProductUnitsDialog extends StatefulWidget {
+  const _ProductUnitsDialog({required this.initial});
+  final List<_ProductUnitView> initial;
+
+  @override
+  State<_ProductUnitsDialog> createState() => _ProductUnitsDialogState();
+}
+
+class _ProductUnitsDialogState extends State<_ProductUnitsDialog> {
+  late List<_ProductUnitView> units = [...widget.initial];
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Product Units'),
+    content: SizedBox(
+      width: 480,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < units.length; index++)
+              ListTile(
+                title: Text(units[index].label),
+                subtitle: Text(
+                  '${units[index].conversionToBase} base units / ${formatNaira(units[index].sellingPrice)}',
+                ),
+                leading: Icon(
+                  units[index].isBase
+                      ? Icons.check_circle_rounded
+                      : Icons.inventory_2_outlined,
+                ),
+                trailing: units[index].isBase
+                    ? null
+                    : IconButton(
+                        onPressed: () => setState(() => units.removeAt(index)),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+              ),
+            OutlinedButton.icon(
+              onPressed: _addUnit,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add packaging unit'),
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, units),
+        child: const Text('Save'),
+      ),
+    ],
+  );
+
+  Future<void> _addUnit() async {
+    final label = TextEditingController();
+    final conversion = TextEditingController();
+    final price = TextEditingController();
+    final result = await showDialog<_ProductUnitView>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add packaging unit'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: label,
+              decoration: const InputDecoration(labelText: 'Unit label'),
+            ),
+            TextField(
+              controller: conversion,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Base units per package',
+              ),
+            ),
+            TextField(
+              controller: price,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Selling price'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final parsedConversion = int.tryParse(conversion.text.trim());
+              final parsedPrice = double.tryParse(price.text.trim());
+              if (label.text.trim().isEmpty ||
+                  parsedConversion == null ||
+                  parsedConversion <= 1 ||
+                  parsedPrice == null ||
+                  parsedPrice < 0) {
+                return;
+              }
+              Navigator.pop(
+                context,
+                _ProductUnitView(
+                  label: label.text.trim(),
+                  conversionToBase: parsedConversion,
+                  sellingPrice: parsedPrice,
+                  isBase: false,
+                ),
+              );
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    label.dispose();
+    conversion.dispose();
+    price.dispose();
+    if (result != null && mounted) setState(() => units.add(result));
   }
 }
 

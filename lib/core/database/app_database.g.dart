@@ -10699,6 +10699,95 @@ class $InventoryItemsTable extends InventoryItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _baseUnitLabelMeta = const VerificationMeta(
+    'baseUnitLabel',
+  );
+  @override
+  late final GeneratedColumn<String> baseUnitLabel = GeneratedColumn<String>(
+    'base_unit_label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('unit'),
+  );
+  static const VerificationMeta _activeIngredientMeta = const VerificationMeta(
+    'activeIngredient',
+  );
+  @override
+  late final GeneratedColumn<String> activeIngredient = GeneratedColumn<String>(
+    'active_ingredient',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dosageAndRouteMeta = const VerificationMeta(
+    'dosageAndRoute',
+  );
+  @override
+  late final GeneratedColumn<String> dosageAndRoute = GeneratedColumn<String>(
+    'dosage_and_route',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _withdrawalMeatMeta = const VerificationMeta(
+    'withdrawalMeat',
+  );
+  @override
+  late final GeneratedColumn<String> withdrawalMeat = GeneratedColumn<String>(
+    'withdrawal_meat',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _withdrawalMilkMeta = const VerificationMeta(
+    'withdrawalMilk',
+  );
+  @override
+  late final GeneratedColumn<String> withdrawalMilk = GeneratedColumn<String>(
+    'withdrawal_milk',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _withdrawalEggsMeta = const VerificationMeta(
+    'withdrawalEggs',
+  );
+  @override
+  late final GeneratedColumn<String> withdrawalEggs = GeneratedColumn<String>(
+    'withdrawal_eggs',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _warningsMeta = const VerificationMeta(
+    'warnings',
+  );
+  @override
+  late final GeneratedColumn<String> warnings = GeneratedColumn<String>(
+    'warnings',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _imagePathMeta = const VerificationMeta(
+    'imagePath',
+  );
+  @override
+  late final GeneratedColumn<String> imagePath = GeneratedColumn<String>(
+    'image_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isSellableMeta = const VerificationMeta(
     'isSellable',
   );
@@ -10767,6 +10856,14 @@ class $InventoryItemsTable extends InventoryItems
     sellingPrice,
     supplier,
     location,
+    baseUnitLabel,
+    activeIngredient,
+    dosageAndRoute,
+    withdrawalMeat,
+    withdrawalMilk,
+    withdrawalEggs,
+    warnings,
+    imagePath,
     isSellable,
     isArchived,
     createdAt,
@@ -10884,6 +10981,72 @@ class $InventoryItemsTable extends InventoryItems
         location.isAcceptableOrUnknown(data['location']!, _locationMeta),
       );
     }
+    if (data.containsKey('base_unit_label')) {
+      context.handle(
+        _baseUnitLabelMeta,
+        baseUnitLabel.isAcceptableOrUnknown(
+          data['base_unit_label']!,
+          _baseUnitLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('active_ingredient')) {
+      context.handle(
+        _activeIngredientMeta,
+        activeIngredient.isAcceptableOrUnknown(
+          data['active_ingredient']!,
+          _activeIngredientMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dosage_and_route')) {
+      context.handle(
+        _dosageAndRouteMeta,
+        dosageAndRoute.isAcceptableOrUnknown(
+          data['dosage_and_route']!,
+          _dosageAndRouteMeta,
+        ),
+      );
+    }
+    if (data.containsKey('withdrawal_meat')) {
+      context.handle(
+        _withdrawalMeatMeta,
+        withdrawalMeat.isAcceptableOrUnknown(
+          data['withdrawal_meat']!,
+          _withdrawalMeatMeta,
+        ),
+      );
+    }
+    if (data.containsKey('withdrawal_milk')) {
+      context.handle(
+        _withdrawalMilkMeta,
+        withdrawalMilk.isAcceptableOrUnknown(
+          data['withdrawal_milk']!,
+          _withdrawalMilkMeta,
+        ),
+      );
+    }
+    if (data.containsKey('withdrawal_eggs')) {
+      context.handle(
+        _withdrawalEggsMeta,
+        withdrawalEggs.isAcceptableOrUnknown(
+          data['withdrawal_eggs']!,
+          _withdrawalEggsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('warnings')) {
+      context.handle(
+        _warningsMeta,
+        warnings.isAcceptableOrUnknown(data['warnings']!, _warningsMeta),
+      );
+    }
+    if (data.containsKey('image_path')) {
+      context.handle(
+        _imagePathMeta,
+        imagePath.isAcceptableOrUnknown(data['image_path']!, _imagePathMeta),
+      );
+    }
     if (data.containsKey('is_sellable')) {
       context.handle(
         _isSellableMeta,
@@ -10973,6 +11136,38 @@ class $InventoryItemsTable extends InventoryItems
         DriftSqlType.string,
         data['${effectivePrefix}location'],
       ),
+      baseUnitLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_unit_label'],
+      )!,
+      activeIngredient: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}active_ingredient'],
+      ),
+      dosageAndRoute: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dosage_and_route'],
+      ),
+      withdrawalMeat: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}withdrawal_meat'],
+      ),
+      withdrawalMilk: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}withdrawal_milk'],
+      ),
+      withdrawalEggs: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}withdrawal_eggs'],
+      ),
+      warnings: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}warnings'],
+      ),
+      imagePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_path'],
+      ),
       isSellable: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_sellable'],
@@ -11013,6 +11208,14 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
   final double sellingPrice;
   final String? supplier;
   final String? location;
+  final String baseUnitLabel;
+  final String? activeIngredient;
+  final String? dosageAndRoute;
+  final String? withdrawalMeat;
+  final String? withdrawalMilk;
+  final String? withdrawalEggs;
+  final String? warnings;
+  final String? imagePath;
   final bool isSellable;
   final bool isArchived;
   final DateTime? createdAt;
@@ -11032,6 +11235,14 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     required this.sellingPrice,
     this.supplier,
     this.location,
+    required this.baseUnitLabel,
+    this.activeIngredient,
+    this.dosageAndRoute,
+    this.withdrawalMeat,
+    this.withdrawalMilk,
+    this.withdrawalEggs,
+    this.warnings,
+    this.imagePath,
     required this.isSellable,
     required this.isArchived,
     this.createdAt,
@@ -11065,6 +11276,28 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     }
     if (!nullToAbsent || location != null) {
       map['location'] = Variable<String>(location);
+    }
+    map['base_unit_label'] = Variable<String>(baseUnitLabel);
+    if (!nullToAbsent || activeIngredient != null) {
+      map['active_ingredient'] = Variable<String>(activeIngredient);
+    }
+    if (!nullToAbsent || dosageAndRoute != null) {
+      map['dosage_and_route'] = Variable<String>(dosageAndRoute);
+    }
+    if (!nullToAbsent || withdrawalMeat != null) {
+      map['withdrawal_meat'] = Variable<String>(withdrawalMeat);
+    }
+    if (!nullToAbsent || withdrawalMilk != null) {
+      map['withdrawal_milk'] = Variable<String>(withdrawalMilk);
+    }
+    if (!nullToAbsent || withdrawalEggs != null) {
+      map['withdrawal_eggs'] = Variable<String>(withdrawalEggs);
+    }
+    if (!nullToAbsent || warnings != null) {
+      map['warnings'] = Variable<String>(warnings);
+    }
+    if (!nullToAbsent || imagePath != null) {
+      map['image_path'] = Variable<String>(imagePath);
     }
     map['is_sellable'] = Variable<bool>(isSellable);
     map['is_archived'] = Variable<bool>(isArchived);
@@ -11105,6 +11338,28 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       location: location == null && nullToAbsent
           ? const Value.absent()
           : Value(location),
+      baseUnitLabel: Value(baseUnitLabel),
+      activeIngredient: activeIngredient == null && nullToAbsent
+          ? const Value.absent()
+          : Value(activeIngredient),
+      dosageAndRoute: dosageAndRoute == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dosageAndRoute),
+      withdrawalMeat: withdrawalMeat == null && nullToAbsent
+          ? const Value.absent()
+          : Value(withdrawalMeat),
+      withdrawalMilk: withdrawalMilk == null && nullToAbsent
+          ? const Value.absent()
+          : Value(withdrawalMilk),
+      withdrawalEggs: withdrawalEggs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(withdrawalEggs),
+      warnings: warnings == null && nullToAbsent
+          ? const Value.absent()
+          : Value(warnings),
+      imagePath: imagePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imagePath),
       isSellable: Value(isSellable),
       isArchived: Value(isArchived),
       createdAt: createdAt == null && nullToAbsent
@@ -11136,6 +11391,14 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       sellingPrice: serializer.fromJson<double>(json['sellingPrice']),
       supplier: serializer.fromJson<String?>(json['supplier']),
       location: serializer.fromJson<String?>(json['location']),
+      baseUnitLabel: serializer.fromJson<String>(json['baseUnitLabel']),
+      activeIngredient: serializer.fromJson<String?>(json['activeIngredient']),
+      dosageAndRoute: serializer.fromJson<String?>(json['dosageAndRoute']),
+      withdrawalMeat: serializer.fromJson<String?>(json['withdrawalMeat']),
+      withdrawalMilk: serializer.fromJson<String?>(json['withdrawalMilk']),
+      withdrawalEggs: serializer.fromJson<String?>(json['withdrawalEggs']),
+      warnings: serializer.fromJson<String?>(json['warnings']),
+      imagePath: serializer.fromJson<String?>(json['imagePath']),
       isSellable: serializer.fromJson<bool>(json['isSellable']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
@@ -11160,6 +11423,14 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       'sellingPrice': serializer.toJson<double>(sellingPrice),
       'supplier': serializer.toJson<String?>(supplier),
       'location': serializer.toJson<String?>(location),
+      'baseUnitLabel': serializer.toJson<String>(baseUnitLabel),
+      'activeIngredient': serializer.toJson<String?>(activeIngredient),
+      'dosageAndRoute': serializer.toJson<String?>(dosageAndRoute),
+      'withdrawalMeat': serializer.toJson<String?>(withdrawalMeat),
+      'withdrawalMilk': serializer.toJson<String?>(withdrawalMilk),
+      'withdrawalEggs': serializer.toJson<String?>(withdrawalEggs),
+      'warnings': serializer.toJson<String?>(warnings),
+      'imagePath': serializer.toJson<String?>(imagePath),
       'isSellable': serializer.toJson<bool>(isSellable),
       'isArchived': serializer.toJson<bool>(isArchived),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
@@ -11182,6 +11453,14 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     double? sellingPrice,
     Value<String?> supplier = const Value.absent(),
     Value<String?> location = const Value.absent(),
+    String? baseUnitLabel,
+    Value<String?> activeIngredient = const Value.absent(),
+    Value<String?> dosageAndRoute = const Value.absent(),
+    Value<String?> withdrawalMeat = const Value.absent(),
+    Value<String?> withdrawalMilk = const Value.absent(),
+    Value<String?> withdrawalEggs = const Value.absent(),
+    Value<String?> warnings = const Value.absent(),
+    Value<String?> imagePath = const Value.absent(),
     bool? isSellable,
     bool? isArchived,
     Value<DateTime?> createdAt = const Value.absent(),
@@ -11201,6 +11480,24 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     sellingPrice: sellingPrice ?? this.sellingPrice,
     supplier: supplier.present ? supplier.value : this.supplier,
     location: location.present ? location.value : this.location,
+    baseUnitLabel: baseUnitLabel ?? this.baseUnitLabel,
+    activeIngredient: activeIngredient.present
+        ? activeIngredient.value
+        : this.activeIngredient,
+    dosageAndRoute: dosageAndRoute.present
+        ? dosageAndRoute.value
+        : this.dosageAndRoute,
+    withdrawalMeat: withdrawalMeat.present
+        ? withdrawalMeat.value
+        : this.withdrawalMeat,
+    withdrawalMilk: withdrawalMilk.present
+        ? withdrawalMilk.value
+        : this.withdrawalMilk,
+    withdrawalEggs: withdrawalEggs.present
+        ? withdrawalEggs.value
+        : this.withdrawalEggs,
+    warnings: warnings.present ? warnings.value : this.warnings,
+    imagePath: imagePath.present ? imagePath.value : this.imagePath,
     isSellable: isSellable ?? this.isSellable,
     isArchived: isArchived ?? this.isArchived,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
@@ -11236,6 +11533,26 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           : this.sellingPrice,
       supplier: data.supplier.present ? data.supplier.value : this.supplier,
       location: data.location.present ? data.location.value : this.location,
+      baseUnitLabel: data.baseUnitLabel.present
+          ? data.baseUnitLabel.value
+          : this.baseUnitLabel,
+      activeIngredient: data.activeIngredient.present
+          ? data.activeIngredient.value
+          : this.activeIngredient,
+      dosageAndRoute: data.dosageAndRoute.present
+          ? data.dosageAndRoute.value
+          : this.dosageAndRoute,
+      withdrawalMeat: data.withdrawalMeat.present
+          ? data.withdrawalMeat.value
+          : this.withdrawalMeat,
+      withdrawalMilk: data.withdrawalMilk.present
+          ? data.withdrawalMilk.value
+          : this.withdrawalMilk,
+      withdrawalEggs: data.withdrawalEggs.present
+          ? data.withdrawalEggs.value
+          : this.withdrawalEggs,
+      warnings: data.warnings.present ? data.warnings.value : this.warnings,
+      imagePath: data.imagePath.present ? data.imagePath.value : this.imagePath,
       isSellable: data.isSellable.present
           ? data.isSellable.value
           : this.isSellable,
@@ -11264,6 +11581,14 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           ..write('sellingPrice: $sellingPrice, ')
           ..write('supplier: $supplier, ')
           ..write('location: $location, ')
+          ..write('baseUnitLabel: $baseUnitLabel, ')
+          ..write('activeIngredient: $activeIngredient, ')
+          ..write('dosageAndRoute: $dosageAndRoute, ')
+          ..write('withdrawalMeat: $withdrawalMeat, ')
+          ..write('withdrawalMilk: $withdrawalMilk, ')
+          ..write('withdrawalEggs: $withdrawalEggs, ')
+          ..write('warnings: $warnings, ')
+          ..write('imagePath: $imagePath, ')
           ..write('isSellable: $isSellable, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
@@ -11273,7 +11598,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     clinicId,
     drugName,
@@ -11288,11 +11613,19 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     sellingPrice,
     supplier,
     location,
+    baseUnitLabel,
+    activeIngredient,
+    dosageAndRoute,
+    withdrawalMeat,
+    withdrawalMilk,
+    withdrawalEggs,
+    warnings,
+    imagePath,
     isSellable,
     isArchived,
     createdAt,
     updatedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -11311,6 +11644,14 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           other.sellingPrice == this.sellingPrice &&
           other.supplier == this.supplier &&
           other.location == this.location &&
+          other.baseUnitLabel == this.baseUnitLabel &&
+          other.activeIngredient == this.activeIngredient &&
+          other.dosageAndRoute == this.dosageAndRoute &&
+          other.withdrawalMeat == this.withdrawalMeat &&
+          other.withdrawalMilk == this.withdrawalMilk &&
+          other.withdrawalEggs == this.withdrawalEggs &&
+          other.warnings == this.warnings &&
+          other.imagePath == this.imagePath &&
           other.isSellable == this.isSellable &&
           other.isArchived == this.isArchived &&
           other.createdAt == this.createdAt &&
@@ -11332,6 +11673,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
   final Value<double> sellingPrice;
   final Value<String?> supplier;
   final Value<String?> location;
+  final Value<String> baseUnitLabel;
+  final Value<String?> activeIngredient;
+  final Value<String?> dosageAndRoute;
+  final Value<String?> withdrawalMeat;
+  final Value<String?> withdrawalMilk;
+  final Value<String?> withdrawalEggs;
+  final Value<String?> warnings;
+  final Value<String?> imagePath;
   final Value<bool> isSellable;
   final Value<bool> isArchived;
   final Value<DateTime?> createdAt;
@@ -11351,6 +11700,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.sellingPrice = const Value.absent(),
     this.supplier = const Value.absent(),
     this.location = const Value.absent(),
+    this.baseUnitLabel = const Value.absent(),
+    this.activeIngredient = const Value.absent(),
+    this.dosageAndRoute = const Value.absent(),
+    this.withdrawalMeat = const Value.absent(),
+    this.withdrawalMilk = const Value.absent(),
+    this.withdrawalEggs = const Value.absent(),
+    this.warnings = const Value.absent(),
+    this.imagePath = const Value.absent(),
     this.isSellable = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -11371,6 +11728,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.sellingPrice = const Value.absent(),
     this.supplier = const Value.absent(),
     this.location = const Value.absent(),
+    this.baseUnitLabel = const Value.absent(),
+    this.activeIngredient = const Value.absent(),
+    this.dosageAndRoute = const Value.absent(),
+    this.withdrawalMeat = const Value.absent(),
+    this.withdrawalMilk = const Value.absent(),
+    this.withdrawalEggs = const Value.absent(),
+    this.warnings = const Value.absent(),
+    this.imagePath = const Value.absent(),
     this.isSellable = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -11392,6 +11757,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Expression<double>? sellingPrice,
     Expression<String>? supplier,
     Expression<String>? location,
+    Expression<String>? baseUnitLabel,
+    Expression<String>? activeIngredient,
+    Expression<String>? dosageAndRoute,
+    Expression<String>? withdrawalMeat,
+    Expression<String>? withdrawalMilk,
+    Expression<String>? withdrawalEggs,
+    Expression<String>? warnings,
+    Expression<String>? imagePath,
     Expression<bool>? isSellable,
     Expression<bool>? isArchived,
     Expression<DateTime>? createdAt,
@@ -11412,6 +11785,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       if (sellingPrice != null) 'selling_price': sellingPrice,
       if (supplier != null) 'supplier': supplier,
       if (location != null) 'location': location,
+      if (baseUnitLabel != null) 'base_unit_label': baseUnitLabel,
+      if (activeIngredient != null) 'active_ingredient': activeIngredient,
+      if (dosageAndRoute != null) 'dosage_and_route': dosageAndRoute,
+      if (withdrawalMeat != null) 'withdrawal_meat': withdrawalMeat,
+      if (withdrawalMilk != null) 'withdrawal_milk': withdrawalMilk,
+      if (withdrawalEggs != null) 'withdrawal_eggs': withdrawalEggs,
+      if (warnings != null) 'warnings': warnings,
+      if (imagePath != null) 'image_path': imagePath,
       if (isSellable != null) 'is_sellable': isSellable,
       if (isArchived != null) 'is_archived': isArchived,
       if (createdAt != null) 'created_at': createdAt,
@@ -11434,6 +11815,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Value<double>? sellingPrice,
     Value<String?>? supplier,
     Value<String?>? location,
+    Value<String>? baseUnitLabel,
+    Value<String?>? activeIngredient,
+    Value<String?>? dosageAndRoute,
+    Value<String?>? withdrawalMeat,
+    Value<String?>? withdrawalMilk,
+    Value<String?>? withdrawalEggs,
+    Value<String?>? warnings,
+    Value<String?>? imagePath,
     Value<bool>? isSellable,
     Value<bool>? isArchived,
     Value<DateTime?>? createdAt,
@@ -11454,6 +11843,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       sellingPrice: sellingPrice ?? this.sellingPrice,
       supplier: supplier ?? this.supplier,
       location: location ?? this.location,
+      baseUnitLabel: baseUnitLabel ?? this.baseUnitLabel,
+      activeIngredient: activeIngredient ?? this.activeIngredient,
+      dosageAndRoute: dosageAndRoute ?? this.dosageAndRoute,
+      withdrawalMeat: withdrawalMeat ?? this.withdrawalMeat,
+      withdrawalMilk: withdrawalMilk ?? this.withdrawalMilk,
+      withdrawalEggs: withdrawalEggs ?? this.withdrawalEggs,
+      warnings: warnings ?? this.warnings,
+      imagePath: imagePath ?? this.imagePath,
       isSellable: isSellable ?? this.isSellable,
       isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
@@ -11506,6 +11903,30 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     if (location.present) {
       map['location'] = Variable<String>(location.value);
     }
+    if (baseUnitLabel.present) {
+      map['base_unit_label'] = Variable<String>(baseUnitLabel.value);
+    }
+    if (activeIngredient.present) {
+      map['active_ingredient'] = Variable<String>(activeIngredient.value);
+    }
+    if (dosageAndRoute.present) {
+      map['dosage_and_route'] = Variable<String>(dosageAndRoute.value);
+    }
+    if (withdrawalMeat.present) {
+      map['withdrawal_meat'] = Variable<String>(withdrawalMeat.value);
+    }
+    if (withdrawalMilk.present) {
+      map['withdrawal_milk'] = Variable<String>(withdrawalMilk.value);
+    }
+    if (withdrawalEggs.present) {
+      map['withdrawal_eggs'] = Variable<String>(withdrawalEggs.value);
+    }
+    if (warnings.present) {
+      map['warnings'] = Variable<String>(warnings.value);
+    }
+    if (imagePath.present) {
+      map['image_path'] = Variable<String>(imagePath.value);
+    }
     if (isSellable.present) {
       map['is_sellable'] = Variable<bool>(isSellable.value);
     }
@@ -11538,6 +11959,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
           ..write('sellingPrice: $sellingPrice, ')
           ..write('supplier: $supplier, ')
           ..write('location: $location, ')
+          ..write('baseUnitLabel: $baseUnitLabel, ')
+          ..write('activeIngredient: $activeIngredient, ')
+          ..write('dosageAndRoute: $dosageAndRoute, ')
+          ..write('withdrawalMeat: $withdrawalMeat, ')
+          ..write('withdrawalMilk: $withdrawalMilk, ')
+          ..write('withdrawalEggs: $withdrawalEggs, ')
+          ..write('warnings: $warnings, ')
+          ..write('imagePath: $imagePath, ')
           ..write('isSellable: $isSellable, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
@@ -15953,6 +16382,588 @@ class VaccinationsCompanion extends UpdateCompanion<Vaccination> {
   }
 }
 
+class $ProductUnitsTable extends ProductUnits
+    with TableInfo<$ProductUnitsTable, ProductUnit> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProductUnitsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
+    'clinicId',
+  );
+  @override
+  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
+    'clinic_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES clinics (clinic_id)',
+    ),
+  );
+  static const VerificationMeta _inventoryItemIdMeta = const VerificationMeta(
+    'inventoryItemId',
+  );
+  @override
+  late final GeneratedColumn<int> inventoryItemId = GeneratedColumn<int>(
+    'inventory_item_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES inventory_items (id)',
+    ),
+  );
+  static const VerificationMeta _unitLabelMeta = const VerificationMeta(
+    'unitLabel',
+  );
+  @override
+  late final GeneratedColumn<String> unitLabel = GeneratedColumn<String>(
+    'unit_label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isBaseUnitMeta = const VerificationMeta(
+    'isBaseUnit',
+  );
+  @override
+  late final GeneratedColumn<bool> isBaseUnit = GeneratedColumn<bool>(
+    'is_base_unit',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_base_unit" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _conversionToBaseMeta = const VerificationMeta(
+    'conversionToBase',
+  );
+  @override
+  late final GeneratedColumn<int> conversionToBase = GeneratedColumn<int>(
+    'conversion_to_base',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sellingPriceMeta = const VerificationMeta(
+    'sellingPrice',
+  );
+  @override
+  late final GeneratedColumn<double> sellingPrice = GeneratedColumn<double>(
+    'selling_price',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    clinicId,
+    inventoryItemId,
+    unitLabel,
+    isBaseUnit,
+    conversionToBase,
+    sellingPrice,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'product_units';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProductUnit> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('clinic_id')) {
+      context.handle(
+        _clinicIdMeta,
+        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_clinicIdMeta);
+    }
+    if (data.containsKey('inventory_item_id')) {
+      context.handle(
+        _inventoryItemIdMeta,
+        inventoryItemId.isAcceptableOrUnknown(
+          data['inventory_item_id']!,
+          _inventoryItemIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_inventoryItemIdMeta);
+    }
+    if (data.containsKey('unit_label')) {
+      context.handle(
+        _unitLabelMeta,
+        unitLabel.isAcceptableOrUnknown(data['unit_label']!, _unitLabelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_unitLabelMeta);
+    }
+    if (data.containsKey('is_base_unit')) {
+      context.handle(
+        _isBaseUnitMeta,
+        isBaseUnit.isAcceptableOrUnknown(
+          data['is_base_unit']!,
+          _isBaseUnitMeta,
+        ),
+      );
+    }
+    if (data.containsKey('conversion_to_base')) {
+      context.handle(
+        _conversionToBaseMeta,
+        conversionToBase.isAcceptableOrUnknown(
+          data['conversion_to_base']!,
+          _conversionToBaseMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_conversionToBaseMeta);
+    }
+    if (data.containsKey('selling_price')) {
+      context.handle(
+        _sellingPriceMeta,
+        sellingPrice.isAcceptableOrUnknown(
+          data['selling_price']!,
+          _sellingPriceMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sellingPriceMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {inventoryItemId, unitLabel},
+  ];
+  @override
+  ProductUnit map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProductUnit(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      clinicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}clinic_id'],
+      )!,
+      inventoryItemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}inventory_item_id'],
+      )!,
+      unitLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unit_label'],
+      )!,
+      isBaseUnit: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_base_unit'],
+      )!,
+      conversionToBase: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}conversion_to_base'],
+      )!,
+      sellingPrice: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}selling_price'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $ProductUnitsTable createAlias(String alias) {
+    return $ProductUnitsTable(attachedDatabase, alias);
+  }
+}
+
+class ProductUnit extends DataClass implements Insertable<ProductUnit> {
+  final int id;
+  final String clinicId;
+  final int inventoryItemId;
+  final String unitLabel;
+  final bool isBaseUnit;
+  final int conversionToBase;
+  final double sellingPrice;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const ProductUnit({
+    required this.id,
+    required this.clinicId,
+    required this.inventoryItemId,
+    required this.unitLabel,
+    required this.isBaseUnit,
+    required this.conversionToBase,
+    required this.sellingPrice,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['clinic_id'] = Variable<String>(clinicId);
+    map['inventory_item_id'] = Variable<int>(inventoryItemId);
+    map['unit_label'] = Variable<String>(unitLabel);
+    map['is_base_unit'] = Variable<bool>(isBaseUnit);
+    map['conversion_to_base'] = Variable<int>(conversionToBase);
+    map['selling_price'] = Variable<double>(sellingPrice);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  ProductUnitsCompanion toCompanion(bool nullToAbsent) {
+    return ProductUnitsCompanion(
+      id: Value(id),
+      clinicId: Value(clinicId),
+      inventoryItemId: Value(inventoryItemId),
+      unitLabel: Value(unitLabel),
+      isBaseUnit: Value(isBaseUnit),
+      conversionToBase: Value(conversionToBase),
+      sellingPrice: Value(sellingPrice),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory ProductUnit.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProductUnit(
+      id: serializer.fromJson<int>(json['id']),
+      clinicId: serializer.fromJson<String>(json['clinicId']),
+      inventoryItemId: serializer.fromJson<int>(json['inventoryItemId']),
+      unitLabel: serializer.fromJson<String>(json['unitLabel']),
+      isBaseUnit: serializer.fromJson<bool>(json['isBaseUnit']),
+      conversionToBase: serializer.fromJson<int>(json['conversionToBase']),
+      sellingPrice: serializer.fromJson<double>(json['sellingPrice']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'clinicId': serializer.toJson<String>(clinicId),
+      'inventoryItemId': serializer.toJson<int>(inventoryItemId),
+      'unitLabel': serializer.toJson<String>(unitLabel),
+      'isBaseUnit': serializer.toJson<bool>(isBaseUnit),
+      'conversionToBase': serializer.toJson<int>(conversionToBase),
+      'sellingPrice': serializer.toJson<double>(sellingPrice),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  ProductUnit copyWith({
+    int? id,
+    String? clinicId,
+    int? inventoryItemId,
+    String? unitLabel,
+    bool? isBaseUnit,
+    int? conversionToBase,
+    double? sellingPrice,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => ProductUnit(
+    id: id ?? this.id,
+    clinicId: clinicId ?? this.clinicId,
+    inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+    unitLabel: unitLabel ?? this.unitLabel,
+    isBaseUnit: isBaseUnit ?? this.isBaseUnit,
+    conversionToBase: conversionToBase ?? this.conversionToBase,
+    sellingPrice: sellingPrice ?? this.sellingPrice,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  ProductUnit copyWithCompanion(ProductUnitsCompanion data) {
+    return ProductUnit(
+      id: data.id.present ? data.id.value : this.id,
+      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
+      inventoryItemId: data.inventoryItemId.present
+          ? data.inventoryItemId.value
+          : this.inventoryItemId,
+      unitLabel: data.unitLabel.present ? data.unitLabel.value : this.unitLabel,
+      isBaseUnit: data.isBaseUnit.present
+          ? data.isBaseUnit.value
+          : this.isBaseUnit,
+      conversionToBase: data.conversionToBase.present
+          ? data.conversionToBase.value
+          : this.conversionToBase,
+      sellingPrice: data.sellingPrice.present
+          ? data.sellingPrice.value
+          : this.sellingPrice,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProductUnit(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('inventoryItemId: $inventoryItemId, ')
+          ..write('unitLabel: $unitLabel, ')
+          ..write('isBaseUnit: $isBaseUnit, ')
+          ..write('conversionToBase: $conversionToBase, ')
+          ..write('sellingPrice: $sellingPrice, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    clinicId,
+    inventoryItemId,
+    unitLabel,
+    isBaseUnit,
+    conversionToBase,
+    sellingPrice,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProductUnit &&
+          other.id == this.id &&
+          other.clinicId == this.clinicId &&
+          other.inventoryItemId == this.inventoryItemId &&
+          other.unitLabel == this.unitLabel &&
+          other.isBaseUnit == this.isBaseUnit &&
+          other.conversionToBase == this.conversionToBase &&
+          other.sellingPrice == this.sellingPrice &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ProductUnitsCompanion extends UpdateCompanion<ProductUnit> {
+  final Value<int> id;
+  final Value<String> clinicId;
+  final Value<int> inventoryItemId;
+  final Value<String> unitLabel;
+  final Value<bool> isBaseUnit;
+  final Value<int> conversionToBase;
+  final Value<double> sellingPrice;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  const ProductUnitsCompanion({
+    this.id = const Value.absent(),
+    this.clinicId = const Value.absent(),
+    this.inventoryItemId = const Value.absent(),
+    this.unitLabel = const Value.absent(),
+    this.isBaseUnit = const Value.absent(),
+    this.conversionToBase = const Value.absent(),
+    this.sellingPrice = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  ProductUnitsCompanion.insert({
+    this.id = const Value.absent(),
+    required String clinicId,
+    required int inventoryItemId,
+    required String unitLabel,
+    this.isBaseUnit = const Value.absent(),
+    required int conversionToBase,
+    required double sellingPrice,
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+  }) : clinicId = Value(clinicId),
+       inventoryItemId = Value(inventoryItemId),
+       unitLabel = Value(unitLabel),
+       conversionToBase = Value(conversionToBase),
+       sellingPrice = Value(sellingPrice),
+       createdAt = Value(createdAt);
+  static Insertable<ProductUnit> custom({
+    Expression<int>? id,
+    Expression<String>? clinicId,
+    Expression<int>? inventoryItemId,
+    Expression<String>? unitLabel,
+    Expression<bool>? isBaseUnit,
+    Expression<int>? conversionToBase,
+    Expression<double>? sellingPrice,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (clinicId != null) 'clinic_id': clinicId,
+      if (inventoryItemId != null) 'inventory_item_id': inventoryItemId,
+      if (unitLabel != null) 'unit_label': unitLabel,
+      if (isBaseUnit != null) 'is_base_unit': isBaseUnit,
+      if (conversionToBase != null) 'conversion_to_base': conversionToBase,
+      if (sellingPrice != null) 'selling_price': sellingPrice,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  ProductUnitsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? clinicId,
+    Value<int>? inventoryItemId,
+    Value<String>? unitLabel,
+    Value<bool>? isBaseUnit,
+    Value<int>? conversionToBase,
+    Value<double>? sellingPrice,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+  }) {
+    return ProductUnitsCompanion(
+      id: id ?? this.id,
+      clinicId: clinicId ?? this.clinicId,
+      inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+      unitLabel: unitLabel ?? this.unitLabel,
+      isBaseUnit: isBaseUnit ?? this.isBaseUnit,
+      conversionToBase: conversionToBase ?? this.conversionToBase,
+      sellingPrice: sellingPrice ?? this.sellingPrice,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (clinicId.present) {
+      map['clinic_id'] = Variable<String>(clinicId.value);
+    }
+    if (inventoryItemId.present) {
+      map['inventory_item_id'] = Variable<int>(inventoryItemId.value);
+    }
+    if (unitLabel.present) {
+      map['unit_label'] = Variable<String>(unitLabel.value);
+    }
+    if (isBaseUnit.present) {
+      map['is_base_unit'] = Variable<bool>(isBaseUnit.value);
+    }
+    if (conversionToBase.present) {
+      map['conversion_to_base'] = Variable<int>(conversionToBase.value);
+    }
+    if (sellingPrice.present) {
+      map['selling_price'] = Variable<double>(sellingPrice.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProductUnitsCompanion(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('inventoryItemId: $inventoryItemId, ')
+          ..write('unitLabel: $unitLabel, ')
+          ..write('isBaseUnit: $isBaseUnit, ')
+          ..write('conversionToBase: $conversionToBase, ')
+          ..write('sellingPrice: $sellingPrice, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -16393,6 +17404,839 @@ class SalesCompanion extends UpdateCompanion<Sale> {
           ..write('price: $price, ')
           ..write('date: $date, ')
           ..write('customer: $customer')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FarmsTable extends Farms with TableInfo<$FarmsTable, Farm> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FarmsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
+    'clinicId',
+  );
+  @override
+  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
+    'clinic_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES clinics (clinic_id)',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 2,
+      maxTextLength: 160,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _locationMeta = const VerificationMeta(
+    'location',
+  );
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+    'location',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _speciesJsonMeta = const VerificationMeta(
+    'speciesJson',
+  );
+  @override
+  late final GeneratedColumn<String> speciesJson = GeneratedColumn<String>(
+    'species_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _breedJsonMeta = const VerificationMeta(
+    'breedJson',
+  );
+  @override
+  late final GeneratedColumn<String> breedJson = GeneratedColumn<String>(
+    'breed_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _ownerOrganizationMeta = const VerificationMeta(
+    'ownerOrganization',
+  );
+  @override
+  late final GeneratedColumn<String> ownerOrganization =
+      GeneratedColumn<String>(
+        'owner_organization',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _contactNumberMeta = const VerificationMeta(
+    'contactNumber',
+  );
+  @override
+  late final GeneratedColumn<String> contactNumber = GeneratedColumn<String>(
+    'contact_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _farmTypeMeta = const VerificationMeta(
+    'farmType',
+  );
+  @override
+  late final GeneratedColumn<String> farmType = GeneratedColumn<String>(
+    'farm_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Active'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdByUserIdMeta = const VerificationMeta(
+    'createdByUserId',
+  );
+  @override
+  late final GeneratedColumn<String> createdByUserId = GeneratedColumn<String>(
+    'created_by_user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES app_users (user_id)',
+    ),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    clinicId,
+    name,
+    location,
+    speciesJson,
+    breedJson,
+    ownerOrganization,
+    contactNumber,
+    farmType,
+    notes,
+    status,
+    createdAt,
+    createdByUserId,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'farms';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Farm> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('clinic_id')) {
+      context.handle(
+        _clinicIdMeta,
+        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_clinicIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('location')) {
+      context.handle(
+        _locationMeta,
+        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    }
+    if (data.containsKey('species_json')) {
+      context.handle(
+        _speciesJsonMeta,
+        speciesJson.isAcceptableOrUnknown(
+          data['species_json']!,
+          _speciesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('breed_json')) {
+      context.handle(
+        _breedJsonMeta,
+        breedJson.isAcceptableOrUnknown(data['breed_json']!, _breedJsonMeta),
+      );
+    }
+    if (data.containsKey('owner_organization')) {
+      context.handle(
+        _ownerOrganizationMeta,
+        ownerOrganization.isAcceptableOrUnknown(
+          data['owner_organization']!,
+          _ownerOrganizationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contact_number')) {
+      context.handle(
+        _contactNumberMeta,
+        contactNumber.isAcceptableOrUnknown(
+          data['contact_number']!,
+          _contactNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('farm_type')) {
+      context.handle(
+        _farmTypeMeta,
+        farmType.isAcceptableOrUnknown(data['farm_type']!, _farmTypeMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('created_by_user_id')) {
+      context.handle(
+        _createdByUserIdMeta,
+        createdByUserId.isAcceptableOrUnknown(
+          data['created_by_user_id']!,
+          _createdByUserIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdByUserIdMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {clinicId, name},
+  ];
+  @override
+  Farm map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Farm(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      clinicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}clinic_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      location: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location'],
+      ),
+      speciesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_json'],
+      )!,
+      breedJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}breed_json'],
+      )!,
+      ownerOrganization: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_organization'],
+      ),
+      contactNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contact_number'],
+      ),
+      farmType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}farm_type'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      createdByUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by_user_id'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FarmsTable createAlias(String alias) {
+    return $FarmsTable(attachedDatabase, alias);
+  }
+}
+
+class Farm extends DataClass implements Insertable<Farm> {
+  final String id;
+  final String clinicId;
+  final String name;
+  final String? location;
+  final String speciesJson;
+  final String breedJson;
+  final String? ownerOrganization;
+  final String? contactNumber;
+  final String? farmType;
+  final String? notes;
+  final String status;
+  final DateTime createdAt;
+  final String createdByUserId;
+  final DateTime updatedAt;
+  const Farm({
+    required this.id,
+    required this.clinicId,
+    required this.name,
+    this.location,
+    required this.speciesJson,
+    required this.breedJson,
+    this.ownerOrganization,
+    this.contactNumber,
+    this.farmType,
+    this.notes,
+    required this.status,
+    required this.createdAt,
+    required this.createdByUserId,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['clinic_id'] = Variable<String>(clinicId);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || location != null) {
+      map['location'] = Variable<String>(location);
+    }
+    map['species_json'] = Variable<String>(speciesJson);
+    map['breed_json'] = Variable<String>(breedJson);
+    if (!nullToAbsent || ownerOrganization != null) {
+      map['owner_organization'] = Variable<String>(ownerOrganization);
+    }
+    if (!nullToAbsent || contactNumber != null) {
+      map['contact_number'] = Variable<String>(contactNumber);
+    }
+    if (!nullToAbsent || farmType != null) {
+      map['farm_type'] = Variable<String>(farmType);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['created_by_user_id'] = Variable<String>(createdByUserId);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  FarmsCompanion toCompanion(bool nullToAbsent) {
+    return FarmsCompanion(
+      id: Value(id),
+      clinicId: Value(clinicId),
+      name: Value(name),
+      location: location == null && nullToAbsent
+          ? const Value.absent()
+          : Value(location),
+      speciesJson: Value(speciesJson),
+      breedJson: Value(breedJson),
+      ownerOrganization: ownerOrganization == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownerOrganization),
+      contactNumber: contactNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contactNumber),
+      farmType: farmType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(farmType),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      createdByUserId: Value(createdByUserId),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Farm.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Farm(
+      id: serializer.fromJson<String>(json['id']),
+      clinicId: serializer.fromJson<String>(json['clinicId']),
+      name: serializer.fromJson<String>(json['name']),
+      location: serializer.fromJson<String?>(json['location']),
+      speciesJson: serializer.fromJson<String>(json['speciesJson']),
+      breedJson: serializer.fromJson<String>(json['breedJson']),
+      ownerOrganization: serializer.fromJson<String?>(
+        json['ownerOrganization'],
+      ),
+      contactNumber: serializer.fromJson<String?>(json['contactNumber']),
+      farmType: serializer.fromJson<String?>(json['farmType']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'clinicId': serializer.toJson<String>(clinicId),
+      'name': serializer.toJson<String>(name),
+      'location': serializer.toJson<String?>(location),
+      'speciesJson': serializer.toJson<String>(speciesJson),
+      'breedJson': serializer.toJson<String>(breedJson),
+      'ownerOrganization': serializer.toJson<String?>(ownerOrganization),
+      'contactNumber': serializer.toJson<String?>(contactNumber),
+      'farmType': serializer.toJson<String?>(farmType),
+      'notes': serializer.toJson<String?>(notes),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'createdByUserId': serializer.toJson<String>(createdByUserId),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  Farm copyWith({
+    String? id,
+    String? clinicId,
+    String? name,
+    Value<String?> location = const Value.absent(),
+    String? speciesJson,
+    String? breedJson,
+    Value<String?> ownerOrganization = const Value.absent(),
+    Value<String?> contactNumber = const Value.absent(),
+    Value<String?> farmType = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    String? status,
+    DateTime? createdAt,
+    String? createdByUserId,
+    DateTime? updatedAt,
+  }) => Farm(
+    id: id ?? this.id,
+    clinicId: clinicId ?? this.clinicId,
+    name: name ?? this.name,
+    location: location.present ? location.value : this.location,
+    speciesJson: speciesJson ?? this.speciesJson,
+    breedJson: breedJson ?? this.breedJson,
+    ownerOrganization: ownerOrganization.present
+        ? ownerOrganization.value
+        : this.ownerOrganization,
+    contactNumber: contactNumber.present
+        ? contactNumber.value
+        : this.contactNumber,
+    farmType: farmType.present ? farmType.value : this.farmType,
+    notes: notes.present ? notes.value : this.notes,
+    status: status ?? this.status,
+    createdAt: createdAt ?? this.createdAt,
+    createdByUserId: createdByUserId ?? this.createdByUserId,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  Farm copyWithCompanion(FarmsCompanion data) {
+    return Farm(
+      id: data.id.present ? data.id.value : this.id,
+      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
+      name: data.name.present ? data.name.value : this.name,
+      location: data.location.present ? data.location.value : this.location,
+      speciesJson: data.speciesJson.present
+          ? data.speciesJson.value
+          : this.speciesJson,
+      breedJson: data.breedJson.present ? data.breedJson.value : this.breedJson,
+      ownerOrganization: data.ownerOrganization.present
+          ? data.ownerOrganization.value
+          : this.ownerOrganization,
+      contactNumber: data.contactNumber.present
+          ? data.contactNumber.value
+          : this.contactNumber,
+      farmType: data.farmType.present ? data.farmType.value : this.farmType,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      createdByUserId: data.createdByUserId.present
+          ? data.createdByUserId.value
+          : this.createdByUserId,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Farm(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('name: $name, ')
+          ..write('location: $location, ')
+          ..write('speciesJson: $speciesJson, ')
+          ..write('breedJson: $breedJson, ')
+          ..write('ownerOrganization: $ownerOrganization, ')
+          ..write('contactNumber: $contactNumber, ')
+          ..write('farmType: $farmType, ')
+          ..write('notes: $notes, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('createdByUserId: $createdByUserId, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    clinicId,
+    name,
+    location,
+    speciesJson,
+    breedJson,
+    ownerOrganization,
+    contactNumber,
+    farmType,
+    notes,
+    status,
+    createdAt,
+    createdByUserId,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Farm &&
+          other.id == this.id &&
+          other.clinicId == this.clinicId &&
+          other.name == this.name &&
+          other.location == this.location &&
+          other.speciesJson == this.speciesJson &&
+          other.breedJson == this.breedJson &&
+          other.ownerOrganization == this.ownerOrganization &&
+          other.contactNumber == this.contactNumber &&
+          other.farmType == this.farmType &&
+          other.notes == this.notes &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.createdByUserId == this.createdByUserId &&
+          other.updatedAt == this.updatedAt);
+}
+
+class FarmsCompanion extends UpdateCompanion<Farm> {
+  final Value<String> id;
+  final Value<String> clinicId;
+  final Value<String> name;
+  final Value<String?> location;
+  final Value<String> speciesJson;
+  final Value<String> breedJson;
+  final Value<String?> ownerOrganization;
+  final Value<String?> contactNumber;
+  final Value<String?> farmType;
+  final Value<String?> notes;
+  final Value<String> status;
+  final Value<DateTime> createdAt;
+  final Value<String> createdByUserId;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const FarmsCompanion({
+    this.id = const Value.absent(),
+    this.clinicId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.location = const Value.absent(),
+    this.speciesJson = const Value.absent(),
+    this.breedJson = const Value.absent(),
+    this.ownerOrganization = const Value.absent(),
+    this.contactNumber = const Value.absent(),
+    this.farmType = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.createdByUserId = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FarmsCompanion.insert({
+    required String id,
+    required String clinicId,
+    required String name,
+    this.location = const Value.absent(),
+    this.speciesJson = const Value.absent(),
+    this.breedJson = const Value.absent(),
+    this.ownerOrganization = const Value.absent(),
+    this.contactNumber = const Value.absent(),
+    this.farmType = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.status = const Value.absent(),
+    required DateTime createdAt,
+    required String createdByUserId,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       clinicId = Value(clinicId),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       createdByUserId = Value(createdByUserId),
+       updatedAt = Value(updatedAt);
+  static Insertable<Farm> custom({
+    Expression<String>? id,
+    Expression<String>? clinicId,
+    Expression<String>? name,
+    Expression<String>? location,
+    Expression<String>? speciesJson,
+    Expression<String>? breedJson,
+    Expression<String>? ownerOrganization,
+    Expression<String>? contactNumber,
+    Expression<String>? farmType,
+    Expression<String>? notes,
+    Expression<String>? status,
+    Expression<DateTime>? createdAt,
+    Expression<String>? createdByUserId,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (clinicId != null) 'clinic_id': clinicId,
+      if (name != null) 'name': name,
+      if (location != null) 'location': location,
+      if (speciesJson != null) 'species_json': speciesJson,
+      if (breedJson != null) 'breed_json': breedJson,
+      if (ownerOrganization != null) 'owner_organization': ownerOrganization,
+      if (contactNumber != null) 'contact_number': contactNumber,
+      if (farmType != null) 'farm_type': farmType,
+      if (notes != null) 'notes': notes,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (createdByUserId != null) 'created_by_user_id': createdByUserId,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FarmsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? clinicId,
+    Value<String>? name,
+    Value<String?>? location,
+    Value<String>? speciesJson,
+    Value<String>? breedJson,
+    Value<String?>? ownerOrganization,
+    Value<String?>? contactNumber,
+    Value<String?>? farmType,
+    Value<String?>? notes,
+    Value<String>? status,
+    Value<DateTime>? createdAt,
+    Value<String>? createdByUserId,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return FarmsCompanion(
+      id: id ?? this.id,
+      clinicId: clinicId ?? this.clinicId,
+      name: name ?? this.name,
+      location: location ?? this.location,
+      speciesJson: speciesJson ?? this.speciesJson,
+      breedJson: breedJson ?? this.breedJson,
+      ownerOrganization: ownerOrganization ?? this.ownerOrganization,
+      contactNumber: contactNumber ?? this.contactNumber,
+      farmType: farmType ?? this.farmType,
+      notes: notes ?? this.notes,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      createdByUserId: createdByUserId ?? this.createdByUserId,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (clinicId.present) {
+      map['clinic_id'] = Variable<String>(clinicId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (speciesJson.present) {
+      map['species_json'] = Variable<String>(speciesJson.value);
+    }
+    if (breedJson.present) {
+      map['breed_json'] = Variable<String>(breedJson.value);
+    }
+    if (ownerOrganization.present) {
+      map['owner_organization'] = Variable<String>(ownerOrganization.value);
+    }
+    if (contactNumber.present) {
+      map['contact_number'] = Variable<String>(contactNumber.value);
+    }
+    if (farmType.present) {
+      map['farm_type'] = Variable<String>(farmType.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (createdByUserId.present) {
+      map['created_by_user_id'] = Variable<String>(createdByUserId.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FarmsCompanion(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('name: $name, ')
+          ..write('location: $location, ')
+          ..write('speciesJson: $speciesJson, ')
+          ..write('breedJson: $breedJson, ')
+          ..write('ownerOrganization: $ownerOrganization, ')
+          ..write('contactNumber: $contactNumber, ')
+          ..write('farmType: $farmType, ')
+          ..write('notes: $notes, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('createdByUserId: $createdByUserId, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -17161,13 +19005,59 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
   late final GeneratedColumn<int> animalId = GeneratedColumn<int>(
     'animal_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES animals (id)',
     ),
   );
+  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
+  @override
+  late final GeneratedColumn<String> farmId = GeneratedColumn<String>(
+    'farm_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES farms (id)',
+    ),
+  );
+  static const VerificationMeta _farmVisitDateMeta = const VerificationMeta(
+    'farmVisitDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> farmVisitDate =
+      GeneratedColumn<DateTime>(
+        'farm_visit_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _clientNameSnapshotMeta =
+      const VerificationMeta('clientNameSnapshot');
+  @override
+  late final GeneratedColumn<String> clientNameSnapshot =
+      GeneratedColumn<String>(
+        'client_name_snapshot',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _clientPhoneSnapshotMeta =
+      const VerificationMeta('clientPhoneSnapshot');
+  @override
+  late final GeneratedColumn<String> clientPhoneSnapshot =
+      GeneratedColumn<String>(
+        'client_phone_snapshot',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _appointmentIdMeta = const VerificationMeta(
     'appointmentId',
   );
@@ -17492,6 +19382,10 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
     id,
     clinicId,
     animalId,
+    farmId,
+    farmVisitDate,
+    clientNameSnapshot,
+    clientPhoneSnapshot,
     appointmentId,
     consultationId,
     reference,
@@ -17548,8 +19442,39 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
         _animalIdMeta,
         animalId.isAcceptableOrUnknown(data['animal_id']!, _animalIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_animalIdMeta);
+    }
+    if (data.containsKey('farm_id')) {
+      context.handle(
+        _farmIdMeta,
+        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
+      );
+    }
+    if (data.containsKey('farm_visit_date')) {
+      context.handle(
+        _farmVisitDateMeta,
+        farmVisitDate.isAcceptableOrUnknown(
+          data['farm_visit_date']!,
+          _farmVisitDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('client_name_snapshot')) {
+      context.handle(
+        _clientNameSnapshotMeta,
+        clientNameSnapshot.isAcceptableOrUnknown(
+          data['client_name_snapshot']!,
+          _clientNameSnapshotMeta,
+        ),
+      );
+    }
+    if (data.containsKey('client_phone_snapshot')) {
+      context.handle(
+        _clientPhoneSnapshotMeta,
+        clientPhoneSnapshot.isAcceptableOrUnknown(
+          data['client_phone_snapshot']!,
+          _clientPhoneSnapshotMeta,
+        ),
+      );
     }
     if (data.containsKey('appointment_id')) {
       context.handle(
@@ -17796,7 +19721,23 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
       animalId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}animal_id'],
-      )!,
+      ),
+      farmId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}farm_id'],
+      ),
+      farmVisitDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}farm_visit_date'],
+      ),
+      clientNameSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}client_name_snapshot'],
+      ),
+      clientPhoneSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}client_phone_snapshot'],
+      ),
       appointmentId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}appointment_id'],
@@ -17917,7 +19858,11 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
 class Invoice extends DataClass implements Insertable<Invoice> {
   final int id;
   final String clinicId;
-  final int animalId;
+  final int? animalId;
+  final String? farmId;
+  final DateTime? farmVisitDate;
+  final String? clientNameSnapshot;
+  final String? clientPhoneSnapshot;
   final int? appointmentId;
   final int? consultationId;
   final String reference;
@@ -17948,7 +19893,11 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   const Invoice({
     required this.id,
     required this.clinicId,
-    required this.animalId,
+    this.animalId,
+    this.farmId,
+    this.farmVisitDate,
+    this.clientNameSnapshot,
+    this.clientPhoneSnapshot,
     this.appointmentId,
     this.consultationId,
     required this.reference,
@@ -17982,7 +19931,21 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['clinic_id'] = Variable<String>(clinicId);
-    map['animal_id'] = Variable<int>(animalId);
+    if (!nullToAbsent || animalId != null) {
+      map['animal_id'] = Variable<int>(animalId);
+    }
+    if (!nullToAbsent || farmId != null) {
+      map['farm_id'] = Variable<String>(farmId);
+    }
+    if (!nullToAbsent || farmVisitDate != null) {
+      map['farm_visit_date'] = Variable<DateTime>(farmVisitDate);
+    }
+    if (!nullToAbsent || clientNameSnapshot != null) {
+      map['client_name_snapshot'] = Variable<String>(clientNameSnapshot);
+    }
+    if (!nullToAbsent || clientPhoneSnapshot != null) {
+      map['client_phone_snapshot'] = Variable<String>(clientPhoneSnapshot);
+    }
     if (!nullToAbsent || appointmentId != null) {
       map['appointment_id'] = Variable<int>(appointmentId);
     }
@@ -18045,7 +20008,21 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     return InvoicesCompanion(
       id: Value(id),
       clinicId: Value(clinicId),
-      animalId: Value(animalId),
+      animalId: animalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(animalId),
+      farmId: farmId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(farmId),
+      farmVisitDate: farmVisitDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(farmVisitDate),
+      clientNameSnapshot: clientNameSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(clientNameSnapshot),
+      clientPhoneSnapshot: clientPhoneSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(clientPhoneSnapshot),
       appointmentId: appointmentId == null && nullToAbsent
           ? const Value.absent()
           : Value(appointmentId),
@@ -18111,7 +20088,15 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     return Invoice(
       id: serializer.fromJson<int>(json['id']),
       clinicId: serializer.fromJson<String>(json['clinicId']),
-      animalId: serializer.fromJson<int>(json['animalId']),
+      animalId: serializer.fromJson<int?>(json['animalId']),
+      farmId: serializer.fromJson<String?>(json['farmId']),
+      farmVisitDate: serializer.fromJson<DateTime?>(json['farmVisitDate']),
+      clientNameSnapshot: serializer.fromJson<String?>(
+        json['clientNameSnapshot'],
+      ),
+      clientPhoneSnapshot: serializer.fromJson<String?>(
+        json['clientPhoneSnapshot'],
+      ),
       appointmentId: serializer.fromJson<int?>(json['appointmentId']),
       consultationId: serializer.fromJson<int?>(json['consultationId']),
       reference: serializer.fromJson<String>(json['reference']),
@@ -18157,7 +20142,11 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'clinicId': serializer.toJson<String>(clinicId),
-      'animalId': serializer.toJson<int>(animalId),
+      'animalId': serializer.toJson<int?>(animalId),
+      'farmId': serializer.toJson<String?>(farmId),
+      'farmVisitDate': serializer.toJson<DateTime?>(farmVisitDate),
+      'clientNameSnapshot': serializer.toJson<String?>(clientNameSnapshot),
+      'clientPhoneSnapshot': serializer.toJson<String?>(clientPhoneSnapshot),
       'appointmentId': serializer.toJson<int?>(appointmentId),
       'consultationId': serializer.toJson<int?>(consultationId),
       'reference': serializer.toJson<String>(reference),
@@ -18195,7 +20184,11 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   Invoice copyWith({
     int? id,
     String? clinicId,
-    int? animalId,
+    Value<int?> animalId = const Value.absent(),
+    Value<String?> farmId = const Value.absent(),
+    Value<DateTime?> farmVisitDate = const Value.absent(),
+    Value<String?> clientNameSnapshot = const Value.absent(),
+    Value<String?> clientPhoneSnapshot = const Value.absent(),
     Value<int?> appointmentId = const Value.absent(),
     Value<int?> consultationId = const Value.absent(),
     String? reference,
@@ -18226,7 +20219,17 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   }) => Invoice(
     id: id ?? this.id,
     clinicId: clinicId ?? this.clinicId,
-    animalId: animalId ?? this.animalId,
+    animalId: animalId.present ? animalId.value : this.animalId,
+    farmId: farmId.present ? farmId.value : this.farmId,
+    farmVisitDate: farmVisitDate.present
+        ? farmVisitDate.value
+        : this.farmVisitDate,
+    clientNameSnapshot: clientNameSnapshot.present
+        ? clientNameSnapshot.value
+        : this.clientNameSnapshot,
+    clientPhoneSnapshot: clientPhoneSnapshot.present
+        ? clientPhoneSnapshot.value
+        : this.clientPhoneSnapshot,
     appointmentId: appointmentId.present
         ? appointmentId.value
         : this.appointmentId,
@@ -18276,6 +20279,16 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       id: data.id.present ? data.id.value : this.id,
       clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
       animalId: data.animalId.present ? data.animalId.value : this.animalId,
+      farmId: data.farmId.present ? data.farmId.value : this.farmId,
+      farmVisitDate: data.farmVisitDate.present
+          ? data.farmVisitDate.value
+          : this.farmVisitDate,
+      clientNameSnapshot: data.clientNameSnapshot.present
+          ? data.clientNameSnapshot.value
+          : this.clientNameSnapshot,
+      clientPhoneSnapshot: data.clientPhoneSnapshot.present
+          ? data.clientPhoneSnapshot.value
+          : this.clientPhoneSnapshot,
       appointmentId: data.appointmentId.present
           ? data.appointmentId.value
           : this.appointmentId,
@@ -18350,6 +20363,10 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           ..write('id: $id, ')
           ..write('clinicId: $clinicId, ')
           ..write('animalId: $animalId, ')
+          ..write('farmId: $farmId, ')
+          ..write('farmVisitDate: $farmVisitDate, ')
+          ..write('clientNameSnapshot: $clientNameSnapshot, ')
+          ..write('clientPhoneSnapshot: $clientPhoneSnapshot, ')
           ..write('appointmentId: $appointmentId, ')
           ..write('consultationId: $consultationId, ')
           ..write('reference: $reference, ')
@@ -18386,6 +20403,10 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     id,
     clinicId,
     animalId,
+    farmId,
+    farmVisitDate,
+    clientNameSnapshot,
+    clientPhoneSnapshot,
     appointmentId,
     consultationId,
     reference,
@@ -18421,6 +20442,10 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           other.id == this.id &&
           other.clinicId == this.clinicId &&
           other.animalId == this.animalId &&
+          other.farmId == this.farmId &&
+          other.farmVisitDate == this.farmVisitDate &&
+          other.clientNameSnapshot == this.clientNameSnapshot &&
+          other.clientPhoneSnapshot == this.clientPhoneSnapshot &&
           other.appointmentId == this.appointmentId &&
           other.consultationId == this.consultationId &&
           other.reference == this.reference &&
@@ -18453,7 +20478,11 @@ class Invoice extends DataClass implements Insertable<Invoice> {
 class InvoicesCompanion extends UpdateCompanion<Invoice> {
   final Value<int> id;
   final Value<String> clinicId;
-  final Value<int> animalId;
+  final Value<int?> animalId;
+  final Value<String?> farmId;
+  final Value<DateTime?> farmVisitDate;
+  final Value<String?> clientNameSnapshot;
+  final Value<String?> clientPhoneSnapshot;
   final Value<int?> appointmentId;
   final Value<int?> consultationId;
   final Value<String> reference;
@@ -18485,6 +20514,10 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     this.id = const Value.absent(),
     this.clinicId = const Value.absent(),
     this.animalId = const Value.absent(),
+    this.farmId = const Value.absent(),
+    this.farmVisitDate = const Value.absent(),
+    this.clientNameSnapshot = const Value.absent(),
+    this.clientPhoneSnapshot = const Value.absent(),
     this.appointmentId = const Value.absent(),
     this.consultationId = const Value.absent(),
     this.reference = const Value.absent(),
@@ -18516,7 +20549,11 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
   InvoicesCompanion.insert({
     this.id = const Value.absent(),
     required String clinicId,
-    required int animalId,
+    this.animalId = const Value.absent(),
+    this.farmId = const Value.absent(),
+    this.farmVisitDate = const Value.absent(),
+    this.clientNameSnapshot = const Value.absent(),
+    this.clientPhoneSnapshot = const Value.absent(),
     this.appointmentId = const Value.absent(),
     this.consultationId = const Value.absent(),
     required String reference,
@@ -18545,7 +20582,6 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     required DateTime createdAt,
     this.updatedAt = const Value.absent(),
   }) : clinicId = Value(clinicId),
-       animalId = Value(animalId),
        reference = Value(reference),
        clinicNameSnapshot = Value(clinicNameSnapshot),
        createdByUserId = Value(createdByUserId),
@@ -18554,6 +20590,10 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     Expression<int>? id,
     Expression<String>? clinicId,
     Expression<int>? animalId,
+    Expression<String>? farmId,
+    Expression<DateTime>? farmVisitDate,
+    Expression<String>? clientNameSnapshot,
+    Expression<String>? clientPhoneSnapshot,
     Expression<int>? appointmentId,
     Expression<int>? consultationId,
     Expression<String>? reference,
@@ -18586,6 +20626,12 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
       if (id != null) 'id': id,
       if (clinicId != null) 'clinic_id': clinicId,
       if (animalId != null) 'animal_id': animalId,
+      if (farmId != null) 'farm_id': farmId,
+      if (farmVisitDate != null) 'farm_visit_date': farmVisitDate,
+      if (clientNameSnapshot != null)
+        'client_name_snapshot': clientNameSnapshot,
+      if (clientPhoneSnapshot != null)
+        'client_phone_snapshot': clientPhoneSnapshot,
       if (appointmentId != null) 'appointment_id': appointmentId,
       if (consultationId != null) 'consultation_id': consultationId,
       if (reference != null) 'reference': reference,
@@ -18624,7 +20670,11 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
   InvoicesCompanion copyWith({
     Value<int>? id,
     Value<String>? clinicId,
-    Value<int>? animalId,
+    Value<int?>? animalId,
+    Value<String?>? farmId,
+    Value<DateTime?>? farmVisitDate,
+    Value<String?>? clientNameSnapshot,
+    Value<String?>? clientPhoneSnapshot,
     Value<int?>? appointmentId,
     Value<int?>? consultationId,
     Value<String>? reference,
@@ -18657,6 +20707,10 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
       id: id ?? this.id,
       clinicId: clinicId ?? this.clinicId,
       animalId: animalId ?? this.animalId,
+      farmId: farmId ?? this.farmId,
+      farmVisitDate: farmVisitDate ?? this.farmVisitDate,
+      clientNameSnapshot: clientNameSnapshot ?? this.clientNameSnapshot,
+      clientPhoneSnapshot: clientPhoneSnapshot ?? this.clientPhoneSnapshot,
       appointmentId: appointmentId ?? this.appointmentId,
       consultationId: consultationId ?? this.consultationId,
       reference: reference ?? this.reference,
@@ -18700,6 +20754,20 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     }
     if (animalId.present) {
       map['animal_id'] = Variable<int>(animalId.value);
+    }
+    if (farmId.present) {
+      map['farm_id'] = Variable<String>(farmId.value);
+    }
+    if (farmVisitDate.present) {
+      map['farm_visit_date'] = Variable<DateTime>(farmVisitDate.value);
+    }
+    if (clientNameSnapshot.present) {
+      map['client_name_snapshot'] = Variable<String>(clientNameSnapshot.value);
+    }
+    if (clientPhoneSnapshot.present) {
+      map['client_phone_snapshot'] = Variable<String>(
+        clientPhoneSnapshot.value,
+      );
     }
     if (appointmentId.present) {
       map['appointment_id'] = Variable<int>(appointmentId.value);
@@ -18799,6 +20867,10 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
           ..write('id: $id, ')
           ..write('clinicId: $clinicId, ')
           ..write('animalId: $animalId, ')
+          ..write('farmId: $farmId, ')
+          ..write('farmVisitDate: $farmVisitDate, ')
+          ..write('clientNameSnapshot: $clientNameSnapshot, ')
+          ..write('clientPhoneSnapshot: $clientPhoneSnapshot, ')
           ..write('appointmentId: $appointmentId, ')
           ..write('consultationId: $consultationId, ')
           ..write('reference: $reference, ')
@@ -20220,6 +22292,3371 @@ class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
   }
 }
 
+class $FarmUnitsTable extends FarmUnits
+    with TableInfo<$FarmUnitsTable, FarmUnit> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FarmUnitsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
+    'clinicId',
+  );
+  @override
+  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
+    'clinic_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES clinics (clinic_id)',
+    ),
+  );
+  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
+  @override
+  late final GeneratedColumn<String> farmId = GeneratedColumn<String>(
+    'farm_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES farms (id)',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 100,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitTypeMeta = const VerificationMeta(
+    'unitType',
+  );
+  @override
+  late final GeneratedColumn<String> unitType = GeneratedColumn<String>(
+    'unit_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Pen'),
+  );
+  static const VerificationMeta _speciesIdMeta = const VerificationMeta(
+    'speciesId',
+  );
+  @override
+  late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
+    'species_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _breedIdMeta = const VerificationMeta(
+    'breedId',
+  );
+  @override
+  late final GeneratedColumn<String> breedId = GeneratedColumn<String>(
+    'breed_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _capacityMeta = const VerificationMeta(
+    'capacity',
+  );
+  @override
+  late final GeneratedColumn<int> capacity = GeneratedColumn<int>(
+    'capacity',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _maleCountMeta = const VerificationMeta(
+    'maleCount',
+  );
+  @override
+  late final GeneratedColumn<int> maleCount = GeneratedColumn<int>(
+    'male_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _femaleCountMeta = const VerificationMeta(
+    'femaleCount',
+  );
+  @override
+  late final GeneratedColumn<int> femaleCount = GeneratedColumn<int>(
+    'female_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _unknownCountMeta = const VerificationMeta(
+    'unknownCount',
+  );
+  @override
+  late final GeneratedColumn<int> unknownCount = GeneratedColumn<int>(
+    'unknown_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Active'),
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdByUserIdMeta = const VerificationMeta(
+    'createdByUserId',
+  );
+  @override
+  late final GeneratedColumn<String> createdByUserId = GeneratedColumn<String>(
+    'created_by_user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES app_users (user_id)',
+    ),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    clinicId,
+    farmId,
+    name,
+    unitType,
+    speciesId,
+    breedId,
+    capacity,
+    maleCount,
+    femaleCount,
+    unknownCount,
+    status,
+    notes,
+    createdAt,
+    createdByUserId,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'farm_units';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FarmUnit> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('clinic_id')) {
+      context.handle(
+        _clinicIdMeta,
+        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_clinicIdMeta);
+    }
+    if (data.containsKey('farm_id')) {
+      context.handle(
+        _farmIdMeta,
+        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_farmIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('unit_type')) {
+      context.handle(
+        _unitTypeMeta,
+        unitType.isAcceptableOrUnknown(data['unit_type']!, _unitTypeMeta),
+      );
+    }
+    if (data.containsKey('species_id')) {
+      context.handle(
+        _speciesIdMeta,
+        speciesId.isAcceptableOrUnknown(data['species_id']!, _speciesIdMeta),
+      );
+    }
+    if (data.containsKey('breed_id')) {
+      context.handle(
+        _breedIdMeta,
+        breedId.isAcceptableOrUnknown(data['breed_id']!, _breedIdMeta),
+      );
+    }
+    if (data.containsKey('capacity')) {
+      context.handle(
+        _capacityMeta,
+        capacity.isAcceptableOrUnknown(data['capacity']!, _capacityMeta),
+      );
+    }
+    if (data.containsKey('male_count')) {
+      context.handle(
+        _maleCountMeta,
+        maleCount.isAcceptableOrUnknown(data['male_count']!, _maleCountMeta),
+      );
+    }
+    if (data.containsKey('female_count')) {
+      context.handle(
+        _femaleCountMeta,
+        femaleCount.isAcceptableOrUnknown(
+          data['female_count']!,
+          _femaleCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('unknown_count')) {
+      context.handle(
+        _unknownCountMeta,
+        unknownCount.isAcceptableOrUnknown(
+          data['unknown_count']!,
+          _unknownCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('created_by_user_id')) {
+      context.handle(
+        _createdByUserIdMeta,
+        createdByUserId.isAcceptableOrUnknown(
+          data['created_by_user_id']!,
+          _createdByUserIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdByUserIdMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {farmId, name},
+  ];
+  @override
+  FarmUnit map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FarmUnit(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      clinicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}clinic_id'],
+      )!,
+      farmId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}farm_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      unitType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unit_type'],
+      )!,
+      speciesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_id'],
+      ),
+      breedId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}breed_id'],
+      ),
+      capacity: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}capacity'],
+      ),
+      maleCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}male_count'],
+      )!,
+      femaleCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}female_count'],
+      )!,
+      unknownCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}unknown_count'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      createdByUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by_user_id'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FarmUnitsTable createAlias(String alias) {
+    return $FarmUnitsTable(attachedDatabase, alias);
+  }
+}
+
+class FarmUnit extends DataClass implements Insertable<FarmUnit> {
+  final int id;
+  final String clinicId;
+  final String farmId;
+  final String name;
+  final String unitType;
+  final String? speciesId;
+  final String? breedId;
+  final int? capacity;
+  final int maleCount;
+  final int femaleCount;
+  final int unknownCount;
+  final String status;
+  final String? notes;
+  final DateTime createdAt;
+  final String createdByUserId;
+  final DateTime updatedAt;
+  const FarmUnit({
+    required this.id,
+    required this.clinicId,
+    required this.farmId,
+    required this.name,
+    required this.unitType,
+    this.speciesId,
+    this.breedId,
+    this.capacity,
+    required this.maleCount,
+    required this.femaleCount,
+    required this.unknownCount,
+    required this.status,
+    this.notes,
+    required this.createdAt,
+    required this.createdByUserId,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['clinic_id'] = Variable<String>(clinicId);
+    map['farm_id'] = Variable<String>(farmId);
+    map['name'] = Variable<String>(name);
+    map['unit_type'] = Variable<String>(unitType);
+    if (!nullToAbsent || speciesId != null) {
+      map['species_id'] = Variable<String>(speciesId);
+    }
+    if (!nullToAbsent || breedId != null) {
+      map['breed_id'] = Variable<String>(breedId);
+    }
+    if (!nullToAbsent || capacity != null) {
+      map['capacity'] = Variable<int>(capacity);
+    }
+    map['male_count'] = Variable<int>(maleCount);
+    map['female_count'] = Variable<int>(femaleCount);
+    map['unknown_count'] = Variable<int>(unknownCount);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['created_by_user_id'] = Variable<String>(createdByUserId);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  FarmUnitsCompanion toCompanion(bool nullToAbsent) {
+    return FarmUnitsCompanion(
+      id: Value(id),
+      clinicId: Value(clinicId),
+      farmId: Value(farmId),
+      name: Value(name),
+      unitType: Value(unitType),
+      speciesId: speciesId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(speciesId),
+      breedId: breedId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(breedId),
+      capacity: capacity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capacity),
+      maleCount: Value(maleCount),
+      femaleCount: Value(femaleCount),
+      unknownCount: Value(unknownCount),
+      status: Value(status),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      createdAt: Value(createdAt),
+      createdByUserId: Value(createdByUserId),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory FarmUnit.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FarmUnit(
+      id: serializer.fromJson<int>(json['id']),
+      clinicId: serializer.fromJson<String>(json['clinicId']),
+      farmId: serializer.fromJson<String>(json['farmId']),
+      name: serializer.fromJson<String>(json['name']),
+      unitType: serializer.fromJson<String>(json['unitType']),
+      speciesId: serializer.fromJson<String?>(json['speciesId']),
+      breedId: serializer.fromJson<String?>(json['breedId']),
+      capacity: serializer.fromJson<int?>(json['capacity']),
+      maleCount: serializer.fromJson<int>(json['maleCount']),
+      femaleCount: serializer.fromJson<int>(json['femaleCount']),
+      unknownCount: serializer.fromJson<int>(json['unknownCount']),
+      status: serializer.fromJson<String>(json['status']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'clinicId': serializer.toJson<String>(clinicId),
+      'farmId': serializer.toJson<String>(farmId),
+      'name': serializer.toJson<String>(name),
+      'unitType': serializer.toJson<String>(unitType),
+      'speciesId': serializer.toJson<String?>(speciesId),
+      'breedId': serializer.toJson<String?>(breedId),
+      'capacity': serializer.toJson<int?>(capacity),
+      'maleCount': serializer.toJson<int>(maleCount),
+      'femaleCount': serializer.toJson<int>(femaleCount),
+      'unknownCount': serializer.toJson<int>(unknownCount),
+      'status': serializer.toJson<String>(status),
+      'notes': serializer.toJson<String?>(notes),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'createdByUserId': serializer.toJson<String>(createdByUserId),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  FarmUnit copyWith({
+    int? id,
+    String? clinicId,
+    String? farmId,
+    String? name,
+    String? unitType,
+    Value<String?> speciesId = const Value.absent(),
+    Value<String?> breedId = const Value.absent(),
+    Value<int?> capacity = const Value.absent(),
+    int? maleCount,
+    int? femaleCount,
+    int? unknownCount,
+    String? status,
+    Value<String?> notes = const Value.absent(),
+    DateTime? createdAt,
+    String? createdByUserId,
+    DateTime? updatedAt,
+  }) => FarmUnit(
+    id: id ?? this.id,
+    clinicId: clinicId ?? this.clinicId,
+    farmId: farmId ?? this.farmId,
+    name: name ?? this.name,
+    unitType: unitType ?? this.unitType,
+    speciesId: speciesId.present ? speciesId.value : this.speciesId,
+    breedId: breedId.present ? breedId.value : this.breedId,
+    capacity: capacity.present ? capacity.value : this.capacity,
+    maleCount: maleCount ?? this.maleCount,
+    femaleCount: femaleCount ?? this.femaleCount,
+    unknownCount: unknownCount ?? this.unknownCount,
+    status: status ?? this.status,
+    notes: notes.present ? notes.value : this.notes,
+    createdAt: createdAt ?? this.createdAt,
+    createdByUserId: createdByUserId ?? this.createdByUserId,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  FarmUnit copyWithCompanion(FarmUnitsCompanion data) {
+    return FarmUnit(
+      id: data.id.present ? data.id.value : this.id,
+      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
+      farmId: data.farmId.present ? data.farmId.value : this.farmId,
+      name: data.name.present ? data.name.value : this.name,
+      unitType: data.unitType.present ? data.unitType.value : this.unitType,
+      speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
+      breedId: data.breedId.present ? data.breedId.value : this.breedId,
+      capacity: data.capacity.present ? data.capacity.value : this.capacity,
+      maleCount: data.maleCount.present ? data.maleCount.value : this.maleCount,
+      femaleCount: data.femaleCount.present
+          ? data.femaleCount.value
+          : this.femaleCount,
+      unknownCount: data.unknownCount.present
+          ? data.unknownCount.value
+          : this.unknownCount,
+      status: data.status.present ? data.status.value : this.status,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      createdByUserId: data.createdByUserId.present
+          ? data.createdByUserId.value
+          : this.createdByUserId,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FarmUnit(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('farmId: $farmId, ')
+          ..write('name: $name, ')
+          ..write('unitType: $unitType, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('breedId: $breedId, ')
+          ..write('capacity: $capacity, ')
+          ..write('maleCount: $maleCount, ')
+          ..write('femaleCount: $femaleCount, ')
+          ..write('unknownCount: $unknownCount, ')
+          ..write('status: $status, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('createdByUserId: $createdByUserId, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    clinicId,
+    farmId,
+    name,
+    unitType,
+    speciesId,
+    breedId,
+    capacity,
+    maleCount,
+    femaleCount,
+    unknownCount,
+    status,
+    notes,
+    createdAt,
+    createdByUserId,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FarmUnit &&
+          other.id == this.id &&
+          other.clinicId == this.clinicId &&
+          other.farmId == this.farmId &&
+          other.name == this.name &&
+          other.unitType == this.unitType &&
+          other.speciesId == this.speciesId &&
+          other.breedId == this.breedId &&
+          other.capacity == this.capacity &&
+          other.maleCount == this.maleCount &&
+          other.femaleCount == this.femaleCount &&
+          other.unknownCount == this.unknownCount &&
+          other.status == this.status &&
+          other.notes == this.notes &&
+          other.createdAt == this.createdAt &&
+          other.createdByUserId == this.createdByUserId &&
+          other.updatedAt == this.updatedAt);
+}
+
+class FarmUnitsCompanion extends UpdateCompanion<FarmUnit> {
+  final Value<int> id;
+  final Value<String> clinicId;
+  final Value<String> farmId;
+  final Value<String> name;
+  final Value<String> unitType;
+  final Value<String?> speciesId;
+  final Value<String?> breedId;
+  final Value<int?> capacity;
+  final Value<int> maleCount;
+  final Value<int> femaleCount;
+  final Value<int> unknownCount;
+  final Value<String> status;
+  final Value<String?> notes;
+  final Value<DateTime> createdAt;
+  final Value<String> createdByUserId;
+  final Value<DateTime> updatedAt;
+  const FarmUnitsCompanion({
+    this.id = const Value.absent(),
+    this.clinicId = const Value.absent(),
+    this.farmId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.unitType = const Value.absent(),
+    this.speciesId = const Value.absent(),
+    this.breedId = const Value.absent(),
+    this.capacity = const Value.absent(),
+    this.maleCount = const Value.absent(),
+    this.femaleCount = const Value.absent(),
+    this.unknownCount = const Value.absent(),
+    this.status = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.createdByUserId = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  FarmUnitsCompanion.insert({
+    this.id = const Value.absent(),
+    required String clinicId,
+    required String farmId,
+    required String name,
+    this.unitType = const Value.absent(),
+    this.speciesId = const Value.absent(),
+    this.breedId = const Value.absent(),
+    this.capacity = const Value.absent(),
+    this.maleCount = const Value.absent(),
+    this.femaleCount = const Value.absent(),
+    this.unknownCount = const Value.absent(),
+    this.status = const Value.absent(),
+    this.notes = const Value.absent(),
+    required DateTime createdAt,
+    required String createdByUserId,
+    required DateTime updatedAt,
+  }) : clinicId = Value(clinicId),
+       farmId = Value(farmId),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       createdByUserId = Value(createdByUserId),
+       updatedAt = Value(updatedAt);
+  static Insertable<FarmUnit> custom({
+    Expression<int>? id,
+    Expression<String>? clinicId,
+    Expression<String>? farmId,
+    Expression<String>? name,
+    Expression<String>? unitType,
+    Expression<String>? speciesId,
+    Expression<String>? breedId,
+    Expression<int>? capacity,
+    Expression<int>? maleCount,
+    Expression<int>? femaleCount,
+    Expression<int>? unknownCount,
+    Expression<String>? status,
+    Expression<String>? notes,
+    Expression<DateTime>? createdAt,
+    Expression<String>? createdByUserId,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (clinicId != null) 'clinic_id': clinicId,
+      if (farmId != null) 'farm_id': farmId,
+      if (name != null) 'name': name,
+      if (unitType != null) 'unit_type': unitType,
+      if (speciesId != null) 'species_id': speciesId,
+      if (breedId != null) 'breed_id': breedId,
+      if (capacity != null) 'capacity': capacity,
+      if (maleCount != null) 'male_count': maleCount,
+      if (femaleCount != null) 'female_count': femaleCount,
+      if (unknownCount != null) 'unknown_count': unknownCount,
+      if (status != null) 'status': status,
+      if (notes != null) 'notes': notes,
+      if (createdAt != null) 'created_at': createdAt,
+      if (createdByUserId != null) 'created_by_user_id': createdByUserId,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  FarmUnitsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? clinicId,
+    Value<String>? farmId,
+    Value<String>? name,
+    Value<String>? unitType,
+    Value<String?>? speciesId,
+    Value<String?>? breedId,
+    Value<int?>? capacity,
+    Value<int>? maleCount,
+    Value<int>? femaleCount,
+    Value<int>? unknownCount,
+    Value<String>? status,
+    Value<String?>? notes,
+    Value<DateTime>? createdAt,
+    Value<String>? createdByUserId,
+    Value<DateTime>? updatedAt,
+  }) {
+    return FarmUnitsCompanion(
+      id: id ?? this.id,
+      clinicId: clinicId ?? this.clinicId,
+      farmId: farmId ?? this.farmId,
+      name: name ?? this.name,
+      unitType: unitType ?? this.unitType,
+      speciesId: speciesId ?? this.speciesId,
+      breedId: breedId ?? this.breedId,
+      capacity: capacity ?? this.capacity,
+      maleCount: maleCount ?? this.maleCount,
+      femaleCount: femaleCount ?? this.femaleCount,
+      unknownCount: unknownCount ?? this.unknownCount,
+      status: status ?? this.status,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      createdByUserId: createdByUserId ?? this.createdByUserId,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (clinicId.present) {
+      map['clinic_id'] = Variable<String>(clinicId.value);
+    }
+    if (farmId.present) {
+      map['farm_id'] = Variable<String>(farmId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (unitType.present) {
+      map['unit_type'] = Variable<String>(unitType.value);
+    }
+    if (speciesId.present) {
+      map['species_id'] = Variable<String>(speciesId.value);
+    }
+    if (breedId.present) {
+      map['breed_id'] = Variable<String>(breedId.value);
+    }
+    if (capacity.present) {
+      map['capacity'] = Variable<int>(capacity.value);
+    }
+    if (maleCount.present) {
+      map['male_count'] = Variable<int>(maleCount.value);
+    }
+    if (femaleCount.present) {
+      map['female_count'] = Variable<int>(femaleCount.value);
+    }
+    if (unknownCount.present) {
+      map['unknown_count'] = Variable<int>(unknownCount.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (createdByUserId.present) {
+      map['created_by_user_id'] = Variable<String>(createdByUserId.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FarmUnitsCompanion(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('farmId: $farmId, ')
+          ..write('name: $name, ')
+          ..write('unitType: $unitType, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('breedId: $breedId, ')
+          ..write('capacity: $capacity, ')
+          ..write('maleCount: $maleCount, ')
+          ..write('femaleCount: $femaleCount, ')
+          ..write('unknownCount: $unknownCount, ')
+          ..write('status: $status, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('createdByUserId: $createdByUserId, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FarmDailyRecordsTable extends FarmDailyRecords
+    with TableInfo<$FarmDailyRecordsTable, FarmDailyRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FarmDailyRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
+    'clinicId',
+  );
+  @override
+  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
+    'clinic_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES clinics (clinic_id)',
+    ),
+  );
+  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
+  @override
+  late final GeneratedColumn<String> farmId = GeneratedColumn<String>(
+    'farm_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES farms (id)',
+    ),
+  );
+  static const VerificationMeta _recordDateMeta = const VerificationMeta(
+    'recordDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordDate = GeneratedColumn<DateTime>(
+    'record_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Draft'),
+  );
+  static const VerificationMeta _openingPopulationMeta = const VerificationMeta(
+    'openingPopulation',
+  );
+  @override
+  late final GeneratedColumn<int> openingPopulation = GeneratedColumn<int>(
+    'opening_population',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _birthsMeta = const VerificationMeta('births');
+  @override
+  late final GeneratedColumn<int> births = GeneratedColumn<int>(
+    'births',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _purchasesMeta = const VerificationMeta(
+    'purchases',
+  );
+  @override
+  late final GeneratedColumn<int> purchases = GeneratedColumn<int>(
+    'purchases',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _transfersInMeta = const VerificationMeta(
+    'transfersIn',
+  );
+  @override
+  late final GeneratedColumn<int> transfersIn = GeneratedColumn<int>(
+    'transfers_in',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _mortalityMeta = const VerificationMeta(
+    'mortality',
+  );
+  @override
+  late final GeneratedColumn<int> mortality = GeneratedColumn<int>(
+    'mortality',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _salesMeta = const VerificationMeta('sales');
+  @override
+  late final GeneratedColumn<int> sales = GeneratedColumn<int>(
+    'sales',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _transfersOutMeta = const VerificationMeta(
+    'transfersOut',
+  );
+  @override
+  late final GeneratedColumn<int> transfersOut = GeneratedColumn<int>(
+    'transfers_out',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _closingPopulationMeta = const VerificationMeta(
+    'closingPopulation',
+  );
+  @override
+  late final GeneratedColumn<int> closingPopulation = GeneratedColumn<int>(
+    'closing_population',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _feedSuppliedKgMeta = const VerificationMeta(
+    'feedSuppliedKg',
+  );
+  @override
+  late final GeneratedColumn<double> feedSuppliedKg = GeneratedColumn<double>(
+    'feed_supplied_kg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _dailyNoteMeta = const VerificationMeta(
+    'dailyNote',
+  );
+  @override
+  late final GeneratedColumn<String> dailyNote = GeneratedColumn<String>(
+    'daily_note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tasksForTomorrowMeta = const VerificationMeta(
+    'tasksForTomorrow',
+  );
+  @override
+  late final GeneratedColumn<String> tasksForTomorrow = GeneratedColumn<String>(
+    'tasks_for_tomorrow',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _correctionReasonMeta = const VerificationMeta(
+    'correctionReason',
+  );
+  @override
+  late final GeneratedColumn<String> correctionReason = GeneratedColumn<String>(
+    'correction_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _originalSnapshotJsonMeta =
+      const VerificationMeta('originalSnapshotJson');
+  @override
+  late final GeneratedColumn<String> originalSnapshotJson =
+      GeneratedColumn<String>(
+        'original_snapshot_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastEditedByUserIdMeta =
+      const VerificationMeta('lastEditedByUserId');
+  @override
+  late final GeneratedColumn<String> lastEditedByUserId =
+      GeneratedColumn<String>(
+        'last_edited_by_user_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _finalizedAtMeta = const VerificationMeta(
+    'finalizedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> finalizedAt = GeneratedColumn<DateTime>(
+    'finalized_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _finalizedByUserIdMeta = const VerificationMeta(
+    'finalizedByUserId',
+  );
+  @override
+  late final GeneratedColumn<String> finalizedByUserId =
+      GeneratedColumn<String>(
+        'finalized_by_user_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdByUserIdMeta = const VerificationMeta(
+    'createdByUserId',
+  );
+  @override
+  late final GeneratedColumn<String> createdByUserId = GeneratedColumn<String>(
+    'created_by_user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES app_users (user_id)',
+    ),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    clinicId,
+    farmId,
+    recordDate,
+    status,
+    openingPopulation,
+    births,
+    purchases,
+    transfersIn,
+    mortality,
+    sales,
+    transfersOut,
+    closingPopulation,
+    feedSuppliedKg,
+    dailyNote,
+    tasksForTomorrow,
+    correctionReason,
+    originalSnapshotJson,
+    lastEditedByUserId,
+    finalizedAt,
+    finalizedByUserId,
+    createdAt,
+    createdByUserId,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'farm_daily_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FarmDailyRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('clinic_id')) {
+      context.handle(
+        _clinicIdMeta,
+        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_clinicIdMeta);
+    }
+    if (data.containsKey('farm_id')) {
+      context.handle(
+        _farmIdMeta,
+        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_farmIdMeta);
+    }
+    if (data.containsKey('record_date')) {
+      context.handle(
+        _recordDateMeta,
+        recordDate.isAcceptableOrUnknown(data['record_date']!, _recordDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordDateMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('opening_population')) {
+      context.handle(
+        _openingPopulationMeta,
+        openingPopulation.isAcceptableOrUnknown(
+          data['opening_population']!,
+          _openingPopulationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('births')) {
+      context.handle(
+        _birthsMeta,
+        births.isAcceptableOrUnknown(data['births']!, _birthsMeta),
+      );
+    }
+    if (data.containsKey('purchases')) {
+      context.handle(
+        _purchasesMeta,
+        purchases.isAcceptableOrUnknown(data['purchases']!, _purchasesMeta),
+      );
+    }
+    if (data.containsKey('transfers_in')) {
+      context.handle(
+        _transfersInMeta,
+        transfersIn.isAcceptableOrUnknown(
+          data['transfers_in']!,
+          _transfersInMeta,
+        ),
+      );
+    }
+    if (data.containsKey('mortality')) {
+      context.handle(
+        _mortalityMeta,
+        mortality.isAcceptableOrUnknown(data['mortality']!, _mortalityMeta),
+      );
+    }
+    if (data.containsKey('sales')) {
+      context.handle(
+        _salesMeta,
+        sales.isAcceptableOrUnknown(data['sales']!, _salesMeta),
+      );
+    }
+    if (data.containsKey('transfers_out')) {
+      context.handle(
+        _transfersOutMeta,
+        transfersOut.isAcceptableOrUnknown(
+          data['transfers_out']!,
+          _transfersOutMeta,
+        ),
+      );
+    }
+    if (data.containsKey('closing_population')) {
+      context.handle(
+        _closingPopulationMeta,
+        closingPopulation.isAcceptableOrUnknown(
+          data['closing_population']!,
+          _closingPopulationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('feed_supplied_kg')) {
+      context.handle(
+        _feedSuppliedKgMeta,
+        feedSuppliedKg.isAcceptableOrUnknown(
+          data['feed_supplied_kg']!,
+          _feedSuppliedKgMeta,
+        ),
+      );
+    }
+    if (data.containsKey('daily_note')) {
+      context.handle(
+        _dailyNoteMeta,
+        dailyNote.isAcceptableOrUnknown(data['daily_note']!, _dailyNoteMeta),
+      );
+    }
+    if (data.containsKey('tasks_for_tomorrow')) {
+      context.handle(
+        _tasksForTomorrowMeta,
+        tasksForTomorrow.isAcceptableOrUnknown(
+          data['tasks_for_tomorrow']!,
+          _tasksForTomorrowMeta,
+        ),
+      );
+    }
+    if (data.containsKey('correction_reason')) {
+      context.handle(
+        _correctionReasonMeta,
+        correctionReason.isAcceptableOrUnknown(
+          data['correction_reason']!,
+          _correctionReasonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('original_snapshot_json')) {
+      context.handle(
+        _originalSnapshotJsonMeta,
+        originalSnapshotJson.isAcceptableOrUnknown(
+          data['original_snapshot_json']!,
+          _originalSnapshotJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_edited_by_user_id')) {
+      context.handle(
+        _lastEditedByUserIdMeta,
+        lastEditedByUserId.isAcceptableOrUnknown(
+          data['last_edited_by_user_id']!,
+          _lastEditedByUserIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('finalized_at')) {
+      context.handle(
+        _finalizedAtMeta,
+        finalizedAt.isAcceptableOrUnknown(
+          data['finalized_at']!,
+          _finalizedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('finalized_by_user_id')) {
+      context.handle(
+        _finalizedByUserIdMeta,
+        finalizedByUserId.isAcceptableOrUnknown(
+          data['finalized_by_user_id']!,
+          _finalizedByUserIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('created_by_user_id')) {
+      context.handle(
+        _createdByUserIdMeta,
+        createdByUserId.isAcceptableOrUnknown(
+          data['created_by_user_id']!,
+          _createdByUserIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdByUserIdMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {farmId, recordDate},
+  ];
+  @override
+  FarmDailyRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FarmDailyRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      clinicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}clinic_id'],
+      )!,
+      farmId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}farm_id'],
+      )!,
+      recordDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}record_date'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      openingPopulation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}opening_population'],
+      )!,
+      births: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}births'],
+      )!,
+      purchases: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}purchases'],
+      )!,
+      transfersIn: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}transfers_in'],
+      )!,
+      mortality: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}mortality'],
+      )!,
+      sales: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sales'],
+      )!,
+      transfersOut: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}transfers_out'],
+      )!,
+      closingPopulation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}closing_population'],
+      )!,
+      feedSuppliedKg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}feed_supplied_kg'],
+      )!,
+      dailyNote: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}daily_note'],
+      ),
+      tasksForTomorrow: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tasks_for_tomorrow'],
+      ),
+      correctionReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}correction_reason'],
+      ),
+      originalSnapshotJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}original_snapshot_json'],
+      ),
+      lastEditedByUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_edited_by_user_id'],
+      ),
+      finalizedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}finalized_at'],
+      ),
+      finalizedByUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}finalized_by_user_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      createdByUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by_user_id'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FarmDailyRecordsTable createAlias(String alias) {
+    return $FarmDailyRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class FarmDailyRecord extends DataClass implements Insertable<FarmDailyRecord> {
+  final String id;
+  final String clinicId;
+  final String farmId;
+  final DateTime recordDate;
+  final String status;
+  final int openingPopulation;
+  final int births;
+  final int purchases;
+  final int transfersIn;
+  final int mortality;
+  final int sales;
+  final int transfersOut;
+  final int closingPopulation;
+  final double feedSuppliedKg;
+  final String? dailyNote;
+  final String? tasksForTomorrow;
+  final String? correctionReason;
+  final String? originalSnapshotJson;
+  final String? lastEditedByUserId;
+  final DateTime? finalizedAt;
+  final String? finalizedByUserId;
+  final DateTime createdAt;
+  final String createdByUserId;
+  final DateTime updatedAt;
+  const FarmDailyRecord({
+    required this.id,
+    required this.clinicId,
+    required this.farmId,
+    required this.recordDate,
+    required this.status,
+    required this.openingPopulation,
+    required this.births,
+    required this.purchases,
+    required this.transfersIn,
+    required this.mortality,
+    required this.sales,
+    required this.transfersOut,
+    required this.closingPopulation,
+    required this.feedSuppliedKg,
+    this.dailyNote,
+    this.tasksForTomorrow,
+    this.correctionReason,
+    this.originalSnapshotJson,
+    this.lastEditedByUserId,
+    this.finalizedAt,
+    this.finalizedByUserId,
+    required this.createdAt,
+    required this.createdByUserId,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['clinic_id'] = Variable<String>(clinicId);
+    map['farm_id'] = Variable<String>(farmId);
+    map['record_date'] = Variable<DateTime>(recordDate);
+    map['status'] = Variable<String>(status);
+    map['opening_population'] = Variable<int>(openingPopulation);
+    map['births'] = Variable<int>(births);
+    map['purchases'] = Variable<int>(purchases);
+    map['transfers_in'] = Variable<int>(transfersIn);
+    map['mortality'] = Variable<int>(mortality);
+    map['sales'] = Variable<int>(sales);
+    map['transfers_out'] = Variable<int>(transfersOut);
+    map['closing_population'] = Variable<int>(closingPopulation);
+    map['feed_supplied_kg'] = Variable<double>(feedSuppliedKg);
+    if (!nullToAbsent || dailyNote != null) {
+      map['daily_note'] = Variable<String>(dailyNote);
+    }
+    if (!nullToAbsent || tasksForTomorrow != null) {
+      map['tasks_for_tomorrow'] = Variable<String>(tasksForTomorrow);
+    }
+    if (!nullToAbsent || correctionReason != null) {
+      map['correction_reason'] = Variable<String>(correctionReason);
+    }
+    if (!nullToAbsent || originalSnapshotJson != null) {
+      map['original_snapshot_json'] = Variable<String>(originalSnapshotJson);
+    }
+    if (!nullToAbsent || lastEditedByUserId != null) {
+      map['last_edited_by_user_id'] = Variable<String>(lastEditedByUserId);
+    }
+    if (!nullToAbsent || finalizedAt != null) {
+      map['finalized_at'] = Variable<DateTime>(finalizedAt);
+    }
+    if (!nullToAbsent || finalizedByUserId != null) {
+      map['finalized_by_user_id'] = Variable<String>(finalizedByUserId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['created_by_user_id'] = Variable<String>(createdByUserId);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  FarmDailyRecordsCompanion toCompanion(bool nullToAbsent) {
+    return FarmDailyRecordsCompanion(
+      id: Value(id),
+      clinicId: Value(clinicId),
+      farmId: Value(farmId),
+      recordDate: Value(recordDate),
+      status: Value(status),
+      openingPopulation: Value(openingPopulation),
+      births: Value(births),
+      purchases: Value(purchases),
+      transfersIn: Value(transfersIn),
+      mortality: Value(mortality),
+      sales: Value(sales),
+      transfersOut: Value(transfersOut),
+      closingPopulation: Value(closingPopulation),
+      feedSuppliedKg: Value(feedSuppliedKg),
+      dailyNote: dailyNote == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dailyNote),
+      tasksForTomorrow: tasksForTomorrow == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tasksForTomorrow),
+      correctionReason: correctionReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(correctionReason),
+      originalSnapshotJson: originalSnapshotJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originalSnapshotJson),
+      lastEditedByUserId: lastEditedByUserId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastEditedByUserId),
+      finalizedAt: finalizedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(finalizedAt),
+      finalizedByUserId: finalizedByUserId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(finalizedByUserId),
+      createdAt: Value(createdAt),
+      createdByUserId: Value(createdByUserId),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory FarmDailyRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FarmDailyRecord(
+      id: serializer.fromJson<String>(json['id']),
+      clinicId: serializer.fromJson<String>(json['clinicId']),
+      farmId: serializer.fromJson<String>(json['farmId']),
+      recordDate: serializer.fromJson<DateTime>(json['recordDate']),
+      status: serializer.fromJson<String>(json['status']),
+      openingPopulation: serializer.fromJson<int>(json['openingPopulation']),
+      births: serializer.fromJson<int>(json['births']),
+      purchases: serializer.fromJson<int>(json['purchases']),
+      transfersIn: serializer.fromJson<int>(json['transfersIn']),
+      mortality: serializer.fromJson<int>(json['mortality']),
+      sales: serializer.fromJson<int>(json['sales']),
+      transfersOut: serializer.fromJson<int>(json['transfersOut']),
+      closingPopulation: serializer.fromJson<int>(json['closingPopulation']),
+      feedSuppliedKg: serializer.fromJson<double>(json['feedSuppliedKg']),
+      dailyNote: serializer.fromJson<String?>(json['dailyNote']),
+      tasksForTomorrow: serializer.fromJson<String?>(json['tasksForTomorrow']),
+      correctionReason: serializer.fromJson<String?>(json['correctionReason']),
+      originalSnapshotJson: serializer.fromJson<String?>(
+        json['originalSnapshotJson'],
+      ),
+      lastEditedByUserId: serializer.fromJson<String?>(
+        json['lastEditedByUserId'],
+      ),
+      finalizedAt: serializer.fromJson<DateTime?>(json['finalizedAt']),
+      finalizedByUserId: serializer.fromJson<String?>(
+        json['finalizedByUserId'],
+      ),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'clinicId': serializer.toJson<String>(clinicId),
+      'farmId': serializer.toJson<String>(farmId),
+      'recordDate': serializer.toJson<DateTime>(recordDate),
+      'status': serializer.toJson<String>(status),
+      'openingPopulation': serializer.toJson<int>(openingPopulation),
+      'births': serializer.toJson<int>(births),
+      'purchases': serializer.toJson<int>(purchases),
+      'transfersIn': serializer.toJson<int>(transfersIn),
+      'mortality': serializer.toJson<int>(mortality),
+      'sales': serializer.toJson<int>(sales),
+      'transfersOut': serializer.toJson<int>(transfersOut),
+      'closingPopulation': serializer.toJson<int>(closingPopulation),
+      'feedSuppliedKg': serializer.toJson<double>(feedSuppliedKg),
+      'dailyNote': serializer.toJson<String?>(dailyNote),
+      'tasksForTomorrow': serializer.toJson<String?>(tasksForTomorrow),
+      'correctionReason': serializer.toJson<String?>(correctionReason),
+      'originalSnapshotJson': serializer.toJson<String?>(originalSnapshotJson),
+      'lastEditedByUserId': serializer.toJson<String?>(lastEditedByUserId),
+      'finalizedAt': serializer.toJson<DateTime?>(finalizedAt),
+      'finalizedByUserId': serializer.toJson<String?>(finalizedByUserId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'createdByUserId': serializer.toJson<String>(createdByUserId),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  FarmDailyRecord copyWith({
+    String? id,
+    String? clinicId,
+    String? farmId,
+    DateTime? recordDate,
+    String? status,
+    int? openingPopulation,
+    int? births,
+    int? purchases,
+    int? transfersIn,
+    int? mortality,
+    int? sales,
+    int? transfersOut,
+    int? closingPopulation,
+    double? feedSuppliedKg,
+    Value<String?> dailyNote = const Value.absent(),
+    Value<String?> tasksForTomorrow = const Value.absent(),
+    Value<String?> correctionReason = const Value.absent(),
+    Value<String?> originalSnapshotJson = const Value.absent(),
+    Value<String?> lastEditedByUserId = const Value.absent(),
+    Value<DateTime?> finalizedAt = const Value.absent(),
+    Value<String?> finalizedByUserId = const Value.absent(),
+    DateTime? createdAt,
+    String? createdByUserId,
+    DateTime? updatedAt,
+  }) => FarmDailyRecord(
+    id: id ?? this.id,
+    clinicId: clinicId ?? this.clinicId,
+    farmId: farmId ?? this.farmId,
+    recordDate: recordDate ?? this.recordDate,
+    status: status ?? this.status,
+    openingPopulation: openingPopulation ?? this.openingPopulation,
+    births: births ?? this.births,
+    purchases: purchases ?? this.purchases,
+    transfersIn: transfersIn ?? this.transfersIn,
+    mortality: mortality ?? this.mortality,
+    sales: sales ?? this.sales,
+    transfersOut: transfersOut ?? this.transfersOut,
+    closingPopulation: closingPopulation ?? this.closingPopulation,
+    feedSuppliedKg: feedSuppliedKg ?? this.feedSuppliedKg,
+    dailyNote: dailyNote.present ? dailyNote.value : this.dailyNote,
+    tasksForTomorrow: tasksForTomorrow.present
+        ? tasksForTomorrow.value
+        : this.tasksForTomorrow,
+    correctionReason: correctionReason.present
+        ? correctionReason.value
+        : this.correctionReason,
+    originalSnapshotJson: originalSnapshotJson.present
+        ? originalSnapshotJson.value
+        : this.originalSnapshotJson,
+    lastEditedByUserId: lastEditedByUserId.present
+        ? lastEditedByUserId.value
+        : this.lastEditedByUserId,
+    finalizedAt: finalizedAt.present ? finalizedAt.value : this.finalizedAt,
+    finalizedByUserId: finalizedByUserId.present
+        ? finalizedByUserId.value
+        : this.finalizedByUserId,
+    createdAt: createdAt ?? this.createdAt,
+    createdByUserId: createdByUserId ?? this.createdByUserId,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  FarmDailyRecord copyWithCompanion(FarmDailyRecordsCompanion data) {
+    return FarmDailyRecord(
+      id: data.id.present ? data.id.value : this.id,
+      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
+      farmId: data.farmId.present ? data.farmId.value : this.farmId,
+      recordDate: data.recordDate.present
+          ? data.recordDate.value
+          : this.recordDate,
+      status: data.status.present ? data.status.value : this.status,
+      openingPopulation: data.openingPopulation.present
+          ? data.openingPopulation.value
+          : this.openingPopulation,
+      births: data.births.present ? data.births.value : this.births,
+      purchases: data.purchases.present ? data.purchases.value : this.purchases,
+      transfersIn: data.transfersIn.present
+          ? data.transfersIn.value
+          : this.transfersIn,
+      mortality: data.mortality.present ? data.mortality.value : this.mortality,
+      sales: data.sales.present ? data.sales.value : this.sales,
+      transfersOut: data.transfersOut.present
+          ? data.transfersOut.value
+          : this.transfersOut,
+      closingPopulation: data.closingPopulation.present
+          ? data.closingPopulation.value
+          : this.closingPopulation,
+      feedSuppliedKg: data.feedSuppliedKg.present
+          ? data.feedSuppliedKg.value
+          : this.feedSuppliedKg,
+      dailyNote: data.dailyNote.present ? data.dailyNote.value : this.dailyNote,
+      tasksForTomorrow: data.tasksForTomorrow.present
+          ? data.tasksForTomorrow.value
+          : this.tasksForTomorrow,
+      correctionReason: data.correctionReason.present
+          ? data.correctionReason.value
+          : this.correctionReason,
+      originalSnapshotJson: data.originalSnapshotJson.present
+          ? data.originalSnapshotJson.value
+          : this.originalSnapshotJson,
+      lastEditedByUserId: data.lastEditedByUserId.present
+          ? data.lastEditedByUserId.value
+          : this.lastEditedByUserId,
+      finalizedAt: data.finalizedAt.present
+          ? data.finalizedAt.value
+          : this.finalizedAt,
+      finalizedByUserId: data.finalizedByUserId.present
+          ? data.finalizedByUserId.value
+          : this.finalizedByUserId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      createdByUserId: data.createdByUserId.present
+          ? data.createdByUserId.value
+          : this.createdByUserId,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FarmDailyRecord(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('farmId: $farmId, ')
+          ..write('recordDate: $recordDate, ')
+          ..write('status: $status, ')
+          ..write('openingPopulation: $openingPopulation, ')
+          ..write('births: $births, ')
+          ..write('purchases: $purchases, ')
+          ..write('transfersIn: $transfersIn, ')
+          ..write('mortality: $mortality, ')
+          ..write('sales: $sales, ')
+          ..write('transfersOut: $transfersOut, ')
+          ..write('closingPopulation: $closingPopulation, ')
+          ..write('feedSuppliedKg: $feedSuppliedKg, ')
+          ..write('dailyNote: $dailyNote, ')
+          ..write('tasksForTomorrow: $tasksForTomorrow, ')
+          ..write('correctionReason: $correctionReason, ')
+          ..write('originalSnapshotJson: $originalSnapshotJson, ')
+          ..write('lastEditedByUserId: $lastEditedByUserId, ')
+          ..write('finalizedAt: $finalizedAt, ')
+          ..write('finalizedByUserId: $finalizedByUserId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('createdByUserId: $createdByUserId, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    clinicId,
+    farmId,
+    recordDate,
+    status,
+    openingPopulation,
+    births,
+    purchases,
+    transfersIn,
+    mortality,
+    sales,
+    transfersOut,
+    closingPopulation,
+    feedSuppliedKg,
+    dailyNote,
+    tasksForTomorrow,
+    correctionReason,
+    originalSnapshotJson,
+    lastEditedByUserId,
+    finalizedAt,
+    finalizedByUserId,
+    createdAt,
+    createdByUserId,
+    updatedAt,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FarmDailyRecord &&
+          other.id == this.id &&
+          other.clinicId == this.clinicId &&
+          other.farmId == this.farmId &&
+          other.recordDate == this.recordDate &&
+          other.status == this.status &&
+          other.openingPopulation == this.openingPopulation &&
+          other.births == this.births &&
+          other.purchases == this.purchases &&
+          other.transfersIn == this.transfersIn &&
+          other.mortality == this.mortality &&
+          other.sales == this.sales &&
+          other.transfersOut == this.transfersOut &&
+          other.closingPopulation == this.closingPopulation &&
+          other.feedSuppliedKg == this.feedSuppliedKg &&
+          other.dailyNote == this.dailyNote &&
+          other.tasksForTomorrow == this.tasksForTomorrow &&
+          other.correctionReason == this.correctionReason &&
+          other.originalSnapshotJson == this.originalSnapshotJson &&
+          other.lastEditedByUserId == this.lastEditedByUserId &&
+          other.finalizedAt == this.finalizedAt &&
+          other.finalizedByUserId == this.finalizedByUserId &&
+          other.createdAt == this.createdAt &&
+          other.createdByUserId == this.createdByUserId &&
+          other.updatedAt == this.updatedAt);
+}
+
+class FarmDailyRecordsCompanion extends UpdateCompanion<FarmDailyRecord> {
+  final Value<String> id;
+  final Value<String> clinicId;
+  final Value<String> farmId;
+  final Value<DateTime> recordDate;
+  final Value<String> status;
+  final Value<int> openingPopulation;
+  final Value<int> births;
+  final Value<int> purchases;
+  final Value<int> transfersIn;
+  final Value<int> mortality;
+  final Value<int> sales;
+  final Value<int> transfersOut;
+  final Value<int> closingPopulation;
+  final Value<double> feedSuppliedKg;
+  final Value<String?> dailyNote;
+  final Value<String?> tasksForTomorrow;
+  final Value<String?> correctionReason;
+  final Value<String?> originalSnapshotJson;
+  final Value<String?> lastEditedByUserId;
+  final Value<DateTime?> finalizedAt;
+  final Value<String?> finalizedByUserId;
+  final Value<DateTime> createdAt;
+  final Value<String> createdByUserId;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const FarmDailyRecordsCompanion({
+    this.id = const Value.absent(),
+    this.clinicId = const Value.absent(),
+    this.farmId = const Value.absent(),
+    this.recordDate = const Value.absent(),
+    this.status = const Value.absent(),
+    this.openingPopulation = const Value.absent(),
+    this.births = const Value.absent(),
+    this.purchases = const Value.absent(),
+    this.transfersIn = const Value.absent(),
+    this.mortality = const Value.absent(),
+    this.sales = const Value.absent(),
+    this.transfersOut = const Value.absent(),
+    this.closingPopulation = const Value.absent(),
+    this.feedSuppliedKg = const Value.absent(),
+    this.dailyNote = const Value.absent(),
+    this.tasksForTomorrow = const Value.absent(),
+    this.correctionReason = const Value.absent(),
+    this.originalSnapshotJson = const Value.absent(),
+    this.lastEditedByUserId = const Value.absent(),
+    this.finalizedAt = const Value.absent(),
+    this.finalizedByUserId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.createdByUserId = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FarmDailyRecordsCompanion.insert({
+    required String id,
+    required String clinicId,
+    required String farmId,
+    required DateTime recordDate,
+    this.status = const Value.absent(),
+    this.openingPopulation = const Value.absent(),
+    this.births = const Value.absent(),
+    this.purchases = const Value.absent(),
+    this.transfersIn = const Value.absent(),
+    this.mortality = const Value.absent(),
+    this.sales = const Value.absent(),
+    this.transfersOut = const Value.absent(),
+    this.closingPopulation = const Value.absent(),
+    this.feedSuppliedKg = const Value.absent(),
+    this.dailyNote = const Value.absent(),
+    this.tasksForTomorrow = const Value.absent(),
+    this.correctionReason = const Value.absent(),
+    this.originalSnapshotJson = const Value.absent(),
+    this.lastEditedByUserId = const Value.absent(),
+    this.finalizedAt = const Value.absent(),
+    this.finalizedByUserId = const Value.absent(),
+    required DateTime createdAt,
+    required String createdByUserId,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       clinicId = Value(clinicId),
+       farmId = Value(farmId),
+       recordDate = Value(recordDate),
+       createdAt = Value(createdAt),
+       createdByUserId = Value(createdByUserId),
+       updatedAt = Value(updatedAt);
+  static Insertable<FarmDailyRecord> custom({
+    Expression<String>? id,
+    Expression<String>? clinicId,
+    Expression<String>? farmId,
+    Expression<DateTime>? recordDate,
+    Expression<String>? status,
+    Expression<int>? openingPopulation,
+    Expression<int>? births,
+    Expression<int>? purchases,
+    Expression<int>? transfersIn,
+    Expression<int>? mortality,
+    Expression<int>? sales,
+    Expression<int>? transfersOut,
+    Expression<int>? closingPopulation,
+    Expression<double>? feedSuppliedKg,
+    Expression<String>? dailyNote,
+    Expression<String>? tasksForTomorrow,
+    Expression<String>? correctionReason,
+    Expression<String>? originalSnapshotJson,
+    Expression<String>? lastEditedByUserId,
+    Expression<DateTime>? finalizedAt,
+    Expression<String>? finalizedByUserId,
+    Expression<DateTime>? createdAt,
+    Expression<String>? createdByUserId,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (clinicId != null) 'clinic_id': clinicId,
+      if (farmId != null) 'farm_id': farmId,
+      if (recordDate != null) 'record_date': recordDate,
+      if (status != null) 'status': status,
+      if (openingPopulation != null) 'opening_population': openingPopulation,
+      if (births != null) 'births': births,
+      if (purchases != null) 'purchases': purchases,
+      if (transfersIn != null) 'transfers_in': transfersIn,
+      if (mortality != null) 'mortality': mortality,
+      if (sales != null) 'sales': sales,
+      if (transfersOut != null) 'transfers_out': transfersOut,
+      if (closingPopulation != null) 'closing_population': closingPopulation,
+      if (feedSuppliedKg != null) 'feed_supplied_kg': feedSuppliedKg,
+      if (dailyNote != null) 'daily_note': dailyNote,
+      if (tasksForTomorrow != null) 'tasks_for_tomorrow': tasksForTomorrow,
+      if (correctionReason != null) 'correction_reason': correctionReason,
+      if (originalSnapshotJson != null)
+        'original_snapshot_json': originalSnapshotJson,
+      if (lastEditedByUserId != null)
+        'last_edited_by_user_id': lastEditedByUserId,
+      if (finalizedAt != null) 'finalized_at': finalizedAt,
+      if (finalizedByUserId != null) 'finalized_by_user_id': finalizedByUserId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (createdByUserId != null) 'created_by_user_id': createdByUserId,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FarmDailyRecordsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? clinicId,
+    Value<String>? farmId,
+    Value<DateTime>? recordDate,
+    Value<String>? status,
+    Value<int>? openingPopulation,
+    Value<int>? births,
+    Value<int>? purchases,
+    Value<int>? transfersIn,
+    Value<int>? mortality,
+    Value<int>? sales,
+    Value<int>? transfersOut,
+    Value<int>? closingPopulation,
+    Value<double>? feedSuppliedKg,
+    Value<String?>? dailyNote,
+    Value<String?>? tasksForTomorrow,
+    Value<String?>? correctionReason,
+    Value<String?>? originalSnapshotJson,
+    Value<String?>? lastEditedByUserId,
+    Value<DateTime?>? finalizedAt,
+    Value<String?>? finalizedByUserId,
+    Value<DateTime>? createdAt,
+    Value<String>? createdByUserId,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return FarmDailyRecordsCompanion(
+      id: id ?? this.id,
+      clinicId: clinicId ?? this.clinicId,
+      farmId: farmId ?? this.farmId,
+      recordDate: recordDate ?? this.recordDate,
+      status: status ?? this.status,
+      openingPopulation: openingPopulation ?? this.openingPopulation,
+      births: births ?? this.births,
+      purchases: purchases ?? this.purchases,
+      transfersIn: transfersIn ?? this.transfersIn,
+      mortality: mortality ?? this.mortality,
+      sales: sales ?? this.sales,
+      transfersOut: transfersOut ?? this.transfersOut,
+      closingPopulation: closingPopulation ?? this.closingPopulation,
+      feedSuppliedKg: feedSuppliedKg ?? this.feedSuppliedKg,
+      dailyNote: dailyNote ?? this.dailyNote,
+      tasksForTomorrow: tasksForTomorrow ?? this.tasksForTomorrow,
+      correctionReason: correctionReason ?? this.correctionReason,
+      originalSnapshotJson: originalSnapshotJson ?? this.originalSnapshotJson,
+      lastEditedByUserId: lastEditedByUserId ?? this.lastEditedByUserId,
+      finalizedAt: finalizedAt ?? this.finalizedAt,
+      finalizedByUserId: finalizedByUserId ?? this.finalizedByUserId,
+      createdAt: createdAt ?? this.createdAt,
+      createdByUserId: createdByUserId ?? this.createdByUserId,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (clinicId.present) {
+      map['clinic_id'] = Variable<String>(clinicId.value);
+    }
+    if (farmId.present) {
+      map['farm_id'] = Variable<String>(farmId.value);
+    }
+    if (recordDate.present) {
+      map['record_date'] = Variable<DateTime>(recordDate.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (openingPopulation.present) {
+      map['opening_population'] = Variable<int>(openingPopulation.value);
+    }
+    if (births.present) {
+      map['births'] = Variable<int>(births.value);
+    }
+    if (purchases.present) {
+      map['purchases'] = Variable<int>(purchases.value);
+    }
+    if (transfersIn.present) {
+      map['transfers_in'] = Variable<int>(transfersIn.value);
+    }
+    if (mortality.present) {
+      map['mortality'] = Variable<int>(mortality.value);
+    }
+    if (sales.present) {
+      map['sales'] = Variable<int>(sales.value);
+    }
+    if (transfersOut.present) {
+      map['transfers_out'] = Variable<int>(transfersOut.value);
+    }
+    if (closingPopulation.present) {
+      map['closing_population'] = Variable<int>(closingPopulation.value);
+    }
+    if (feedSuppliedKg.present) {
+      map['feed_supplied_kg'] = Variable<double>(feedSuppliedKg.value);
+    }
+    if (dailyNote.present) {
+      map['daily_note'] = Variable<String>(dailyNote.value);
+    }
+    if (tasksForTomorrow.present) {
+      map['tasks_for_tomorrow'] = Variable<String>(tasksForTomorrow.value);
+    }
+    if (correctionReason.present) {
+      map['correction_reason'] = Variable<String>(correctionReason.value);
+    }
+    if (originalSnapshotJson.present) {
+      map['original_snapshot_json'] = Variable<String>(
+        originalSnapshotJson.value,
+      );
+    }
+    if (lastEditedByUserId.present) {
+      map['last_edited_by_user_id'] = Variable<String>(
+        lastEditedByUserId.value,
+      );
+    }
+    if (finalizedAt.present) {
+      map['finalized_at'] = Variable<DateTime>(finalizedAt.value);
+    }
+    if (finalizedByUserId.present) {
+      map['finalized_by_user_id'] = Variable<String>(finalizedByUserId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (createdByUserId.present) {
+      map['created_by_user_id'] = Variable<String>(createdByUserId.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FarmDailyRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('farmId: $farmId, ')
+          ..write('recordDate: $recordDate, ')
+          ..write('status: $status, ')
+          ..write('openingPopulation: $openingPopulation, ')
+          ..write('births: $births, ')
+          ..write('purchases: $purchases, ')
+          ..write('transfersIn: $transfersIn, ')
+          ..write('mortality: $mortality, ')
+          ..write('sales: $sales, ')
+          ..write('transfersOut: $transfersOut, ')
+          ..write('closingPopulation: $closingPopulation, ')
+          ..write('feedSuppliedKg: $feedSuppliedKg, ')
+          ..write('dailyNote: $dailyNote, ')
+          ..write('tasksForTomorrow: $tasksForTomorrow, ')
+          ..write('correctionReason: $correctionReason, ')
+          ..write('originalSnapshotJson: $originalSnapshotJson, ')
+          ..write('lastEditedByUserId: $lastEditedByUserId, ')
+          ..write('finalizedAt: $finalizedAt, ')
+          ..write('finalizedByUserId: $finalizedByUserId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('createdByUserId: $createdByUserId, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FarmHealthRecordsTable extends FarmHealthRecords
+    with TableInfo<$FarmHealthRecordsTable, FarmHealthRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FarmHealthRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
+    'clinicId',
+  );
+  @override
+  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
+    'clinic_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES clinics (clinic_id)',
+    ),
+  );
+  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
+  @override
+  late final GeneratedColumn<String> farmId = GeneratedColumn<String>(
+    'farm_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES farms (id)',
+    ),
+  );
+  static const VerificationMeta _dailyRecordIdMeta = const VerificationMeta(
+    'dailyRecordId',
+  );
+  @override
+  late final GeneratedColumn<String> dailyRecordId = GeneratedColumn<String>(
+    'daily_record_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES farm_daily_records (id)',
+    ),
+  );
+  static const VerificationMeta _farmUnitIdMeta = const VerificationMeta(
+    'farmUnitId',
+  );
+  @override
+  late final GeneratedColumn<int> farmUnitId = GeneratedColumn<int>(
+    'farm_unit_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES farm_units (id)',
+    ),
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _eventTypeMeta = const VerificationMeta(
+    'eventType',
+  );
+  @override
+  late final GeneratedColumn<String> eventType = GeneratedColumn<String>(
+    'event_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _productMeta = const VerificationMeta(
+    'product',
+  );
+  @override
+  late final GeneratedColumn<String> product = GeneratedColumn<String>(
+    'product',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _manufacturerMeta = const VerificationMeta(
+    'manufacturer',
+  );
+  @override
+  late final GeneratedColumn<String> manufacturer = GeneratedColumn<String>(
+    'manufacturer',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _batchNumberMeta = const VerificationMeta(
+    'batchNumber',
+  );
+  @override
+  late final GeneratedColumn<String> batchNumber = GeneratedColumn<String>(
+    'batch_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _purposeMeta = const VerificationMeta(
+    'purpose',
+  );
+  @override
+  late final GeneratedColumn<String> purpose = GeneratedColumn<String>(
+    'purpose',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _doseMeta = const VerificationMeta('dose');
+  @override
+  late final GeneratedColumn<String> dose = GeneratedColumn<String>(
+    'dose',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _routeMeta = const VerificationMeta('route');
+  @override
+  late final GeneratedColumn<String> route = GeneratedColumn<String>(
+    'route',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _animalsCoveredMeta = const VerificationMeta(
+    'animalsCovered',
+  );
+  @override
+  late final GeneratedColumn<int> animalsCovered = GeneratedColumn<int>(
+    'animals_covered',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _administeredByMeta = const VerificationMeta(
+    'administeredBy',
+  );
+  @override
+  late final GeneratedColumn<String> administeredBy = GeneratedColumn<String>(
+    'administered_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nextDueDateMeta = const VerificationMeta(
+    'nextDueDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextDueDate = GeneratedColumn<DateTime>(
+    'next_due_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _billableAmountMeta = const VerificationMeta(
+    'billableAmount',
+  );
+  @override
+  late final GeneratedColumn<double> billableAmount = GeneratedColumn<double>(
+    'billable_amount',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdByUserIdMeta = const VerificationMeta(
+    'createdByUserId',
+  );
+  @override
+  late final GeneratedColumn<String> createdByUserId = GeneratedColumn<String>(
+    'created_by_user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES app_users (user_id)',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    clinicId,
+    farmId,
+    dailyRecordId,
+    farmUnitId,
+    occurredAt,
+    eventType,
+    product,
+    manufacturer,
+    batchNumber,
+    purpose,
+    dose,
+    route,
+    animalsCovered,
+    administeredBy,
+    nextDueDate,
+    billableAmount,
+    notes,
+    createdByUserId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'farm_health_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FarmHealthRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('clinic_id')) {
+      context.handle(
+        _clinicIdMeta,
+        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_clinicIdMeta);
+    }
+    if (data.containsKey('farm_id')) {
+      context.handle(
+        _farmIdMeta,
+        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_farmIdMeta);
+    }
+    if (data.containsKey('daily_record_id')) {
+      context.handle(
+        _dailyRecordIdMeta,
+        dailyRecordId.isAcceptableOrUnknown(
+          data['daily_record_id']!,
+          _dailyRecordIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('farm_unit_id')) {
+      context.handle(
+        _farmUnitIdMeta,
+        farmUnitId.isAcceptableOrUnknown(
+          data['farm_unit_id']!,
+          _farmUnitIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('event_type')) {
+      context.handle(
+        _eventTypeMeta,
+        eventType.isAcceptableOrUnknown(data['event_type']!, _eventTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_eventTypeMeta);
+    }
+    if (data.containsKey('product')) {
+      context.handle(
+        _productMeta,
+        product.isAcceptableOrUnknown(data['product']!, _productMeta),
+      );
+    }
+    if (data.containsKey('manufacturer')) {
+      context.handle(
+        _manufacturerMeta,
+        manufacturer.isAcceptableOrUnknown(
+          data['manufacturer']!,
+          _manufacturerMeta,
+        ),
+      );
+    }
+    if (data.containsKey('batch_number')) {
+      context.handle(
+        _batchNumberMeta,
+        batchNumber.isAcceptableOrUnknown(
+          data['batch_number']!,
+          _batchNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('purpose')) {
+      context.handle(
+        _purposeMeta,
+        purpose.isAcceptableOrUnknown(data['purpose']!, _purposeMeta),
+      );
+    }
+    if (data.containsKey('dose')) {
+      context.handle(
+        _doseMeta,
+        dose.isAcceptableOrUnknown(data['dose']!, _doseMeta),
+      );
+    }
+    if (data.containsKey('route')) {
+      context.handle(
+        _routeMeta,
+        route.isAcceptableOrUnknown(data['route']!, _routeMeta),
+      );
+    }
+    if (data.containsKey('animals_covered')) {
+      context.handle(
+        _animalsCoveredMeta,
+        animalsCovered.isAcceptableOrUnknown(
+          data['animals_covered']!,
+          _animalsCoveredMeta,
+        ),
+      );
+    }
+    if (data.containsKey('administered_by')) {
+      context.handle(
+        _administeredByMeta,
+        administeredBy.isAcceptableOrUnknown(
+          data['administered_by']!,
+          _administeredByMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_due_date')) {
+      context.handle(
+        _nextDueDateMeta,
+        nextDueDate.isAcceptableOrUnknown(
+          data['next_due_date']!,
+          _nextDueDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('billable_amount')) {
+      context.handle(
+        _billableAmountMeta,
+        billableAmount.isAcceptableOrUnknown(
+          data['billable_amount']!,
+          _billableAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('created_by_user_id')) {
+      context.handle(
+        _createdByUserIdMeta,
+        createdByUserId.isAcceptableOrUnknown(
+          data['created_by_user_id']!,
+          _createdByUserIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdByUserIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FarmHealthRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FarmHealthRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      clinicId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}clinic_id'],
+      )!,
+      farmId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}farm_id'],
+      )!,
+      dailyRecordId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}daily_record_id'],
+      ),
+      farmUnitId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}farm_unit_id'],
+      ),
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      eventType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_type'],
+      )!,
+      product: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}product'],
+      ),
+      manufacturer: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}manufacturer'],
+      ),
+      batchNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}batch_number'],
+      ),
+      purpose: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}purpose'],
+      ),
+      dose: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dose'],
+      ),
+      route: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}route'],
+      ),
+      animalsCovered: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}animals_covered'],
+      ),
+      administeredBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}administered_by'],
+      ),
+      nextDueDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_due_date'],
+      ),
+      billableAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}billable_amount'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      createdByUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by_user_id'],
+      )!,
+    );
+  }
+
+  @override
+  $FarmHealthRecordsTable createAlias(String alias) {
+    return $FarmHealthRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class FarmHealthRecord extends DataClass
+    implements Insertable<FarmHealthRecord> {
+  final int id;
+  final String clinicId;
+  final String farmId;
+  final String? dailyRecordId;
+  final int? farmUnitId;
+  final DateTime occurredAt;
+  final String eventType;
+  final String? product;
+  final String? manufacturer;
+  final String? batchNumber;
+  final String? purpose;
+  final String? dose;
+  final String? route;
+  final int? animalsCovered;
+  final String? administeredBy;
+  final DateTime? nextDueDate;
+  final double? billableAmount;
+  final String? notes;
+  final String createdByUserId;
+  const FarmHealthRecord({
+    required this.id,
+    required this.clinicId,
+    required this.farmId,
+    this.dailyRecordId,
+    this.farmUnitId,
+    required this.occurredAt,
+    required this.eventType,
+    this.product,
+    this.manufacturer,
+    this.batchNumber,
+    this.purpose,
+    this.dose,
+    this.route,
+    this.animalsCovered,
+    this.administeredBy,
+    this.nextDueDate,
+    this.billableAmount,
+    this.notes,
+    required this.createdByUserId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['clinic_id'] = Variable<String>(clinicId);
+    map['farm_id'] = Variable<String>(farmId);
+    if (!nullToAbsent || dailyRecordId != null) {
+      map['daily_record_id'] = Variable<String>(dailyRecordId);
+    }
+    if (!nullToAbsent || farmUnitId != null) {
+      map['farm_unit_id'] = Variable<int>(farmUnitId);
+    }
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    map['event_type'] = Variable<String>(eventType);
+    if (!nullToAbsent || product != null) {
+      map['product'] = Variable<String>(product);
+    }
+    if (!nullToAbsent || manufacturer != null) {
+      map['manufacturer'] = Variable<String>(manufacturer);
+    }
+    if (!nullToAbsent || batchNumber != null) {
+      map['batch_number'] = Variable<String>(batchNumber);
+    }
+    if (!nullToAbsent || purpose != null) {
+      map['purpose'] = Variable<String>(purpose);
+    }
+    if (!nullToAbsent || dose != null) {
+      map['dose'] = Variable<String>(dose);
+    }
+    if (!nullToAbsent || route != null) {
+      map['route'] = Variable<String>(route);
+    }
+    if (!nullToAbsent || animalsCovered != null) {
+      map['animals_covered'] = Variable<int>(animalsCovered);
+    }
+    if (!nullToAbsent || administeredBy != null) {
+      map['administered_by'] = Variable<String>(administeredBy);
+    }
+    if (!nullToAbsent || nextDueDate != null) {
+      map['next_due_date'] = Variable<DateTime>(nextDueDate);
+    }
+    if (!nullToAbsent || billableAmount != null) {
+      map['billable_amount'] = Variable<double>(billableAmount);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['created_by_user_id'] = Variable<String>(createdByUserId);
+    return map;
+  }
+
+  FarmHealthRecordsCompanion toCompanion(bool nullToAbsent) {
+    return FarmHealthRecordsCompanion(
+      id: Value(id),
+      clinicId: Value(clinicId),
+      farmId: Value(farmId),
+      dailyRecordId: dailyRecordId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dailyRecordId),
+      farmUnitId: farmUnitId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(farmUnitId),
+      occurredAt: Value(occurredAt),
+      eventType: Value(eventType),
+      product: product == null && nullToAbsent
+          ? const Value.absent()
+          : Value(product),
+      manufacturer: manufacturer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(manufacturer),
+      batchNumber: batchNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(batchNumber),
+      purpose: purpose == null && nullToAbsent
+          ? const Value.absent()
+          : Value(purpose),
+      dose: dose == null && nullToAbsent ? const Value.absent() : Value(dose),
+      route: route == null && nullToAbsent
+          ? const Value.absent()
+          : Value(route),
+      animalsCovered: animalsCovered == null && nullToAbsent
+          ? const Value.absent()
+          : Value(animalsCovered),
+      administeredBy: administeredBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(administeredBy),
+      nextDueDate: nextDueDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextDueDate),
+      billableAmount: billableAmount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(billableAmount),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      createdByUserId: Value(createdByUserId),
+    );
+  }
+
+  factory FarmHealthRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FarmHealthRecord(
+      id: serializer.fromJson<int>(json['id']),
+      clinicId: serializer.fromJson<String>(json['clinicId']),
+      farmId: serializer.fromJson<String>(json['farmId']),
+      dailyRecordId: serializer.fromJson<String?>(json['dailyRecordId']),
+      farmUnitId: serializer.fromJson<int?>(json['farmUnitId']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+      eventType: serializer.fromJson<String>(json['eventType']),
+      product: serializer.fromJson<String?>(json['product']),
+      manufacturer: serializer.fromJson<String?>(json['manufacturer']),
+      batchNumber: serializer.fromJson<String?>(json['batchNumber']),
+      purpose: serializer.fromJson<String?>(json['purpose']),
+      dose: serializer.fromJson<String?>(json['dose']),
+      route: serializer.fromJson<String?>(json['route']),
+      animalsCovered: serializer.fromJson<int?>(json['animalsCovered']),
+      administeredBy: serializer.fromJson<String?>(json['administeredBy']),
+      nextDueDate: serializer.fromJson<DateTime?>(json['nextDueDate']),
+      billableAmount: serializer.fromJson<double?>(json['billableAmount']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'clinicId': serializer.toJson<String>(clinicId),
+      'farmId': serializer.toJson<String>(farmId),
+      'dailyRecordId': serializer.toJson<String?>(dailyRecordId),
+      'farmUnitId': serializer.toJson<int?>(farmUnitId),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+      'eventType': serializer.toJson<String>(eventType),
+      'product': serializer.toJson<String?>(product),
+      'manufacturer': serializer.toJson<String?>(manufacturer),
+      'batchNumber': serializer.toJson<String?>(batchNumber),
+      'purpose': serializer.toJson<String?>(purpose),
+      'dose': serializer.toJson<String?>(dose),
+      'route': serializer.toJson<String?>(route),
+      'animalsCovered': serializer.toJson<int?>(animalsCovered),
+      'administeredBy': serializer.toJson<String?>(administeredBy),
+      'nextDueDate': serializer.toJson<DateTime?>(nextDueDate),
+      'billableAmount': serializer.toJson<double?>(billableAmount),
+      'notes': serializer.toJson<String?>(notes),
+      'createdByUserId': serializer.toJson<String>(createdByUserId),
+    };
+  }
+
+  FarmHealthRecord copyWith({
+    int? id,
+    String? clinicId,
+    String? farmId,
+    Value<String?> dailyRecordId = const Value.absent(),
+    Value<int?> farmUnitId = const Value.absent(),
+    DateTime? occurredAt,
+    String? eventType,
+    Value<String?> product = const Value.absent(),
+    Value<String?> manufacturer = const Value.absent(),
+    Value<String?> batchNumber = const Value.absent(),
+    Value<String?> purpose = const Value.absent(),
+    Value<String?> dose = const Value.absent(),
+    Value<String?> route = const Value.absent(),
+    Value<int?> animalsCovered = const Value.absent(),
+    Value<String?> administeredBy = const Value.absent(),
+    Value<DateTime?> nextDueDate = const Value.absent(),
+    Value<double?> billableAmount = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    String? createdByUserId,
+  }) => FarmHealthRecord(
+    id: id ?? this.id,
+    clinicId: clinicId ?? this.clinicId,
+    farmId: farmId ?? this.farmId,
+    dailyRecordId: dailyRecordId.present
+        ? dailyRecordId.value
+        : this.dailyRecordId,
+    farmUnitId: farmUnitId.present ? farmUnitId.value : this.farmUnitId,
+    occurredAt: occurredAt ?? this.occurredAt,
+    eventType: eventType ?? this.eventType,
+    product: product.present ? product.value : this.product,
+    manufacturer: manufacturer.present ? manufacturer.value : this.manufacturer,
+    batchNumber: batchNumber.present ? batchNumber.value : this.batchNumber,
+    purpose: purpose.present ? purpose.value : this.purpose,
+    dose: dose.present ? dose.value : this.dose,
+    route: route.present ? route.value : this.route,
+    animalsCovered: animalsCovered.present
+        ? animalsCovered.value
+        : this.animalsCovered,
+    administeredBy: administeredBy.present
+        ? administeredBy.value
+        : this.administeredBy,
+    nextDueDate: nextDueDate.present ? nextDueDate.value : this.nextDueDate,
+    billableAmount: billableAmount.present
+        ? billableAmount.value
+        : this.billableAmount,
+    notes: notes.present ? notes.value : this.notes,
+    createdByUserId: createdByUserId ?? this.createdByUserId,
+  );
+  FarmHealthRecord copyWithCompanion(FarmHealthRecordsCompanion data) {
+    return FarmHealthRecord(
+      id: data.id.present ? data.id.value : this.id,
+      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
+      farmId: data.farmId.present ? data.farmId.value : this.farmId,
+      dailyRecordId: data.dailyRecordId.present
+          ? data.dailyRecordId.value
+          : this.dailyRecordId,
+      farmUnitId: data.farmUnitId.present
+          ? data.farmUnitId.value
+          : this.farmUnitId,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      eventType: data.eventType.present ? data.eventType.value : this.eventType,
+      product: data.product.present ? data.product.value : this.product,
+      manufacturer: data.manufacturer.present
+          ? data.manufacturer.value
+          : this.manufacturer,
+      batchNumber: data.batchNumber.present
+          ? data.batchNumber.value
+          : this.batchNumber,
+      purpose: data.purpose.present ? data.purpose.value : this.purpose,
+      dose: data.dose.present ? data.dose.value : this.dose,
+      route: data.route.present ? data.route.value : this.route,
+      animalsCovered: data.animalsCovered.present
+          ? data.animalsCovered.value
+          : this.animalsCovered,
+      administeredBy: data.administeredBy.present
+          ? data.administeredBy.value
+          : this.administeredBy,
+      nextDueDate: data.nextDueDate.present
+          ? data.nextDueDate.value
+          : this.nextDueDate,
+      billableAmount: data.billableAmount.present
+          ? data.billableAmount.value
+          : this.billableAmount,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      createdByUserId: data.createdByUserId.present
+          ? data.createdByUserId.value
+          : this.createdByUserId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FarmHealthRecord(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('farmId: $farmId, ')
+          ..write('dailyRecordId: $dailyRecordId, ')
+          ..write('farmUnitId: $farmUnitId, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('eventType: $eventType, ')
+          ..write('product: $product, ')
+          ..write('manufacturer: $manufacturer, ')
+          ..write('batchNumber: $batchNumber, ')
+          ..write('purpose: $purpose, ')
+          ..write('dose: $dose, ')
+          ..write('route: $route, ')
+          ..write('animalsCovered: $animalsCovered, ')
+          ..write('administeredBy: $administeredBy, ')
+          ..write('nextDueDate: $nextDueDate, ')
+          ..write('billableAmount: $billableAmount, ')
+          ..write('notes: $notes, ')
+          ..write('createdByUserId: $createdByUserId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    clinicId,
+    farmId,
+    dailyRecordId,
+    farmUnitId,
+    occurredAt,
+    eventType,
+    product,
+    manufacturer,
+    batchNumber,
+    purpose,
+    dose,
+    route,
+    animalsCovered,
+    administeredBy,
+    nextDueDate,
+    billableAmount,
+    notes,
+    createdByUserId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FarmHealthRecord &&
+          other.id == this.id &&
+          other.clinicId == this.clinicId &&
+          other.farmId == this.farmId &&
+          other.dailyRecordId == this.dailyRecordId &&
+          other.farmUnitId == this.farmUnitId &&
+          other.occurredAt == this.occurredAt &&
+          other.eventType == this.eventType &&
+          other.product == this.product &&
+          other.manufacturer == this.manufacturer &&
+          other.batchNumber == this.batchNumber &&
+          other.purpose == this.purpose &&
+          other.dose == this.dose &&
+          other.route == this.route &&
+          other.animalsCovered == this.animalsCovered &&
+          other.administeredBy == this.administeredBy &&
+          other.nextDueDate == this.nextDueDate &&
+          other.billableAmount == this.billableAmount &&
+          other.notes == this.notes &&
+          other.createdByUserId == this.createdByUserId);
+}
+
+class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
+  final Value<int> id;
+  final Value<String> clinicId;
+  final Value<String> farmId;
+  final Value<String?> dailyRecordId;
+  final Value<int?> farmUnitId;
+  final Value<DateTime> occurredAt;
+  final Value<String> eventType;
+  final Value<String?> product;
+  final Value<String?> manufacturer;
+  final Value<String?> batchNumber;
+  final Value<String?> purpose;
+  final Value<String?> dose;
+  final Value<String?> route;
+  final Value<int?> animalsCovered;
+  final Value<String?> administeredBy;
+  final Value<DateTime?> nextDueDate;
+  final Value<double?> billableAmount;
+  final Value<String?> notes;
+  final Value<String> createdByUserId;
+  const FarmHealthRecordsCompanion({
+    this.id = const Value.absent(),
+    this.clinicId = const Value.absent(),
+    this.farmId = const Value.absent(),
+    this.dailyRecordId = const Value.absent(),
+    this.farmUnitId = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.eventType = const Value.absent(),
+    this.product = const Value.absent(),
+    this.manufacturer = const Value.absent(),
+    this.batchNumber = const Value.absent(),
+    this.purpose = const Value.absent(),
+    this.dose = const Value.absent(),
+    this.route = const Value.absent(),
+    this.animalsCovered = const Value.absent(),
+    this.administeredBy = const Value.absent(),
+    this.nextDueDate = const Value.absent(),
+    this.billableAmount = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdByUserId = const Value.absent(),
+  });
+  FarmHealthRecordsCompanion.insert({
+    this.id = const Value.absent(),
+    required String clinicId,
+    required String farmId,
+    this.dailyRecordId = const Value.absent(),
+    this.farmUnitId = const Value.absent(),
+    required DateTime occurredAt,
+    required String eventType,
+    this.product = const Value.absent(),
+    this.manufacturer = const Value.absent(),
+    this.batchNumber = const Value.absent(),
+    this.purpose = const Value.absent(),
+    this.dose = const Value.absent(),
+    this.route = const Value.absent(),
+    this.animalsCovered = const Value.absent(),
+    this.administeredBy = const Value.absent(),
+    this.nextDueDate = const Value.absent(),
+    this.billableAmount = const Value.absent(),
+    this.notes = const Value.absent(),
+    required String createdByUserId,
+  }) : clinicId = Value(clinicId),
+       farmId = Value(farmId),
+       occurredAt = Value(occurredAt),
+       eventType = Value(eventType),
+       createdByUserId = Value(createdByUserId);
+  static Insertable<FarmHealthRecord> custom({
+    Expression<int>? id,
+    Expression<String>? clinicId,
+    Expression<String>? farmId,
+    Expression<String>? dailyRecordId,
+    Expression<int>? farmUnitId,
+    Expression<DateTime>? occurredAt,
+    Expression<String>? eventType,
+    Expression<String>? product,
+    Expression<String>? manufacturer,
+    Expression<String>? batchNumber,
+    Expression<String>? purpose,
+    Expression<String>? dose,
+    Expression<String>? route,
+    Expression<int>? animalsCovered,
+    Expression<String>? administeredBy,
+    Expression<DateTime>? nextDueDate,
+    Expression<double>? billableAmount,
+    Expression<String>? notes,
+    Expression<String>? createdByUserId,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (clinicId != null) 'clinic_id': clinicId,
+      if (farmId != null) 'farm_id': farmId,
+      if (dailyRecordId != null) 'daily_record_id': dailyRecordId,
+      if (farmUnitId != null) 'farm_unit_id': farmUnitId,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (eventType != null) 'event_type': eventType,
+      if (product != null) 'product': product,
+      if (manufacturer != null) 'manufacturer': manufacturer,
+      if (batchNumber != null) 'batch_number': batchNumber,
+      if (purpose != null) 'purpose': purpose,
+      if (dose != null) 'dose': dose,
+      if (route != null) 'route': route,
+      if (animalsCovered != null) 'animals_covered': animalsCovered,
+      if (administeredBy != null) 'administered_by': administeredBy,
+      if (nextDueDate != null) 'next_due_date': nextDueDate,
+      if (billableAmount != null) 'billable_amount': billableAmount,
+      if (notes != null) 'notes': notes,
+      if (createdByUserId != null) 'created_by_user_id': createdByUserId,
+    });
+  }
+
+  FarmHealthRecordsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? clinicId,
+    Value<String>? farmId,
+    Value<String?>? dailyRecordId,
+    Value<int?>? farmUnitId,
+    Value<DateTime>? occurredAt,
+    Value<String>? eventType,
+    Value<String?>? product,
+    Value<String?>? manufacturer,
+    Value<String?>? batchNumber,
+    Value<String?>? purpose,
+    Value<String?>? dose,
+    Value<String?>? route,
+    Value<int?>? animalsCovered,
+    Value<String?>? administeredBy,
+    Value<DateTime?>? nextDueDate,
+    Value<double?>? billableAmount,
+    Value<String?>? notes,
+    Value<String>? createdByUserId,
+  }) {
+    return FarmHealthRecordsCompanion(
+      id: id ?? this.id,
+      clinicId: clinicId ?? this.clinicId,
+      farmId: farmId ?? this.farmId,
+      dailyRecordId: dailyRecordId ?? this.dailyRecordId,
+      farmUnitId: farmUnitId ?? this.farmUnitId,
+      occurredAt: occurredAt ?? this.occurredAt,
+      eventType: eventType ?? this.eventType,
+      product: product ?? this.product,
+      manufacturer: manufacturer ?? this.manufacturer,
+      batchNumber: batchNumber ?? this.batchNumber,
+      purpose: purpose ?? this.purpose,
+      dose: dose ?? this.dose,
+      route: route ?? this.route,
+      animalsCovered: animalsCovered ?? this.animalsCovered,
+      administeredBy: administeredBy ?? this.administeredBy,
+      nextDueDate: nextDueDate ?? this.nextDueDate,
+      billableAmount: billableAmount ?? this.billableAmount,
+      notes: notes ?? this.notes,
+      createdByUserId: createdByUserId ?? this.createdByUserId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (clinicId.present) {
+      map['clinic_id'] = Variable<String>(clinicId.value);
+    }
+    if (farmId.present) {
+      map['farm_id'] = Variable<String>(farmId.value);
+    }
+    if (dailyRecordId.present) {
+      map['daily_record_id'] = Variable<String>(dailyRecordId.value);
+    }
+    if (farmUnitId.present) {
+      map['farm_unit_id'] = Variable<int>(farmUnitId.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    if (eventType.present) {
+      map['event_type'] = Variable<String>(eventType.value);
+    }
+    if (product.present) {
+      map['product'] = Variable<String>(product.value);
+    }
+    if (manufacturer.present) {
+      map['manufacturer'] = Variable<String>(manufacturer.value);
+    }
+    if (batchNumber.present) {
+      map['batch_number'] = Variable<String>(batchNumber.value);
+    }
+    if (purpose.present) {
+      map['purpose'] = Variable<String>(purpose.value);
+    }
+    if (dose.present) {
+      map['dose'] = Variable<String>(dose.value);
+    }
+    if (route.present) {
+      map['route'] = Variable<String>(route.value);
+    }
+    if (animalsCovered.present) {
+      map['animals_covered'] = Variable<int>(animalsCovered.value);
+    }
+    if (administeredBy.present) {
+      map['administered_by'] = Variable<String>(administeredBy.value);
+    }
+    if (nextDueDate.present) {
+      map['next_due_date'] = Variable<DateTime>(nextDueDate.value);
+    }
+    if (billableAmount.present) {
+      map['billable_amount'] = Variable<double>(billableAmount.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (createdByUserId.present) {
+      map['created_by_user_id'] = Variable<String>(createdByUserId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FarmHealthRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('clinicId: $clinicId, ')
+          ..write('farmId: $farmId, ')
+          ..write('dailyRecordId: $dailyRecordId, ')
+          ..write('farmUnitId: $farmUnitId, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('eventType: $eventType, ')
+          ..write('product: $product, ')
+          ..write('manufacturer: $manufacturer, ')
+          ..write('batchNumber: $batchNumber, ')
+          ..write('purpose: $purpose, ')
+          ..write('dose: $dose, ')
+          ..write('route: $route, ')
+          ..write('animalsCovered: $animalsCovered, ')
+          ..write('administeredBy: $administeredBy, ')
+          ..write('nextDueDate: $nextDueDate, ')
+          ..write('billableAmount: $billableAmount, ')
+          ..write('notes: $notes, ')
+          ..write('createdByUserId: $createdByUserId')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $InvoiceServiceLinesTable extends InvoiceServiceLines
     with TableInfo<$InvoiceServiceLinesTable, InvoiceServiceLine> {
   @override
@@ -20267,6 +25704,34 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
       'REFERENCES animals (id)',
     ),
   );
+  static const VerificationMeta _farmUnitIdMeta = const VerificationMeta(
+    'farmUnitId',
+  );
+  @override
+  late final GeneratedColumn<int> farmUnitId = GeneratedColumn<int>(
+    'farm_unit_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES farm_units (id)',
+    ),
+  );
+  static const VerificationMeta _sourceTreatmentRecordIdMeta =
+      const VerificationMeta('sourceTreatmentRecordId');
+  @override
+  late final GeneratedColumn<int> sourceTreatmentRecordId =
+      GeneratedColumn<int>(
+        'source_treatment_record_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES farm_health_records (id)',
+        ),
+      );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -20303,6 +25768,8 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
     id,
     invoiceId,
     animalId,
+    farmUnitId,
+    sourceTreatmentRecordId,
     description,
     amount,
     costSnapshot,
@@ -20334,6 +25801,24 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
       context.handle(
         _animalIdMeta,
         animalId.isAcceptableOrUnknown(data['animal_id']!, _animalIdMeta),
+      );
+    }
+    if (data.containsKey('farm_unit_id')) {
+      context.handle(
+        _farmUnitIdMeta,
+        farmUnitId.isAcceptableOrUnknown(
+          data['farm_unit_id']!,
+          _farmUnitIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_treatment_record_id')) {
+      context.handle(
+        _sourceTreatmentRecordIdMeta,
+        sourceTreatmentRecordId.isAcceptableOrUnknown(
+          data['source_treatment_record_id']!,
+          _sourceTreatmentRecordIdMeta,
+        ),
       );
     }
     if (data.containsKey('description')) {
@@ -20385,6 +25870,14 @@ class $InvoiceServiceLinesTable extends InvoiceServiceLines
         DriftSqlType.int,
         data['${effectivePrefix}animal_id'],
       ),
+      farmUnitId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}farm_unit_id'],
+      ),
+      sourceTreatmentRecordId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}source_treatment_record_id'],
+      ),
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -20411,6 +25904,8 @@ class InvoiceServiceLine extends DataClass
   final int id;
   final int invoiceId;
   final int? animalId;
+  final int? farmUnitId;
+  final int? sourceTreatmentRecordId;
   final String description;
   final double amount;
   final double? costSnapshot;
@@ -20418,6 +25913,8 @@ class InvoiceServiceLine extends DataClass
     required this.id,
     required this.invoiceId,
     this.animalId,
+    this.farmUnitId,
+    this.sourceTreatmentRecordId,
     required this.description,
     required this.amount,
     this.costSnapshot,
@@ -20429,6 +25926,14 @@ class InvoiceServiceLine extends DataClass
     map['invoice_id'] = Variable<int>(invoiceId);
     if (!nullToAbsent || animalId != null) {
       map['animal_id'] = Variable<int>(animalId);
+    }
+    if (!nullToAbsent || farmUnitId != null) {
+      map['farm_unit_id'] = Variable<int>(farmUnitId);
+    }
+    if (!nullToAbsent || sourceTreatmentRecordId != null) {
+      map['source_treatment_record_id'] = Variable<int>(
+        sourceTreatmentRecordId,
+      );
     }
     map['description'] = Variable<String>(description);
     map['amount'] = Variable<double>(amount);
@@ -20445,6 +25950,12 @@ class InvoiceServiceLine extends DataClass
       animalId: animalId == null && nullToAbsent
           ? const Value.absent()
           : Value(animalId),
+      farmUnitId: farmUnitId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(farmUnitId),
+      sourceTreatmentRecordId: sourceTreatmentRecordId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceTreatmentRecordId),
       description: Value(description),
       amount: Value(amount),
       costSnapshot: costSnapshot == null && nullToAbsent
@@ -20462,6 +25973,10 @@ class InvoiceServiceLine extends DataClass
       id: serializer.fromJson<int>(json['id']),
       invoiceId: serializer.fromJson<int>(json['invoiceId']),
       animalId: serializer.fromJson<int?>(json['animalId']),
+      farmUnitId: serializer.fromJson<int?>(json['farmUnitId']),
+      sourceTreatmentRecordId: serializer.fromJson<int?>(
+        json['sourceTreatmentRecordId'],
+      ),
       description: serializer.fromJson<String>(json['description']),
       amount: serializer.fromJson<double>(json['amount']),
       costSnapshot: serializer.fromJson<double?>(json['costSnapshot']),
@@ -20474,6 +25989,10 @@ class InvoiceServiceLine extends DataClass
       'id': serializer.toJson<int>(id),
       'invoiceId': serializer.toJson<int>(invoiceId),
       'animalId': serializer.toJson<int?>(animalId),
+      'farmUnitId': serializer.toJson<int?>(farmUnitId),
+      'sourceTreatmentRecordId': serializer.toJson<int?>(
+        sourceTreatmentRecordId,
+      ),
       'description': serializer.toJson<String>(description),
       'amount': serializer.toJson<double>(amount),
       'costSnapshot': serializer.toJson<double?>(costSnapshot),
@@ -20484,6 +26003,8 @@ class InvoiceServiceLine extends DataClass
     int? id,
     int? invoiceId,
     Value<int?> animalId = const Value.absent(),
+    Value<int?> farmUnitId = const Value.absent(),
+    Value<int?> sourceTreatmentRecordId = const Value.absent(),
     String? description,
     double? amount,
     Value<double?> costSnapshot = const Value.absent(),
@@ -20491,6 +26012,10 @@ class InvoiceServiceLine extends DataClass
     id: id ?? this.id,
     invoiceId: invoiceId ?? this.invoiceId,
     animalId: animalId.present ? animalId.value : this.animalId,
+    farmUnitId: farmUnitId.present ? farmUnitId.value : this.farmUnitId,
+    sourceTreatmentRecordId: sourceTreatmentRecordId.present
+        ? sourceTreatmentRecordId.value
+        : this.sourceTreatmentRecordId,
     description: description ?? this.description,
     amount: amount ?? this.amount,
     costSnapshot: costSnapshot.present ? costSnapshot.value : this.costSnapshot,
@@ -20500,6 +26025,12 @@ class InvoiceServiceLine extends DataClass
       id: data.id.present ? data.id.value : this.id,
       invoiceId: data.invoiceId.present ? data.invoiceId.value : this.invoiceId,
       animalId: data.animalId.present ? data.animalId.value : this.animalId,
+      farmUnitId: data.farmUnitId.present
+          ? data.farmUnitId.value
+          : this.farmUnitId,
+      sourceTreatmentRecordId: data.sourceTreatmentRecordId.present
+          ? data.sourceTreatmentRecordId.value
+          : this.sourceTreatmentRecordId,
       description: data.description.present
           ? data.description.value
           : this.description,
@@ -20516,6 +26047,8 @@ class InvoiceServiceLine extends DataClass
           ..write('id: $id, ')
           ..write('invoiceId: $invoiceId, ')
           ..write('animalId: $animalId, ')
+          ..write('farmUnitId: $farmUnitId, ')
+          ..write('sourceTreatmentRecordId: $sourceTreatmentRecordId, ')
           ..write('description: $description, ')
           ..write('amount: $amount, ')
           ..write('costSnapshot: $costSnapshot')
@@ -20524,8 +26057,16 @@ class InvoiceServiceLine extends DataClass
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, invoiceId, animalId, description, amount, costSnapshot);
+  int get hashCode => Object.hash(
+    id,
+    invoiceId,
+    animalId,
+    farmUnitId,
+    sourceTreatmentRecordId,
+    description,
+    amount,
+    costSnapshot,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -20533,6 +26074,8 @@ class InvoiceServiceLine extends DataClass
           other.id == this.id &&
           other.invoiceId == this.invoiceId &&
           other.animalId == this.animalId &&
+          other.farmUnitId == this.farmUnitId &&
+          other.sourceTreatmentRecordId == this.sourceTreatmentRecordId &&
           other.description == this.description &&
           other.amount == this.amount &&
           other.costSnapshot == this.costSnapshot);
@@ -20542,6 +26085,8 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
   final Value<int> id;
   final Value<int> invoiceId;
   final Value<int?> animalId;
+  final Value<int?> farmUnitId;
+  final Value<int?> sourceTreatmentRecordId;
   final Value<String> description;
   final Value<double> amount;
   final Value<double?> costSnapshot;
@@ -20549,6 +26094,8 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     this.id = const Value.absent(),
     this.invoiceId = const Value.absent(),
     this.animalId = const Value.absent(),
+    this.farmUnitId = const Value.absent(),
+    this.sourceTreatmentRecordId = const Value.absent(),
     this.description = const Value.absent(),
     this.amount = const Value.absent(),
     this.costSnapshot = const Value.absent(),
@@ -20557,6 +26104,8 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     this.id = const Value.absent(),
     required int invoiceId,
     this.animalId = const Value.absent(),
+    this.farmUnitId = const Value.absent(),
+    this.sourceTreatmentRecordId = const Value.absent(),
     required String description,
     required double amount,
     this.costSnapshot = const Value.absent(),
@@ -20567,6 +26116,8 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     Expression<int>? id,
     Expression<int>? invoiceId,
     Expression<int>? animalId,
+    Expression<int>? farmUnitId,
+    Expression<int>? sourceTreatmentRecordId,
     Expression<String>? description,
     Expression<double>? amount,
     Expression<double>? costSnapshot,
@@ -20575,6 +26126,9 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
       if (id != null) 'id': id,
       if (invoiceId != null) 'invoice_id': invoiceId,
       if (animalId != null) 'animal_id': animalId,
+      if (farmUnitId != null) 'farm_unit_id': farmUnitId,
+      if (sourceTreatmentRecordId != null)
+        'source_treatment_record_id': sourceTreatmentRecordId,
       if (description != null) 'description': description,
       if (amount != null) 'amount': amount,
       if (costSnapshot != null) 'cost_snapshot': costSnapshot,
@@ -20585,6 +26139,8 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     Value<int>? id,
     Value<int>? invoiceId,
     Value<int?>? animalId,
+    Value<int?>? farmUnitId,
+    Value<int?>? sourceTreatmentRecordId,
     Value<String>? description,
     Value<double>? amount,
     Value<double?>? costSnapshot,
@@ -20593,6 +26149,9 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
       id: id ?? this.id,
       invoiceId: invoiceId ?? this.invoiceId,
       animalId: animalId ?? this.animalId,
+      farmUnitId: farmUnitId ?? this.farmUnitId,
+      sourceTreatmentRecordId:
+          sourceTreatmentRecordId ?? this.sourceTreatmentRecordId,
       description: description ?? this.description,
       amount: amount ?? this.amount,
       costSnapshot: costSnapshot ?? this.costSnapshot,
@@ -20610,6 +26169,14 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
     }
     if (animalId.present) {
       map['animal_id'] = Variable<int>(animalId.value);
+    }
+    if (farmUnitId.present) {
+      map['farm_unit_id'] = Variable<int>(farmUnitId.value);
+    }
+    if (sourceTreatmentRecordId.present) {
+      map['source_treatment_record_id'] = Variable<int>(
+        sourceTreatmentRecordId.value,
+      );
     }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
@@ -20629,6 +26196,8 @@ class InvoiceServiceLinesCompanion extends UpdateCompanion<InvoiceServiceLine> {
           ..write('id: $id, ')
           ..write('invoiceId: $invoiceId, ')
           ..write('animalId: $animalId, ')
+          ..write('farmUnitId: $farmUnitId, ')
+          ..write('sourceTreatmentRecordId: $sourceTreatmentRecordId, ')
           ..write('description: $description, ')
           ..write('amount: $amount, ')
           ..write('costSnapshot: $costSnapshot')
@@ -32700,3100 +38269,6 @@ class SubscriptionAuditLogsCompanion
   }
 }
 
-class $FarmsTable extends Farms with TableInfo<$FarmsTable, Farm> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $FarmsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
-    'clinicId',
-  );
-  @override
-  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
-    'clinic_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES clinics (clinic_id)',
-    ),
-  );
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-    'name',
-    aliasedName,
-    false,
-    additionalChecks: GeneratedColumn.checkTextLength(
-      minTextLength: 2,
-      maxTextLength: 160,
-    ),
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _locationMeta = const VerificationMeta(
-    'location',
-  );
-  @override
-  late final GeneratedColumn<String> location = GeneratedColumn<String>(
-    'location',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _speciesJsonMeta = const VerificationMeta(
-    'speciesJson',
-  );
-  @override
-  late final GeneratedColumn<String> speciesJson = GeneratedColumn<String>(
-    'species_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('[]'),
-  );
-  static const VerificationMeta _breedJsonMeta = const VerificationMeta(
-    'breedJson',
-  );
-  @override
-  late final GeneratedColumn<String> breedJson = GeneratedColumn<String>(
-    'breed_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('[]'),
-  );
-  static const VerificationMeta _ownerOrganizationMeta = const VerificationMeta(
-    'ownerOrganization',
-  );
-  @override
-  late final GeneratedColumn<String> ownerOrganization =
-      GeneratedColumn<String>(
-        'owner_organization',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _contactNumberMeta = const VerificationMeta(
-    'contactNumber',
-  );
-  @override
-  late final GeneratedColumn<String> contactNumber = GeneratedColumn<String>(
-    'contact_number',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _farmTypeMeta = const VerificationMeta(
-    'farmType',
-  );
-  @override
-  late final GeneratedColumn<String> farmType = GeneratedColumn<String>(
-    'farm_type',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
-  @override
-  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
-    'notes',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _statusMeta = const VerificationMeta('status');
-  @override
-  late final GeneratedColumn<String> status = GeneratedColumn<String>(
-    'status',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('Active'),
-  );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _createdByUserIdMeta = const VerificationMeta(
-    'createdByUserId',
-  );
-  @override
-  late final GeneratedColumn<String> createdByUserId = GeneratedColumn<String>(
-    'created_by_user_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES app_users (user_id)',
-    ),
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    clinicId,
-    name,
-    location,
-    speciesJson,
-    breedJson,
-    ownerOrganization,
-    contactNumber,
-    farmType,
-    notes,
-    status,
-    createdAt,
-    createdByUserId,
-    updatedAt,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'farms';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<Farm> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('clinic_id')) {
-      context.handle(
-        _clinicIdMeta,
-        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_clinicIdMeta);
-    }
-    if (data.containsKey('name')) {
-      context.handle(
-        _nameMeta,
-        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_nameMeta);
-    }
-    if (data.containsKey('location')) {
-      context.handle(
-        _locationMeta,
-        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
-      );
-    }
-    if (data.containsKey('species_json')) {
-      context.handle(
-        _speciesJsonMeta,
-        speciesJson.isAcceptableOrUnknown(
-          data['species_json']!,
-          _speciesJsonMeta,
-        ),
-      );
-    }
-    if (data.containsKey('breed_json')) {
-      context.handle(
-        _breedJsonMeta,
-        breedJson.isAcceptableOrUnknown(data['breed_json']!, _breedJsonMeta),
-      );
-    }
-    if (data.containsKey('owner_organization')) {
-      context.handle(
-        _ownerOrganizationMeta,
-        ownerOrganization.isAcceptableOrUnknown(
-          data['owner_organization']!,
-          _ownerOrganizationMeta,
-        ),
-      );
-    }
-    if (data.containsKey('contact_number')) {
-      context.handle(
-        _contactNumberMeta,
-        contactNumber.isAcceptableOrUnknown(
-          data['contact_number']!,
-          _contactNumberMeta,
-        ),
-      );
-    }
-    if (data.containsKey('farm_type')) {
-      context.handle(
-        _farmTypeMeta,
-        farmType.isAcceptableOrUnknown(data['farm_type']!, _farmTypeMeta),
-      );
-    }
-    if (data.containsKey('notes')) {
-      context.handle(
-        _notesMeta,
-        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
-      );
-    }
-    if (data.containsKey('status')) {
-      context.handle(
-        _statusMeta,
-        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
-      );
-    }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('created_by_user_id')) {
-      context.handle(
-        _createdByUserIdMeta,
-        createdByUserId.isAcceptableOrUnknown(
-          data['created_by_user_id']!,
-          _createdByUserIdMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_createdByUserIdMeta);
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  List<Set<GeneratedColumn>> get uniqueKeys => [
-    {clinicId, name},
-  ];
-  @override
-  Farm map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return Farm(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}id'],
-      )!,
-      clinicId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}clinic_id'],
-      )!,
-      name: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}name'],
-      )!,
-      location: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}location'],
-      ),
-      speciesJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}species_json'],
-      )!,
-      breedJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}breed_json'],
-      )!,
-      ownerOrganization: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}owner_organization'],
-      ),
-      contactNumber: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}contact_number'],
-      ),
-      farmType: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}farm_type'],
-      ),
-      notes: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}notes'],
-      ),
-      status: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}status'],
-      )!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      createdByUserId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}created_by_user_id'],
-      )!,
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
-    );
-  }
-
-  @override
-  $FarmsTable createAlias(String alias) {
-    return $FarmsTable(attachedDatabase, alias);
-  }
-}
-
-class Farm extends DataClass implements Insertable<Farm> {
-  final String id;
-  final String clinicId;
-  final String name;
-  final String? location;
-  final String speciesJson;
-  final String breedJson;
-  final String? ownerOrganization;
-  final String? contactNumber;
-  final String? farmType;
-  final String? notes;
-  final String status;
-  final DateTime createdAt;
-  final String createdByUserId;
-  final DateTime updatedAt;
-  const Farm({
-    required this.id,
-    required this.clinicId,
-    required this.name,
-    this.location,
-    required this.speciesJson,
-    required this.breedJson,
-    this.ownerOrganization,
-    this.contactNumber,
-    this.farmType,
-    this.notes,
-    required this.status,
-    required this.createdAt,
-    required this.createdByUserId,
-    required this.updatedAt,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['clinic_id'] = Variable<String>(clinicId);
-    map['name'] = Variable<String>(name);
-    if (!nullToAbsent || location != null) {
-      map['location'] = Variable<String>(location);
-    }
-    map['species_json'] = Variable<String>(speciesJson);
-    map['breed_json'] = Variable<String>(breedJson);
-    if (!nullToAbsent || ownerOrganization != null) {
-      map['owner_organization'] = Variable<String>(ownerOrganization);
-    }
-    if (!nullToAbsent || contactNumber != null) {
-      map['contact_number'] = Variable<String>(contactNumber);
-    }
-    if (!nullToAbsent || farmType != null) {
-      map['farm_type'] = Variable<String>(farmType);
-    }
-    if (!nullToAbsent || notes != null) {
-      map['notes'] = Variable<String>(notes);
-    }
-    map['status'] = Variable<String>(status);
-    map['created_at'] = Variable<DateTime>(createdAt);
-    map['created_by_user_id'] = Variable<String>(createdByUserId);
-    map['updated_at'] = Variable<DateTime>(updatedAt);
-    return map;
-  }
-
-  FarmsCompanion toCompanion(bool nullToAbsent) {
-    return FarmsCompanion(
-      id: Value(id),
-      clinicId: Value(clinicId),
-      name: Value(name),
-      location: location == null && nullToAbsent
-          ? const Value.absent()
-          : Value(location),
-      speciesJson: Value(speciesJson),
-      breedJson: Value(breedJson),
-      ownerOrganization: ownerOrganization == null && nullToAbsent
-          ? const Value.absent()
-          : Value(ownerOrganization),
-      contactNumber: contactNumber == null && nullToAbsent
-          ? const Value.absent()
-          : Value(contactNumber),
-      farmType: farmType == null && nullToAbsent
-          ? const Value.absent()
-          : Value(farmType),
-      notes: notes == null && nullToAbsent
-          ? const Value.absent()
-          : Value(notes),
-      status: Value(status),
-      createdAt: Value(createdAt),
-      createdByUserId: Value(createdByUserId),
-      updatedAt: Value(updatedAt),
-    );
-  }
-
-  factory Farm.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return Farm(
-      id: serializer.fromJson<String>(json['id']),
-      clinicId: serializer.fromJson<String>(json['clinicId']),
-      name: serializer.fromJson<String>(json['name']),
-      location: serializer.fromJson<String?>(json['location']),
-      speciesJson: serializer.fromJson<String>(json['speciesJson']),
-      breedJson: serializer.fromJson<String>(json['breedJson']),
-      ownerOrganization: serializer.fromJson<String?>(
-        json['ownerOrganization'],
-      ),
-      contactNumber: serializer.fromJson<String?>(json['contactNumber']),
-      farmType: serializer.fromJson<String?>(json['farmType']),
-      notes: serializer.fromJson<String?>(json['notes']),
-      status: serializer.fromJson<String>(json['status']),
-      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
-      createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'clinicId': serializer.toJson<String>(clinicId),
-      'name': serializer.toJson<String>(name),
-      'location': serializer.toJson<String?>(location),
-      'speciesJson': serializer.toJson<String>(speciesJson),
-      'breedJson': serializer.toJson<String>(breedJson),
-      'ownerOrganization': serializer.toJson<String?>(ownerOrganization),
-      'contactNumber': serializer.toJson<String?>(contactNumber),
-      'farmType': serializer.toJson<String?>(farmType),
-      'notes': serializer.toJson<String?>(notes),
-      'status': serializer.toJson<String>(status),
-      'createdAt': serializer.toJson<DateTime>(createdAt),
-      'createdByUserId': serializer.toJson<String>(createdByUserId),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
-    };
-  }
-
-  Farm copyWith({
-    String? id,
-    String? clinicId,
-    String? name,
-    Value<String?> location = const Value.absent(),
-    String? speciesJson,
-    String? breedJson,
-    Value<String?> ownerOrganization = const Value.absent(),
-    Value<String?> contactNumber = const Value.absent(),
-    Value<String?> farmType = const Value.absent(),
-    Value<String?> notes = const Value.absent(),
-    String? status,
-    DateTime? createdAt,
-    String? createdByUserId,
-    DateTime? updatedAt,
-  }) => Farm(
-    id: id ?? this.id,
-    clinicId: clinicId ?? this.clinicId,
-    name: name ?? this.name,
-    location: location.present ? location.value : this.location,
-    speciesJson: speciesJson ?? this.speciesJson,
-    breedJson: breedJson ?? this.breedJson,
-    ownerOrganization: ownerOrganization.present
-        ? ownerOrganization.value
-        : this.ownerOrganization,
-    contactNumber: contactNumber.present
-        ? contactNumber.value
-        : this.contactNumber,
-    farmType: farmType.present ? farmType.value : this.farmType,
-    notes: notes.present ? notes.value : this.notes,
-    status: status ?? this.status,
-    createdAt: createdAt ?? this.createdAt,
-    createdByUserId: createdByUserId ?? this.createdByUserId,
-    updatedAt: updatedAt ?? this.updatedAt,
-  );
-  Farm copyWithCompanion(FarmsCompanion data) {
-    return Farm(
-      id: data.id.present ? data.id.value : this.id,
-      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
-      name: data.name.present ? data.name.value : this.name,
-      location: data.location.present ? data.location.value : this.location,
-      speciesJson: data.speciesJson.present
-          ? data.speciesJson.value
-          : this.speciesJson,
-      breedJson: data.breedJson.present ? data.breedJson.value : this.breedJson,
-      ownerOrganization: data.ownerOrganization.present
-          ? data.ownerOrganization.value
-          : this.ownerOrganization,
-      contactNumber: data.contactNumber.present
-          ? data.contactNumber.value
-          : this.contactNumber,
-      farmType: data.farmType.present ? data.farmType.value : this.farmType,
-      notes: data.notes.present ? data.notes.value : this.notes,
-      status: data.status.present ? data.status.value : this.status,
-      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
-      createdByUserId: data.createdByUserId.present
-          ? data.createdByUserId.value
-          : this.createdByUserId,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('Farm(')
-          ..write('id: $id, ')
-          ..write('clinicId: $clinicId, ')
-          ..write('name: $name, ')
-          ..write('location: $location, ')
-          ..write('speciesJson: $speciesJson, ')
-          ..write('breedJson: $breedJson, ')
-          ..write('ownerOrganization: $ownerOrganization, ')
-          ..write('contactNumber: $contactNumber, ')
-          ..write('farmType: $farmType, ')
-          ..write('notes: $notes, ')
-          ..write('status: $status, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('createdByUserId: $createdByUserId, ')
-          ..write('updatedAt: $updatedAt')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    clinicId,
-    name,
-    location,
-    speciesJson,
-    breedJson,
-    ownerOrganization,
-    contactNumber,
-    farmType,
-    notes,
-    status,
-    createdAt,
-    createdByUserId,
-    updatedAt,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is Farm &&
-          other.id == this.id &&
-          other.clinicId == this.clinicId &&
-          other.name == this.name &&
-          other.location == this.location &&
-          other.speciesJson == this.speciesJson &&
-          other.breedJson == this.breedJson &&
-          other.ownerOrganization == this.ownerOrganization &&
-          other.contactNumber == this.contactNumber &&
-          other.farmType == this.farmType &&
-          other.notes == this.notes &&
-          other.status == this.status &&
-          other.createdAt == this.createdAt &&
-          other.createdByUserId == this.createdByUserId &&
-          other.updatedAt == this.updatedAt);
-}
-
-class FarmsCompanion extends UpdateCompanion<Farm> {
-  final Value<String> id;
-  final Value<String> clinicId;
-  final Value<String> name;
-  final Value<String?> location;
-  final Value<String> speciesJson;
-  final Value<String> breedJson;
-  final Value<String?> ownerOrganization;
-  final Value<String?> contactNumber;
-  final Value<String?> farmType;
-  final Value<String?> notes;
-  final Value<String> status;
-  final Value<DateTime> createdAt;
-  final Value<String> createdByUserId;
-  final Value<DateTime> updatedAt;
-  final Value<int> rowid;
-  const FarmsCompanion({
-    this.id = const Value.absent(),
-    this.clinicId = const Value.absent(),
-    this.name = const Value.absent(),
-    this.location = const Value.absent(),
-    this.speciesJson = const Value.absent(),
-    this.breedJson = const Value.absent(),
-    this.ownerOrganization = const Value.absent(),
-    this.contactNumber = const Value.absent(),
-    this.farmType = const Value.absent(),
-    this.notes = const Value.absent(),
-    this.status = const Value.absent(),
-    this.createdAt = const Value.absent(),
-    this.createdByUserId = const Value.absent(),
-    this.updatedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  FarmsCompanion.insert({
-    required String id,
-    required String clinicId,
-    required String name,
-    this.location = const Value.absent(),
-    this.speciesJson = const Value.absent(),
-    this.breedJson = const Value.absent(),
-    this.ownerOrganization = const Value.absent(),
-    this.contactNumber = const Value.absent(),
-    this.farmType = const Value.absent(),
-    this.notes = const Value.absent(),
-    this.status = const Value.absent(),
-    required DateTime createdAt,
-    required String createdByUserId,
-    required DateTime updatedAt,
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       clinicId = Value(clinicId),
-       name = Value(name),
-       createdAt = Value(createdAt),
-       createdByUserId = Value(createdByUserId),
-       updatedAt = Value(updatedAt);
-  static Insertable<Farm> custom({
-    Expression<String>? id,
-    Expression<String>? clinicId,
-    Expression<String>? name,
-    Expression<String>? location,
-    Expression<String>? speciesJson,
-    Expression<String>? breedJson,
-    Expression<String>? ownerOrganization,
-    Expression<String>? contactNumber,
-    Expression<String>? farmType,
-    Expression<String>? notes,
-    Expression<String>? status,
-    Expression<DateTime>? createdAt,
-    Expression<String>? createdByUserId,
-    Expression<DateTime>? updatedAt,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (clinicId != null) 'clinic_id': clinicId,
-      if (name != null) 'name': name,
-      if (location != null) 'location': location,
-      if (speciesJson != null) 'species_json': speciesJson,
-      if (breedJson != null) 'breed_json': breedJson,
-      if (ownerOrganization != null) 'owner_organization': ownerOrganization,
-      if (contactNumber != null) 'contact_number': contactNumber,
-      if (farmType != null) 'farm_type': farmType,
-      if (notes != null) 'notes': notes,
-      if (status != null) 'status': status,
-      if (createdAt != null) 'created_at': createdAt,
-      if (createdByUserId != null) 'created_by_user_id': createdByUserId,
-      if (updatedAt != null) 'updated_at': updatedAt,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  FarmsCompanion copyWith({
-    Value<String>? id,
-    Value<String>? clinicId,
-    Value<String>? name,
-    Value<String?>? location,
-    Value<String>? speciesJson,
-    Value<String>? breedJson,
-    Value<String?>? ownerOrganization,
-    Value<String?>? contactNumber,
-    Value<String?>? farmType,
-    Value<String?>? notes,
-    Value<String>? status,
-    Value<DateTime>? createdAt,
-    Value<String>? createdByUserId,
-    Value<DateTime>? updatedAt,
-    Value<int>? rowid,
-  }) {
-    return FarmsCompanion(
-      id: id ?? this.id,
-      clinicId: clinicId ?? this.clinicId,
-      name: name ?? this.name,
-      location: location ?? this.location,
-      speciesJson: speciesJson ?? this.speciesJson,
-      breedJson: breedJson ?? this.breedJson,
-      ownerOrganization: ownerOrganization ?? this.ownerOrganization,
-      contactNumber: contactNumber ?? this.contactNumber,
-      farmType: farmType ?? this.farmType,
-      notes: notes ?? this.notes,
-      status: status ?? this.status,
-      createdAt: createdAt ?? this.createdAt,
-      createdByUserId: createdByUserId ?? this.createdByUserId,
-      updatedAt: updatedAt ?? this.updatedAt,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (clinicId.present) {
-      map['clinic_id'] = Variable<String>(clinicId.value);
-    }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (location.present) {
-      map['location'] = Variable<String>(location.value);
-    }
-    if (speciesJson.present) {
-      map['species_json'] = Variable<String>(speciesJson.value);
-    }
-    if (breedJson.present) {
-      map['breed_json'] = Variable<String>(breedJson.value);
-    }
-    if (ownerOrganization.present) {
-      map['owner_organization'] = Variable<String>(ownerOrganization.value);
-    }
-    if (contactNumber.present) {
-      map['contact_number'] = Variable<String>(contactNumber.value);
-    }
-    if (farmType.present) {
-      map['farm_type'] = Variable<String>(farmType.value);
-    }
-    if (notes.present) {
-      map['notes'] = Variable<String>(notes.value);
-    }
-    if (status.present) {
-      map['status'] = Variable<String>(status.value);
-    }
-    if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
-    }
-    if (createdByUserId.present) {
-      map['created_by_user_id'] = Variable<String>(createdByUserId.value);
-    }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('FarmsCompanion(')
-          ..write('id: $id, ')
-          ..write('clinicId: $clinicId, ')
-          ..write('name: $name, ')
-          ..write('location: $location, ')
-          ..write('speciesJson: $speciesJson, ')
-          ..write('breedJson: $breedJson, ')
-          ..write('ownerOrganization: $ownerOrganization, ')
-          ..write('contactNumber: $contactNumber, ')
-          ..write('farmType: $farmType, ')
-          ..write('notes: $notes, ')
-          ..write('status: $status, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('createdByUserId: $createdByUserId, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
-class $FarmUnitsTable extends FarmUnits
-    with TableInfo<$FarmUnitsTable, FarmUnit> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $FarmUnitsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
-    'clinicId',
-  );
-  @override
-  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
-    'clinic_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES clinics (clinic_id)',
-    ),
-  );
-  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
-  @override
-  late final GeneratedColumn<String> farmId = GeneratedColumn<String>(
-    'farm_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES farms (id)',
-    ),
-  );
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-    'name',
-    aliasedName,
-    false,
-    additionalChecks: GeneratedColumn.checkTextLength(
-      minTextLength: 1,
-      maxTextLength: 100,
-    ),
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _unitTypeMeta = const VerificationMeta(
-    'unitType',
-  );
-  @override
-  late final GeneratedColumn<String> unitType = GeneratedColumn<String>(
-    'unit_type',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('Pen'),
-  );
-  static const VerificationMeta _speciesIdMeta = const VerificationMeta(
-    'speciesId',
-  );
-  @override
-  late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
-    'species_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _breedIdMeta = const VerificationMeta(
-    'breedId',
-  );
-  @override
-  late final GeneratedColumn<String> breedId = GeneratedColumn<String>(
-    'breed_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _capacityMeta = const VerificationMeta(
-    'capacity',
-  );
-  @override
-  late final GeneratedColumn<int> capacity = GeneratedColumn<int>(
-    'capacity',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _maleCountMeta = const VerificationMeta(
-    'maleCount',
-  );
-  @override
-  late final GeneratedColumn<int> maleCount = GeneratedColumn<int>(
-    'male_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _femaleCountMeta = const VerificationMeta(
-    'femaleCount',
-  );
-  @override
-  late final GeneratedColumn<int> femaleCount = GeneratedColumn<int>(
-    'female_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _unknownCountMeta = const VerificationMeta(
-    'unknownCount',
-  );
-  @override
-  late final GeneratedColumn<int> unknownCount = GeneratedColumn<int>(
-    'unknown_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _statusMeta = const VerificationMeta('status');
-  @override
-  late final GeneratedColumn<String> status = GeneratedColumn<String>(
-    'status',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('Active'),
-  );
-  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
-  @override
-  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
-    'notes',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _createdByUserIdMeta = const VerificationMeta(
-    'createdByUserId',
-  );
-  @override
-  late final GeneratedColumn<String> createdByUserId = GeneratedColumn<String>(
-    'created_by_user_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES app_users (user_id)',
-    ),
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    clinicId,
-    farmId,
-    name,
-    unitType,
-    speciesId,
-    breedId,
-    capacity,
-    maleCount,
-    femaleCount,
-    unknownCount,
-    status,
-    notes,
-    createdAt,
-    createdByUserId,
-    updatedAt,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'farm_units';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<FarmUnit> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
-    if (data.containsKey('clinic_id')) {
-      context.handle(
-        _clinicIdMeta,
-        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_clinicIdMeta);
-    }
-    if (data.containsKey('farm_id')) {
-      context.handle(
-        _farmIdMeta,
-        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_farmIdMeta);
-    }
-    if (data.containsKey('name')) {
-      context.handle(
-        _nameMeta,
-        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_nameMeta);
-    }
-    if (data.containsKey('unit_type')) {
-      context.handle(
-        _unitTypeMeta,
-        unitType.isAcceptableOrUnknown(data['unit_type']!, _unitTypeMeta),
-      );
-    }
-    if (data.containsKey('species_id')) {
-      context.handle(
-        _speciesIdMeta,
-        speciesId.isAcceptableOrUnknown(data['species_id']!, _speciesIdMeta),
-      );
-    }
-    if (data.containsKey('breed_id')) {
-      context.handle(
-        _breedIdMeta,
-        breedId.isAcceptableOrUnknown(data['breed_id']!, _breedIdMeta),
-      );
-    }
-    if (data.containsKey('capacity')) {
-      context.handle(
-        _capacityMeta,
-        capacity.isAcceptableOrUnknown(data['capacity']!, _capacityMeta),
-      );
-    }
-    if (data.containsKey('male_count')) {
-      context.handle(
-        _maleCountMeta,
-        maleCount.isAcceptableOrUnknown(data['male_count']!, _maleCountMeta),
-      );
-    }
-    if (data.containsKey('female_count')) {
-      context.handle(
-        _femaleCountMeta,
-        femaleCount.isAcceptableOrUnknown(
-          data['female_count']!,
-          _femaleCountMeta,
-        ),
-      );
-    }
-    if (data.containsKey('unknown_count')) {
-      context.handle(
-        _unknownCountMeta,
-        unknownCount.isAcceptableOrUnknown(
-          data['unknown_count']!,
-          _unknownCountMeta,
-        ),
-      );
-    }
-    if (data.containsKey('status')) {
-      context.handle(
-        _statusMeta,
-        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
-      );
-    }
-    if (data.containsKey('notes')) {
-      context.handle(
-        _notesMeta,
-        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
-      );
-    }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('created_by_user_id')) {
-      context.handle(
-        _createdByUserIdMeta,
-        createdByUserId.isAcceptableOrUnknown(
-          data['created_by_user_id']!,
-          _createdByUserIdMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_createdByUserIdMeta);
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  List<Set<GeneratedColumn>> get uniqueKeys => [
-    {farmId, name},
-  ];
-  @override
-  FarmUnit map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return FarmUnit(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      clinicId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}clinic_id'],
-      )!,
-      farmId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}farm_id'],
-      )!,
-      name: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}name'],
-      )!,
-      unitType: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}unit_type'],
-      )!,
-      speciesId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}species_id'],
-      ),
-      breedId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}breed_id'],
-      ),
-      capacity: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}capacity'],
-      ),
-      maleCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}male_count'],
-      )!,
-      femaleCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}female_count'],
-      )!,
-      unknownCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}unknown_count'],
-      )!,
-      status: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}status'],
-      )!,
-      notes: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}notes'],
-      ),
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      createdByUserId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}created_by_user_id'],
-      )!,
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
-    );
-  }
-
-  @override
-  $FarmUnitsTable createAlias(String alias) {
-    return $FarmUnitsTable(attachedDatabase, alias);
-  }
-}
-
-class FarmUnit extends DataClass implements Insertable<FarmUnit> {
-  final int id;
-  final String clinicId;
-  final String farmId;
-  final String name;
-  final String unitType;
-  final String? speciesId;
-  final String? breedId;
-  final int? capacity;
-  final int maleCount;
-  final int femaleCount;
-  final int unknownCount;
-  final String status;
-  final String? notes;
-  final DateTime createdAt;
-  final String createdByUserId;
-  final DateTime updatedAt;
-  const FarmUnit({
-    required this.id,
-    required this.clinicId,
-    required this.farmId,
-    required this.name,
-    required this.unitType,
-    this.speciesId,
-    this.breedId,
-    this.capacity,
-    required this.maleCount,
-    required this.femaleCount,
-    required this.unknownCount,
-    required this.status,
-    this.notes,
-    required this.createdAt,
-    required this.createdByUserId,
-    required this.updatedAt,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['clinic_id'] = Variable<String>(clinicId);
-    map['farm_id'] = Variable<String>(farmId);
-    map['name'] = Variable<String>(name);
-    map['unit_type'] = Variable<String>(unitType);
-    if (!nullToAbsent || speciesId != null) {
-      map['species_id'] = Variable<String>(speciesId);
-    }
-    if (!nullToAbsent || breedId != null) {
-      map['breed_id'] = Variable<String>(breedId);
-    }
-    if (!nullToAbsent || capacity != null) {
-      map['capacity'] = Variable<int>(capacity);
-    }
-    map['male_count'] = Variable<int>(maleCount);
-    map['female_count'] = Variable<int>(femaleCount);
-    map['unknown_count'] = Variable<int>(unknownCount);
-    map['status'] = Variable<String>(status);
-    if (!nullToAbsent || notes != null) {
-      map['notes'] = Variable<String>(notes);
-    }
-    map['created_at'] = Variable<DateTime>(createdAt);
-    map['created_by_user_id'] = Variable<String>(createdByUserId);
-    map['updated_at'] = Variable<DateTime>(updatedAt);
-    return map;
-  }
-
-  FarmUnitsCompanion toCompanion(bool nullToAbsent) {
-    return FarmUnitsCompanion(
-      id: Value(id),
-      clinicId: Value(clinicId),
-      farmId: Value(farmId),
-      name: Value(name),
-      unitType: Value(unitType),
-      speciesId: speciesId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(speciesId),
-      breedId: breedId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(breedId),
-      capacity: capacity == null && nullToAbsent
-          ? const Value.absent()
-          : Value(capacity),
-      maleCount: Value(maleCount),
-      femaleCount: Value(femaleCount),
-      unknownCount: Value(unknownCount),
-      status: Value(status),
-      notes: notes == null && nullToAbsent
-          ? const Value.absent()
-          : Value(notes),
-      createdAt: Value(createdAt),
-      createdByUserId: Value(createdByUserId),
-      updatedAt: Value(updatedAt),
-    );
-  }
-
-  factory FarmUnit.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return FarmUnit(
-      id: serializer.fromJson<int>(json['id']),
-      clinicId: serializer.fromJson<String>(json['clinicId']),
-      farmId: serializer.fromJson<String>(json['farmId']),
-      name: serializer.fromJson<String>(json['name']),
-      unitType: serializer.fromJson<String>(json['unitType']),
-      speciesId: serializer.fromJson<String?>(json['speciesId']),
-      breedId: serializer.fromJson<String?>(json['breedId']),
-      capacity: serializer.fromJson<int?>(json['capacity']),
-      maleCount: serializer.fromJson<int>(json['maleCount']),
-      femaleCount: serializer.fromJson<int>(json['femaleCount']),
-      unknownCount: serializer.fromJson<int>(json['unknownCount']),
-      status: serializer.fromJson<String>(json['status']),
-      notes: serializer.fromJson<String?>(json['notes']),
-      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
-      createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'clinicId': serializer.toJson<String>(clinicId),
-      'farmId': serializer.toJson<String>(farmId),
-      'name': serializer.toJson<String>(name),
-      'unitType': serializer.toJson<String>(unitType),
-      'speciesId': serializer.toJson<String?>(speciesId),
-      'breedId': serializer.toJson<String?>(breedId),
-      'capacity': serializer.toJson<int?>(capacity),
-      'maleCount': serializer.toJson<int>(maleCount),
-      'femaleCount': serializer.toJson<int>(femaleCount),
-      'unknownCount': serializer.toJson<int>(unknownCount),
-      'status': serializer.toJson<String>(status),
-      'notes': serializer.toJson<String?>(notes),
-      'createdAt': serializer.toJson<DateTime>(createdAt),
-      'createdByUserId': serializer.toJson<String>(createdByUserId),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
-    };
-  }
-
-  FarmUnit copyWith({
-    int? id,
-    String? clinicId,
-    String? farmId,
-    String? name,
-    String? unitType,
-    Value<String?> speciesId = const Value.absent(),
-    Value<String?> breedId = const Value.absent(),
-    Value<int?> capacity = const Value.absent(),
-    int? maleCount,
-    int? femaleCount,
-    int? unknownCount,
-    String? status,
-    Value<String?> notes = const Value.absent(),
-    DateTime? createdAt,
-    String? createdByUserId,
-    DateTime? updatedAt,
-  }) => FarmUnit(
-    id: id ?? this.id,
-    clinicId: clinicId ?? this.clinicId,
-    farmId: farmId ?? this.farmId,
-    name: name ?? this.name,
-    unitType: unitType ?? this.unitType,
-    speciesId: speciesId.present ? speciesId.value : this.speciesId,
-    breedId: breedId.present ? breedId.value : this.breedId,
-    capacity: capacity.present ? capacity.value : this.capacity,
-    maleCount: maleCount ?? this.maleCount,
-    femaleCount: femaleCount ?? this.femaleCount,
-    unknownCount: unknownCount ?? this.unknownCount,
-    status: status ?? this.status,
-    notes: notes.present ? notes.value : this.notes,
-    createdAt: createdAt ?? this.createdAt,
-    createdByUserId: createdByUserId ?? this.createdByUserId,
-    updatedAt: updatedAt ?? this.updatedAt,
-  );
-  FarmUnit copyWithCompanion(FarmUnitsCompanion data) {
-    return FarmUnit(
-      id: data.id.present ? data.id.value : this.id,
-      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
-      farmId: data.farmId.present ? data.farmId.value : this.farmId,
-      name: data.name.present ? data.name.value : this.name,
-      unitType: data.unitType.present ? data.unitType.value : this.unitType,
-      speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
-      breedId: data.breedId.present ? data.breedId.value : this.breedId,
-      capacity: data.capacity.present ? data.capacity.value : this.capacity,
-      maleCount: data.maleCount.present ? data.maleCount.value : this.maleCount,
-      femaleCount: data.femaleCount.present
-          ? data.femaleCount.value
-          : this.femaleCount,
-      unknownCount: data.unknownCount.present
-          ? data.unknownCount.value
-          : this.unknownCount,
-      status: data.status.present ? data.status.value : this.status,
-      notes: data.notes.present ? data.notes.value : this.notes,
-      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
-      createdByUserId: data.createdByUserId.present
-          ? data.createdByUserId.value
-          : this.createdByUserId,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('FarmUnit(')
-          ..write('id: $id, ')
-          ..write('clinicId: $clinicId, ')
-          ..write('farmId: $farmId, ')
-          ..write('name: $name, ')
-          ..write('unitType: $unitType, ')
-          ..write('speciesId: $speciesId, ')
-          ..write('breedId: $breedId, ')
-          ..write('capacity: $capacity, ')
-          ..write('maleCount: $maleCount, ')
-          ..write('femaleCount: $femaleCount, ')
-          ..write('unknownCount: $unknownCount, ')
-          ..write('status: $status, ')
-          ..write('notes: $notes, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('createdByUserId: $createdByUserId, ')
-          ..write('updatedAt: $updatedAt')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    clinicId,
-    farmId,
-    name,
-    unitType,
-    speciesId,
-    breedId,
-    capacity,
-    maleCount,
-    femaleCount,
-    unknownCount,
-    status,
-    notes,
-    createdAt,
-    createdByUserId,
-    updatedAt,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is FarmUnit &&
-          other.id == this.id &&
-          other.clinicId == this.clinicId &&
-          other.farmId == this.farmId &&
-          other.name == this.name &&
-          other.unitType == this.unitType &&
-          other.speciesId == this.speciesId &&
-          other.breedId == this.breedId &&
-          other.capacity == this.capacity &&
-          other.maleCount == this.maleCount &&
-          other.femaleCount == this.femaleCount &&
-          other.unknownCount == this.unknownCount &&
-          other.status == this.status &&
-          other.notes == this.notes &&
-          other.createdAt == this.createdAt &&
-          other.createdByUserId == this.createdByUserId &&
-          other.updatedAt == this.updatedAt);
-}
-
-class FarmUnitsCompanion extends UpdateCompanion<FarmUnit> {
-  final Value<int> id;
-  final Value<String> clinicId;
-  final Value<String> farmId;
-  final Value<String> name;
-  final Value<String> unitType;
-  final Value<String?> speciesId;
-  final Value<String?> breedId;
-  final Value<int?> capacity;
-  final Value<int> maleCount;
-  final Value<int> femaleCount;
-  final Value<int> unknownCount;
-  final Value<String> status;
-  final Value<String?> notes;
-  final Value<DateTime> createdAt;
-  final Value<String> createdByUserId;
-  final Value<DateTime> updatedAt;
-  const FarmUnitsCompanion({
-    this.id = const Value.absent(),
-    this.clinicId = const Value.absent(),
-    this.farmId = const Value.absent(),
-    this.name = const Value.absent(),
-    this.unitType = const Value.absent(),
-    this.speciesId = const Value.absent(),
-    this.breedId = const Value.absent(),
-    this.capacity = const Value.absent(),
-    this.maleCount = const Value.absent(),
-    this.femaleCount = const Value.absent(),
-    this.unknownCount = const Value.absent(),
-    this.status = const Value.absent(),
-    this.notes = const Value.absent(),
-    this.createdAt = const Value.absent(),
-    this.createdByUserId = const Value.absent(),
-    this.updatedAt = const Value.absent(),
-  });
-  FarmUnitsCompanion.insert({
-    this.id = const Value.absent(),
-    required String clinicId,
-    required String farmId,
-    required String name,
-    this.unitType = const Value.absent(),
-    this.speciesId = const Value.absent(),
-    this.breedId = const Value.absent(),
-    this.capacity = const Value.absent(),
-    this.maleCount = const Value.absent(),
-    this.femaleCount = const Value.absent(),
-    this.unknownCount = const Value.absent(),
-    this.status = const Value.absent(),
-    this.notes = const Value.absent(),
-    required DateTime createdAt,
-    required String createdByUserId,
-    required DateTime updatedAt,
-  }) : clinicId = Value(clinicId),
-       farmId = Value(farmId),
-       name = Value(name),
-       createdAt = Value(createdAt),
-       createdByUserId = Value(createdByUserId),
-       updatedAt = Value(updatedAt);
-  static Insertable<FarmUnit> custom({
-    Expression<int>? id,
-    Expression<String>? clinicId,
-    Expression<String>? farmId,
-    Expression<String>? name,
-    Expression<String>? unitType,
-    Expression<String>? speciesId,
-    Expression<String>? breedId,
-    Expression<int>? capacity,
-    Expression<int>? maleCount,
-    Expression<int>? femaleCount,
-    Expression<int>? unknownCount,
-    Expression<String>? status,
-    Expression<String>? notes,
-    Expression<DateTime>? createdAt,
-    Expression<String>? createdByUserId,
-    Expression<DateTime>? updatedAt,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (clinicId != null) 'clinic_id': clinicId,
-      if (farmId != null) 'farm_id': farmId,
-      if (name != null) 'name': name,
-      if (unitType != null) 'unit_type': unitType,
-      if (speciesId != null) 'species_id': speciesId,
-      if (breedId != null) 'breed_id': breedId,
-      if (capacity != null) 'capacity': capacity,
-      if (maleCount != null) 'male_count': maleCount,
-      if (femaleCount != null) 'female_count': femaleCount,
-      if (unknownCount != null) 'unknown_count': unknownCount,
-      if (status != null) 'status': status,
-      if (notes != null) 'notes': notes,
-      if (createdAt != null) 'created_at': createdAt,
-      if (createdByUserId != null) 'created_by_user_id': createdByUserId,
-      if (updatedAt != null) 'updated_at': updatedAt,
-    });
-  }
-
-  FarmUnitsCompanion copyWith({
-    Value<int>? id,
-    Value<String>? clinicId,
-    Value<String>? farmId,
-    Value<String>? name,
-    Value<String>? unitType,
-    Value<String?>? speciesId,
-    Value<String?>? breedId,
-    Value<int?>? capacity,
-    Value<int>? maleCount,
-    Value<int>? femaleCount,
-    Value<int>? unknownCount,
-    Value<String>? status,
-    Value<String?>? notes,
-    Value<DateTime>? createdAt,
-    Value<String>? createdByUserId,
-    Value<DateTime>? updatedAt,
-  }) {
-    return FarmUnitsCompanion(
-      id: id ?? this.id,
-      clinicId: clinicId ?? this.clinicId,
-      farmId: farmId ?? this.farmId,
-      name: name ?? this.name,
-      unitType: unitType ?? this.unitType,
-      speciesId: speciesId ?? this.speciesId,
-      breedId: breedId ?? this.breedId,
-      capacity: capacity ?? this.capacity,
-      maleCount: maleCount ?? this.maleCount,
-      femaleCount: femaleCount ?? this.femaleCount,
-      unknownCount: unknownCount ?? this.unknownCount,
-      status: status ?? this.status,
-      notes: notes ?? this.notes,
-      createdAt: createdAt ?? this.createdAt,
-      createdByUserId: createdByUserId ?? this.createdByUserId,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
-    }
-    if (clinicId.present) {
-      map['clinic_id'] = Variable<String>(clinicId.value);
-    }
-    if (farmId.present) {
-      map['farm_id'] = Variable<String>(farmId.value);
-    }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (unitType.present) {
-      map['unit_type'] = Variable<String>(unitType.value);
-    }
-    if (speciesId.present) {
-      map['species_id'] = Variable<String>(speciesId.value);
-    }
-    if (breedId.present) {
-      map['breed_id'] = Variable<String>(breedId.value);
-    }
-    if (capacity.present) {
-      map['capacity'] = Variable<int>(capacity.value);
-    }
-    if (maleCount.present) {
-      map['male_count'] = Variable<int>(maleCount.value);
-    }
-    if (femaleCount.present) {
-      map['female_count'] = Variable<int>(femaleCount.value);
-    }
-    if (unknownCount.present) {
-      map['unknown_count'] = Variable<int>(unknownCount.value);
-    }
-    if (status.present) {
-      map['status'] = Variable<String>(status.value);
-    }
-    if (notes.present) {
-      map['notes'] = Variable<String>(notes.value);
-    }
-    if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
-    }
-    if (createdByUserId.present) {
-      map['created_by_user_id'] = Variable<String>(createdByUserId.value);
-    }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('FarmUnitsCompanion(')
-          ..write('id: $id, ')
-          ..write('clinicId: $clinicId, ')
-          ..write('farmId: $farmId, ')
-          ..write('name: $name, ')
-          ..write('unitType: $unitType, ')
-          ..write('speciesId: $speciesId, ')
-          ..write('breedId: $breedId, ')
-          ..write('capacity: $capacity, ')
-          ..write('maleCount: $maleCount, ')
-          ..write('femaleCount: $femaleCount, ')
-          ..write('unknownCount: $unknownCount, ')
-          ..write('status: $status, ')
-          ..write('notes: $notes, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('createdByUserId: $createdByUserId, ')
-          ..write('updatedAt: $updatedAt')
-          ..write(')'))
-        .toString();
-  }
-}
-
-class $FarmDailyRecordsTable extends FarmDailyRecords
-    with TableInfo<$FarmDailyRecordsTable, FarmDailyRecord> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $FarmDailyRecordsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
-    'clinicId',
-  );
-  @override
-  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
-    'clinic_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES clinics (clinic_id)',
-    ),
-  );
-  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
-  @override
-  late final GeneratedColumn<String> farmId = GeneratedColumn<String>(
-    'farm_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES farms (id)',
-    ),
-  );
-  static const VerificationMeta _recordDateMeta = const VerificationMeta(
-    'recordDate',
-  );
-  @override
-  late final GeneratedColumn<DateTime> recordDate = GeneratedColumn<DateTime>(
-    'record_date',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _statusMeta = const VerificationMeta('status');
-  @override
-  late final GeneratedColumn<String> status = GeneratedColumn<String>(
-    'status',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('Draft'),
-  );
-  static const VerificationMeta _openingPopulationMeta = const VerificationMeta(
-    'openingPopulation',
-  );
-  @override
-  late final GeneratedColumn<int> openingPopulation = GeneratedColumn<int>(
-    'opening_population',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _birthsMeta = const VerificationMeta('births');
-  @override
-  late final GeneratedColumn<int> births = GeneratedColumn<int>(
-    'births',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _purchasesMeta = const VerificationMeta(
-    'purchases',
-  );
-  @override
-  late final GeneratedColumn<int> purchases = GeneratedColumn<int>(
-    'purchases',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _transfersInMeta = const VerificationMeta(
-    'transfersIn',
-  );
-  @override
-  late final GeneratedColumn<int> transfersIn = GeneratedColumn<int>(
-    'transfers_in',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _mortalityMeta = const VerificationMeta(
-    'mortality',
-  );
-  @override
-  late final GeneratedColumn<int> mortality = GeneratedColumn<int>(
-    'mortality',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _salesMeta = const VerificationMeta('sales');
-  @override
-  late final GeneratedColumn<int> sales = GeneratedColumn<int>(
-    'sales',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _transfersOutMeta = const VerificationMeta(
-    'transfersOut',
-  );
-  @override
-  late final GeneratedColumn<int> transfersOut = GeneratedColumn<int>(
-    'transfers_out',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _closingPopulationMeta = const VerificationMeta(
-    'closingPopulation',
-  );
-  @override
-  late final GeneratedColumn<int> closingPopulation = GeneratedColumn<int>(
-    'closing_population',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _feedSuppliedKgMeta = const VerificationMeta(
-    'feedSuppliedKg',
-  );
-  @override
-  late final GeneratedColumn<double> feedSuppliedKg = GeneratedColumn<double>(
-    'feed_supplied_kg',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
-  static const VerificationMeta _dailyNoteMeta = const VerificationMeta(
-    'dailyNote',
-  );
-  @override
-  late final GeneratedColumn<String> dailyNote = GeneratedColumn<String>(
-    'daily_note',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _tasksForTomorrowMeta = const VerificationMeta(
-    'tasksForTomorrow',
-  );
-  @override
-  late final GeneratedColumn<String> tasksForTomorrow = GeneratedColumn<String>(
-    'tasks_for_tomorrow',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _correctionReasonMeta = const VerificationMeta(
-    'correctionReason',
-  );
-  @override
-  late final GeneratedColumn<String> correctionReason = GeneratedColumn<String>(
-    'correction_reason',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _originalSnapshotJsonMeta =
-      const VerificationMeta('originalSnapshotJson');
-  @override
-  late final GeneratedColumn<String> originalSnapshotJson =
-      GeneratedColumn<String>(
-        'original_snapshot_json',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _lastEditedByUserIdMeta =
-      const VerificationMeta('lastEditedByUserId');
-  @override
-  late final GeneratedColumn<String> lastEditedByUserId =
-      GeneratedColumn<String>(
-        'last_edited_by_user_id',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _finalizedAtMeta = const VerificationMeta(
-    'finalizedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> finalizedAt = GeneratedColumn<DateTime>(
-    'finalized_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _finalizedByUserIdMeta = const VerificationMeta(
-    'finalizedByUserId',
-  );
-  @override
-  late final GeneratedColumn<String> finalizedByUserId =
-      GeneratedColumn<String>(
-        'finalized_by_user_id',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _createdByUserIdMeta = const VerificationMeta(
-    'createdByUserId',
-  );
-  @override
-  late final GeneratedColumn<String> createdByUserId = GeneratedColumn<String>(
-    'created_by_user_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES app_users (user_id)',
-    ),
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    clinicId,
-    farmId,
-    recordDate,
-    status,
-    openingPopulation,
-    births,
-    purchases,
-    transfersIn,
-    mortality,
-    sales,
-    transfersOut,
-    closingPopulation,
-    feedSuppliedKg,
-    dailyNote,
-    tasksForTomorrow,
-    correctionReason,
-    originalSnapshotJson,
-    lastEditedByUserId,
-    finalizedAt,
-    finalizedByUserId,
-    createdAt,
-    createdByUserId,
-    updatedAt,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'farm_daily_records';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<FarmDailyRecord> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('clinic_id')) {
-      context.handle(
-        _clinicIdMeta,
-        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_clinicIdMeta);
-    }
-    if (data.containsKey('farm_id')) {
-      context.handle(
-        _farmIdMeta,
-        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_farmIdMeta);
-    }
-    if (data.containsKey('record_date')) {
-      context.handle(
-        _recordDateMeta,
-        recordDate.isAcceptableOrUnknown(data['record_date']!, _recordDateMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_recordDateMeta);
-    }
-    if (data.containsKey('status')) {
-      context.handle(
-        _statusMeta,
-        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
-      );
-    }
-    if (data.containsKey('opening_population')) {
-      context.handle(
-        _openingPopulationMeta,
-        openingPopulation.isAcceptableOrUnknown(
-          data['opening_population']!,
-          _openingPopulationMeta,
-        ),
-      );
-    }
-    if (data.containsKey('births')) {
-      context.handle(
-        _birthsMeta,
-        births.isAcceptableOrUnknown(data['births']!, _birthsMeta),
-      );
-    }
-    if (data.containsKey('purchases')) {
-      context.handle(
-        _purchasesMeta,
-        purchases.isAcceptableOrUnknown(data['purchases']!, _purchasesMeta),
-      );
-    }
-    if (data.containsKey('transfers_in')) {
-      context.handle(
-        _transfersInMeta,
-        transfersIn.isAcceptableOrUnknown(
-          data['transfers_in']!,
-          _transfersInMeta,
-        ),
-      );
-    }
-    if (data.containsKey('mortality')) {
-      context.handle(
-        _mortalityMeta,
-        mortality.isAcceptableOrUnknown(data['mortality']!, _mortalityMeta),
-      );
-    }
-    if (data.containsKey('sales')) {
-      context.handle(
-        _salesMeta,
-        sales.isAcceptableOrUnknown(data['sales']!, _salesMeta),
-      );
-    }
-    if (data.containsKey('transfers_out')) {
-      context.handle(
-        _transfersOutMeta,
-        transfersOut.isAcceptableOrUnknown(
-          data['transfers_out']!,
-          _transfersOutMeta,
-        ),
-      );
-    }
-    if (data.containsKey('closing_population')) {
-      context.handle(
-        _closingPopulationMeta,
-        closingPopulation.isAcceptableOrUnknown(
-          data['closing_population']!,
-          _closingPopulationMeta,
-        ),
-      );
-    }
-    if (data.containsKey('feed_supplied_kg')) {
-      context.handle(
-        _feedSuppliedKgMeta,
-        feedSuppliedKg.isAcceptableOrUnknown(
-          data['feed_supplied_kg']!,
-          _feedSuppliedKgMeta,
-        ),
-      );
-    }
-    if (data.containsKey('daily_note')) {
-      context.handle(
-        _dailyNoteMeta,
-        dailyNote.isAcceptableOrUnknown(data['daily_note']!, _dailyNoteMeta),
-      );
-    }
-    if (data.containsKey('tasks_for_tomorrow')) {
-      context.handle(
-        _tasksForTomorrowMeta,
-        tasksForTomorrow.isAcceptableOrUnknown(
-          data['tasks_for_tomorrow']!,
-          _tasksForTomorrowMeta,
-        ),
-      );
-    }
-    if (data.containsKey('correction_reason')) {
-      context.handle(
-        _correctionReasonMeta,
-        correctionReason.isAcceptableOrUnknown(
-          data['correction_reason']!,
-          _correctionReasonMeta,
-        ),
-      );
-    }
-    if (data.containsKey('original_snapshot_json')) {
-      context.handle(
-        _originalSnapshotJsonMeta,
-        originalSnapshotJson.isAcceptableOrUnknown(
-          data['original_snapshot_json']!,
-          _originalSnapshotJsonMeta,
-        ),
-      );
-    }
-    if (data.containsKey('last_edited_by_user_id')) {
-      context.handle(
-        _lastEditedByUserIdMeta,
-        lastEditedByUserId.isAcceptableOrUnknown(
-          data['last_edited_by_user_id']!,
-          _lastEditedByUserIdMeta,
-        ),
-      );
-    }
-    if (data.containsKey('finalized_at')) {
-      context.handle(
-        _finalizedAtMeta,
-        finalizedAt.isAcceptableOrUnknown(
-          data['finalized_at']!,
-          _finalizedAtMeta,
-        ),
-      );
-    }
-    if (data.containsKey('finalized_by_user_id')) {
-      context.handle(
-        _finalizedByUserIdMeta,
-        finalizedByUserId.isAcceptableOrUnknown(
-          data['finalized_by_user_id']!,
-          _finalizedByUserIdMeta,
-        ),
-      );
-    }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('created_by_user_id')) {
-      context.handle(
-        _createdByUserIdMeta,
-        createdByUserId.isAcceptableOrUnknown(
-          data['created_by_user_id']!,
-          _createdByUserIdMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_createdByUserIdMeta);
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  List<Set<GeneratedColumn>> get uniqueKeys => [
-    {farmId, recordDate},
-  ];
-  @override
-  FarmDailyRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return FarmDailyRecord(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}id'],
-      )!,
-      clinicId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}clinic_id'],
-      )!,
-      farmId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}farm_id'],
-      )!,
-      recordDate: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}record_date'],
-      )!,
-      status: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}status'],
-      )!,
-      openingPopulation: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}opening_population'],
-      )!,
-      births: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}births'],
-      )!,
-      purchases: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}purchases'],
-      )!,
-      transfersIn: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}transfers_in'],
-      )!,
-      mortality: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}mortality'],
-      )!,
-      sales: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}sales'],
-      )!,
-      transfersOut: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}transfers_out'],
-      )!,
-      closingPopulation: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}closing_population'],
-      )!,
-      feedSuppliedKg: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}feed_supplied_kg'],
-      )!,
-      dailyNote: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}daily_note'],
-      ),
-      tasksForTomorrow: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}tasks_for_tomorrow'],
-      ),
-      correctionReason: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}correction_reason'],
-      ),
-      originalSnapshotJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}original_snapshot_json'],
-      ),
-      lastEditedByUserId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}last_edited_by_user_id'],
-      ),
-      finalizedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}finalized_at'],
-      ),
-      finalizedByUserId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}finalized_by_user_id'],
-      ),
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      createdByUserId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}created_by_user_id'],
-      )!,
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
-    );
-  }
-
-  @override
-  $FarmDailyRecordsTable createAlias(String alias) {
-    return $FarmDailyRecordsTable(attachedDatabase, alias);
-  }
-}
-
-class FarmDailyRecord extends DataClass implements Insertable<FarmDailyRecord> {
-  final String id;
-  final String clinicId;
-  final String farmId;
-  final DateTime recordDate;
-  final String status;
-  final int openingPopulation;
-  final int births;
-  final int purchases;
-  final int transfersIn;
-  final int mortality;
-  final int sales;
-  final int transfersOut;
-  final int closingPopulation;
-  final double feedSuppliedKg;
-  final String? dailyNote;
-  final String? tasksForTomorrow;
-  final String? correctionReason;
-  final String? originalSnapshotJson;
-  final String? lastEditedByUserId;
-  final DateTime? finalizedAt;
-  final String? finalizedByUserId;
-  final DateTime createdAt;
-  final String createdByUserId;
-  final DateTime updatedAt;
-  const FarmDailyRecord({
-    required this.id,
-    required this.clinicId,
-    required this.farmId,
-    required this.recordDate,
-    required this.status,
-    required this.openingPopulation,
-    required this.births,
-    required this.purchases,
-    required this.transfersIn,
-    required this.mortality,
-    required this.sales,
-    required this.transfersOut,
-    required this.closingPopulation,
-    required this.feedSuppliedKg,
-    this.dailyNote,
-    this.tasksForTomorrow,
-    this.correctionReason,
-    this.originalSnapshotJson,
-    this.lastEditedByUserId,
-    this.finalizedAt,
-    this.finalizedByUserId,
-    required this.createdAt,
-    required this.createdByUserId,
-    required this.updatedAt,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['clinic_id'] = Variable<String>(clinicId);
-    map['farm_id'] = Variable<String>(farmId);
-    map['record_date'] = Variable<DateTime>(recordDate);
-    map['status'] = Variable<String>(status);
-    map['opening_population'] = Variable<int>(openingPopulation);
-    map['births'] = Variable<int>(births);
-    map['purchases'] = Variable<int>(purchases);
-    map['transfers_in'] = Variable<int>(transfersIn);
-    map['mortality'] = Variable<int>(mortality);
-    map['sales'] = Variable<int>(sales);
-    map['transfers_out'] = Variable<int>(transfersOut);
-    map['closing_population'] = Variable<int>(closingPopulation);
-    map['feed_supplied_kg'] = Variable<double>(feedSuppliedKg);
-    if (!nullToAbsent || dailyNote != null) {
-      map['daily_note'] = Variable<String>(dailyNote);
-    }
-    if (!nullToAbsent || tasksForTomorrow != null) {
-      map['tasks_for_tomorrow'] = Variable<String>(tasksForTomorrow);
-    }
-    if (!nullToAbsent || correctionReason != null) {
-      map['correction_reason'] = Variable<String>(correctionReason);
-    }
-    if (!nullToAbsent || originalSnapshotJson != null) {
-      map['original_snapshot_json'] = Variable<String>(originalSnapshotJson);
-    }
-    if (!nullToAbsent || lastEditedByUserId != null) {
-      map['last_edited_by_user_id'] = Variable<String>(lastEditedByUserId);
-    }
-    if (!nullToAbsent || finalizedAt != null) {
-      map['finalized_at'] = Variable<DateTime>(finalizedAt);
-    }
-    if (!nullToAbsent || finalizedByUserId != null) {
-      map['finalized_by_user_id'] = Variable<String>(finalizedByUserId);
-    }
-    map['created_at'] = Variable<DateTime>(createdAt);
-    map['created_by_user_id'] = Variable<String>(createdByUserId);
-    map['updated_at'] = Variable<DateTime>(updatedAt);
-    return map;
-  }
-
-  FarmDailyRecordsCompanion toCompanion(bool nullToAbsent) {
-    return FarmDailyRecordsCompanion(
-      id: Value(id),
-      clinicId: Value(clinicId),
-      farmId: Value(farmId),
-      recordDate: Value(recordDate),
-      status: Value(status),
-      openingPopulation: Value(openingPopulation),
-      births: Value(births),
-      purchases: Value(purchases),
-      transfersIn: Value(transfersIn),
-      mortality: Value(mortality),
-      sales: Value(sales),
-      transfersOut: Value(transfersOut),
-      closingPopulation: Value(closingPopulation),
-      feedSuppliedKg: Value(feedSuppliedKg),
-      dailyNote: dailyNote == null && nullToAbsent
-          ? const Value.absent()
-          : Value(dailyNote),
-      tasksForTomorrow: tasksForTomorrow == null && nullToAbsent
-          ? const Value.absent()
-          : Value(tasksForTomorrow),
-      correctionReason: correctionReason == null && nullToAbsent
-          ? const Value.absent()
-          : Value(correctionReason),
-      originalSnapshotJson: originalSnapshotJson == null && nullToAbsent
-          ? const Value.absent()
-          : Value(originalSnapshotJson),
-      lastEditedByUserId: lastEditedByUserId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(lastEditedByUserId),
-      finalizedAt: finalizedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(finalizedAt),
-      finalizedByUserId: finalizedByUserId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(finalizedByUserId),
-      createdAt: Value(createdAt),
-      createdByUserId: Value(createdByUserId),
-      updatedAt: Value(updatedAt),
-    );
-  }
-
-  factory FarmDailyRecord.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return FarmDailyRecord(
-      id: serializer.fromJson<String>(json['id']),
-      clinicId: serializer.fromJson<String>(json['clinicId']),
-      farmId: serializer.fromJson<String>(json['farmId']),
-      recordDate: serializer.fromJson<DateTime>(json['recordDate']),
-      status: serializer.fromJson<String>(json['status']),
-      openingPopulation: serializer.fromJson<int>(json['openingPopulation']),
-      births: serializer.fromJson<int>(json['births']),
-      purchases: serializer.fromJson<int>(json['purchases']),
-      transfersIn: serializer.fromJson<int>(json['transfersIn']),
-      mortality: serializer.fromJson<int>(json['mortality']),
-      sales: serializer.fromJson<int>(json['sales']),
-      transfersOut: serializer.fromJson<int>(json['transfersOut']),
-      closingPopulation: serializer.fromJson<int>(json['closingPopulation']),
-      feedSuppliedKg: serializer.fromJson<double>(json['feedSuppliedKg']),
-      dailyNote: serializer.fromJson<String?>(json['dailyNote']),
-      tasksForTomorrow: serializer.fromJson<String?>(json['tasksForTomorrow']),
-      correctionReason: serializer.fromJson<String?>(json['correctionReason']),
-      originalSnapshotJson: serializer.fromJson<String?>(
-        json['originalSnapshotJson'],
-      ),
-      lastEditedByUserId: serializer.fromJson<String?>(
-        json['lastEditedByUserId'],
-      ),
-      finalizedAt: serializer.fromJson<DateTime?>(json['finalizedAt']),
-      finalizedByUserId: serializer.fromJson<String?>(
-        json['finalizedByUserId'],
-      ),
-      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
-      createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'clinicId': serializer.toJson<String>(clinicId),
-      'farmId': serializer.toJson<String>(farmId),
-      'recordDate': serializer.toJson<DateTime>(recordDate),
-      'status': serializer.toJson<String>(status),
-      'openingPopulation': serializer.toJson<int>(openingPopulation),
-      'births': serializer.toJson<int>(births),
-      'purchases': serializer.toJson<int>(purchases),
-      'transfersIn': serializer.toJson<int>(transfersIn),
-      'mortality': serializer.toJson<int>(mortality),
-      'sales': serializer.toJson<int>(sales),
-      'transfersOut': serializer.toJson<int>(transfersOut),
-      'closingPopulation': serializer.toJson<int>(closingPopulation),
-      'feedSuppliedKg': serializer.toJson<double>(feedSuppliedKg),
-      'dailyNote': serializer.toJson<String?>(dailyNote),
-      'tasksForTomorrow': serializer.toJson<String?>(tasksForTomorrow),
-      'correctionReason': serializer.toJson<String?>(correctionReason),
-      'originalSnapshotJson': serializer.toJson<String?>(originalSnapshotJson),
-      'lastEditedByUserId': serializer.toJson<String?>(lastEditedByUserId),
-      'finalizedAt': serializer.toJson<DateTime?>(finalizedAt),
-      'finalizedByUserId': serializer.toJson<String?>(finalizedByUserId),
-      'createdAt': serializer.toJson<DateTime>(createdAt),
-      'createdByUserId': serializer.toJson<String>(createdByUserId),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
-    };
-  }
-
-  FarmDailyRecord copyWith({
-    String? id,
-    String? clinicId,
-    String? farmId,
-    DateTime? recordDate,
-    String? status,
-    int? openingPopulation,
-    int? births,
-    int? purchases,
-    int? transfersIn,
-    int? mortality,
-    int? sales,
-    int? transfersOut,
-    int? closingPopulation,
-    double? feedSuppliedKg,
-    Value<String?> dailyNote = const Value.absent(),
-    Value<String?> tasksForTomorrow = const Value.absent(),
-    Value<String?> correctionReason = const Value.absent(),
-    Value<String?> originalSnapshotJson = const Value.absent(),
-    Value<String?> lastEditedByUserId = const Value.absent(),
-    Value<DateTime?> finalizedAt = const Value.absent(),
-    Value<String?> finalizedByUserId = const Value.absent(),
-    DateTime? createdAt,
-    String? createdByUserId,
-    DateTime? updatedAt,
-  }) => FarmDailyRecord(
-    id: id ?? this.id,
-    clinicId: clinicId ?? this.clinicId,
-    farmId: farmId ?? this.farmId,
-    recordDate: recordDate ?? this.recordDate,
-    status: status ?? this.status,
-    openingPopulation: openingPopulation ?? this.openingPopulation,
-    births: births ?? this.births,
-    purchases: purchases ?? this.purchases,
-    transfersIn: transfersIn ?? this.transfersIn,
-    mortality: mortality ?? this.mortality,
-    sales: sales ?? this.sales,
-    transfersOut: transfersOut ?? this.transfersOut,
-    closingPopulation: closingPopulation ?? this.closingPopulation,
-    feedSuppliedKg: feedSuppliedKg ?? this.feedSuppliedKg,
-    dailyNote: dailyNote.present ? dailyNote.value : this.dailyNote,
-    tasksForTomorrow: tasksForTomorrow.present
-        ? tasksForTomorrow.value
-        : this.tasksForTomorrow,
-    correctionReason: correctionReason.present
-        ? correctionReason.value
-        : this.correctionReason,
-    originalSnapshotJson: originalSnapshotJson.present
-        ? originalSnapshotJson.value
-        : this.originalSnapshotJson,
-    lastEditedByUserId: lastEditedByUserId.present
-        ? lastEditedByUserId.value
-        : this.lastEditedByUserId,
-    finalizedAt: finalizedAt.present ? finalizedAt.value : this.finalizedAt,
-    finalizedByUserId: finalizedByUserId.present
-        ? finalizedByUserId.value
-        : this.finalizedByUserId,
-    createdAt: createdAt ?? this.createdAt,
-    createdByUserId: createdByUserId ?? this.createdByUserId,
-    updatedAt: updatedAt ?? this.updatedAt,
-  );
-  FarmDailyRecord copyWithCompanion(FarmDailyRecordsCompanion data) {
-    return FarmDailyRecord(
-      id: data.id.present ? data.id.value : this.id,
-      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
-      farmId: data.farmId.present ? data.farmId.value : this.farmId,
-      recordDate: data.recordDate.present
-          ? data.recordDate.value
-          : this.recordDate,
-      status: data.status.present ? data.status.value : this.status,
-      openingPopulation: data.openingPopulation.present
-          ? data.openingPopulation.value
-          : this.openingPopulation,
-      births: data.births.present ? data.births.value : this.births,
-      purchases: data.purchases.present ? data.purchases.value : this.purchases,
-      transfersIn: data.transfersIn.present
-          ? data.transfersIn.value
-          : this.transfersIn,
-      mortality: data.mortality.present ? data.mortality.value : this.mortality,
-      sales: data.sales.present ? data.sales.value : this.sales,
-      transfersOut: data.transfersOut.present
-          ? data.transfersOut.value
-          : this.transfersOut,
-      closingPopulation: data.closingPopulation.present
-          ? data.closingPopulation.value
-          : this.closingPopulation,
-      feedSuppliedKg: data.feedSuppliedKg.present
-          ? data.feedSuppliedKg.value
-          : this.feedSuppliedKg,
-      dailyNote: data.dailyNote.present ? data.dailyNote.value : this.dailyNote,
-      tasksForTomorrow: data.tasksForTomorrow.present
-          ? data.tasksForTomorrow.value
-          : this.tasksForTomorrow,
-      correctionReason: data.correctionReason.present
-          ? data.correctionReason.value
-          : this.correctionReason,
-      originalSnapshotJson: data.originalSnapshotJson.present
-          ? data.originalSnapshotJson.value
-          : this.originalSnapshotJson,
-      lastEditedByUserId: data.lastEditedByUserId.present
-          ? data.lastEditedByUserId.value
-          : this.lastEditedByUserId,
-      finalizedAt: data.finalizedAt.present
-          ? data.finalizedAt.value
-          : this.finalizedAt,
-      finalizedByUserId: data.finalizedByUserId.present
-          ? data.finalizedByUserId.value
-          : this.finalizedByUserId,
-      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
-      createdByUserId: data.createdByUserId.present
-          ? data.createdByUserId.value
-          : this.createdByUserId,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('FarmDailyRecord(')
-          ..write('id: $id, ')
-          ..write('clinicId: $clinicId, ')
-          ..write('farmId: $farmId, ')
-          ..write('recordDate: $recordDate, ')
-          ..write('status: $status, ')
-          ..write('openingPopulation: $openingPopulation, ')
-          ..write('births: $births, ')
-          ..write('purchases: $purchases, ')
-          ..write('transfersIn: $transfersIn, ')
-          ..write('mortality: $mortality, ')
-          ..write('sales: $sales, ')
-          ..write('transfersOut: $transfersOut, ')
-          ..write('closingPopulation: $closingPopulation, ')
-          ..write('feedSuppliedKg: $feedSuppliedKg, ')
-          ..write('dailyNote: $dailyNote, ')
-          ..write('tasksForTomorrow: $tasksForTomorrow, ')
-          ..write('correctionReason: $correctionReason, ')
-          ..write('originalSnapshotJson: $originalSnapshotJson, ')
-          ..write('lastEditedByUserId: $lastEditedByUserId, ')
-          ..write('finalizedAt: $finalizedAt, ')
-          ..write('finalizedByUserId: $finalizedByUserId, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('createdByUserId: $createdByUserId, ')
-          ..write('updatedAt: $updatedAt')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hashAll([
-    id,
-    clinicId,
-    farmId,
-    recordDate,
-    status,
-    openingPopulation,
-    births,
-    purchases,
-    transfersIn,
-    mortality,
-    sales,
-    transfersOut,
-    closingPopulation,
-    feedSuppliedKg,
-    dailyNote,
-    tasksForTomorrow,
-    correctionReason,
-    originalSnapshotJson,
-    lastEditedByUserId,
-    finalizedAt,
-    finalizedByUserId,
-    createdAt,
-    createdByUserId,
-    updatedAt,
-  ]);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is FarmDailyRecord &&
-          other.id == this.id &&
-          other.clinicId == this.clinicId &&
-          other.farmId == this.farmId &&
-          other.recordDate == this.recordDate &&
-          other.status == this.status &&
-          other.openingPopulation == this.openingPopulation &&
-          other.births == this.births &&
-          other.purchases == this.purchases &&
-          other.transfersIn == this.transfersIn &&
-          other.mortality == this.mortality &&
-          other.sales == this.sales &&
-          other.transfersOut == this.transfersOut &&
-          other.closingPopulation == this.closingPopulation &&
-          other.feedSuppliedKg == this.feedSuppliedKg &&
-          other.dailyNote == this.dailyNote &&
-          other.tasksForTomorrow == this.tasksForTomorrow &&
-          other.correctionReason == this.correctionReason &&
-          other.originalSnapshotJson == this.originalSnapshotJson &&
-          other.lastEditedByUserId == this.lastEditedByUserId &&
-          other.finalizedAt == this.finalizedAt &&
-          other.finalizedByUserId == this.finalizedByUserId &&
-          other.createdAt == this.createdAt &&
-          other.createdByUserId == this.createdByUserId &&
-          other.updatedAt == this.updatedAt);
-}
-
-class FarmDailyRecordsCompanion extends UpdateCompanion<FarmDailyRecord> {
-  final Value<String> id;
-  final Value<String> clinicId;
-  final Value<String> farmId;
-  final Value<DateTime> recordDate;
-  final Value<String> status;
-  final Value<int> openingPopulation;
-  final Value<int> births;
-  final Value<int> purchases;
-  final Value<int> transfersIn;
-  final Value<int> mortality;
-  final Value<int> sales;
-  final Value<int> transfersOut;
-  final Value<int> closingPopulation;
-  final Value<double> feedSuppliedKg;
-  final Value<String?> dailyNote;
-  final Value<String?> tasksForTomorrow;
-  final Value<String?> correctionReason;
-  final Value<String?> originalSnapshotJson;
-  final Value<String?> lastEditedByUserId;
-  final Value<DateTime?> finalizedAt;
-  final Value<String?> finalizedByUserId;
-  final Value<DateTime> createdAt;
-  final Value<String> createdByUserId;
-  final Value<DateTime> updatedAt;
-  final Value<int> rowid;
-  const FarmDailyRecordsCompanion({
-    this.id = const Value.absent(),
-    this.clinicId = const Value.absent(),
-    this.farmId = const Value.absent(),
-    this.recordDate = const Value.absent(),
-    this.status = const Value.absent(),
-    this.openingPopulation = const Value.absent(),
-    this.births = const Value.absent(),
-    this.purchases = const Value.absent(),
-    this.transfersIn = const Value.absent(),
-    this.mortality = const Value.absent(),
-    this.sales = const Value.absent(),
-    this.transfersOut = const Value.absent(),
-    this.closingPopulation = const Value.absent(),
-    this.feedSuppliedKg = const Value.absent(),
-    this.dailyNote = const Value.absent(),
-    this.tasksForTomorrow = const Value.absent(),
-    this.correctionReason = const Value.absent(),
-    this.originalSnapshotJson = const Value.absent(),
-    this.lastEditedByUserId = const Value.absent(),
-    this.finalizedAt = const Value.absent(),
-    this.finalizedByUserId = const Value.absent(),
-    this.createdAt = const Value.absent(),
-    this.createdByUserId = const Value.absent(),
-    this.updatedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  FarmDailyRecordsCompanion.insert({
-    required String id,
-    required String clinicId,
-    required String farmId,
-    required DateTime recordDate,
-    this.status = const Value.absent(),
-    this.openingPopulation = const Value.absent(),
-    this.births = const Value.absent(),
-    this.purchases = const Value.absent(),
-    this.transfersIn = const Value.absent(),
-    this.mortality = const Value.absent(),
-    this.sales = const Value.absent(),
-    this.transfersOut = const Value.absent(),
-    this.closingPopulation = const Value.absent(),
-    this.feedSuppliedKg = const Value.absent(),
-    this.dailyNote = const Value.absent(),
-    this.tasksForTomorrow = const Value.absent(),
-    this.correctionReason = const Value.absent(),
-    this.originalSnapshotJson = const Value.absent(),
-    this.lastEditedByUserId = const Value.absent(),
-    this.finalizedAt = const Value.absent(),
-    this.finalizedByUserId = const Value.absent(),
-    required DateTime createdAt,
-    required String createdByUserId,
-    required DateTime updatedAt,
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       clinicId = Value(clinicId),
-       farmId = Value(farmId),
-       recordDate = Value(recordDate),
-       createdAt = Value(createdAt),
-       createdByUserId = Value(createdByUserId),
-       updatedAt = Value(updatedAt);
-  static Insertable<FarmDailyRecord> custom({
-    Expression<String>? id,
-    Expression<String>? clinicId,
-    Expression<String>? farmId,
-    Expression<DateTime>? recordDate,
-    Expression<String>? status,
-    Expression<int>? openingPopulation,
-    Expression<int>? births,
-    Expression<int>? purchases,
-    Expression<int>? transfersIn,
-    Expression<int>? mortality,
-    Expression<int>? sales,
-    Expression<int>? transfersOut,
-    Expression<int>? closingPopulation,
-    Expression<double>? feedSuppliedKg,
-    Expression<String>? dailyNote,
-    Expression<String>? tasksForTomorrow,
-    Expression<String>? correctionReason,
-    Expression<String>? originalSnapshotJson,
-    Expression<String>? lastEditedByUserId,
-    Expression<DateTime>? finalizedAt,
-    Expression<String>? finalizedByUserId,
-    Expression<DateTime>? createdAt,
-    Expression<String>? createdByUserId,
-    Expression<DateTime>? updatedAt,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (clinicId != null) 'clinic_id': clinicId,
-      if (farmId != null) 'farm_id': farmId,
-      if (recordDate != null) 'record_date': recordDate,
-      if (status != null) 'status': status,
-      if (openingPopulation != null) 'opening_population': openingPopulation,
-      if (births != null) 'births': births,
-      if (purchases != null) 'purchases': purchases,
-      if (transfersIn != null) 'transfers_in': transfersIn,
-      if (mortality != null) 'mortality': mortality,
-      if (sales != null) 'sales': sales,
-      if (transfersOut != null) 'transfers_out': transfersOut,
-      if (closingPopulation != null) 'closing_population': closingPopulation,
-      if (feedSuppliedKg != null) 'feed_supplied_kg': feedSuppliedKg,
-      if (dailyNote != null) 'daily_note': dailyNote,
-      if (tasksForTomorrow != null) 'tasks_for_tomorrow': tasksForTomorrow,
-      if (correctionReason != null) 'correction_reason': correctionReason,
-      if (originalSnapshotJson != null)
-        'original_snapshot_json': originalSnapshotJson,
-      if (lastEditedByUserId != null)
-        'last_edited_by_user_id': lastEditedByUserId,
-      if (finalizedAt != null) 'finalized_at': finalizedAt,
-      if (finalizedByUserId != null) 'finalized_by_user_id': finalizedByUserId,
-      if (createdAt != null) 'created_at': createdAt,
-      if (createdByUserId != null) 'created_by_user_id': createdByUserId,
-      if (updatedAt != null) 'updated_at': updatedAt,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  FarmDailyRecordsCompanion copyWith({
-    Value<String>? id,
-    Value<String>? clinicId,
-    Value<String>? farmId,
-    Value<DateTime>? recordDate,
-    Value<String>? status,
-    Value<int>? openingPopulation,
-    Value<int>? births,
-    Value<int>? purchases,
-    Value<int>? transfersIn,
-    Value<int>? mortality,
-    Value<int>? sales,
-    Value<int>? transfersOut,
-    Value<int>? closingPopulation,
-    Value<double>? feedSuppliedKg,
-    Value<String?>? dailyNote,
-    Value<String?>? tasksForTomorrow,
-    Value<String?>? correctionReason,
-    Value<String?>? originalSnapshotJson,
-    Value<String?>? lastEditedByUserId,
-    Value<DateTime?>? finalizedAt,
-    Value<String?>? finalizedByUserId,
-    Value<DateTime>? createdAt,
-    Value<String>? createdByUserId,
-    Value<DateTime>? updatedAt,
-    Value<int>? rowid,
-  }) {
-    return FarmDailyRecordsCompanion(
-      id: id ?? this.id,
-      clinicId: clinicId ?? this.clinicId,
-      farmId: farmId ?? this.farmId,
-      recordDate: recordDate ?? this.recordDate,
-      status: status ?? this.status,
-      openingPopulation: openingPopulation ?? this.openingPopulation,
-      births: births ?? this.births,
-      purchases: purchases ?? this.purchases,
-      transfersIn: transfersIn ?? this.transfersIn,
-      mortality: mortality ?? this.mortality,
-      sales: sales ?? this.sales,
-      transfersOut: transfersOut ?? this.transfersOut,
-      closingPopulation: closingPopulation ?? this.closingPopulation,
-      feedSuppliedKg: feedSuppliedKg ?? this.feedSuppliedKg,
-      dailyNote: dailyNote ?? this.dailyNote,
-      tasksForTomorrow: tasksForTomorrow ?? this.tasksForTomorrow,
-      correctionReason: correctionReason ?? this.correctionReason,
-      originalSnapshotJson: originalSnapshotJson ?? this.originalSnapshotJson,
-      lastEditedByUserId: lastEditedByUserId ?? this.lastEditedByUserId,
-      finalizedAt: finalizedAt ?? this.finalizedAt,
-      finalizedByUserId: finalizedByUserId ?? this.finalizedByUserId,
-      createdAt: createdAt ?? this.createdAt,
-      createdByUserId: createdByUserId ?? this.createdByUserId,
-      updatedAt: updatedAt ?? this.updatedAt,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (clinicId.present) {
-      map['clinic_id'] = Variable<String>(clinicId.value);
-    }
-    if (farmId.present) {
-      map['farm_id'] = Variable<String>(farmId.value);
-    }
-    if (recordDate.present) {
-      map['record_date'] = Variable<DateTime>(recordDate.value);
-    }
-    if (status.present) {
-      map['status'] = Variable<String>(status.value);
-    }
-    if (openingPopulation.present) {
-      map['opening_population'] = Variable<int>(openingPopulation.value);
-    }
-    if (births.present) {
-      map['births'] = Variable<int>(births.value);
-    }
-    if (purchases.present) {
-      map['purchases'] = Variable<int>(purchases.value);
-    }
-    if (transfersIn.present) {
-      map['transfers_in'] = Variable<int>(transfersIn.value);
-    }
-    if (mortality.present) {
-      map['mortality'] = Variable<int>(mortality.value);
-    }
-    if (sales.present) {
-      map['sales'] = Variable<int>(sales.value);
-    }
-    if (transfersOut.present) {
-      map['transfers_out'] = Variable<int>(transfersOut.value);
-    }
-    if (closingPopulation.present) {
-      map['closing_population'] = Variable<int>(closingPopulation.value);
-    }
-    if (feedSuppliedKg.present) {
-      map['feed_supplied_kg'] = Variable<double>(feedSuppliedKg.value);
-    }
-    if (dailyNote.present) {
-      map['daily_note'] = Variable<String>(dailyNote.value);
-    }
-    if (tasksForTomorrow.present) {
-      map['tasks_for_tomorrow'] = Variable<String>(tasksForTomorrow.value);
-    }
-    if (correctionReason.present) {
-      map['correction_reason'] = Variable<String>(correctionReason.value);
-    }
-    if (originalSnapshotJson.present) {
-      map['original_snapshot_json'] = Variable<String>(
-        originalSnapshotJson.value,
-      );
-    }
-    if (lastEditedByUserId.present) {
-      map['last_edited_by_user_id'] = Variable<String>(
-        lastEditedByUserId.value,
-      );
-    }
-    if (finalizedAt.present) {
-      map['finalized_at'] = Variable<DateTime>(finalizedAt.value);
-    }
-    if (finalizedByUserId.present) {
-      map['finalized_by_user_id'] = Variable<String>(finalizedByUserId.value);
-    }
-    if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
-    }
-    if (createdByUserId.present) {
-      map['created_by_user_id'] = Variable<String>(createdByUserId.value);
-    }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('FarmDailyRecordsCompanion(')
-          ..write('id: $id, ')
-          ..write('clinicId: $clinicId, ')
-          ..write('farmId: $farmId, ')
-          ..write('recordDate: $recordDate, ')
-          ..write('status: $status, ')
-          ..write('openingPopulation: $openingPopulation, ')
-          ..write('births: $births, ')
-          ..write('purchases: $purchases, ')
-          ..write('transfersIn: $transfersIn, ')
-          ..write('mortality: $mortality, ')
-          ..write('sales: $sales, ')
-          ..write('transfersOut: $transfersOut, ')
-          ..write('closingPopulation: $closingPopulation, ')
-          ..write('feedSuppliedKg: $feedSuppliedKg, ')
-          ..write('dailyNote: $dailyNote, ')
-          ..write('tasksForTomorrow: $tasksForTomorrow, ')
-          ..write('correctionReason: $correctionReason, ')
-          ..write('originalSnapshotJson: $originalSnapshotJson, ')
-          ..write('lastEditedByUserId: $lastEditedByUserId, ')
-          ..write('finalizedAt: $finalizedAt, ')
-          ..write('finalizedByUserId: $finalizedByUserId, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('createdByUserId: $createdByUserId, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $FarmSpeciesPopulationMovementsTable
     extends FarmSpeciesPopulationMovements
     with
@@ -39624,1054 +42099,6 @@ class FarmReproductionRecordsCompanion
   }
 }
 
-class $FarmHealthRecordsTable extends FarmHealthRecords
-    with TableInfo<$FarmHealthRecordsTable, FarmHealthRecord> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $FarmHealthRecordsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _clinicIdMeta = const VerificationMeta(
-    'clinicId',
-  );
-  @override
-  late final GeneratedColumn<String> clinicId = GeneratedColumn<String>(
-    'clinic_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES clinics (clinic_id)',
-    ),
-  );
-  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
-  @override
-  late final GeneratedColumn<String> farmId = GeneratedColumn<String>(
-    'farm_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES farms (id)',
-    ),
-  );
-  static const VerificationMeta _dailyRecordIdMeta = const VerificationMeta(
-    'dailyRecordId',
-  );
-  @override
-  late final GeneratedColumn<String> dailyRecordId = GeneratedColumn<String>(
-    'daily_record_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES farm_daily_records (id)',
-    ),
-  );
-  static const VerificationMeta _farmUnitIdMeta = const VerificationMeta(
-    'farmUnitId',
-  );
-  @override
-  late final GeneratedColumn<int> farmUnitId = GeneratedColumn<int>(
-    'farm_unit_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES farm_units (id)',
-    ),
-  );
-  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
-    'occurredAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
-    'occurred_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _eventTypeMeta = const VerificationMeta(
-    'eventType',
-  );
-  @override
-  late final GeneratedColumn<String> eventType = GeneratedColumn<String>(
-    'event_type',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _productMeta = const VerificationMeta(
-    'product',
-  );
-  @override
-  late final GeneratedColumn<String> product = GeneratedColumn<String>(
-    'product',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _manufacturerMeta = const VerificationMeta(
-    'manufacturer',
-  );
-  @override
-  late final GeneratedColumn<String> manufacturer = GeneratedColumn<String>(
-    'manufacturer',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _batchNumberMeta = const VerificationMeta(
-    'batchNumber',
-  );
-  @override
-  late final GeneratedColumn<String> batchNumber = GeneratedColumn<String>(
-    'batch_number',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _purposeMeta = const VerificationMeta(
-    'purpose',
-  );
-  @override
-  late final GeneratedColumn<String> purpose = GeneratedColumn<String>(
-    'purpose',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _doseMeta = const VerificationMeta('dose');
-  @override
-  late final GeneratedColumn<String> dose = GeneratedColumn<String>(
-    'dose',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _routeMeta = const VerificationMeta('route');
-  @override
-  late final GeneratedColumn<String> route = GeneratedColumn<String>(
-    'route',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _animalsCoveredMeta = const VerificationMeta(
-    'animalsCovered',
-  );
-  @override
-  late final GeneratedColumn<int> animalsCovered = GeneratedColumn<int>(
-    'animals_covered',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _administeredByMeta = const VerificationMeta(
-    'administeredBy',
-  );
-  @override
-  late final GeneratedColumn<String> administeredBy = GeneratedColumn<String>(
-    'administered_by',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _nextDueDateMeta = const VerificationMeta(
-    'nextDueDate',
-  );
-  @override
-  late final GeneratedColumn<DateTime> nextDueDate = GeneratedColumn<DateTime>(
-    'next_due_date',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
-  @override
-  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
-    'notes',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _createdByUserIdMeta = const VerificationMeta(
-    'createdByUserId',
-  );
-  @override
-  late final GeneratedColumn<String> createdByUserId = GeneratedColumn<String>(
-    'created_by_user_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES app_users (user_id)',
-    ),
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    clinicId,
-    farmId,
-    dailyRecordId,
-    farmUnitId,
-    occurredAt,
-    eventType,
-    product,
-    manufacturer,
-    batchNumber,
-    purpose,
-    dose,
-    route,
-    animalsCovered,
-    administeredBy,
-    nextDueDate,
-    notes,
-    createdByUserId,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'farm_health_records';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<FarmHealthRecord> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
-    if (data.containsKey('clinic_id')) {
-      context.handle(
-        _clinicIdMeta,
-        clinicId.isAcceptableOrUnknown(data['clinic_id']!, _clinicIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_clinicIdMeta);
-    }
-    if (data.containsKey('farm_id')) {
-      context.handle(
-        _farmIdMeta,
-        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_farmIdMeta);
-    }
-    if (data.containsKey('daily_record_id')) {
-      context.handle(
-        _dailyRecordIdMeta,
-        dailyRecordId.isAcceptableOrUnknown(
-          data['daily_record_id']!,
-          _dailyRecordIdMeta,
-        ),
-      );
-    }
-    if (data.containsKey('farm_unit_id')) {
-      context.handle(
-        _farmUnitIdMeta,
-        farmUnitId.isAcceptableOrUnknown(
-          data['farm_unit_id']!,
-          _farmUnitIdMeta,
-        ),
-      );
-    }
-    if (data.containsKey('occurred_at')) {
-      context.handle(
-        _occurredAtMeta,
-        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_occurredAtMeta);
-    }
-    if (data.containsKey('event_type')) {
-      context.handle(
-        _eventTypeMeta,
-        eventType.isAcceptableOrUnknown(data['event_type']!, _eventTypeMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_eventTypeMeta);
-    }
-    if (data.containsKey('product')) {
-      context.handle(
-        _productMeta,
-        product.isAcceptableOrUnknown(data['product']!, _productMeta),
-      );
-    }
-    if (data.containsKey('manufacturer')) {
-      context.handle(
-        _manufacturerMeta,
-        manufacturer.isAcceptableOrUnknown(
-          data['manufacturer']!,
-          _manufacturerMeta,
-        ),
-      );
-    }
-    if (data.containsKey('batch_number')) {
-      context.handle(
-        _batchNumberMeta,
-        batchNumber.isAcceptableOrUnknown(
-          data['batch_number']!,
-          _batchNumberMeta,
-        ),
-      );
-    }
-    if (data.containsKey('purpose')) {
-      context.handle(
-        _purposeMeta,
-        purpose.isAcceptableOrUnknown(data['purpose']!, _purposeMeta),
-      );
-    }
-    if (data.containsKey('dose')) {
-      context.handle(
-        _doseMeta,
-        dose.isAcceptableOrUnknown(data['dose']!, _doseMeta),
-      );
-    }
-    if (data.containsKey('route')) {
-      context.handle(
-        _routeMeta,
-        route.isAcceptableOrUnknown(data['route']!, _routeMeta),
-      );
-    }
-    if (data.containsKey('animals_covered')) {
-      context.handle(
-        _animalsCoveredMeta,
-        animalsCovered.isAcceptableOrUnknown(
-          data['animals_covered']!,
-          _animalsCoveredMeta,
-        ),
-      );
-    }
-    if (data.containsKey('administered_by')) {
-      context.handle(
-        _administeredByMeta,
-        administeredBy.isAcceptableOrUnknown(
-          data['administered_by']!,
-          _administeredByMeta,
-        ),
-      );
-    }
-    if (data.containsKey('next_due_date')) {
-      context.handle(
-        _nextDueDateMeta,
-        nextDueDate.isAcceptableOrUnknown(
-          data['next_due_date']!,
-          _nextDueDateMeta,
-        ),
-      );
-    }
-    if (data.containsKey('notes')) {
-      context.handle(
-        _notesMeta,
-        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
-      );
-    }
-    if (data.containsKey('created_by_user_id')) {
-      context.handle(
-        _createdByUserIdMeta,
-        createdByUserId.isAcceptableOrUnknown(
-          data['created_by_user_id']!,
-          _createdByUserIdMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_createdByUserIdMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  FarmHealthRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return FarmHealthRecord(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      clinicId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}clinic_id'],
-      )!,
-      farmId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}farm_id'],
-      )!,
-      dailyRecordId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}daily_record_id'],
-      ),
-      farmUnitId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}farm_unit_id'],
-      ),
-      occurredAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}occurred_at'],
-      )!,
-      eventType: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}event_type'],
-      )!,
-      product: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}product'],
-      ),
-      manufacturer: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}manufacturer'],
-      ),
-      batchNumber: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}batch_number'],
-      ),
-      purpose: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}purpose'],
-      ),
-      dose: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}dose'],
-      ),
-      route: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}route'],
-      ),
-      animalsCovered: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}animals_covered'],
-      ),
-      administeredBy: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}administered_by'],
-      ),
-      nextDueDate: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}next_due_date'],
-      ),
-      notes: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}notes'],
-      ),
-      createdByUserId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}created_by_user_id'],
-      )!,
-    );
-  }
-
-  @override
-  $FarmHealthRecordsTable createAlias(String alias) {
-    return $FarmHealthRecordsTable(attachedDatabase, alias);
-  }
-}
-
-class FarmHealthRecord extends DataClass
-    implements Insertable<FarmHealthRecord> {
-  final int id;
-  final String clinicId;
-  final String farmId;
-  final String? dailyRecordId;
-  final int? farmUnitId;
-  final DateTime occurredAt;
-  final String eventType;
-  final String? product;
-  final String? manufacturer;
-  final String? batchNumber;
-  final String? purpose;
-  final String? dose;
-  final String? route;
-  final int? animalsCovered;
-  final String? administeredBy;
-  final DateTime? nextDueDate;
-  final String? notes;
-  final String createdByUserId;
-  const FarmHealthRecord({
-    required this.id,
-    required this.clinicId,
-    required this.farmId,
-    this.dailyRecordId,
-    this.farmUnitId,
-    required this.occurredAt,
-    required this.eventType,
-    this.product,
-    this.manufacturer,
-    this.batchNumber,
-    this.purpose,
-    this.dose,
-    this.route,
-    this.animalsCovered,
-    this.administeredBy,
-    this.nextDueDate,
-    this.notes,
-    required this.createdByUserId,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['clinic_id'] = Variable<String>(clinicId);
-    map['farm_id'] = Variable<String>(farmId);
-    if (!nullToAbsent || dailyRecordId != null) {
-      map['daily_record_id'] = Variable<String>(dailyRecordId);
-    }
-    if (!nullToAbsent || farmUnitId != null) {
-      map['farm_unit_id'] = Variable<int>(farmUnitId);
-    }
-    map['occurred_at'] = Variable<DateTime>(occurredAt);
-    map['event_type'] = Variable<String>(eventType);
-    if (!nullToAbsent || product != null) {
-      map['product'] = Variable<String>(product);
-    }
-    if (!nullToAbsent || manufacturer != null) {
-      map['manufacturer'] = Variable<String>(manufacturer);
-    }
-    if (!nullToAbsent || batchNumber != null) {
-      map['batch_number'] = Variable<String>(batchNumber);
-    }
-    if (!nullToAbsent || purpose != null) {
-      map['purpose'] = Variable<String>(purpose);
-    }
-    if (!nullToAbsent || dose != null) {
-      map['dose'] = Variable<String>(dose);
-    }
-    if (!nullToAbsent || route != null) {
-      map['route'] = Variable<String>(route);
-    }
-    if (!nullToAbsent || animalsCovered != null) {
-      map['animals_covered'] = Variable<int>(animalsCovered);
-    }
-    if (!nullToAbsent || administeredBy != null) {
-      map['administered_by'] = Variable<String>(administeredBy);
-    }
-    if (!nullToAbsent || nextDueDate != null) {
-      map['next_due_date'] = Variable<DateTime>(nextDueDate);
-    }
-    if (!nullToAbsent || notes != null) {
-      map['notes'] = Variable<String>(notes);
-    }
-    map['created_by_user_id'] = Variable<String>(createdByUserId);
-    return map;
-  }
-
-  FarmHealthRecordsCompanion toCompanion(bool nullToAbsent) {
-    return FarmHealthRecordsCompanion(
-      id: Value(id),
-      clinicId: Value(clinicId),
-      farmId: Value(farmId),
-      dailyRecordId: dailyRecordId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(dailyRecordId),
-      farmUnitId: farmUnitId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(farmUnitId),
-      occurredAt: Value(occurredAt),
-      eventType: Value(eventType),
-      product: product == null && nullToAbsent
-          ? const Value.absent()
-          : Value(product),
-      manufacturer: manufacturer == null && nullToAbsent
-          ? const Value.absent()
-          : Value(manufacturer),
-      batchNumber: batchNumber == null && nullToAbsent
-          ? const Value.absent()
-          : Value(batchNumber),
-      purpose: purpose == null && nullToAbsent
-          ? const Value.absent()
-          : Value(purpose),
-      dose: dose == null && nullToAbsent ? const Value.absent() : Value(dose),
-      route: route == null && nullToAbsent
-          ? const Value.absent()
-          : Value(route),
-      animalsCovered: animalsCovered == null && nullToAbsent
-          ? const Value.absent()
-          : Value(animalsCovered),
-      administeredBy: administeredBy == null && nullToAbsent
-          ? const Value.absent()
-          : Value(administeredBy),
-      nextDueDate: nextDueDate == null && nullToAbsent
-          ? const Value.absent()
-          : Value(nextDueDate),
-      notes: notes == null && nullToAbsent
-          ? const Value.absent()
-          : Value(notes),
-      createdByUserId: Value(createdByUserId),
-    );
-  }
-
-  factory FarmHealthRecord.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return FarmHealthRecord(
-      id: serializer.fromJson<int>(json['id']),
-      clinicId: serializer.fromJson<String>(json['clinicId']),
-      farmId: serializer.fromJson<String>(json['farmId']),
-      dailyRecordId: serializer.fromJson<String?>(json['dailyRecordId']),
-      farmUnitId: serializer.fromJson<int?>(json['farmUnitId']),
-      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
-      eventType: serializer.fromJson<String>(json['eventType']),
-      product: serializer.fromJson<String?>(json['product']),
-      manufacturer: serializer.fromJson<String?>(json['manufacturer']),
-      batchNumber: serializer.fromJson<String?>(json['batchNumber']),
-      purpose: serializer.fromJson<String?>(json['purpose']),
-      dose: serializer.fromJson<String?>(json['dose']),
-      route: serializer.fromJson<String?>(json['route']),
-      animalsCovered: serializer.fromJson<int?>(json['animalsCovered']),
-      administeredBy: serializer.fromJson<String?>(json['administeredBy']),
-      nextDueDate: serializer.fromJson<DateTime?>(json['nextDueDate']),
-      notes: serializer.fromJson<String?>(json['notes']),
-      createdByUserId: serializer.fromJson<String>(json['createdByUserId']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'clinicId': serializer.toJson<String>(clinicId),
-      'farmId': serializer.toJson<String>(farmId),
-      'dailyRecordId': serializer.toJson<String?>(dailyRecordId),
-      'farmUnitId': serializer.toJson<int?>(farmUnitId),
-      'occurredAt': serializer.toJson<DateTime>(occurredAt),
-      'eventType': serializer.toJson<String>(eventType),
-      'product': serializer.toJson<String?>(product),
-      'manufacturer': serializer.toJson<String?>(manufacturer),
-      'batchNumber': serializer.toJson<String?>(batchNumber),
-      'purpose': serializer.toJson<String?>(purpose),
-      'dose': serializer.toJson<String?>(dose),
-      'route': serializer.toJson<String?>(route),
-      'animalsCovered': serializer.toJson<int?>(animalsCovered),
-      'administeredBy': serializer.toJson<String?>(administeredBy),
-      'nextDueDate': serializer.toJson<DateTime?>(nextDueDate),
-      'notes': serializer.toJson<String?>(notes),
-      'createdByUserId': serializer.toJson<String>(createdByUserId),
-    };
-  }
-
-  FarmHealthRecord copyWith({
-    int? id,
-    String? clinicId,
-    String? farmId,
-    Value<String?> dailyRecordId = const Value.absent(),
-    Value<int?> farmUnitId = const Value.absent(),
-    DateTime? occurredAt,
-    String? eventType,
-    Value<String?> product = const Value.absent(),
-    Value<String?> manufacturer = const Value.absent(),
-    Value<String?> batchNumber = const Value.absent(),
-    Value<String?> purpose = const Value.absent(),
-    Value<String?> dose = const Value.absent(),
-    Value<String?> route = const Value.absent(),
-    Value<int?> animalsCovered = const Value.absent(),
-    Value<String?> administeredBy = const Value.absent(),
-    Value<DateTime?> nextDueDate = const Value.absent(),
-    Value<String?> notes = const Value.absent(),
-    String? createdByUserId,
-  }) => FarmHealthRecord(
-    id: id ?? this.id,
-    clinicId: clinicId ?? this.clinicId,
-    farmId: farmId ?? this.farmId,
-    dailyRecordId: dailyRecordId.present
-        ? dailyRecordId.value
-        : this.dailyRecordId,
-    farmUnitId: farmUnitId.present ? farmUnitId.value : this.farmUnitId,
-    occurredAt: occurredAt ?? this.occurredAt,
-    eventType: eventType ?? this.eventType,
-    product: product.present ? product.value : this.product,
-    manufacturer: manufacturer.present ? manufacturer.value : this.manufacturer,
-    batchNumber: batchNumber.present ? batchNumber.value : this.batchNumber,
-    purpose: purpose.present ? purpose.value : this.purpose,
-    dose: dose.present ? dose.value : this.dose,
-    route: route.present ? route.value : this.route,
-    animalsCovered: animalsCovered.present
-        ? animalsCovered.value
-        : this.animalsCovered,
-    administeredBy: administeredBy.present
-        ? administeredBy.value
-        : this.administeredBy,
-    nextDueDate: nextDueDate.present ? nextDueDate.value : this.nextDueDate,
-    notes: notes.present ? notes.value : this.notes,
-    createdByUserId: createdByUserId ?? this.createdByUserId,
-  );
-  FarmHealthRecord copyWithCompanion(FarmHealthRecordsCompanion data) {
-    return FarmHealthRecord(
-      id: data.id.present ? data.id.value : this.id,
-      clinicId: data.clinicId.present ? data.clinicId.value : this.clinicId,
-      farmId: data.farmId.present ? data.farmId.value : this.farmId,
-      dailyRecordId: data.dailyRecordId.present
-          ? data.dailyRecordId.value
-          : this.dailyRecordId,
-      farmUnitId: data.farmUnitId.present
-          ? data.farmUnitId.value
-          : this.farmUnitId,
-      occurredAt: data.occurredAt.present
-          ? data.occurredAt.value
-          : this.occurredAt,
-      eventType: data.eventType.present ? data.eventType.value : this.eventType,
-      product: data.product.present ? data.product.value : this.product,
-      manufacturer: data.manufacturer.present
-          ? data.manufacturer.value
-          : this.manufacturer,
-      batchNumber: data.batchNumber.present
-          ? data.batchNumber.value
-          : this.batchNumber,
-      purpose: data.purpose.present ? data.purpose.value : this.purpose,
-      dose: data.dose.present ? data.dose.value : this.dose,
-      route: data.route.present ? data.route.value : this.route,
-      animalsCovered: data.animalsCovered.present
-          ? data.animalsCovered.value
-          : this.animalsCovered,
-      administeredBy: data.administeredBy.present
-          ? data.administeredBy.value
-          : this.administeredBy,
-      nextDueDate: data.nextDueDate.present
-          ? data.nextDueDate.value
-          : this.nextDueDate,
-      notes: data.notes.present ? data.notes.value : this.notes,
-      createdByUserId: data.createdByUserId.present
-          ? data.createdByUserId.value
-          : this.createdByUserId,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('FarmHealthRecord(')
-          ..write('id: $id, ')
-          ..write('clinicId: $clinicId, ')
-          ..write('farmId: $farmId, ')
-          ..write('dailyRecordId: $dailyRecordId, ')
-          ..write('farmUnitId: $farmUnitId, ')
-          ..write('occurredAt: $occurredAt, ')
-          ..write('eventType: $eventType, ')
-          ..write('product: $product, ')
-          ..write('manufacturer: $manufacturer, ')
-          ..write('batchNumber: $batchNumber, ')
-          ..write('purpose: $purpose, ')
-          ..write('dose: $dose, ')
-          ..write('route: $route, ')
-          ..write('animalsCovered: $animalsCovered, ')
-          ..write('administeredBy: $administeredBy, ')
-          ..write('nextDueDate: $nextDueDate, ')
-          ..write('notes: $notes, ')
-          ..write('createdByUserId: $createdByUserId')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    clinicId,
-    farmId,
-    dailyRecordId,
-    farmUnitId,
-    occurredAt,
-    eventType,
-    product,
-    manufacturer,
-    batchNumber,
-    purpose,
-    dose,
-    route,
-    animalsCovered,
-    administeredBy,
-    nextDueDate,
-    notes,
-    createdByUserId,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is FarmHealthRecord &&
-          other.id == this.id &&
-          other.clinicId == this.clinicId &&
-          other.farmId == this.farmId &&
-          other.dailyRecordId == this.dailyRecordId &&
-          other.farmUnitId == this.farmUnitId &&
-          other.occurredAt == this.occurredAt &&
-          other.eventType == this.eventType &&
-          other.product == this.product &&
-          other.manufacturer == this.manufacturer &&
-          other.batchNumber == this.batchNumber &&
-          other.purpose == this.purpose &&
-          other.dose == this.dose &&
-          other.route == this.route &&
-          other.animalsCovered == this.animalsCovered &&
-          other.administeredBy == this.administeredBy &&
-          other.nextDueDate == this.nextDueDate &&
-          other.notes == this.notes &&
-          other.createdByUserId == this.createdByUserId);
-}
-
-class FarmHealthRecordsCompanion extends UpdateCompanion<FarmHealthRecord> {
-  final Value<int> id;
-  final Value<String> clinicId;
-  final Value<String> farmId;
-  final Value<String?> dailyRecordId;
-  final Value<int?> farmUnitId;
-  final Value<DateTime> occurredAt;
-  final Value<String> eventType;
-  final Value<String?> product;
-  final Value<String?> manufacturer;
-  final Value<String?> batchNumber;
-  final Value<String?> purpose;
-  final Value<String?> dose;
-  final Value<String?> route;
-  final Value<int?> animalsCovered;
-  final Value<String?> administeredBy;
-  final Value<DateTime?> nextDueDate;
-  final Value<String?> notes;
-  final Value<String> createdByUserId;
-  const FarmHealthRecordsCompanion({
-    this.id = const Value.absent(),
-    this.clinicId = const Value.absent(),
-    this.farmId = const Value.absent(),
-    this.dailyRecordId = const Value.absent(),
-    this.farmUnitId = const Value.absent(),
-    this.occurredAt = const Value.absent(),
-    this.eventType = const Value.absent(),
-    this.product = const Value.absent(),
-    this.manufacturer = const Value.absent(),
-    this.batchNumber = const Value.absent(),
-    this.purpose = const Value.absent(),
-    this.dose = const Value.absent(),
-    this.route = const Value.absent(),
-    this.animalsCovered = const Value.absent(),
-    this.administeredBy = const Value.absent(),
-    this.nextDueDate = const Value.absent(),
-    this.notes = const Value.absent(),
-    this.createdByUserId = const Value.absent(),
-  });
-  FarmHealthRecordsCompanion.insert({
-    this.id = const Value.absent(),
-    required String clinicId,
-    required String farmId,
-    this.dailyRecordId = const Value.absent(),
-    this.farmUnitId = const Value.absent(),
-    required DateTime occurredAt,
-    required String eventType,
-    this.product = const Value.absent(),
-    this.manufacturer = const Value.absent(),
-    this.batchNumber = const Value.absent(),
-    this.purpose = const Value.absent(),
-    this.dose = const Value.absent(),
-    this.route = const Value.absent(),
-    this.animalsCovered = const Value.absent(),
-    this.administeredBy = const Value.absent(),
-    this.nextDueDate = const Value.absent(),
-    this.notes = const Value.absent(),
-    required String createdByUserId,
-  }) : clinicId = Value(clinicId),
-       farmId = Value(farmId),
-       occurredAt = Value(occurredAt),
-       eventType = Value(eventType),
-       createdByUserId = Value(createdByUserId);
-  static Insertable<FarmHealthRecord> custom({
-    Expression<int>? id,
-    Expression<String>? clinicId,
-    Expression<String>? farmId,
-    Expression<String>? dailyRecordId,
-    Expression<int>? farmUnitId,
-    Expression<DateTime>? occurredAt,
-    Expression<String>? eventType,
-    Expression<String>? product,
-    Expression<String>? manufacturer,
-    Expression<String>? batchNumber,
-    Expression<String>? purpose,
-    Expression<String>? dose,
-    Expression<String>? route,
-    Expression<int>? animalsCovered,
-    Expression<String>? administeredBy,
-    Expression<DateTime>? nextDueDate,
-    Expression<String>? notes,
-    Expression<String>? createdByUserId,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (clinicId != null) 'clinic_id': clinicId,
-      if (farmId != null) 'farm_id': farmId,
-      if (dailyRecordId != null) 'daily_record_id': dailyRecordId,
-      if (farmUnitId != null) 'farm_unit_id': farmUnitId,
-      if (occurredAt != null) 'occurred_at': occurredAt,
-      if (eventType != null) 'event_type': eventType,
-      if (product != null) 'product': product,
-      if (manufacturer != null) 'manufacturer': manufacturer,
-      if (batchNumber != null) 'batch_number': batchNumber,
-      if (purpose != null) 'purpose': purpose,
-      if (dose != null) 'dose': dose,
-      if (route != null) 'route': route,
-      if (animalsCovered != null) 'animals_covered': animalsCovered,
-      if (administeredBy != null) 'administered_by': administeredBy,
-      if (nextDueDate != null) 'next_due_date': nextDueDate,
-      if (notes != null) 'notes': notes,
-      if (createdByUserId != null) 'created_by_user_id': createdByUserId,
-    });
-  }
-
-  FarmHealthRecordsCompanion copyWith({
-    Value<int>? id,
-    Value<String>? clinicId,
-    Value<String>? farmId,
-    Value<String?>? dailyRecordId,
-    Value<int?>? farmUnitId,
-    Value<DateTime>? occurredAt,
-    Value<String>? eventType,
-    Value<String?>? product,
-    Value<String?>? manufacturer,
-    Value<String?>? batchNumber,
-    Value<String?>? purpose,
-    Value<String?>? dose,
-    Value<String?>? route,
-    Value<int?>? animalsCovered,
-    Value<String?>? administeredBy,
-    Value<DateTime?>? nextDueDate,
-    Value<String?>? notes,
-    Value<String>? createdByUserId,
-  }) {
-    return FarmHealthRecordsCompanion(
-      id: id ?? this.id,
-      clinicId: clinicId ?? this.clinicId,
-      farmId: farmId ?? this.farmId,
-      dailyRecordId: dailyRecordId ?? this.dailyRecordId,
-      farmUnitId: farmUnitId ?? this.farmUnitId,
-      occurredAt: occurredAt ?? this.occurredAt,
-      eventType: eventType ?? this.eventType,
-      product: product ?? this.product,
-      manufacturer: manufacturer ?? this.manufacturer,
-      batchNumber: batchNumber ?? this.batchNumber,
-      purpose: purpose ?? this.purpose,
-      dose: dose ?? this.dose,
-      route: route ?? this.route,
-      animalsCovered: animalsCovered ?? this.animalsCovered,
-      administeredBy: administeredBy ?? this.administeredBy,
-      nextDueDate: nextDueDate ?? this.nextDueDate,
-      notes: notes ?? this.notes,
-      createdByUserId: createdByUserId ?? this.createdByUserId,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
-    }
-    if (clinicId.present) {
-      map['clinic_id'] = Variable<String>(clinicId.value);
-    }
-    if (farmId.present) {
-      map['farm_id'] = Variable<String>(farmId.value);
-    }
-    if (dailyRecordId.present) {
-      map['daily_record_id'] = Variable<String>(dailyRecordId.value);
-    }
-    if (farmUnitId.present) {
-      map['farm_unit_id'] = Variable<int>(farmUnitId.value);
-    }
-    if (occurredAt.present) {
-      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
-    }
-    if (eventType.present) {
-      map['event_type'] = Variable<String>(eventType.value);
-    }
-    if (product.present) {
-      map['product'] = Variable<String>(product.value);
-    }
-    if (manufacturer.present) {
-      map['manufacturer'] = Variable<String>(manufacturer.value);
-    }
-    if (batchNumber.present) {
-      map['batch_number'] = Variable<String>(batchNumber.value);
-    }
-    if (purpose.present) {
-      map['purpose'] = Variable<String>(purpose.value);
-    }
-    if (dose.present) {
-      map['dose'] = Variable<String>(dose.value);
-    }
-    if (route.present) {
-      map['route'] = Variable<String>(route.value);
-    }
-    if (animalsCovered.present) {
-      map['animals_covered'] = Variable<int>(animalsCovered.value);
-    }
-    if (administeredBy.present) {
-      map['administered_by'] = Variable<String>(administeredBy.value);
-    }
-    if (nextDueDate.present) {
-      map['next_due_date'] = Variable<DateTime>(nextDueDate.value);
-    }
-    if (notes.present) {
-      map['notes'] = Variable<String>(notes.value);
-    }
-    if (createdByUserId.present) {
-      map['created_by_user_id'] = Variable<String>(createdByUserId.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('FarmHealthRecordsCompanion(')
-          ..write('id: $id, ')
-          ..write('clinicId: $clinicId, ')
-          ..write('farmId: $farmId, ')
-          ..write('dailyRecordId: $dailyRecordId, ')
-          ..write('farmUnitId: $farmUnitId, ')
-          ..write('occurredAt: $occurredAt, ')
-          ..write('eventType: $eventType, ')
-          ..write('product: $product, ')
-          ..write('manufacturer: $manufacturer, ')
-          ..write('batchNumber: $batchNumber, ')
-          ..write('purpose: $purpose, ')
-          ..write('dose: $dose, ')
-          ..write('route: $route, ')
-          ..write('animalsCovered: $animalsCovered, ')
-          ..write('administeredBy: $administeredBy, ')
-          ..write('nextDueDate: $nextDueDate, ')
-          ..write('notes: $notes, ')
-          ..write('createdByUserId: $createdByUserId')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $FarmReportSnapshotsTable extends FarmReportSnapshots
     with TableInfo<$FarmReportSnapshotsTable, FarmReportSnapshot> {
   @override
@@ -41290,7 +42717,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ClinicalDocumentVersionsTable clinicalDocumentVersions =
       $ClinicalDocumentVersionsTable(this);
   late final $VaccinationsTable vaccinations = $VaccinationsTable(this);
+  late final $ProductUnitsTable productUnits = $ProductUnitsTable(this);
   late final $SalesTable sales = $SalesTable(this);
+  late final $FarmsTable farms = $FarmsTable(this);
   late final $AppointmentsTable appointments = $AppointmentsTable(this);
   late final $InvoicesTable invoices = $InvoicesTable(this);
   late final $InvoicePaymentsTable invoicePayments = $InvoicePaymentsTable(
@@ -41298,6 +42727,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $InvoiceProductLinesTable invoiceProductLines =
       $InvoiceProductLinesTable(this);
+  late final $FarmUnitsTable farmUnits = $FarmUnitsTable(this);
+  late final $FarmDailyRecordsTable farmDailyRecords = $FarmDailyRecordsTable(
+    this,
+  );
+  late final $FarmHealthRecordsTable farmHealthRecords =
+      $FarmHealthRecordsTable(this);
   late final $InvoiceServiceLinesTable invoiceServiceLines =
       $InvoiceServiceLinesTable(this);
   late final $InventoryStockMovementsTable inventoryStockMovements =
@@ -41338,11 +42773,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $SubscriptionOverridesTable(this);
   late final $SubscriptionAuditLogsTable subscriptionAuditLogs =
       $SubscriptionAuditLogsTable(this);
-  late final $FarmsTable farms = $FarmsTable(this);
-  late final $FarmUnitsTable farmUnits = $FarmUnitsTable(this);
-  late final $FarmDailyRecordsTable farmDailyRecords = $FarmDailyRecordsTable(
-    this,
-  );
   late final $FarmSpeciesPopulationMovementsTable
   farmSpeciesPopulationMovements = $FarmSpeciesPopulationMovementsTable(this);
   late final $FarmMortalityRecordsTable farmMortalityRecords =
@@ -41353,8 +42783,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FarmEventsTable farmEvents = $FarmEventsTable(this);
   late final $FarmReproductionRecordsTable farmReproductionRecords =
       $FarmReproductionRecordsTable(this);
-  late final $FarmHealthRecordsTable farmHealthRecords =
-      $FarmHealthRecordsTable(this);
   late final $FarmReportSnapshotsTable farmReportSnapshots =
       $FarmReportSnapshotsTable(this);
   @override
@@ -41376,11 +42804,16 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     clinicalOperationActions,
     clinicalDocumentVersions,
     vaccinations,
+    productUnits,
     sales,
+    farms,
     appointments,
     invoices,
     invoicePayments,
     invoiceProductLines,
+    farmUnits,
+    farmDailyRecords,
+    farmHealthRecords,
     invoiceServiceLines,
     inventoryStockMovements,
     appointmentReminders,
@@ -41402,15 +42835,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     subscriptionGracePeriods,
     subscriptionOverrides,
     subscriptionAuditLogs,
-    farms,
-    farmUnits,
-    farmDailyRecords,
     farmSpeciesPopulationMovements,
     farmMortalityRecords,
     farmFeedRecords,
     farmEvents,
     farmReproductionRecords,
-    farmHealthRecords,
     farmReportSnapshots,
   ];
 }
@@ -41814,6 +43243,28 @@ final class $$ClinicsTableReferences
     );
   }
 
+  static MultiTypedResultKey<$ProductUnitsTable, List<ProductUnit>>
+  _productUnitsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.productUnits,
+    aliasName: $_aliasNameGenerator(
+      db.clinics.clinicId,
+      db.productUnits.clinicId,
+    ),
+  );
+
+  $$ProductUnitsTableProcessedTableManager get productUnitsRefs {
+    final manager = $$ProductUnitsTableTableManager($_db, $_db.productUnits)
+        .filter(
+          (f) =>
+              f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(_productUnitsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$SalesTable, List<Sale>> _salesRefsTable(
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
@@ -41827,6 +43278,24 @@ final class $$ClinicsTableReferences
     );
 
     final cache = $_typedResult.readTableOrNull(_salesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmsTable, List<Farm>> _farmsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.farms,
+    aliasName: $_aliasNameGenerator(db.clinics.clinicId, db.farms.clinicId),
+  );
+
+  $$FarmsTableProcessedTableManager get farmsRefs {
+    final manager = $$FarmsTableTableManager($_db, $_db.farms).filter(
+      (f) => f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
+    );
+
+    final cache = $_typedResult.readTableOrNull(_farmsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -41890,6 +43359,75 @@ final class $$ClinicsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _invoicePaymentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmUnitsTable, List<FarmUnit>>
+  _farmUnitsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmUnits,
+    aliasName: $_aliasNameGenerator(db.clinics.clinicId, db.farmUnits.clinicId),
+  );
+
+  $$FarmUnitsTableProcessedTableManager get farmUnitsRefs {
+    final manager = $$FarmUnitsTableTableManager($_db, $_db.farmUnits).filter(
+      (f) => f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
+    );
+
+    final cache = $_typedResult.readTableOrNull(_farmUnitsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmDailyRecordsTable, List<FarmDailyRecord>>
+  _farmDailyRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmDailyRecords,
+    aliasName: $_aliasNameGenerator(
+      db.clinics.clinicId,
+      db.farmDailyRecords.clinicId,
+    ),
+  );
+
+  $$FarmDailyRecordsTableProcessedTableManager get farmDailyRecordsRefs {
+    final manager =
+        $$FarmDailyRecordsTableTableManager($_db, $_db.farmDailyRecords).filter(
+          (f) =>
+              f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmDailyRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
+  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmHealthRecords,
+        aliasName: $_aliasNameGenerator(
+          db.clinics.clinicId,
+          db.farmHealthRecords.clinicId,
+        ),
+      );
+
+  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
+    final manager =
+        $$FarmHealthRecordsTableTableManager(
+          $_db,
+          $_db.farmHealthRecords,
+        ).filter(
+          (f) =>
+              f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmHealthRecordsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -42296,65 +43834,6 @@ final class $$ClinicsTableReferences
     );
   }
 
-  static MultiTypedResultKey<$FarmsTable, List<Farm>> _farmsRefsTable(
-    _$AppDatabase db,
-  ) => MultiTypedResultKey.fromTable(
-    db.farms,
-    aliasName: $_aliasNameGenerator(db.clinics.clinicId, db.farms.clinicId),
-  );
-
-  $$FarmsTableProcessedTableManager get farmsRefs {
-    final manager = $$FarmsTableTableManager($_db, $_db.farms).filter(
-      (f) => f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
-    );
-
-    final cache = $_typedResult.readTableOrNull(_farmsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmUnitsTable, List<FarmUnit>>
-  _farmUnitsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmUnits,
-    aliasName: $_aliasNameGenerator(db.clinics.clinicId, db.farmUnits.clinicId),
-  );
-
-  $$FarmUnitsTableProcessedTableManager get farmUnitsRefs {
-    final manager = $$FarmUnitsTableTableManager($_db, $_db.farmUnits).filter(
-      (f) => f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
-    );
-
-    final cache = $_typedResult.readTableOrNull(_farmUnitsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmDailyRecordsTable, List<FarmDailyRecord>>
-  _farmDailyRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmDailyRecords,
-    aliasName: $_aliasNameGenerator(
-      db.clinics.clinicId,
-      db.farmDailyRecords.clinicId,
-    ),
-  );
-
-  $$FarmDailyRecordsTableProcessedTableManager get farmDailyRecordsRefs {
-    final manager =
-        $$FarmDailyRecordsTableTableManager($_db, $_db.farmDailyRecords).filter(
-          (f) =>
-              f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
-        );
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmDailyRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
   static MultiTypedResultKey<
     $FarmSpeciesPopulationMovementsTable,
     List<FarmSpeciesPopulationMovement>
@@ -42489,34 +43968,6 @@ final class $$ClinicsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _farmReproductionRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
-  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmHealthRecords,
-        aliasName: $_aliasNameGenerator(
-          db.clinics.clinicId,
-          db.farmHealthRecords.clinicId,
-        ),
-      );
-
-  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
-    final manager =
-        $$FarmHealthRecordsTableTableManager(
-          $_db,
-          $_db.farmHealthRecords,
-        ).filter(
-          (f) =>
-              f.clinicId.clinicId.sqlEquals($_itemColumn<String>('clinic_id')!),
-        );
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmHealthRecordsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -43057,6 +44508,31 @@ class $$ClinicsTableFilterComposer
     return f(composer);
   }
 
+  Expression<bool> productUnitsRefs(
+    Expression<bool> Function($$ProductUnitsTableFilterComposer f) f,
+  ) {
+    final $$ProductUnitsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.productUnits,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProductUnitsTableFilterComposer(
+            $db: $db,
+            $table: $db.productUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<bool> salesRefs(
     Expression<bool> Function($$SalesTableFilterComposer f) f,
   ) {
@@ -43073,6 +44549,31 @@ class $$ClinicsTableFilterComposer
           }) => $$SalesTableFilterComposer(
             $db: $db,
             $table: $db.sales,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmsRefs(
+    Expression<bool> Function($$FarmsTableFilterComposer f) f,
+  ) {
+    final $$FarmsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableFilterComposer(
+            $db: $db,
+            $table: $db.farms,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -43148,6 +44649,81 @@ class $$ClinicsTableFilterComposer
           }) => $$InvoicePaymentsTableFilterComposer(
             $db: $db,
             $table: $db.invoicePayments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmUnitsRefs(
+    Expression<bool> Function($$FarmUnitsTableFilterComposer f) f,
+  ) {
+    final $$FarmUnitsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmDailyRecordsRefs(
+    Expression<bool> Function($$FarmDailyRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmDailyRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.farmDailyRecords,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmDailyRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmDailyRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmHealthRecordsRefs(
+    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.farmHealthRecords,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmHealthRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmHealthRecords,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -43514,81 +45090,6 @@ class $$ClinicsTableFilterComposer
     return f(composer);
   }
 
-  Expression<bool> farmsRefs(
-    Expression<bool> Function($$FarmsTableFilterComposer f) f,
-  ) {
-    final $$FarmsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableFilterComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmUnitsRefs(
-    Expression<bool> Function($$FarmUnitsTableFilterComposer f) f,
-  ) {
-    final $$FarmUnitsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.farmUnits,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmUnitsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmUnits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmDailyRecordsRefs(
-    Expression<bool> Function($$FarmDailyRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmDailyRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.farmDailyRecords,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmDailyRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmDailyRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
   Expression<bool> farmSpeciesPopulationMovementsRefs(
     Expression<bool> Function(
       $$FarmSpeciesPopulationMovementsTableFilterComposer f,
@@ -43716,31 +45217,6 @@ class $$ClinicsTableFilterComposer
                     $removeJoinBuilderFromRootComposer,
               ),
         );
-    return f(composer);
-  }
-
-  Expression<bool> farmHealthRecordsRefs(
-    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.farmHealthRecords,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmHealthRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmHealthRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
     return f(composer);
   }
 
@@ -44418,6 +45894,31 @@ class $$ClinicsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> productUnitsRefs<T extends Object>(
+    Expression<T> Function($$ProductUnitsTableAnnotationComposer a) f,
+  ) {
+    final $$ProductUnitsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.productUnits,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProductUnitsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.productUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> salesRefs<T extends Object>(
     Expression<T> Function($$SalesTableAnnotationComposer a) f,
   ) {
@@ -44434,6 +45935,31 @@ class $$ClinicsTableAnnotationComposer
           }) => $$SalesTableAnnotationComposer(
             $db: $db,
             $table: $db.sales,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmsRefs<T extends Object>(
+    Expression<T> Function($$FarmsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farms,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -44515,6 +46041,82 @@ class $$ClinicsTableAnnotationComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<T> farmUnitsRefs<T extends Object>(
+    Expression<T> Function($$FarmUnitsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmUnitsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmDailyRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmDailyRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmDailyRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.farmDailyRecords,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmDailyRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmDailyRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmHealthRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmHealthRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.clinicId,
+          referencedTable: $db.farmHealthRecords,
+          getReferencedColumn: (t) => t.clinicId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmHealthRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmHealthRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -44882,81 +46484,6 @@ class $$ClinicsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> farmsRefs<T extends Object>(
-    Expression<T> Function($$FarmsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmUnitsRefs<T extends Object>(
-    Expression<T> Function($$FarmUnitsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmUnitsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.farmUnits,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmUnitsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmUnits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmDailyRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmDailyRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmDailyRecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.farmDailyRecords,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmDailyRecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmDailyRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
   Expression<T> farmSpeciesPopulationMovementsRefs<T extends Object>(
     Expression<T> Function(
       $$FarmSpeciesPopulationMovementsTableAnnotationComposer a,
@@ -45089,32 +46616,6 @@ class $$ClinicsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> farmHealthRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmHealthRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.clinicId,
-          referencedTable: $db.farmHealthRecords,
-          getReferencedColumn: (t) => t.clinicId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmHealthRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmHealthRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
   Expression<T> farmReportSnapshotsRefs<T extends Object>(
     Expression<T> Function($$FarmReportSnapshotsTableAnnotationComposer a) f,
   ) {
@@ -45169,10 +46670,15 @@ class $$ClinicsTableTableManager
             bool clinicalOperationActionsRefs,
             bool clinicalDocumentVersionsRefs,
             bool vaccinationsRefs,
+            bool productUnitsRefs,
             bool salesRefs,
+            bool farmsRefs,
             bool appointmentsRefs,
             bool invoicesRefs,
             bool invoicePaymentsRefs,
+            bool farmUnitsRefs,
+            bool farmDailyRecordsRefs,
+            bool farmHealthRecordsRefs,
             bool inventoryStockMovementsRefs,
             bool vaccinationProtocolsRefs,
             bool notificationsRefs,
@@ -45187,15 +46693,11 @@ class $$ClinicsTableTableManager
             bool subscriptionGracePeriodsRefs,
             bool subscriptionOverridesRefs,
             bool subscriptionAuditLogsRefs,
-            bool farmsRefs,
-            bool farmUnitsRefs,
-            bool farmDailyRecordsRefs,
             bool farmSpeciesPopulationMovementsRefs,
             bool farmMortalityRecordsRefs,
             bool farmFeedRecordsRefs,
             bool farmEventsRefs,
             bool farmReproductionRecordsRefs,
-            bool farmHealthRecordsRefs,
             bool farmReportSnapshotsRefs,
           })
         > {
@@ -45379,10 +46881,15 @@ class $$ClinicsTableTableManager
                 clinicalOperationActionsRefs = false,
                 clinicalDocumentVersionsRefs = false,
                 vaccinationsRefs = false,
+                productUnitsRefs = false,
                 salesRefs = false,
+                farmsRefs = false,
                 appointmentsRefs = false,
                 invoicesRefs = false,
                 invoicePaymentsRefs = false,
+                farmUnitsRefs = false,
+                farmDailyRecordsRefs = false,
+                farmHealthRecordsRefs = false,
                 inventoryStockMovementsRefs = false,
                 vaccinationProtocolsRefs = false,
                 notificationsRefs = false,
@@ -45397,15 +46904,11 @@ class $$ClinicsTableTableManager
                 subscriptionGracePeriodsRefs = false,
                 subscriptionOverridesRefs = false,
                 subscriptionAuditLogsRefs = false,
-                farmsRefs = false,
-                farmUnitsRefs = false,
-                farmDailyRecordsRefs = false,
                 farmSpeciesPopulationMovementsRefs = false,
                 farmMortalityRecordsRefs = false,
                 farmFeedRecordsRefs = false,
                 farmEventsRefs = false,
                 farmReproductionRecordsRefs = false,
-                farmHealthRecordsRefs = false,
                 farmReportSnapshotsRefs = false,
               }) {
                 return PrefetchHooks(
@@ -45427,10 +46930,15 @@ class $$ClinicsTableTableManager
                     if (clinicalDocumentVersionsRefs)
                       db.clinicalDocumentVersions,
                     if (vaccinationsRefs) db.vaccinations,
+                    if (productUnitsRefs) db.productUnits,
                     if (salesRefs) db.sales,
+                    if (farmsRefs) db.farms,
                     if (appointmentsRefs) db.appointments,
                     if (invoicesRefs) db.invoices,
                     if (invoicePaymentsRefs) db.invoicePayments,
+                    if (farmUnitsRefs) db.farmUnits,
+                    if (farmDailyRecordsRefs) db.farmDailyRecords,
+                    if (farmHealthRecordsRefs) db.farmHealthRecords,
                     if (inventoryStockMovementsRefs) db.inventoryStockMovements,
                     if (vaccinationProtocolsRefs) db.vaccinationProtocols,
                     if (notificationsRefs) db.notifications,
@@ -45447,16 +46955,12 @@ class $$ClinicsTableTableManager
                       db.subscriptionGracePeriods,
                     if (subscriptionOverridesRefs) db.subscriptionOverrides,
                     if (subscriptionAuditLogsRefs) db.subscriptionAuditLogs,
-                    if (farmsRefs) db.farms,
-                    if (farmUnitsRefs) db.farmUnits,
-                    if (farmDailyRecordsRefs) db.farmDailyRecords,
                     if (farmSpeciesPopulationMovementsRefs)
                       db.farmSpeciesPopulationMovements,
                     if (farmMortalityRecordsRefs) db.farmMortalityRecords,
                     if (farmFeedRecordsRefs) db.farmFeedRecords,
                     if (farmEventsRefs) db.farmEvents,
                     if (farmReproductionRecordsRefs) db.farmReproductionRecords,
-                    if (farmHealthRecordsRefs) db.farmHealthRecords,
                     if (farmReportSnapshotsRefs) db.farmReportSnapshots,
                   ],
                   addJoins: null,
@@ -45727,6 +47231,27 @@ class $$ClinicsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (productUnitsRefs)
+                        await $_getPrefetchedData<
+                          Clinic,
+                          $ClinicsTable,
+                          ProductUnit
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClinicsTableReferences
+                              ._productUnitsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClinicsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).productUnitsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.clinicId == item.clinicId,
+                              ),
+                          typedResults: items,
+                        ),
                       if (salesRefs)
                         await $_getPrefetchedData<Clinic, $ClinicsTable, Sale>(
                           currentTable: table,
@@ -45734,6 +47259,19 @@ class $$ClinicsTableTableManager
                               ._salesRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$ClinicsTableReferences(db, table, p0).salesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.clinicId == item.clinicId,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmsRefs)
+                        await $_getPrefetchedData<Clinic, $ClinicsTable, Farm>(
+                          currentTable: table,
+                          referencedTable: $$ClinicsTableReferences
+                              ._farmsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClinicsTableReferences(db, table, p0).farmsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.clinicId == item.clinicId,
@@ -45797,6 +47335,69 @@ class $$ClinicsTableTableManager
                                 table,
                                 p0,
                               ).invoicePaymentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.clinicId == item.clinicId,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmUnitsRefs)
+                        await $_getPrefetchedData<
+                          Clinic,
+                          $ClinicsTable,
+                          FarmUnit
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClinicsTableReferences
+                              ._farmUnitsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClinicsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmUnitsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.clinicId == item.clinicId,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmDailyRecordsRefs)
+                        await $_getPrefetchedData<
+                          Clinic,
+                          $ClinicsTable,
+                          FarmDailyRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClinicsTableReferences
+                              ._farmDailyRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClinicsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmDailyRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.clinicId == item.clinicId,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmHealthRecordsRefs)
+                        await $_getPrefetchedData<
+                          Clinic,
+                          $ClinicsTable,
+                          FarmHealthRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClinicsTableReferences
+                              ._farmHealthRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClinicsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmHealthRecordsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.clinicId == item.clinicId,
@@ -46097,61 +47698,6 @@ class $$ClinicsTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (farmsRefs)
-                        await $_getPrefetchedData<Clinic, $ClinicsTable, Farm>(
-                          currentTable: table,
-                          referencedTable: $$ClinicsTableReferences
-                              ._farmsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$ClinicsTableReferences(db, table, p0).farmsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.clinicId == item.clinicId,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmUnitsRefs)
-                        await $_getPrefetchedData<
-                          Clinic,
-                          $ClinicsTable,
-                          FarmUnit
-                        >(
-                          currentTable: table,
-                          referencedTable: $$ClinicsTableReferences
-                              ._farmUnitsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$ClinicsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmUnitsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.clinicId == item.clinicId,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmDailyRecordsRefs)
-                        await $_getPrefetchedData<
-                          Clinic,
-                          $ClinicsTable,
-                          FarmDailyRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$ClinicsTableReferences
-                              ._farmDailyRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$ClinicsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmDailyRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.clinicId == item.clinicId,
-                              ),
-                          typedResults: items,
-                        ),
                       if (farmSpeciesPopulationMovementsRefs)
                         await $_getPrefetchedData<
                           Clinic,
@@ -46257,27 +47803,6 @@ class $$ClinicsTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (farmHealthRecordsRefs)
-                        await $_getPrefetchedData<
-                          Clinic,
-                          $ClinicsTable,
-                          FarmHealthRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$ClinicsTableReferences
-                              ._farmHealthRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$ClinicsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmHealthRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.clinicId == item.clinicId,
-                              ),
-                          typedResults: items,
-                        ),
                       if (farmReportSnapshotsRefs)
                         await $_getPrefetchedData<
                           Clinic,
@@ -46333,10 +47858,15 @@ typedef $$ClinicsTableProcessedTableManager =
         bool clinicalOperationActionsRefs,
         bool clinicalDocumentVersionsRefs,
         bool vaccinationsRefs,
+        bool productUnitsRefs,
         bool salesRefs,
+        bool farmsRefs,
         bool appointmentsRefs,
         bool invoicesRefs,
         bool invoicePaymentsRefs,
+        bool farmUnitsRefs,
+        bool farmDailyRecordsRefs,
+        bool farmHealthRecordsRefs,
         bool inventoryStockMovementsRefs,
         bool vaccinationProtocolsRefs,
         bool notificationsRefs,
@@ -46351,15 +47881,11 @@ typedef $$ClinicsTableProcessedTableManager =
         bool subscriptionGracePeriodsRefs,
         bool subscriptionOverridesRefs,
         bool subscriptionAuditLogsRefs,
-        bool farmsRefs,
-        bool farmUnitsRefs,
-        bool farmDailyRecordsRefs,
         bool farmSpeciesPopulationMovementsRefs,
         bool farmMortalityRecordsRefs,
         bool farmFeedRecordsRefs,
         bool farmEventsRefs,
         bool farmReproductionRecordsRefs,
-        bool farmHealthRecordsRefs,
         bool farmReportSnapshotsRefs,
       })
     >;
@@ -47255,6 +48781,28 @@ final class $$AppUsersTableReferences
     );
   }
 
+  static MultiTypedResultKey<$FarmsTable, List<Farm>> _farmsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.farms,
+    aliasName: $_aliasNameGenerator(
+      db.appUsers.userId,
+      db.farms.createdByUserId,
+    ),
+  );
+
+  $$FarmsTableProcessedTableManager get farmsRefs {
+    final manager = $$FarmsTableTableManager($_db, $_db.farms).filter(
+      (f) =>
+          f.createdByUserId.userId.sqlEquals($_itemColumn<String>('user_id')!),
+    );
+
+    final cache = $_typedResult.readTableOrNull(_farmsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$AppointmentsTable, List<Appointment>>
   _appointmentsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.appointments,
@@ -47303,61 +48851,6 @@ final class $$AppUsersTableReferences
     );
   }
 
-  static MultiTypedResultKey<
-    $InventoryStockMovementsTable,
-    List<InventoryStockMovement>
-  >
-  _inventoryStockMovementsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.inventoryStockMovements,
-        aliasName: $_aliasNameGenerator(
-          db.appUsers.userId,
-          db.inventoryStockMovements.performedByUserId,
-        ),
-      );
-
-  $$InventoryStockMovementsTableProcessedTableManager
-  get inventoryStockMovementsRefs {
-    final manager =
-        $$InventoryStockMovementsTableTableManager(
-          $_db,
-          $_db.inventoryStockMovements,
-        ).filter(
-          (f) => f.performedByUserId.userId.sqlEquals(
-            $_itemColumn<String>('user_id')!,
-          ),
-        );
-
-    final cache = $_typedResult.readTableOrNull(
-      _inventoryStockMovementsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmsTable, List<Farm>> _farmsRefsTable(
-    _$AppDatabase db,
-  ) => MultiTypedResultKey.fromTable(
-    db.farms,
-    aliasName: $_aliasNameGenerator(
-      db.appUsers.userId,
-      db.farms.createdByUserId,
-    ),
-  );
-
-  $$FarmsTableProcessedTableManager get farmsRefs {
-    final manager = $$FarmsTableTableManager($_db, $_db.farms).filter(
-      (f) =>
-          f.createdByUserId.userId.sqlEquals($_itemColumn<String>('user_id')!),
-    );
-
-    final cache = $_typedResult.readTableOrNull(_farmsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
   static MultiTypedResultKey<$FarmUnitsTable, List<FarmUnit>>
   _farmUnitsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.farmUnits,
@@ -47398,6 +48891,68 @@ final class $$AppUsersTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _farmDailyRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
+  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmHealthRecords,
+        aliasName: $_aliasNameGenerator(
+          db.appUsers.userId,
+          db.farmHealthRecords.createdByUserId,
+        ),
+      );
+
+  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
+    final manager =
+        $$FarmHealthRecordsTableTableManager(
+          $_db,
+          $_db.farmHealthRecords,
+        ).filter(
+          (f) => f.createdByUserId.userId.sqlEquals(
+            $_itemColumn<String>('user_id')!,
+          ),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmHealthRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $InventoryStockMovementsTable,
+    List<InventoryStockMovement>
+  >
+  _inventoryStockMovementsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.inventoryStockMovements,
+        aliasName: $_aliasNameGenerator(
+          db.appUsers.userId,
+          db.inventoryStockMovements.performedByUserId,
+        ),
+      );
+
+  $$InventoryStockMovementsTableProcessedTableManager
+  get inventoryStockMovementsRefs {
+    final manager =
+        $$InventoryStockMovementsTableTableManager(
+          $_db,
+          $_db.inventoryStockMovements,
+        ).filter(
+          (f) => f.performedByUserId.userId.sqlEquals(
+            $_itemColumn<String>('user_id')!,
+          ),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _inventoryStockMovementsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -47510,35 +49065,6 @@ final class $$AppUsersTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _farmReproductionRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
-  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmHealthRecords,
-        aliasName: $_aliasNameGenerator(
-          db.appUsers.userId,
-          db.farmHealthRecords.createdByUserId,
-        ),
-      );
-
-  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
-    final manager =
-        $$FarmHealthRecordsTableTableManager(
-          $_db,
-          $_db.farmHealthRecords,
-        ).filter(
-          (f) => f.createdByUserId.userId.sqlEquals(
-            $_itemColumn<String>('user_id')!,
-          ),
-        );
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmHealthRecordsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -47842,6 +49368,31 @@ class $$AppUsersTableFilterComposer
     return f(composer);
   }
 
+  Expression<bool> farmsRefs(
+    Expression<bool> Function($$FarmsTableFilterComposer f) f,
+  ) {
+    final $$FarmsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.createdByUserId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableFilterComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<bool> appointmentsRefs(
     Expression<bool> Function($$AppointmentsTableFilterComposer f) f,
   ) {
@@ -47883,57 +49434,6 @@ class $$AppUsersTableFilterComposer
           }) => $$InvoicePaymentsTableFilterComposer(
             $db: $db,
             $table: $db.invoicePayments,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> inventoryStockMovementsRefs(
-    Expression<bool> Function($$InventoryStockMovementsTableFilterComposer f) f,
-  ) {
-    final $$InventoryStockMovementsTableFilterComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.userId,
-          referencedTable: $db.inventoryStockMovements,
-          getReferencedColumn: (t) => t.performedByUserId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$InventoryStockMovementsTableFilterComposer(
-                $db: $db,
-                $table: $db.inventoryStockMovements,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<bool> farmsRefs(
-    Expression<bool> Function($$FarmsTableFilterComposer f) f,
-  ) {
-    final $$FarmsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.userId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.createdByUserId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableFilterComposer(
-            $db: $db,
-            $table: $db.farms,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -47990,6 +49490,57 @@ class $$AppUsersTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> farmHealthRecordsRefs(
+    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.farmHealthRecords,
+      getReferencedColumn: (t) => t.createdByUserId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmHealthRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmHealthRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> inventoryStockMovementsRefs(
+    Expression<bool> Function($$InventoryStockMovementsTableFilterComposer f) f,
+  ) {
+    final $$InventoryStockMovementsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.userId,
+          referencedTable: $db.inventoryStockMovements,
+          getReferencedColumn: (t) => t.performedByUserId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$InventoryStockMovementsTableFilterComposer(
+                $db: $db,
+                $table: $db.inventoryStockMovements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -48091,31 +49642,6 @@ class $$AppUsersTableFilterComposer
                     $removeJoinBuilderFromRootComposer,
               ),
         );
-    return f(composer);
-  }
-
-  Expression<bool> farmHealthRecordsRefs(
-    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.userId,
-      referencedTable: $db.farmHealthRecords,
-      getReferencedColumn: (t) => t.createdByUserId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmHealthRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmHealthRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
     return f(composer);
   }
 
@@ -48627,6 +50153,31 @@ class $$AppUsersTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> farmsRefs<T extends Object>(
+    Expression<T> Function($$FarmsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.createdByUserId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> appointmentsRefs<T extends Object>(
     Expression<T> Function($$AppointmentsTableAnnotationComposer a) f,
   ) {
@@ -48668,58 +50219,6 @@ class $$AppUsersTableAnnotationComposer
           }) => $$InvoicePaymentsTableAnnotationComposer(
             $db: $db,
             $table: $db.invoicePayments,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> inventoryStockMovementsRefs<T extends Object>(
-    Expression<T> Function($$InventoryStockMovementsTableAnnotationComposer a)
-    f,
-  ) {
-    final $$InventoryStockMovementsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.userId,
-          referencedTable: $db.inventoryStockMovements,
-          getReferencedColumn: (t) => t.performedByUserId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$InventoryStockMovementsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.inventoryStockMovements,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmsRefs<T extends Object>(
-    Expression<T> Function($$FarmsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.userId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.createdByUserId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farms,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -48776,6 +50275,59 @@ class $$AppUsersTableAnnotationComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<T> farmHealthRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmHealthRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.userId,
+          referencedTable: $db.farmHealthRecords,
+          getReferencedColumn: (t) => t.createdByUserId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmHealthRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmHealthRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> inventoryStockMovementsRefs<T extends Object>(
+    Expression<T> Function($$InventoryStockMovementsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$InventoryStockMovementsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.userId,
+          referencedTable: $db.inventoryStockMovements,
+          getReferencedColumn: (t) => t.performedByUserId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$InventoryStockMovementsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.inventoryStockMovements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -48882,32 +50434,6 @@ class $$AppUsersTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> farmHealthRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmHealthRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.userId,
-          referencedTable: $db.farmHealthRecords,
-          getReferencedColumn: (t) => t.createdByUserId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmHealthRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmHealthRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
   Expression<T> farmReportSnapshotsRefs<T extends Object>(
     Expression<T> Function($$FarmReportSnapshotsTableAnnotationComposer a) f,
   ) {
@@ -48951,17 +50477,17 @@ class $$AppUsersTableTableManager
           PrefetchHooks Function({
             bool clinicId,
             bool clinicalDocumentVersionsRefs,
+            bool farmsRefs,
             bool appointmentsRefs,
             bool invoicePaymentsRefs,
-            bool inventoryStockMovementsRefs,
-            bool farmsRefs,
             bool farmUnitsRefs,
             bool farmDailyRecordsRefs,
+            bool farmHealthRecordsRefs,
+            bool inventoryStockMovementsRefs,
             bool farmMortalityRecordsRefs,
             bool farmFeedRecordsRefs,
             bool farmEventsRefs,
             bool farmReproductionRecordsRefs,
-            bool farmHealthRecordsRefs,
             bool farmReportSnapshotsRefs,
           })
         > {
@@ -49170,17 +50696,17 @@ class $$AppUsersTableTableManager
               ({
                 clinicId = false,
                 clinicalDocumentVersionsRefs = false,
+                farmsRefs = false,
                 appointmentsRefs = false,
                 invoicePaymentsRefs = false,
-                inventoryStockMovementsRefs = false,
-                farmsRefs = false,
                 farmUnitsRefs = false,
                 farmDailyRecordsRefs = false,
+                farmHealthRecordsRefs = false,
+                inventoryStockMovementsRefs = false,
                 farmMortalityRecordsRefs = false,
                 farmFeedRecordsRefs = false,
                 farmEventsRefs = false,
                 farmReproductionRecordsRefs = false,
-                farmHealthRecordsRefs = false,
                 farmReportSnapshotsRefs = false,
               }) {
                 return PrefetchHooks(
@@ -49188,17 +50714,17 @@ class $$AppUsersTableTableManager
                   explicitlyWatchedTables: [
                     if (clinicalDocumentVersionsRefs)
                       db.clinicalDocumentVersions,
+                    if (farmsRefs) db.farms,
                     if (appointmentsRefs) db.appointments,
                     if (invoicePaymentsRefs) db.invoicePayments,
-                    if (inventoryStockMovementsRefs) db.inventoryStockMovements,
-                    if (farmsRefs) db.farms,
                     if (farmUnitsRefs) db.farmUnits,
                     if (farmDailyRecordsRefs) db.farmDailyRecords,
+                    if (farmHealthRecordsRefs) db.farmHealthRecords,
+                    if (inventoryStockMovementsRefs) db.inventoryStockMovements,
                     if (farmMortalityRecordsRefs) db.farmMortalityRecords,
                     if (farmFeedRecordsRefs) db.farmFeedRecords,
                     if (farmEventsRefs) db.farmEvents,
                     if (farmReproductionRecordsRefs) db.farmReproductionRecords,
-                    if (farmHealthRecordsRefs) db.farmHealthRecords,
                     if (farmReportSnapshotsRefs) db.farmReportSnapshots,
                   ],
                   addJoins:
@@ -49256,6 +50782,27 @@ class $$AppUsersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (farmsRefs)
+                        await $_getPrefetchedData<
+                          AppUser,
+                          $AppUsersTable,
+                          Farm
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AppUsersTableReferences
+                              ._farmsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AppUsersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.createdByUserId == item.userId,
+                              ),
+                          typedResults: items,
+                        ),
                       if (appointmentsRefs)
                         await $_getPrefetchedData<
                           AppUser,
@@ -49298,48 +50845,6 @@ class $$AppUsersTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (inventoryStockMovementsRefs)
-                        await $_getPrefetchedData<
-                          AppUser,
-                          $AppUsersTable,
-                          InventoryStockMovement
-                        >(
-                          currentTable: table,
-                          referencedTable: $$AppUsersTableReferences
-                              ._inventoryStockMovementsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$AppUsersTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).inventoryStockMovementsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.performedByUserId == item.userId,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmsRefs)
-                        await $_getPrefetchedData<
-                          AppUser,
-                          $AppUsersTable,
-                          Farm
-                        >(
-                          currentTable: table,
-                          referencedTable: $$AppUsersTableReferences
-                              ._farmsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$AppUsersTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.createdByUserId == item.userId,
-                              ),
-                          typedResults: items,
-                        ),
                       if (farmUnitsRefs)
                         await $_getPrefetchedData<
                           AppUser,
@@ -49379,6 +50884,48 @@ class $$AppUsersTableTableManager
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.createdByUserId == item.userId,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmHealthRecordsRefs)
+                        await $_getPrefetchedData<
+                          AppUser,
+                          $AppUsersTable,
+                          FarmHealthRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AppUsersTableReferences
+                              ._farmHealthRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AppUsersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmHealthRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.createdByUserId == item.userId,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (inventoryStockMovementsRefs)
+                        await $_getPrefetchedData<
+                          AppUser,
+                          $AppUsersTable,
+                          InventoryStockMovement
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AppUsersTableReferences
+                              ._inventoryStockMovementsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AppUsersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).inventoryStockMovementsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.performedByUserId == item.userId,
                               ),
                           typedResults: items,
                         ),
@@ -49466,27 +51013,6 @@ class $$AppUsersTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (farmHealthRecordsRefs)
-                        await $_getPrefetchedData<
-                          AppUser,
-                          $AppUsersTable,
-                          FarmHealthRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$AppUsersTableReferences
-                              ._farmHealthRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$AppUsersTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmHealthRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.createdByUserId == item.userId,
-                              ),
-                          typedResults: items,
-                        ),
                       if (farmReportSnapshotsRefs)
                         await $_getPrefetchedData<
                           AppUser,
@@ -49531,17 +51057,17 @@ typedef $$AppUsersTableProcessedTableManager =
       PrefetchHooks Function({
         bool clinicId,
         bool clinicalDocumentVersionsRefs,
+        bool farmsRefs,
         bool appointmentsRefs,
         bool invoicePaymentsRefs,
-        bool inventoryStockMovementsRefs,
-        bool farmsRefs,
         bool farmUnitsRefs,
         bool farmDailyRecordsRefs,
+        bool farmHealthRecordsRefs,
+        bool inventoryStockMovementsRefs,
         bool farmMortalityRecordsRefs,
         bool farmFeedRecordsRefs,
         bool farmEventsRefs,
         bool farmReproductionRecordsRefs,
-        bool farmHealthRecordsRefs,
         bool farmReportSnapshotsRefs,
       })
     >;
@@ -54873,6 +56399,14 @@ typedef $$InventoryItemsTableCreateCompanionBuilder =
       Value<double> sellingPrice,
       Value<String?> supplier,
       Value<String?> location,
+      Value<String> baseUnitLabel,
+      Value<String?> activeIngredient,
+      Value<String?> dosageAndRoute,
+      Value<String?> withdrawalMeat,
+      Value<String?> withdrawalMilk,
+      Value<String?> withdrawalEggs,
+      Value<String?> warnings,
+      Value<String?> imagePath,
       Value<bool> isSellable,
       Value<bool> isArchived,
       Value<DateTime?> createdAt,
@@ -54894,6 +56428,14 @@ typedef $$InventoryItemsTableUpdateCompanionBuilder =
       Value<double> sellingPrice,
       Value<String?> supplier,
       Value<String?> location,
+      Value<String> baseUnitLabel,
+      Value<String?> activeIngredient,
+      Value<String?> dosageAndRoute,
+      Value<String?> withdrawalMeat,
+      Value<String?> withdrawalMilk,
+      Value<String?> withdrawalEggs,
+      Value<String?> warnings,
+      Value<String?> imagePath,
       Value<bool> isSellable,
       Value<bool> isArchived,
       Value<DateTime?> createdAt,
@@ -54978,6 +56520,27 @@ final class $$InventoryItemsTableReferences
     final cache = $_typedResult.readTableOrNull(
       _clinicalOperationActionsRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ProductUnitsTable, List<ProductUnit>>
+  _productUnitsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.productUnits,
+    aliasName: $_aliasNameGenerator(
+      db.inventoryItems.id,
+      db.productUnits.inventoryItemId,
+    ),
+  );
+
+  $$ProductUnitsTableProcessedTableManager get productUnitsRefs {
+    final manager = $$ProductUnitsTableTableManager(
+      $_db,
+      $_db.productUnits,
+    ).filter((f) => f.inventoryItemId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_productUnitsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -55132,6 +56695,46 @@ class $$InventoryItemsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get baseUnitLabel => $composableBuilder(
+    column: $table.baseUnitLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activeIngredient => $composableBuilder(
+    column: $table.activeIngredient,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dosageAndRoute => $composableBuilder(
+    column: $table.dosageAndRoute,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get withdrawalMeat => $composableBuilder(
+    column: $table.withdrawalMeat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get withdrawalMilk => $composableBuilder(
+    column: $table.withdrawalMilk,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get withdrawalEggs => $composableBuilder(
+    column: $table.withdrawalEggs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get warnings => $composableBuilder(
+    column: $table.warnings,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imagePath => $composableBuilder(
+    column: $table.imagePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get isSellable => $composableBuilder(
     column: $table.isSellable,
     builder: (column) => ColumnFilters(column),
@@ -55225,6 +56828,31 @@ class $$InventoryItemsTableFilterComposer
                     $removeJoinBuilderFromRootComposer,
               ),
         );
+    return f(composer);
+  }
+
+  Expression<bool> productUnitsRefs(
+    Expression<bool> Function($$ProductUnitsTableFilterComposer f) f,
+  ) {
+    final $$ProductUnitsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.productUnits,
+      getReferencedColumn: (t) => t.inventoryItemId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProductUnitsTableFilterComposer(
+            $db: $db,
+            $table: $db.productUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
     return f(composer);
   }
 
@@ -55379,6 +57007,46 @@ class $$InventoryItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get baseUnitLabel => $composableBuilder(
+    column: $table.baseUnitLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activeIngredient => $composableBuilder(
+    column: $table.activeIngredient,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dosageAndRoute => $composableBuilder(
+    column: $table.dosageAndRoute,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get withdrawalMeat => $composableBuilder(
+    column: $table.withdrawalMeat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get withdrawalMilk => $composableBuilder(
+    column: $table.withdrawalMilk,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get withdrawalEggs => $composableBuilder(
+    column: $table.withdrawalEggs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get warnings => $composableBuilder(
+    column: $table.warnings,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get imagePath => $composableBuilder(
+    column: $table.imagePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isSellable => $composableBuilder(
     column: $table.isSellable,
     builder: (column) => ColumnOrderings(column),
@@ -55485,6 +57153,42 @@ class $$InventoryItemsTableAnnotationComposer
   GeneratedColumn<String> get location =>
       $composableBuilder(column: $table.location, builder: (column) => column);
 
+  GeneratedColumn<String> get baseUnitLabel => $composableBuilder(
+    column: $table.baseUnitLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get activeIngredient => $composableBuilder(
+    column: $table.activeIngredient,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get dosageAndRoute => $composableBuilder(
+    column: $table.dosageAndRoute,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get withdrawalMeat => $composableBuilder(
+    column: $table.withdrawalMeat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get withdrawalMilk => $composableBuilder(
+    column: $table.withdrawalMilk,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get withdrawalEggs => $composableBuilder(
+    column: $table.withdrawalEggs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get warnings =>
+      $composableBuilder(column: $table.warnings, builder: (column) => column);
+
+  GeneratedColumn<String> get imagePath =>
+      $composableBuilder(column: $table.imagePath, builder: (column) => column);
+
   GeneratedColumn<bool> get isSellable => $composableBuilder(
     column: $table.isSellable,
     builder: (column) => column,
@@ -55574,6 +57278,31 @@ class $$InventoryItemsTableAnnotationComposer
                     $removeJoinBuilderFromRootComposer,
               ),
         );
+    return f(composer);
+  }
+
+  Expression<T> productUnitsRefs<T extends Object>(
+    Expression<T> Function($$ProductUnitsTableAnnotationComposer a) f,
+  ) {
+    final $$ProductUnitsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.productUnits,
+      getReferencedColumn: (t) => t.inventoryItemId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProductUnitsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.productUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
     return f(composer);
   }
 
@@ -55673,6 +57402,7 @@ class $$InventoryItemsTableTableManager
             bool clinicId,
             bool clinicalOperationItemsRefs,
             bool clinicalOperationActionsRefs,
+            bool productUnitsRefs,
             bool salesRefs,
             bool invoiceProductLinesRefs,
             bool inventoryStockMovementsRefs,
@@ -55707,6 +57437,14 @@ class $$InventoryItemsTableTableManager
                 Value<double> sellingPrice = const Value.absent(),
                 Value<String?> supplier = const Value.absent(),
                 Value<String?> location = const Value.absent(),
+                Value<String> baseUnitLabel = const Value.absent(),
+                Value<String?> activeIngredient = const Value.absent(),
+                Value<String?> dosageAndRoute = const Value.absent(),
+                Value<String?> withdrawalMeat = const Value.absent(),
+                Value<String?> withdrawalMilk = const Value.absent(),
+                Value<String?> withdrawalEggs = const Value.absent(),
+                Value<String?> warnings = const Value.absent(),
+                Value<String?> imagePath = const Value.absent(),
                 Value<bool> isSellable = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -55726,6 +57464,14 @@ class $$InventoryItemsTableTableManager
                 sellingPrice: sellingPrice,
                 supplier: supplier,
                 location: location,
+                baseUnitLabel: baseUnitLabel,
+                activeIngredient: activeIngredient,
+                dosageAndRoute: dosageAndRoute,
+                withdrawalMeat: withdrawalMeat,
+                withdrawalMilk: withdrawalMilk,
+                withdrawalEggs: withdrawalEggs,
+                warnings: warnings,
+                imagePath: imagePath,
                 isSellable: isSellable,
                 isArchived: isArchived,
                 createdAt: createdAt,
@@ -55747,6 +57493,14 @@ class $$InventoryItemsTableTableManager
                 Value<double> sellingPrice = const Value.absent(),
                 Value<String?> supplier = const Value.absent(),
                 Value<String?> location = const Value.absent(),
+                Value<String> baseUnitLabel = const Value.absent(),
+                Value<String?> activeIngredient = const Value.absent(),
+                Value<String?> dosageAndRoute = const Value.absent(),
+                Value<String?> withdrawalMeat = const Value.absent(),
+                Value<String?> withdrawalMilk = const Value.absent(),
+                Value<String?> withdrawalEggs = const Value.absent(),
+                Value<String?> warnings = const Value.absent(),
+                Value<String?> imagePath = const Value.absent(),
                 Value<bool> isSellable = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -55766,6 +57520,14 @@ class $$InventoryItemsTableTableManager
                 sellingPrice: sellingPrice,
                 supplier: supplier,
                 location: location,
+                baseUnitLabel: baseUnitLabel,
+                activeIngredient: activeIngredient,
+                dosageAndRoute: dosageAndRoute,
+                withdrawalMeat: withdrawalMeat,
+                withdrawalMilk: withdrawalMilk,
+                withdrawalEggs: withdrawalEggs,
+                warnings: warnings,
+                imagePath: imagePath,
                 isSellable: isSellable,
                 isArchived: isArchived,
                 createdAt: createdAt,
@@ -55784,6 +57546,7 @@ class $$InventoryItemsTableTableManager
                 clinicId = false,
                 clinicalOperationItemsRefs = false,
                 clinicalOperationActionsRefs = false,
+                productUnitsRefs = false,
                 salesRefs = false,
                 invoiceProductLinesRefs = false,
                 inventoryStockMovementsRefs = false,
@@ -55794,6 +57557,7 @@ class $$InventoryItemsTableTableManager
                     if (clinicalOperationItemsRefs) db.clinicalOperationItems,
                     if (clinicalOperationActionsRefs)
                       db.clinicalOperationActions,
+                    if (productUnitsRefs) db.productUnits,
                     if (salesRefs) db.sales,
                     if (invoiceProductLinesRefs) db.invoiceProductLines,
                     if (inventoryStockMovementsRefs) db.inventoryStockMovements,
@@ -55870,6 +57634,27 @@ class $$InventoryItemsTableTableManager
                                 table,
                                 p0,
                               ).clinicalOperationActionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.inventoryItemId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (productUnitsRefs)
+                        await $_getPrefetchedData<
+                          InventoryItem,
+                          $InventoryItemsTable,
+                          ProductUnit
+                        >(
+                          currentTable: table,
+                          referencedTable: $$InventoryItemsTableReferences
+                              ._productUnitsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$InventoryItemsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).productUnitsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.inventoryItemId == item.id,
@@ -55963,6 +57748,7 @@ typedef $$InventoryItemsTableProcessedTableManager =
         bool clinicId,
         bool clinicalOperationItemsRefs,
         bool clinicalOperationActionsRefs,
+        bool productUnitsRefs,
         bool salesRefs,
         bool invoiceProductLinesRefs,
         bool inventoryStockMovementsRefs,
@@ -59719,6 +61505,492 @@ typedef $$VaccinationsTableProcessedTableManager =
         bool sourceVaccinationId,
       })
     >;
+typedef $$ProductUnitsTableCreateCompanionBuilder =
+    ProductUnitsCompanion Function({
+      Value<int> id,
+      required String clinicId,
+      required int inventoryItemId,
+      required String unitLabel,
+      Value<bool> isBaseUnit,
+      required int conversionToBase,
+      required double sellingPrice,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+    });
+typedef $$ProductUnitsTableUpdateCompanionBuilder =
+    ProductUnitsCompanion Function({
+      Value<int> id,
+      Value<String> clinicId,
+      Value<int> inventoryItemId,
+      Value<String> unitLabel,
+      Value<bool> isBaseUnit,
+      Value<int> conversionToBase,
+      Value<double> sellingPrice,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+    });
+
+final class $$ProductUnitsTableReferences
+    extends BaseReferences<_$AppDatabase, $ProductUnitsTable, ProductUnit> {
+  $$ProductUnitsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
+      db.clinics.createAlias(
+        $_aliasNameGenerator(db.productUnits.clinicId, db.clinics.clinicId),
+      );
+
+  $$ClinicsTableProcessedTableManager get clinicId {
+    final $_column = $_itemColumn<String>('clinic_id')!;
+
+    final manager = $$ClinicsTableTableManager(
+      $_db,
+      $_db.clinics,
+    ).filter((f) => f.clinicId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $InventoryItemsTable _inventoryItemIdTable(_$AppDatabase db) =>
+      db.inventoryItems.createAlias(
+        $_aliasNameGenerator(
+          db.productUnits.inventoryItemId,
+          db.inventoryItems.id,
+        ),
+      );
+
+  $$InventoryItemsTableProcessedTableManager get inventoryItemId {
+    final $_column = $_itemColumn<int>('inventory_item_id')!;
+
+    final manager = $$InventoryItemsTableTableManager(
+      $_db,
+      $_db.inventoryItems,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_inventoryItemIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ProductUnitsTableFilterComposer
+    extends Composer<_$AppDatabase, $ProductUnitsTable> {
+  $$ProductUnitsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unitLabel => $composableBuilder(
+    column: $table.unitLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isBaseUnit => $composableBuilder(
+    column: $table.isBaseUnit,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get conversionToBase => $composableBuilder(
+    column: $table.conversionToBase,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get sellingPrice => $composableBuilder(
+    column: $table.sellingPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ClinicsTableFilterComposer get clinicId {
+    final $$ClinicsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$InventoryItemsTableFilterComposer get inventoryItemId {
+    final $$InventoryItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.inventoryItemId,
+      referencedTable: $db.inventoryItems,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InventoryItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.inventoryItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProductUnitsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProductUnitsTable> {
+  $$ProductUnitsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unitLabel => $composableBuilder(
+    column: $table.unitLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isBaseUnit => $composableBuilder(
+    column: $table.isBaseUnit,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get conversionToBase => $composableBuilder(
+    column: $table.conversionToBase,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get sellingPrice => $composableBuilder(
+    column: $table.sellingPrice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ClinicsTableOrderingComposer get clinicId {
+    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableOrderingComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$InventoryItemsTableOrderingComposer get inventoryItemId {
+    final $$InventoryItemsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.inventoryItemId,
+      referencedTable: $db.inventoryItems,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InventoryItemsTableOrderingComposer(
+            $db: $db,
+            $table: $db.inventoryItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProductUnitsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProductUnitsTable> {
+  $$ProductUnitsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get unitLabel =>
+      $composableBuilder(column: $table.unitLabel, builder: (column) => column);
+
+  GeneratedColumn<bool> get isBaseUnit => $composableBuilder(
+    column: $table.isBaseUnit,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get conversionToBase => $composableBuilder(
+    column: $table.conversionToBase,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get sellingPrice => $composableBuilder(
+    column: $table.sellingPrice,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ClinicsTableAnnotationComposer get clinicId {
+    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$InventoryItemsTableAnnotationComposer get inventoryItemId {
+    final $$InventoryItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.inventoryItemId,
+      referencedTable: $db.inventoryItems,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InventoryItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.inventoryItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProductUnitsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProductUnitsTable,
+          ProductUnit,
+          $$ProductUnitsTableFilterComposer,
+          $$ProductUnitsTableOrderingComposer,
+          $$ProductUnitsTableAnnotationComposer,
+          $$ProductUnitsTableCreateCompanionBuilder,
+          $$ProductUnitsTableUpdateCompanionBuilder,
+          (ProductUnit, $$ProductUnitsTableReferences),
+          ProductUnit,
+          PrefetchHooks Function({bool clinicId, bool inventoryItemId})
+        > {
+  $$ProductUnitsTableTableManager(_$AppDatabase db, $ProductUnitsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProductUnitsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProductUnitsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProductUnitsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> clinicId = const Value.absent(),
+                Value<int> inventoryItemId = const Value.absent(),
+                Value<String> unitLabel = const Value.absent(),
+                Value<bool> isBaseUnit = const Value.absent(),
+                Value<int> conversionToBase = const Value.absent(),
+                Value<double> sellingPrice = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+              }) => ProductUnitsCompanion(
+                id: id,
+                clinicId: clinicId,
+                inventoryItemId: inventoryItemId,
+                unitLabel: unitLabel,
+                isBaseUnit: isBaseUnit,
+                conversionToBase: conversionToBase,
+                sellingPrice: sellingPrice,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String clinicId,
+                required int inventoryItemId,
+                required String unitLabel,
+                Value<bool> isBaseUnit = const Value.absent(),
+                required int conversionToBase,
+                required double sellingPrice,
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+              }) => ProductUnitsCompanion.insert(
+                id: id,
+                clinicId: clinicId,
+                inventoryItemId: inventoryItemId,
+                unitLabel: unitLabel,
+                isBaseUnit: isBaseUnit,
+                conversionToBase: conversionToBase,
+                sellingPrice: sellingPrice,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ProductUnitsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({clinicId = false, inventoryItemId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (clinicId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.clinicId,
+                                referencedTable: $$ProductUnitsTableReferences
+                                    ._clinicIdTable(db),
+                                referencedColumn: $$ProductUnitsTableReferences
+                                    ._clinicIdTable(db)
+                                    .clinicId,
+                              )
+                              as T;
+                    }
+                    if (inventoryItemId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.inventoryItemId,
+                                referencedTable: $$ProductUnitsTableReferences
+                                    ._inventoryItemIdTable(db),
+                                referencedColumn: $$ProductUnitsTableReferences
+                                    ._inventoryItemIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ProductUnitsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProductUnitsTable,
+      ProductUnit,
+      $$ProductUnitsTableFilterComposer,
+      $$ProductUnitsTableOrderingComposer,
+      $$ProductUnitsTableAnnotationComposer,
+      $$ProductUnitsTableCreateCompanionBuilder,
+      $$ProductUnitsTableUpdateCompanionBuilder,
+      (ProductUnit, $$ProductUnitsTableReferences),
+      ProductUnit,
+      PrefetchHooks Function({bool clinicId, bool inventoryItemId})
+    >;
 typedef $$SalesTableCreateCompanionBuilder =
     SalesCompanion Function({
       Value<int> id,
@@ -60153,6 +62425,1582 @@ typedef $$SalesTableProcessedTableManager =
       (Sale, $$SalesTableReferences),
       Sale,
       PrefetchHooks Function({bool clinicId, bool drugId})
+    >;
+typedef $$FarmsTableCreateCompanionBuilder =
+    FarmsCompanion Function({
+      required String id,
+      required String clinicId,
+      required String name,
+      Value<String?> location,
+      Value<String> speciesJson,
+      Value<String> breedJson,
+      Value<String?> ownerOrganization,
+      Value<String?> contactNumber,
+      Value<String?> farmType,
+      Value<String?> notes,
+      Value<String> status,
+      required DateTime createdAt,
+      required String createdByUserId,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$FarmsTableUpdateCompanionBuilder =
+    FarmsCompanion Function({
+      Value<String> id,
+      Value<String> clinicId,
+      Value<String> name,
+      Value<String?> location,
+      Value<String> speciesJson,
+      Value<String> breedJson,
+      Value<String?> ownerOrganization,
+      Value<String?> contactNumber,
+      Value<String?> farmType,
+      Value<String?> notes,
+      Value<String> status,
+      Value<DateTime> createdAt,
+      Value<String> createdByUserId,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$FarmsTableReferences
+    extends BaseReferences<_$AppDatabase, $FarmsTable, Farm> {
+  $$FarmsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
+      db.clinics.createAlias(
+        $_aliasNameGenerator(db.farms.clinicId, db.clinics.clinicId),
+      );
+
+  $$ClinicsTableProcessedTableManager get clinicId {
+    final $_column = $_itemColumn<String>('clinic_id')!;
+
+    final manager = $$ClinicsTableTableManager(
+      $_db,
+      $_db.clinics,
+    ).filter((f) => f.clinicId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AppUsersTable _createdByUserIdTable(_$AppDatabase db) =>
+      db.appUsers.createAlias(
+        $_aliasNameGenerator(db.farms.createdByUserId, db.appUsers.userId),
+      );
+
+  $$AppUsersTableProcessedTableManager get createdByUserId {
+    final $_column = $_itemColumn<String>('created_by_user_id')!;
+
+    final manager = $$AppUsersTableTableManager(
+      $_db,
+      $_db.appUsers,
+    ).filter((f) => f.userId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_createdByUserIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$InvoicesTable, List<Invoice>> _invoicesRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.invoices,
+    aliasName: $_aliasNameGenerator(db.farms.id, db.invoices.farmId),
+  );
+
+  $$InvoicesTableProcessedTableManager get invoicesRefs {
+    final manager = $$InvoicesTableTableManager(
+      $_db,
+      $_db.invoices,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_invoicesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmUnitsTable, List<FarmUnit>>
+  _farmUnitsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmUnits,
+    aliasName: $_aliasNameGenerator(db.farms.id, db.farmUnits.farmId),
+  );
+
+  $$FarmUnitsTableProcessedTableManager get farmUnitsRefs {
+    final manager = $$FarmUnitsTableTableManager(
+      $_db,
+      $_db.farmUnits,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_farmUnitsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmDailyRecordsTable, List<FarmDailyRecord>>
+  _farmDailyRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmDailyRecords,
+    aliasName: $_aliasNameGenerator(db.farms.id, db.farmDailyRecords.farmId),
+  );
+
+  $$FarmDailyRecordsTableProcessedTableManager get farmDailyRecordsRefs {
+    final manager = $$FarmDailyRecordsTableTableManager(
+      $_db,
+      $_db.farmDailyRecords,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmDailyRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
+  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmHealthRecords,
+        aliasName: $_aliasNameGenerator(
+          db.farms.id,
+          db.farmHealthRecords.farmId,
+        ),
+      );
+
+  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
+    final manager = $$FarmHealthRecordsTableTableManager(
+      $_db,
+      $_db.farmHealthRecords,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmHealthRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmSpeciesPopulationMovementsTable,
+    List<FarmSpeciesPopulationMovement>
+  >
+  _farmSpeciesPopulationMovementsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmSpeciesPopulationMovements,
+        aliasName: $_aliasNameGenerator(
+          db.farms.id,
+          db.farmSpeciesPopulationMovements.farmId,
+        ),
+      );
+
+  $$FarmSpeciesPopulationMovementsTableProcessedTableManager
+  get farmSpeciesPopulationMovementsRefs {
+    final manager = $$FarmSpeciesPopulationMovementsTableTableManager(
+      $_db,
+      $_db.farmSpeciesPopulationMovements,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmSpeciesPopulationMovementsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmMortalityRecordsTable,
+    List<FarmMortalityRecord>
+  >
+  _farmMortalityRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmMortalityRecords,
+        aliasName: $_aliasNameGenerator(
+          db.farms.id,
+          db.farmMortalityRecords.farmId,
+        ),
+      );
+
+  $$FarmMortalityRecordsTableProcessedTableManager
+  get farmMortalityRecordsRefs {
+    final manager = $$FarmMortalityRecordsTableTableManager(
+      $_db,
+      $_db.farmMortalityRecords,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmMortalityRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmFeedRecordsTable, List<FarmFeedRecord>>
+  _farmFeedRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmFeedRecords,
+    aliasName: $_aliasNameGenerator(db.farms.id, db.farmFeedRecords.farmId),
+  );
+
+  $$FarmFeedRecordsTableProcessedTableManager get farmFeedRecordsRefs {
+    final manager = $$FarmFeedRecordsTableTableManager(
+      $_db,
+      $_db.farmFeedRecords,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmFeedRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmEventsTable, List<FarmEvent>>
+  _farmEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmEvents,
+    aliasName: $_aliasNameGenerator(db.farms.id, db.farmEvents.farmId),
+  );
+
+  $$FarmEventsTableProcessedTableManager get farmEventsRefs {
+    final manager = $$FarmEventsTableTableManager(
+      $_db,
+      $_db.farmEvents,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_farmEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmReproductionRecordsTable,
+    List<FarmReproductionRecord>
+  >
+  _farmReproductionRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmReproductionRecords,
+        aliasName: $_aliasNameGenerator(
+          db.farms.id,
+          db.farmReproductionRecords.farmId,
+        ),
+      );
+
+  $$FarmReproductionRecordsTableProcessedTableManager
+  get farmReproductionRecordsRefs {
+    final manager = $$FarmReproductionRecordsTableTableManager(
+      $_db,
+      $_db.farmReproductionRecords,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmReproductionRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmReportSnapshotsTable,
+    List<FarmReportSnapshot>
+  >
+  _farmReportSnapshotsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmReportSnapshots,
+        aliasName: $_aliasNameGenerator(
+          db.farms.id,
+          db.farmReportSnapshots.farmId,
+        ),
+      );
+
+  $$FarmReportSnapshotsTableProcessedTableManager get farmReportSnapshotsRefs {
+    final manager = $$FarmReportSnapshotsTableTableManager(
+      $_db,
+      $_db.farmReportSnapshots,
+    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmReportSnapshotsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$FarmsTableFilterComposer extends Composer<_$AppDatabase, $FarmsTable> {
+  $$FarmsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speciesJson => $composableBuilder(
+    column: $table.speciesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get breedJson => $composableBuilder(
+    column: $table.breedJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerOrganization => $composableBuilder(
+    column: $table.ownerOrganization,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contactNumber => $composableBuilder(
+    column: $table.contactNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get farmType => $composableBuilder(
+    column: $table.farmType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ClinicsTableFilterComposer get clinicId {
+    final $$ClinicsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableFilterComposer get createdByUserId {
+    final $$AppUsersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableFilterComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> invoicesRefs(
+    Expression<bool> Function($$InvoicesTableFilterComposer f) f,
+  ) {
+    final $$InvoicesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.invoices,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoicesTableFilterComposer(
+            $db: $db,
+            $table: $db.invoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmUnitsRefs(
+    Expression<bool> Function($$FarmUnitsTableFilterComposer f) f,
+  ) {
+    final $$FarmUnitsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmDailyRecordsRefs(
+    Expression<bool> Function($$FarmDailyRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmDailyRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmDailyRecords,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmDailyRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmDailyRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmHealthRecordsRefs(
+    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmHealthRecords,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmHealthRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmHealthRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmSpeciesPopulationMovementsRefs(
+    Expression<bool> Function(
+      $$FarmSpeciesPopulationMovementsTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$FarmSpeciesPopulationMovementsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmSpeciesPopulationMovements,
+          getReferencedColumn: (t) => t.farmId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmSpeciesPopulationMovementsTableFilterComposer(
+                $db: $db,
+                $table: $db.farmSpeciesPopulationMovements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> farmMortalityRecordsRefs(
+    Expression<bool> Function($$FarmMortalityRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmMortalityRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmMortalityRecords,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmMortalityRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmMortalityRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmFeedRecordsRefs(
+    Expression<bool> Function($$FarmFeedRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmFeedRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmFeedRecords,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmFeedRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmFeedRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmEventsRefs(
+    Expression<bool> Function($$FarmEventsTableFilterComposer f) f,
+  ) {
+    final $$FarmEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmEvents,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmReproductionRecordsRefs(
+    Expression<bool> Function($$FarmReproductionRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmReproductionRecordsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmReproductionRecords,
+          getReferencedColumn: (t) => t.farmId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmReproductionRecordsTableFilterComposer(
+                $db: $db,
+                $table: $db.farmReproductionRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> farmReportSnapshotsRefs(
+    Expression<bool> Function($$FarmReportSnapshotsTableFilterComposer f) f,
+  ) {
+    final $$FarmReportSnapshotsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmReportSnapshots,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmReportSnapshotsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmReportSnapshots,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$FarmsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FarmsTable> {
+  $$FarmsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get speciesJson => $composableBuilder(
+    column: $table.speciesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get breedJson => $composableBuilder(
+    column: $table.breedJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerOrganization => $composableBuilder(
+    column: $table.ownerOrganization,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contactNumber => $composableBuilder(
+    column: $table.contactNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get farmType => $composableBuilder(
+    column: $table.farmType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ClinicsTableOrderingComposer get clinicId {
+    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableOrderingComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableOrderingComposer get createdByUserId {
+    final $$AppUsersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableOrderingComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FarmsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FarmsTable> {
+  $$FarmsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<String> get speciesJson => $composableBuilder(
+    column: $table.speciesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get breedJson =>
+      $composableBuilder(column: $table.breedJson, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerOrganization => $composableBuilder(
+    column: $table.ownerOrganization,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contactNumber => $composableBuilder(
+    column: $table.contactNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get farmType =>
+      $composableBuilder(column: $table.farmType, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ClinicsTableAnnotationComposer get clinicId {
+    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableAnnotationComposer get createdByUserId {
+    final $$AppUsersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> invoicesRefs<T extends Object>(
+    Expression<T> Function($$InvoicesTableAnnotationComposer a) f,
+  ) {
+    final $$InvoicesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.invoices,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoicesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.invoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmUnitsRefs<T extends Object>(
+    Expression<T> Function($$FarmUnitsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmUnitsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmDailyRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmDailyRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmDailyRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmDailyRecords,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmDailyRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmDailyRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmHealthRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmHealthRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmHealthRecords,
+          getReferencedColumn: (t) => t.farmId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmHealthRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmHealthRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmSpeciesPopulationMovementsRefs<T extends Object>(
+    Expression<T> Function(
+      $$FarmSpeciesPopulationMovementsTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$FarmSpeciesPopulationMovementsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmSpeciesPopulationMovements,
+          getReferencedColumn: (t) => t.farmId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmSpeciesPopulationMovementsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmSpeciesPopulationMovements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmMortalityRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmMortalityRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmMortalityRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmMortalityRecords,
+          getReferencedColumn: (t) => t.farmId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmMortalityRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmMortalityRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmFeedRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmFeedRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmFeedRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmFeedRecords,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmFeedRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmFeedRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmEventsRefs<T extends Object>(
+    Expression<T> Function($$FarmEventsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmEvents,
+      getReferencedColumn: (t) => t.farmId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmReproductionRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmReproductionRecordsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$FarmReproductionRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmReproductionRecords,
+          getReferencedColumn: (t) => t.farmId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmReproductionRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmReproductionRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmReportSnapshotsRefs<T extends Object>(
+    Expression<T> Function($$FarmReportSnapshotsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmReportSnapshotsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmReportSnapshots,
+          getReferencedColumn: (t) => t.farmId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmReportSnapshotsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmReportSnapshots,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$FarmsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FarmsTable,
+          Farm,
+          $$FarmsTableFilterComposer,
+          $$FarmsTableOrderingComposer,
+          $$FarmsTableAnnotationComposer,
+          $$FarmsTableCreateCompanionBuilder,
+          $$FarmsTableUpdateCompanionBuilder,
+          (Farm, $$FarmsTableReferences),
+          Farm,
+          PrefetchHooks Function({
+            bool clinicId,
+            bool createdByUserId,
+            bool invoicesRefs,
+            bool farmUnitsRefs,
+            bool farmDailyRecordsRefs,
+            bool farmHealthRecordsRefs,
+            bool farmSpeciesPopulationMovementsRefs,
+            bool farmMortalityRecordsRefs,
+            bool farmFeedRecordsRefs,
+            bool farmEventsRefs,
+            bool farmReproductionRecordsRefs,
+            bool farmReportSnapshotsRefs,
+          })
+        > {
+  $$FarmsTableTableManager(_$AppDatabase db, $FarmsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FarmsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FarmsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FarmsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> clinicId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> location = const Value.absent(),
+                Value<String> speciesJson = const Value.absent(),
+                Value<String> breedJson = const Value.absent(),
+                Value<String?> ownerOrganization = const Value.absent(),
+                Value<String?> contactNumber = const Value.absent(),
+                Value<String?> farmType = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String> createdByUserId = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FarmsCompanion(
+                id: id,
+                clinicId: clinicId,
+                name: name,
+                location: location,
+                speciesJson: speciesJson,
+                breedJson: breedJson,
+                ownerOrganization: ownerOrganization,
+                contactNumber: contactNumber,
+                farmType: farmType,
+                notes: notes,
+                status: status,
+                createdAt: createdAt,
+                createdByUserId: createdByUserId,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String clinicId,
+                required String name,
+                Value<String?> location = const Value.absent(),
+                Value<String> speciesJson = const Value.absent(),
+                Value<String> breedJson = const Value.absent(),
+                Value<String?> ownerOrganization = const Value.absent(),
+                Value<String?> contactNumber = const Value.absent(),
+                Value<String?> farmType = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                required DateTime createdAt,
+                required String createdByUserId,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => FarmsCompanion.insert(
+                id: id,
+                clinicId: clinicId,
+                name: name,
+                location: location,
+                speciesJson: speciesJson,
+                breedJson: breedJson,
+                ownerOrganization: ownerOrganization,
+                contactNumber: contactNumber,
+                farmType: farmType,
+                notes: notes,
+                status: status,
+                createdAt: createdAt,
+                createdByUserId: createdByUserId,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$FarmsTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                clinicId = false,
+                createdByUserId = false,
+                invoicesRefs = false,
+                farmUnitsRefs = false,
+                farmDailyRecordsRefs = false,
+                farmHealthRecordsRefs = false,
+                farmSpeciesPopulationMovementsRefs = false,
+                farmMortalityRecordsRefs = false,
+                farmFeedRecordsRefs = false,
+                farmEventsRefs = false,
+                farmReproductionRecordsRefs = false,
+                farmReportSnapshotsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (invoicesRefs) db.invoices,
+                    if (farmUnitsRefs) db.farmUnits,
+                    if (farmDailyRecordsRefs) db.farmDailyRecords,
+                    if (farmHealthRecordsRefs) db.farmHealthRecords,
+                    if (farmSpeciesPopulationMovementsRefs)
+                      db.farmSpeciesPopulationMovements,
+                    if (farmMortalityRecordsRefs) db.farmMortalityRecords,
+                    if (farmFeedRecordsRefs) db.farmFeedRecords,
+                    if (farmEventsRefs) db.farmEvents,
+                    if (farmReproductionRecordsRefs) db.farmReproductionRecords,
+                    if (farmReportSnapshotsRefs) db.farmReportSnapshots,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (clinicId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.clinicId,
+                                    referencedTable: $$FarmsTableReferences
+                                        ._clinicIdTable(db),
+                                    referencedColumn: $$FarmsTableReferences
+                                        ._clinicIdTable(db)
+                                        .clinicId,
+                                  )
+                                  as T;
+                        }
+                        if (createdByUserId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.createdByUserId,
+                                    referencedTable: $$FarmsTableReferences
+                                        ._createdByUserIdTable(db),
+                                    referencedColumn: $$FarmsTableReferences
+                                        ._createdByUserIdTable(db)
+                                        .userId,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (invoicesRefs)
+                        await $_getPrefetchedData<Farm, $FarmsTable, Invoice>(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._invoicesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).invoicesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmUnitsRefs)
+                        await $_getPrefetchedData<Farm, $FarmsTable, FarmUnit>(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmUnitsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmUnitsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmDailyRecordsRefs)
+                        await $_getPrefetchedData<
+                          Farm,
+                          $FarmsTable,
+                          FarmDailyRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmDailyRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmDailyRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmHealthRecordsRefs)
+                        await $_getPrefetchedData<
+                          Farm,
+                          $FarmsTable,
+                          FarmHealthRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmHealthRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmHealthRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmSpeciesPopulationMovementsRefs)
+                        await $_getPrefetchedData<
+                          Farm,
+                          $FarmsTable,
+                          FarmSpeciesPopulationMovement
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmSpeciesPopulationMovementsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmSpeciesPopulationMovementsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmMortalityRecordsRefs)
+                        await $_getPrefetchedData<
+                          Farm,
+                          $FarmsTable,
+                          FarmMortalityRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmMortalityRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmMortalityRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmFeedRecordsRefs)
+                        await $_getPrefetchedData<
+                          Farm,
+                          $FarmsTable,
+                          FarmFeedRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmFeedRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmFeedRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmEventsRefs)
+                        await $_getPrefetchedData<Farm, $FarmsTable, FarmEvent>(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmReproductionRecordsRefs)
+                        await $_getPrefetchedData<
+                          Farm,
+                          $FarmsTable,
+                          FarmReproductionRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmReproductionRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmReproductionRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmReportSnapshotsRefs)
+                        await $_getPrefetchedData<
+                          Farm,
+                          $FarmsTable,
+                          FarmReportSnapshot
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmsTableReferences
+                              ._farmReportSnapshotsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmReportSnapshotsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$FarmsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FarmsTable,
+      Farm,
+      $$FarmsTableFilterComposer,
+      $$FarmsTableOrderingComposer,
+      $$FarmsTableAnnotationComposer,
+      $$FarmsTableCreateCompanionBuilder,
+      $$FarmsTableUpdateCompanionBuilder,
+      (Farm, $$FarmsTableReferences),
+      Farm,
+      PrefetchHooks Function({
+        bool clinicId,
+        bool createdByUserId,
+        bool invoicesRefs,
+        bool farmUnitsRefs,
+        bool farmDailyRecordsRefs,
+        bool farmHealthRecordsRefs,
+        bool farmSpeciesPopulationMovementsRefs,
+        bool farmMortalityRecordsRefs,
+        bool farmFeedRecordsRefs,
+        bool farmEventsRefs,
+        bool farmReproductionRecordsRefs,
+        bool farmReportSnapshotsRefs,
+      })
     >;
 typedef $$AppointmentsTableCreateCompanionBuilder =
     AppointmentsCompanion Function({
@@ -61100,7 +64948,11 @@ typedef $$InvoicesTableCreateCompanionBuilder =
     InvoicesCompanion Function({
       Value<int> id,
       required String clinicId,
-      required int animalId,
+      Value<int?> animalId,
+      Value<String?> farmId,
+      Value<DateTime?> farmVisitDate,
+      Value<String?> clientNameSnapshot,
+      Value<String?> clientPhoneSnapshot,
       Value<int?> appointmentId,
       Value<int?> consultationId,
       required String reference,
@@ -61133,7 +64985,11 @@ typedef $$InvoicesTableUpdateCompanionBuilder =
     InvoicesCompanion Function({
       Value<int> id,
       Value<String> clinicId,
-      Value<int> animalId,
+      Value<int?> animalId,
+      Value<String?> farmId,
+      Value<DateTime?> farmVisitDate,
+      Value<String?> clientNameSnapshot,
+      Value<String?> clientPhoneSnapshot,
       Value<int?> appointmentId,
       Value<int?> consultationId,
       Value<String> reference,
@@ -61189,14 +65045,32 @@ final class $$InvoicesTableReferences
   static $AnimalsTable _animalIdTable(_$AppDatabase db) => db.animals
       .createAlias($_aliasNameGenerator(db.invoices.animalId, db.animals.id));
 
-  $$AnimalsTableProcessedTableManager get animalId {
-    final $_column = $_itemColumn<int>('animal_id')!;
-
+  $$AnimalsTableProcessedTableManager? get animalId {
+    final $_column = $_itemColumn<int>('animal_id');
+    if ($_column == null) return null;
     final manager = $$AnimalsTableTableManager(
       $_db,
       $_db.animals,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_animalIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmsTable _farmIdTable(_$AppDatabase db) => db.farms.createAlias(
+    $_aliasNameGenerator(db.invoices.farmId, db.farms.id),
+  );
+
+  $$FarmsTableProcessedTableManager? get farmId {
+    final $_column = $_itemColumn<String>('farm_id');
+    if ($_column == null) return null;
+    final manager = $$FarmsTableTableManager(
+      $_db,
+      $_db.farms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_farmIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -61444,6 +65318,21 @@ class $$InvoicesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<DateTime> get farmVisitDate => $composableBuilder(
+    column: $table.farmVisitDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get clientNameSnapshot => $composableBuilder(
+    column: $table.clientNameSnapshot,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get clientPhoneSnapshot => $composableBuilder(
+    column: $table.clientPhoneSnapshot,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get reference => $composableBuilder(
     column: $table.reference,
     builder: (column) => ColumnFilters(column),
@@ -61586,6 +65475,29 @@ class $$InvoicesTableFilterComposer
           }) => $$AnimalsTableFilterComposer(
             $db: $db,
             $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableFilterComposer get farmId {
+    final $$FarmsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableFilterComposer(
+            $db: $db,
+            $table: $db.farms,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -61850,6 +65762,21 @@ class $$InvoicesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get farmVisitDate => $composableBuilder(
+    column: $table.farmVisitDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get clientNameSnapshot => $composableBuilder(
+    column: $table.clientNameSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get clientPhoneSnapshot => $composableBuilder(
+    column: $table.clientPhoneSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get reference => $composableBuilder(
     column: $table.reference,
     builder: (column) => ColumnOrderings(column),
@@ -61992,6 +65919,29 @@ class $$InvoicesTableOrderingComposer
           }) => $$AnimalsTableOrderingComposer(
             $db: $db,
             $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableOrderingComposer get farmId {
+    final $$FarmsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farms,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -62154,6 +66104,21 @@ class $$InvoicesTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
+  GeneratedColumn<DateTime> get farmVisitDate => $composableBuilder(
+    column: $table.farmVisitDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get clientNameSnapshot => $composableBuilder(
+    column: $table.clientNameSnapshot,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get clientPhoneSnapshot => $composableBuilder(
+    column: $table.clientPhoneSnapshot,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get reference =>
       $composableBuilder(column: $table.reference, builder: (column) => column);
 
@@ -62280,6 +66245,29 @@ class $$InvoicesTableAnnotationComposer
           }) => $$AnimalsTableAnnotationComposer(
             $db: $db,
             $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableAnnotationComposer get farmId {
+    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farms,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -62550,6 +66538,7 @@ class $$InvoicesTableTableManager
           PrefetchHooks Function({
             bool clinicId,
             bool animalId,
+            bool farmId,
             bool appointmentId,
             bool consultationId,
             bool linkedClinicalOperationId,
@@ -62577,7 +66566,11 @@ class $$InvoicesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> clinicId = const Value.absent(),
-                Value<int> animalId = const Value.absent(),
+                Value<int?> animalId = const Value.absent(),
+                Value<String?> farmId = const Value.absent(),
+                Value<DateTime?> farmVisitDate = const Value.absent(),
+                Value<String?> clientNameSnapshot = const Value.absent(),
+                Value<String?> clientPhoneSnapshot = const Value.absent(),
                 Value<int?> appointmentId = const Value.absent(),
                 Value<int?> consultationId = const Value.absent(),
                 Value<String> reference = const Value.absent(),
@@ -62609,6 +66602,10 @@ class $$InvoicesTableTableManager
                 id: id,
                 clinicId: clinicId,
                 animalId: animalId,
+                farmId: farmId,
+                farmVisitDate: farmVisitDate,
+                clientNameSnapshot: clientNameSnapshot,
+                clientPhoneSnapshot: clientPhoneSnapshot,
                 appointmentId: appointmentId,
                 consultationId: consultationId,
                 reference: reference,
@@ -62641,7 +66638,11 @@ class $$InvoicesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String clinicId,
-                required int animalId,
+                Value<int?> animalId = const Value.absent(),
+                Value<String?> farmId = const Value.absent(),
+                Value<DateTime?> farmVisitDate = const Value.absent(),
+                Value<String?> clientNameSnapshot = const Value.absent(),
+                Value<String?> clientPhoneSnapshot = const Value.absent(),
                 Value<int?> appointmentId = const Value.absent(),
                 Value<int?> consultationId = const Value.absent(),
                 required String reference,
@@ -62673,6 +66674,10 @@ class $$InvoicesTableTableManager
                 id: id,
                 clinicId: clinicId,
                 animalId: animalId,
+                farmId: farmId,
+                farmVisitDate: farmVisitDate,
+                clientNameSnapshot: clientNameSnapshot,
+                clientPhoneSnapshot: clientPhoneSnapshot,
                 appointmentId: appointmentId,
                 consultationId: consultationId,
                 reference: reference,
@@ -62713,6 +66718,7 @@ class $$InvoicesTableTableManager
               ({
                 clinicId = false,
                 animalId = false,
+                farmId = false,
                 appointmentId = false,
                 consultationId = false,
                 linkedClinicalOperationId = false,
@@ -62770,6 +66776,19 @@ class $$InvoicesTableTableManager
                                         ._animalIdTable(db),
                                     referencedColumn: $$InvoicesTableReferences
                                         ._animalIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (farmId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.farmId,
+                                    referencedTable: $$InvoicesTableReferences
+                                        ._farmIdTable(db),
+                                    referencedColumn: $$InvoicesTableReferences
+                                        ._farmIdTable(db)
                                         .id,
                                   )
                                   as T;
@@ -62965,6 +66984,7 @@ typedef $$InvoicesTableProcessedTableManager =
       PrefetchHooks Function({
         bool clinicId,
         bool animalId,
+        bool farmId,
         bool appointmentId,
         bool consultationId,
         bool linkedClinicalOperationId,
@@ -64357,11 +68377,3961 @@ typedef $$InvoiceProductLinesTableProcessedTableManager =
         bool animalId,
       })
     >;
+typedef $$FarmUnitsTableCreateCompanionBuilder =
+    FarmUnitsCompanion Function({
+      Value<int> id,
+      required String clinicId,
+      required String farmId,
+      required String name,
+      Value<String> unitType,
+      Value<String?> speciesId,
+      Value<String?> breedId,
+      Value<int?> capacity,
+      Value<int> maleCount,
+      Value<int> femaleCount,
+      Value<int> unknownCount,
+      Value<String> status,
+      Value<String?> notes,
+      required DateTime createdAt,
+      required String createdByUserId,
+      required DateTime updatedAt,
+    });
+typedef $$FarmUnitsTableUpdateCompanionBuilder =
+    FarmUnitsCompanion Function({
+      Value<int> id,
+      Value<String> clinicId,
+      Value<String> farmId,
+      Value<String> name,
+      Value<String> unitType,
+      Value<String?> speciesId,
+      Value<String?> breedId,
+      Value<int?> capacity,
+      Value<int> maleCount,
+      Value<int> femaleCount,
+      Value<int> unknownCount,
+      Value<String> status,
+      Value<String?> notes,
+      Value<DateTime> createdAt,
+      Value<String> createdByUserId,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$FarmUnitsTableReferences
+    extends BaseReferences<_$AppDatabase, $FarmUnitsTable, FarmUnit> {
+  $$FarmUnitsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
+      db.clinics.createAlias(
+        $_aliasNameGenerator(db.farmUnits.clinicId, db.clinics.clinicId),
+      );
+
+  $$ClinicsTableProcessedTableManager get clinicId {
+    final $_column = $_itemColumn<String>('clinic_id')!;
+
+    final manager = $$ClinicsTableTableManager(
+      $_db,
+      $_db.clinics,
+    ).filter((f) => f.clinicId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmsTable _farmIdTable(_$AppDatabase db) => db.farms.createAlias(
+    $_aliasNameGenerator(db.farmUnits.farmId, db.farms.id),
+  );
+
+  $$FarmsTableProcessedTableManager get farmId {
+    final $_column = $_itemColumn<String>('farm_id')!;
+
+    final manager = $$FarmsTableTableManager(
+      $_db,
+      $_db.farms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_farmIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AppUsersTable _createdByUserIdTable(_$AppDatabase db) =>
+      db.appUsers.createAlias(
+        $_aliasNameGenerator(db.farmUnits.createdByUserId, db.appUsers.userId),
+      );
+
+  $$AppUsersTableProcessedTableManager get createdByUserId {
+    final $_column = $_itemColumn<String>('created_by_user_id')!;
+
+    final manager = $$AppUsersTableTableManager(
+      $_db,
+      $_db.appUsers,
+    ).filter((f) => f.userId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_createdByUserIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
+  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmHealthRecords,
+        aliasName: $_aliasNameGenerator(
+          db.farmUnits.id,
+          db.farmHealthRecords.farmUnitId,
+        ),
+      );
+
+  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
+    final manager = $$FarmHealthRecordsTableTableManager(
+      $_db,
+      $_db.farmHealthRecords,
+    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmHealthRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $InvoiceServiceLinesTable,
+    List<InvoiceServiceLine>
+  >
+  _invoiceServiceLinesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.invoiceServiceLines,
+        aliasName: $_aliasNameGenerator(
+          db.farmUnits.id,
+          db.invoiceServiceLines.farmUnitId,
+        ),
+      );
+
+  $$InvoiceServiceLinesTableProcessedTableManager get invoiceServiceLinesRefs {
+    final manager = $$InvoiceServiceLinesTableTableManager(
+      $_db,
+      $_db.invoiceServiceLines,
+    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _invoiceServiceLinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmMortalityRecordsTable,
+    List<FarmMortalityRecord>
+  >
+  _farmMortalityRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmMortalityRecords,
+        aliasName: $_aliasNameGenerator(
+          db.farmUnits.id,
+          db.farmMortalityRecords.farmUnitId,
+        ),
+      );
+
+  $$FarmMortalityRecordsTableProcessedTableManager
+  get farmMortalityRecordsRefs {
+    final manager = $$FarmMortalityRecordsTableTableManager(
+      $_db,
+      $_db.farmMortalityRecords,
+    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmMortalityRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmFeedRecordsTable, List<FarmFeedRecord>>
+  _farmFeedRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmFeedRecords,
+    aliasName: $_aliasNameGenerator(
+      db.farmUnits.id,
+      db.farmFeedRecords.farmUnitId,
+    ),
+  );
+
+  $$FarmFeedRecordsTableProcessedTableManager get farmFeedRecordsRefs {
+    final manager = $$FarmFeedRecordsTableTableManager(
+      $_db,
+      $_db.farmFeedRecords,
+    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmFeedRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmEventsTable, List<FarmEvent>>
+  _farmEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmEvents,
+    aliasName: $_aliasNameGenerator(db.farmUnits.id, db.farmEvents.farmUnitId),
+  );
+
+  $$FarmEventsTableProcessedTableManager get farmEventsRefs {
+    final manager = $$FarmEventsTableTableManager(
+      $_db,
+      $_db.farmEvents,
+    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_farmEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmReproductionRecordsTable,
+    List<FarmReproductionRecord>
+  >
+  _farmReproductionRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmReproductionRecords,
+        aliasName: $_aliasNameGenerator(
+          db.farmUnits.id,
+          db.farmReproductionRecords.farmUnitId,
+        ),
+      );
+
+  $$FarmReproductionRecordsTableProcessedTableManager
+  get farmReproductionRecordsRefs {
+    final manager = $$FarmReproductionRecordsTableTableManager(
+      $_db,
+      $_db.farmReproductionRecords,
+    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmReproductionRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$FarmUnitsTableFilterComposer
+    extends Composer<_$AppDatabase, $FarmUnitsTable> {
+  $$FarmUnitsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unitType => $composableBuilder(
+    column: $table.unitType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get breedId => $composableBuilder(
+    column: $table.breedId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get capacity => $composableBuilder(
+    column: $table.capacity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maleCount => $composableBuilder(
+    column: $table.maleCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get femaleCount => $composableBuilder(
+    column: $table.femaleCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get unknownCount => $composableBuilder(
+    column: $table.unknownCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ClinicsTableFilterComposer get clinicId {
+    final $$ClinicsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableFilterComposer get farmId {
+    final $$FarmsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableFilterComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableFilterComposer get createdByUserId {
+    final $$AppUsersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableFilterComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> farmHealthRecordsRefs(
+    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmHealthRecords,
+      getReferencedColumn: (t) => t.farmUnitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmHealthRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmHealthRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> invoiceServiceLinesRefs(
+    Expression<bool> Function($$InvoiceServiceLinesTableFilterComposer f) f,
+  ) {
+    final $$InvoiceServiceLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.invoiceServiceLines,
+      getReferencedColumn: (t) => t.farmUnitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoiceServiceLinesTableFilterComposer(
+            $db: $db,
+            $table: $db.invoiceServiceLines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmMortalityRecordsRefs(
+    Expression<bool> Function($$FarmMortalityRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmMortalityRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmMortalityRecords,
+      getReferencedColumn: (t) => t.farmUnitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmMortalityRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmMortalityRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmFeedRecordsRefs(
+    Expression<bool> Function($$FarmFeedRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmFeedRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmFeedRecords,
+      getReferencedColumn: (t) => t.farmUnitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmFeedRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmFeedRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmEventsRefs(
+    Expression<bool> Function($$FarmEventsTableFilterComposer f) f,
+  ) {
+    final $$FarmEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmEvents,
+      getReferencedColumn: (t) => t.farmUnitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmReproductionRecordsRefs(
+    Expression<bool> Function($$FarmReproductionRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmReproductionRecordsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmReproductionRecords,
+          getReferencedColumn: (t) => t.farmUnitId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmReproductionRecordsTableFilterComposer(
+                $db: $db,
+                $table: $db.farmReproductionRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$FarmUnitsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FarmUnitsTable> {
+  $$FarmUnitsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unitType => $composableBuilder(
+    column: $table.unitType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get breedId => $composableBuilder(
+    column: $table.breedId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get capacity => $composableBuilder(
+    column: $table.capacity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maleCount => $composableBuilder(
+    column: $table.maleCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get femaleCount => $composableBuilder(
+    column: $table.femaleCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get unknownCount => $composableBuilder(
+    column: $table.unknownCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ClinicsTableOrderingComposer get clinicId {
+    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableOrderingComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableOrderingComposer get farmId {
+    final $$FarmsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableOrderingComposer get createdByUserId {
+    final $$AppUsersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableOrderingComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FarmUnitsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FarmUnitsTable> {
+  $$FarmUnitsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get unitType =>
+      $composableBuilder(column: $table.unitType, builder: (column) => column);
+
+  GeneratedColumn<String> get speciesId =>
+      $composableBuilder(column: $table.speciesId, builder: (column) => column);
+
+  GeneratedColumn<String> get breedId =>
+      $composableBuilder(column: $table.breedId, builder: (column) => column);
+
+  GeneratedColumn<int> get capacity =>
+      $composableBuilder(column: $table.capacity, builder: (column) => column);
+
+  GeneratedColumn<int> get maleCount =>
+      $composableBuilder(column: $table.maleCount, builder: (column) => column);
+
+  GeneratedColumn<int> get femaleCount => $composableBuilder(
+    column: $table.femaleCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get unknownCount => $composableBuilder(
+    column: $table.unknownCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ClinicsTableAnnotationComposer get clinicId {
+    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableAnnotationComposer get farmId {
+    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableAnnotationComposer get createdByUserId {
+    final $$AppUsersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> farmHealthRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmHealthRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmHealthRecords,
+          getReferencedColumn: (t) => t.farmUnitId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmHealthRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmHealthRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> invoiceServiceLinesRefs<T extends Object>(
+    Expression<T> Function($$InvoiceServiceLinesTableAnnotationComposer a) f,
+  ) {
+    final $$InvoiceServiceLinesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.invoiceServiceLines,
+          getReferencedColumn: (t) => t.farmUnitId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$InvoiceServiceLinesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.invoiceServiceLines,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmMortalityRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmMortalityRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmMortalityRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmMortalityRecords,
+          getReferencedColumn: (t) => t.farmUnitId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmMortalityRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmMortalityRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmFeedRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmFeedRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmFeedRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmFeedRecords,
+      getReferencedColumn: (t) => t.farmUnitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmFeedRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmFeedRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmEventsRefs<T extends Object>(
+    Expression<T> Function($$FarmEventsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmEvents,
+      getReferencedColumn: (t) => t.farmUnitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmReproductionRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmReproductionRecordsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$FarmReproductionRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmReproductionRecords,
+          getReferencedColumn: (t) => t.farmUnitId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmReproductionRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmReproductionRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$FarmUnitsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FarmUnitsTable,
+          FarmUnit,
+          $$FarmUnitsTableFilterComposer,
+          $$FarmUnitsTableOrderingComposer,
+          $$FarmUnitsTableAnnotationComposer,
+          $$FarmUnitsTableCreateCompanionBuilder,
+          $$FarmUnitsTableUpdateCompanionBuilder,
+          (FarmUnit, $$FarmUnitsTableReferences),
+          FarmUnit,
+          PrefetchHooks Function({
+            bool clinicId,
+            bool farmId,
+            bool createdByUserId,
+            bool farmHealthRecordsRefs,
+            bool invoiceServiceLinesRefs,
+            bool farmMortalityRecordsRefs,
+            bool farmFeedRecordsRefs,
+            bool farmEventsRefs,
+            bool farmReproductionRecordsRefs,
+          })
+        > {
+  $$FarmUnitsTableTableManager(_$AppDatabase db, $FarmUnitsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FarmUnitsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FarmUnitsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FarmUnitsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> clinicId = const Value.absent(),
+                Value<String> farmId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> unitType = const Value.absent(),
+                Value<String?> speciesId = const Value.absent(),
+                Value<String?> breedId = const Value.absent(),
+                Value<int?> capacity = const Value.absent(),
+                Value<int> maleCount = const Value.absent(),
+                Value<int> femaleCount = const Value.absent(),
+                Value<int> unknownCount = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String> createdByUserId = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => FarmUnitsCompanion(
+                id: id,
+                clinicId: clinicId,
+                farmId: farmId,
+                name: name,
+                unitType: unitType,
+                speciesId: speciesId,
+                breedId: breedId,
+                capacity: capacity,
+                maleCount: maleCount,
+                femaleCount: femaleCount,
+                unknownCount: unknownCount,
+                status: status,
+                notes: notes,
+                createdAt: createdAt,
+                createdByUserId: createdByUserId,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String clinicId,
+                required String farmId,
+                required String name,
+                Value<String> unitType = const Value.absent(),
+                Value<String?> speciesId = const Value.absent(),
+                Value<String?> breedId = const Value.absent(),
+                Value<int?> capacity = const Value.absent(),
+                Value<int> maleCount = const Value.absent(),
+                Value<int> femaleCount = const Value.absent(),
+                Value<int> unknownCount = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                required DateTime createdAt,
+                required String createdByUserId,
+                required DateTime updatedAt,
+              }) => FarmUnitsCompanion.insert(
+                id: id,
+                clinicId: clinicId,
+                farmId: farmId,
+                name: name,
+                unitType: unitType,
+                speciesId: speciesId,
+                breedId: breedId,
+                capacity: capacity,
+                maleCount: maleCount,
+                femaleCount: femaleCount,
+                unknownCount: unknownCount,
+                status: status,
+                notes: notes,
+                createdAt: createdAt,
+                createdByUserId: createdByUserId,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FarmUnitsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                clinicId = false,
+                farmId = false,
+                createdByUserId = false,
+                farmHealthRecordsRefs = false,
+                invoiceServiceLinesRefs = false,
+                farmMortalityRecordsRefs = false,
+                farmFeedRecordsRefs = false,
+                farmEventsRefs = false,
+                farmReproductionRecordsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (farmHealthRecordsRefs) db.farmHealthRecords,
+                    if (invoiceServiceLinesRefs) db.invoiceServiceLines,
+                    if (farmMortalityRecordsRefs) db.farmMortalityRecords,
+                    if (farmFeedRecordsRefs) db.farmFeedRecords,
+                    if (farmEventsRefs) db.farmEvents,
+                    if (farmReproductionRecordsRefs) db.farmReproductionRecords,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (clinicId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.clinicId,
+                                    referencedTable: $$FarmUnitsTableReferences
+                                        ._clinicIdTable(db),
+                                    referencedColumn: $$FarmUnitsTableReferences
+                                        ._clinicIdTable(db)
+                                        .clinicId,
+                                  )
+                                  as T;
+                        }
+                        if (farmId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.farmId,
+                                    referencedTable: $$FarmUnitsTableReferences
+                                        ._farmIdTable(db),
+                                    referencedColumn: $$FarmUnitsTableReferences
+                                        ._farmIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (createdByUserId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.createdByUserId,
+                                    referencedTable: $$FarmUnitsTableReferences
+                                        ._createdByUserIdTable(db),
+                                    referencedColumn: $$FarmUnitsTableReferences
+                                        ._createdByUserIdTable(db)
+                                        .userId,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (farmHealthRecordsRefs)
+                        await $_getPrefetchedData<
+                          FarmUnit,
+                          $FarmUnitsTable,
+                          FarmHealthRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmUnitsTableReferences
+                              ._farmHealthRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmUnitsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmHealthRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmUnitId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (invoiceServiceLinesRefs)
+                        await $_getPrefetchedData<
+                          FarmUnit,
+                          $FarmUnitsTable,
+                          InvoiceServiceLine
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmUnitsTableReferences
+                              ._invoiceServiceLinesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmUnitsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).invoiceServiceLinesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmUnitId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmMortalityRecordsRefs)
+                        await $_getPrefetchedData<
+                          FarmUnit,
+                          $FarmUnitsTable,
+                          FarmMortalityRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmUnitsTableReferences
+                              ._farmMortalityRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmUnitsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmMortalityRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmUnitId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmFeedRecordsRefs)
+                        await $_getPrefetchedData<
+                          FarmUnit,
+                          $FarmUnitsTable,
+                          FarmFeedRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmUnitsTableReferences
+                              ._farmFeedRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmUnitsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmFeedRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmUnitId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmEventsRefs)
+                        await $_getPrefetchedData<
+                          FarmUnit,
+                          $FarmUnitsTable,
+                          FarmEvent
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmUnitsTableReferences
+                              ._farmEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmUnitsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmUnitId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmReproductionRecordsRefs)
+                        await $_getPrefetchedData<
+                          FarmUnit,
+                          $FarmUnitsTable,
+                          FarmReproductionRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmUnitsTableReferences
+                              ._farmReproductionRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmUnitsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmReproductionRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmUnitId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$FarmUnitsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FarmUnitsTable,
+      FarmUnit,
+      $$FarmUnitsTableFilterComposer,
+      $$FarmUnitsTableOrderingComposer,
+      $$FarmUnitsTableAnnotationComposer,
+      $$FarmUnitsTableCreateCompanionBuilder,
+      $$FarmUnitsTableUpdateCompanionBuilder,
+      (FarmUnit, $$FarmUnitsTableReferences),
+      FarmUnit,
+      PrefetchHooks Function({
+        bool clinicId,
+        bool farmId,
+        bool createdByUserId,
+        bool farmHealthRecordsRefs,
+        bool invoiceServiceLinesRefs,
+        bool farmMortalityRecordsRefs,
+        bool farmFeedRecordsRefs,
+        bool farmEventsRefs,
+        bool farmReproductionRecordsRefs,
+      })
+    >;
+typedef $$FarmDailyRecordsTableCreateCompanionBuilder =
+    FarmDailyRecordsCompanion Function({
+      required String id,
+      required String clinicId,
+      required String farmId,
+      required DateTime recordDate,
+      Value<String> status,
+      Value<int> openingPopulation,
+      Value<int> births,
+      Value<int> purchases,
+      Value<int> transfersIn,
+      Value<int> mortality,
+      Value<int> sales,
+      Value<int> transfersOut,
+      Value<int> closingPopulation,
+      Value<double> feedSuppliedKg,
+      Value<String?> dailyNote,
+      Value<String?> tasksForTomorrow,
+      Value<String?> correctionReason,
+      Value<String?> originalSnapshotJson,
+      Value<String?> lastEditedByUserId,
+      Value<DateTime?> finalizedAt,
+      Value<String?> finalizedByUserId,
+      required DateTime createdAt,
+      required String createdByUserId,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$FarmDailyRecordsTableUpdateCompanionBuilder =
+    FarmDailyRecordsCompanion Function({
+      Value<String> id,
+      Value<String> clinicId,
+      Value<String> farmId,
+      Value<DateTime> recordDate,
+      Value<String> status,
+      Value<int> openingPopulation,
+      Value<int> births,
+      Value<int> purchases,
+      Value<int> transfersIn,
+      Value<int> mortality,
+      Value<int> sales,
+      Value<int> transfersOut,
+      Value<int> closingPopulation,
+      Value<double> feedSuppliedKg,
+      Value<String?> dailyNote,
+      Value<String?> tasksForTomorrow,
+      Value<String?> correctionReason,
+      Value<String?> originalSnapshotJson,
+      Value<String?> lastEditedByUserId,
+      Value<DateTime?> finalizedAt,
+      Value<String?> finalizedByUserId,
+      Value<DateTime> createdAt,
+      Value<String> createdByUserId,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$FarmDailyRecordsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $FarmDailyRecordsTable, FarmDailyRecord> {
+  $$FarmDailyRecordsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
+      db.clinics.createAlias(
+        $_aliasNameGenerator(db.farmDailyRecords.clinicId, db.clinics.clinicId),
+      );
+
+  $$ClinicsTableProcessedTableManager get clinicId {
+    final $_column = $_itemColumn<String>('clinic_id')!;
+
+    final manager = $$ClinicsTableTableManager(
+      $_db,
+      $_db.clinics,
+    ).filter((f) => f.clinicId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmsTable _farmIdTable(_$AppDatabase db) => db.farms.createAlias(
+    $_aliasNameGenerator(db.farmDailyRecords.farmId, db.farms.id),
+  );
+
+  $$FarmsTableProcessedTableManager get farmId {
+    final $_column = $_itemColumn<String>('farm_id')!;
+
+    final manager = $$FarmsTableTableManager(
+      $_db,
+      $_db.farms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_farmIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AppUsersTable _createdByUserIdTable(_$AppDatabase db) =>
+      db.appUsers.createAlias(
+        $_aliasNameGenerator(
+          db.farmDailyRecords.createdByUserId,
+          db.appUsers.userId,
+        ),
+      );
+
+  $$AppUsersTableProcessedTableManager get createdByUserId {
+    final $_column = $_itemColumn<String>('created_by_user_id')!;
+
+    final manager = $$AppUsersTableTableManager(
+      $_db,
+      $_db.appUsers,
+    ).filter((f) => f.userId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_createdByUserIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
+  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmHealthRecords,
+        aliasName: $_aliasNameGenerator(
+          db.farmDailyRecords.id,
+          db.farmHealthRecords.dailyRecordId,
+        ),
+      );
+
+  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
+    final manager = $$FarmHealthRecordsTableTableManager(
+      $_db,
+      $_db.farmHealthRecords,
+    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmHealthRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmSpeciesPopulationMovementsTable,
+    List<FarmSpeciesPopulationMovement>
+  >
+  _farmSpeciesPopulationMovementsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmSpeciesPopulationMovements,
+        aliasName: $_aliasNameGenerator(
+          db.farmDailyRecords.id,
+          db.farmSpeciesPopulationMovements.dailyRecordId,
+        ),
+      );
+
+  $$FarmSpeciesPopulationMovementsTableProcessedTableManager
+  get farmSpeciesPopulationMovementsRefs {
+    final manager = $$FarmSpeciesPopulationMovementsTableTableManager(
+      $_db,
+      $_db.farmSpeciesPopulationMovements,
+    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmSpeciesPopulationMovementsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmMortalityRecordsTable,
+    List<FarmMortalityRecord>
+  >
+  _farmMortalityRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmMortalityRecords,
+        aliasName: $_aliasNameGenerator(
+          db.farmDailyRecords.id,
+          db.farmMortalityRecords.dailyRecordId,
+        ),
+      );
+
+  $$FarmMortalityRecordsTableProcessedTableManager
+  get farmMortalityRecordsRefs {
+    final manager = $$FarmMortalityRecordsTableTableManager(
+      $_db,
+      $_db.farmMortalityRecords,
+    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmMortalityRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmFeedRecordsTable, List<FarmFeedRecord>>
+  _farmFeedRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmFeedRecords,
+    aliasName: $_aliasNameGenerator(
+      db.farmDailyRecords.id,
+      db.farmFeedRecords.dailyRecordId,
+    ),
+  );
+
+  $$FarmFeedRecordsTableProcessedTableManager get farmFeedRecordsRefs {
+    final manager = $$FarmFeedRecordsTableTableManager(
+      $_db,
+      $_db.farmFeedRecords,
+    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmFeedRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FarmEventsTable, List<FarmEvent>>
+  _farmEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.farmEvents,
+    aliasName: $_aliasNameGenerator(
+      db.farmDailyRecords.id,
+      db.farmEvents.dailyRecordId,
+    ),
+  );
+
+  $$FarmEventsTableProcessedTableManager get farmEventsRefs {
+    final manager = $$FarmEventsTableTableManager(
+      $_db,
+      $_db.farmEvents,
+    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_farmEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $FarmReportSnapshotsTable,
+    List<FarmReportSnapshot>
+  >
+  _farmReportSnapshotsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.farmReportSnapshots,
+        aliasName: $_aliasNameGenerator(
+          db.farmDailyRecords.id,
+          db.farmReportSnapshots.dailyRecordId,
+        ),
+      );
+
+  $$FarmReportSnapshotsTableProcessedTableManager get farmReportSnapshotsRefs {
+    final manager = $$FarmReportSnapshotsTableTableManager(
+      $_db,
+      $_db.farmReportSnapshots,
+    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _farmReportSnapshotsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$FarmDailyRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $FarmDailyRecordsTable> {
+  $$FarmDailyRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordDate => $composableBuilder(
+    column: $table.recordDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get openingPopulation => $composableBuilder(
+    column: $table.openingPopulation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get births => $composableBuilder(
+    column: $table.births,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get purchases => $composableBuilder(
+    column: $table.purchases,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get transfersIn => $composableBuilder(
+    column: $table.transfersIn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get mortality => $composableBuilder(
+    column: $table.mortality,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sales => $composableBuilder(
+    column: $table.sales,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get transfersOut => $composableBuilder(
+    column: $table.transfersOut,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get closingPopulation => $composableBuilder(
+    column: $table.closingPopulation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get feedSuppliedKg => $composableBuilder(
+    column: $table.feedSuppliedKg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dailyNote => $composableBuilder(
+    column: $table.dailyNote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tasksForTomorrow => $composableBuilder(
+    column: $table.tasksForTomorrow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get correctionReason => $composableBuilder(
+    column: $table.correctionReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get originalSnapshotJson => $composableBuilder(
+    column: $table.originalSnapshotJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastEditedByUserId => $composableBuilder(
+    column: $table.lastEditedByUserId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get finalizedAt => $composableBuilder(
+    column: $table.finalizedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get finalizedByUserId => $composableBuilder(
+    column: $table.finalizedByUserId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ClinicsTableFilterComposer get clinicId {
+    final $$ClinicsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableFilterComposer get farmId {
+    final $$FarmsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableFilterComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableFilterComposer get createdByUserId {
+    final $$AppUsersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableFilterComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> farmHealthRecordsRefs(
+    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmHealthRecords,
+      getReferencedColumn: (t) => t.dailyRecordId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmHealthRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmHealthRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmSpeciesPopulationMovementsRefs(
+    Expression<bool> Function(
+      $$FarmSpeciesPopulationMovementsTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$FarmSpeciesPopulationMovementsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmSpeciesPopulationMovements,
+          getReferencedColumn: (t) => t.dailyRecordId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmSpeciesPopulationMovementsTableFilterComposer(
+                $db: $db,
+                $table: $db.farmSpeciesPopulationMovements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> farmMortalityRecordsRefs(
+    Expression<bool> Function($$FarmMortalityRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmMortalityRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmMortalityRecords,
+      getReferencedColumn: (t) => t.dailyRecordId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmMortalityRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmMortalityRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmFeedRecordsRefs(
+    Expression<bool> Function($$FarmFeedRecordsTableFilterComposer f) f,
+  ) {
+    final $$FarmFeedRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmFeedRecords,
+      getReferencedColumn: (t) => t.dailyRecordId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmFeedRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmFeedRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmEventsRefs(
+    Expression<bool> Function($$FarmEventsTableFilterComposer f) f,
+  ) {
+    final $$FarmEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmEvents,
+      getReferencedColumn: (t) => t.dailyRecordId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> farmReportSnapshotsRefs(
+    Expression<bool> Function($$FarmReportSnapshotsTableFilterComposer f) f,
+  ) {
+    final $$FarmReportSnapshotsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmReportSnapshots,
+      getReferencedColumn: (t) => t.dailyRecordId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmReportSnapshotsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmReportSnapshots,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$FarmDailyRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FarmDailyRecordsTable> {
+  $$FarmDailyRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordDate => $composableBuilder(
+    column: $table.recordDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get openingPopulation => $composableBuilder(
+    column: $table.openingPopulation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get births => $composableBuilder(
+    column: $table.births,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get purchases => $composableBuilder(
+    column: $table.purchases,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get transfersIn => $composableBuilder(
+    column: $table.transfersIn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get mortality => $composableBuilder(
+    column: $table.mortality,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sales => $composableBuilder(
+    column: $table.sales,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get transfersOut => $composableBuilder(
+    column: $table.transfersOut,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get closingPopulation => $composableBuilder(
+    column: $table.closingPopulation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get feedSuppliedKg => $composableBuilder(
+    column: $table.feedSuppliedKg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dailyNote => $composableBuilder(
+    column: $table.dailyNote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tasksForTomorrow => $composableBuilder(
+    column: $table.tasksForTomorrow,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get correctionReason => $composableBuilder(
+    column: $table.correctionReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get originalSnapshotJson => $composableBuilder(
+    column: $table.originalSnapshotJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastEditedByUserId => $composableBuilder(
+    column: $table.lastEditedByUserId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get finalizedAt => $composableBuilder(
+    column: $table.finalizedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get finalizedByUserId => $composableBuilder(
+    column: $table.finalizedByUserId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ClinicsTableOrderingComposer get clinicId {
+    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableOrderingComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableOrderingComposer get farmId {
+    final $$FarmsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableOrderingComposer get createdByUserId {
+    final $$AppUsersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableOrderingComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FarmDailyRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FarmDailyRecordsTable> {
+  $$FarmDailyRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get recordDate => $composableBuilder(
+    column: $table.recordDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get openingPopulation => $composableBuilder(
+    column: $table.openingPopulation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get births =>
+      $composableBuilder(column: $table.births, builder: (column) => column);
+
+  GeneratedColumn<int> get purchases =>
+      $composableBuilder(column: $table.purchases, builder: (column) => column);
+
+  GeneratedColumn<int> get transfersIn => $composableBuilder(
+    column: $table.transfersIn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get mortality =>
+      $composableBuilder(column: $table.mortality, builder: (column) => column);
+
+  GeneratedColumn<int> get sales =>
+      $composableBuilder(column: $table.sales, builder: (column) => column);
+
+  GeneratedColumn<int> get transfersOut => $composableBuilder(
+    column: $table.transfersOut,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get closingPopulation => $composableBuilder(
+    column: $table.closingPopulation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get feedSuppliedKg => $composableBuilder(
+    column: $table.feedSuppliedKg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get dailyNote =>
+      $composableBuilder(column: $table.dailyNote, builder: (column) => column);
+
+  GeneratedColumn<String> get tasksForTomorrow => $composableBuilder(
+    column: $table.tasksForTomorrow,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get correctionReason => $composableBuilder(
+    column: $table.correctionReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get originalSnapshotJson => $composableBuilder(
+    column: $table.originalSnapshotJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastEditedByUserId => $composableBuilder(
+    column: $table.lastEditedByUserId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get finalizedAt => $composableBuilder(
+    column: $table.finalizedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get finalizedByUserId => $composableBuilder(
+    column: $table.finalizedByUserId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ClinicsTableAnnotationComposer get clinicId {
+    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableAnnotationComposer get farmId {
+    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableAnnotationComposer get createdByUserId {
+    final $$AppUsersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> farmHealthRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmHealthRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmHealthRecords,
+          getReferencedColumn: (t) => t.dailyRecordId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmHealthRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmHealthRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmSpeciesPopulationMovementsRefs<T extends Object>(
+    Expression<T> Function(
+      $$FarmSpeciesPopulationMovementsTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$FarmSpeciesPopulationMovementsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmSpeciesPopulationMovements,
+          getReferencedColumn: (t) => t.dailyRecordId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmSpeciesPopulationMovementsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmSpeciesPopulationMovements,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmMortalityRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmMortalityRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmMortalityRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmMortalityRecords,
+          getReferencedColumn: (t) => t.dailyRecordId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmMortalityRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmMortalityRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> farmFeedRecordsRefs<T extends Object>(
+    Expression<T> Function($$FarmFeedRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmFeedRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmFeedRecords,
+      getReferencedColumn: (t) => t.dailyRecordId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmFeedRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmFeedRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmEventsRefs<T extends Object>(
+    Expression<T> Function($$FarmEventsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.farmEvents,
+      getReferencedColumn: (t) => t.dailyRecordId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> farmReportSnapshotsRefs<T extends Object>(
+    Expression<T> Function($$FarmReportSnapshotsTableAnnotationComposer a) f,
+  ) {
+    final $$FarmReportSnapshotsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.farmReportSnapshots,
+          getReferencedColumn: (t) => t.dailyRecordId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmReportSnapshotsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmReportSnapshots,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$FarmDailyRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FarmDailyRecordsTable,
+          FarmDailyRecord,
+          $$FarmDailyRecordsTableFilterComposer,
+          $$FarmDailyRecordsTableOrderingComposer,
+          $$FarmDailyRecordsTableAnnotationComposer,
+          $$FarmDailyRecordsTableCreateCompanionBuilder,
+          $$FarmDailyRecordsTableUpdateCompanionBuilder,
+          (FarmDailyRecord, $$FarmDailyRecordsTableReferences),
+          FarmDailyRecord,
+          PrefetchHooks Function({
+            bool clinicId,
+            bool farmId,
+            bool createdByUserId,
+            bool farmHealthRecordsRefs,
+            bool farmSpeciesPopulationMovementsRefs,
+            bool farmMortalityRecordsRefs,
+            bool farmFeedRecordsRefs,
+            bool farmEventsRefs,
+            bool farmReportSnapshotsRefs,
+          })
+        > {
+  $$FarmDailyRecordsTableTableManager(
+    _$AppDatabase db,
+    $FarmDailyRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FarmDailyRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FarmDailyRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FarmDailyRecordsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> clinicId = const Value.absent(),
+                Value<String> farmId = const Value.absent(),
+                Value<DateTime> recordDate = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> openingPopulation = const Value.absent(),
+                Value<int> births = const Value.absent(),
+                Value<int> purchases = const Value.absent(),
+                Value<int> transfersIn = const Value.absent(),
+                Value<int> mortality = const Value.absent(),
+                Value<int> sales = const Value.absent(),
+                Value<int> transfersOut = const Value.absent(),
+                Value<int> closingPopulation = const Value.absent(),
+                Value<double> feedSuppliedKg = const Value.absent(),
+                Value<String?> dailyNote = const Value.absent(),
+                Value<String?> tasksForTomorrow = const Value.absent(),
+                Value<String?> correctionReason = const Value.absent(),
+                Value<String?> originalSnapshotJson = const Value.absent(),
+                Value<String?> lastEditedByUserId = const Value.absent(),
+                Value<DateTime?> finalizedAt = const Value.absent(),
+                Value<String?> finalizedByUserId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String> createdByUserId = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FarmDailyRecordsCompanion(
+                id: id,
+                clinicId: clinicId,
+                farmId: farmId,
+                recordDate: recordDate,
+                status: status,
+                openingPopulation: openingPopulation,
+                births: births,
+                purchases: purchases,
+                transfersIn: transfersIn,
+                mortality: mortality,
+                sales: sales,
+                transfersOut: transfersOut,
+                closingPopulation: closingPopulation,
+                feedSuppliedKg: feedSuppliedKg,
+                dailyNote: dailyNote,
+                tasksForTomorrow: tasksForTomorrow,
+                correctionReason: correctionReason,
+                originalSnapshotJson: originalSnapshotJson,
+                lastEditedByUserId: lastEditedByUserId,
+                finalizedAt: finalizedAt,
+                finalizedByUserId: finalizedByUserId,
+                createdAt: createdAt,
+                createdByUserId: createdByUserId,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String clinicId,
+                required String farmId,
+                required DateTime recordDate,
+                Value<String> status = const Value.absent(),
+                Value<int> openingPopulation = const Value.absent(),
+                Value<int> births = const Value.absent(),
+                Value<int> purchases = const Value.absent(),
+                Value<int> transfersIn = const Value.absent(),
+                Value<int> mortality = const Value.absent(),
+                Value<int> sales = const Value.absent(),
+                Value<int> transfersOut = const Value.absent(),
+                Value<int> closingPopulation = const Value.absent(),
+                Value<double> feedSuppliedKg = const Value.absent(),
+                Value<String?> dailyNote = const Value.absent(),
+                Value<String?> tasksForTomorrow = const Value.absent(),
+                Value<String?> correctionReason = const Value.absent(),
+                Value<String?> originalSnapshotJson = const Value.absent(),
+                Value<String?> lastEditedByUserId = const Value.absent(),
+                Value<DateTime?> finalizedAt = const Value.absent(),
+                Value<String?> finalizedByUserId = const Value.absent(),
+                required DateTime createdAt,
+                required String createdByUserId,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => FarmDailyRecordsCompanion.insert(
+                id: id,
+                clinicId: clinicId,
+                farmId: farmId,
+                recordDate: recordDate,
+                status: status,
+                openingPopulation: openingPopulation,
+                births: births,
+                purchases: purchases,
+                transfersIn: transfersIn,
+                mortality: mortality,
+                sales: sales,
+                transfersOut: transfersOut,
+                closingPopulation: closingPopulation,
+                feedSuppliedKg: feedSuppliedKg,
+                dailyNote: dailyNote,
+                tasksForTomorrow: tasksForTomorrow,
+                correctionReason: correctionReason,
+                originalSnapshotJson: originalSnapshotJson,
+                lastEditedByUserId: lastEditedByUserId,
+                finalizedAt: finalizedAt,
+                finalizedByUserId: finalizedByUserId,
+                createdAt: createdAt,
+                createdByUserId: createdByUserId,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FarmDailyRecordsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                clinicId = false,
+                farmId = false,
+                createdByUserId = false,
+                farmHealthRecordsRefs = false,
+                farmSpeciesPopulationMovementsRefs = false,
+                farmMortalityRecordsRefs = false,
+                farmFeedRecordsRefs = false,
+                farmEventsRefs = false,
+                farmReportSnapshotsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (farmHealthRecordsRefs) db.farmHealthRecords,
+                    if (farmSpeciesPopulationMovementsRefs)
+                      db.farmSpeciesPopulationMovements,
+                    if (farmMortalityRecordsRefs) db.farmMortalityRecords,
+                    if (farmFeedRecordsRefs) db.farmFeedRecords,
+                    if (farmEventsRefs) db.farmEvents,
+                    if (farmReportSnapshotsRefs) db.farmReportSnapshots,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (clinicId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.clinicId,
+                                    referencedTable:
+                                        $$FarmDailyRecordsTableReferences
+                                            ._clinicIdTable(db),
+                                    referencedColumn:
+                                        $$FarmDailyRecordsTableReferences
+                                            ._clinicIdTable(db)
+                                            .clinicId,
+                                  )
+                                  as T;
+                        }
+                        if (farmId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.farmId,
+                                    referencedTable:
+                                        $$FarmDailyRecordsTableReferences
+                                            ._farmIdTable(db),
+                                    referencedColumn:
+                                        $$FarmDailyRecordsTableReferences
+                                            ._farmIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (createdByUserId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.createdByUserId,
+                                    referencedTable:
+                                        $$FarmDailyRecordsTableReferences
+                                            ._createdByUserIdTable(db),
+                                    referencedColumn:
+                                        $$FarmDailyRecordsTableReferences
+                                            ._createdByUserIdTable(db)
+                                            .userId,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (farmHealthRecordsRefs)
+                        await $_getPrefetchedData<
+                          FarmDailyRecord,
+                          $FarmDailyRecordsTable,
+                          FarmHealthRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmDailyRecordsTableReferences
+                              ._farmHealthRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmDailyRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmHealthRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.dailyRecordId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmSpeciesPopulationMovementsRefs)
+                        await $_getPrefetchedData<
+                          FarmDailyRecord,
+                          $FarmDailyRecordsTable,
+                          FarmSpeciesPopulationMovement
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmDailyRecordsTableReferences
+                              ._farmSpeciesPopulationMovementsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmDailyRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmSpeciesPopulationMovementsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.dailyRecordId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmMortalityRecordsRefs)
+                        await $_getPrefetchedData<
+                          FarmDailyRecord,
+                          $FarmDailyRecordsTable,
+                          FarmMortalityRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmDailyRecordsTableReferences
+                              ._farmMortalityRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmDailyRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmMortalityRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.dailyRecordId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmFeedRecordsRefs)
+                        await $_getPrefetchedData<
+                          FarmDailyRecord,
+                          $FarmDailyRecordsTable,
+                          FarmFeedRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmDailyRecordsTableReferences
+                              ._farmFeedRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmDailyRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmFeedRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.dailyRecordId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmEventsRefs)
+                        await $_getPrefetchedData<
+                          FarmDailyRecord,
+                          $FarmDailyRecordsTable,
+                          FarmEvent
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmDailyRecordsTableReferences
+                              ._farmEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmDailyRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.dailyRecordId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (farmReportSnapshotsRefs)
+                        await $_getPrefetchedData<
+                          FarmDailyRecord,
+                          $FarmDailyRecordsTable,
+                          FarmReportSnapshot
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmDailyRecordsTableReferences
+                              ._farmReportSnapshotsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmDailyRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).farmReportSnapshotsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.dailyRecordId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$FarmDailyRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FarmDailyRecordsTable,
+      FarmDailyRecord,
+      $$FarmDailyRecordsTableFilterComposer,
+      $$FarmDailyRecordsTableOrderingComposer,
+      $$FarmDailyRecordsTableAnnotationComposer,
+      $$FarmDailyRecordsTableCreateCompanionBuilder,
+      $$FarmDailyRecordsTableUpdateCompanionBuilder,
+      (FarmDailyRecord, $$FarmDailyRecordsTableReferences),
+      FarmDailyRecord,
+      PrefetchHooks Function({
+        bool clinicId,
+        bool farmId,
+        bool createdByUserId,
+        bool farmHealthRecordsRefs,
+        bool farmSpeciesPopulationMovementsRefs,
+        bool farmMortalityRecordsRefs,
+        bool farmFeedRecordsRefs,
+        bool farmEventsRefs,
+        bool farmReportSnapshotsRefs,
+      })
+    >;
+typedef $$FarmHealthRecordsTableCreateCompanionBuilder =
+    FarmHealthRecordsCompanion Function({
+      Value<int> id,
+      required String clinicId,
+      required String farmId,
+      Value<String?> dailyRecordId,
+      Value<int?> farmUnitId,
+      required DateTime occurredAt,
+      required String eventType,
+      Value<String?> product,
+      Value<String?> manufacturer,
+      Value<String?> batchNumber,
+      Value<String?> purpose,
+      Value<String?> dose,
+      Value<String?> route,
+      Value<int?> animalsCovered,
+      Value<String?> administeredBy,
+      Value<DateTime?> nextDueDate,
+      Value<double?> billableAmount,
+      Value<String?> notes,
+      required String createdByUserId,
+    });
+typedef $$FarmHealthRecordsTableUpdateCompanionBuilder =
+    FarmHealthRecordsCompanion Function({
+      Value<int> id,
+      Value<String> clinicId,
+      Value<String> farmId,
+      Value<String?> dailyRecordId,
+      Value<int?> farmUnitId,
+      Value<DateTime> occurredAt,
+      Value<String> eventType,
+      Value<String?> product,
+      Value<String?> manufacturer,
+      Value<String?> batchNumber,
+      Value<String?> purpose,
+      Value<String?> dose,
+      Value<String?> route,
+      Value<int?> animalsCovered,
+      Value<String?> administeredBy,
+      Value<DateTime?> nextDueDate,
+      Value<double?> billableAmount,
+      Value<String?> notes,
+      Value<String> createdByUserId,
+    });
+
+final class $$FarmHealthRecordsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $FarmHealthRecordsTable,
+          FarmHealthRecord
+        > {
+  $$FarmHealthRecordsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
+      db.clinics.createAlias(
+        $_aliasNameGenerator(
+          db.farmHealthRecords.clinicId,
+          db.clinics.clinicId,
+        ),
+      );
+
+  $$ClinicsTableProcessedTableManager get clinicId {
+    final $_column = $_itemColumn<String>('clinic_id')!;
+
+    final manager = $$ClinicsTableTableManager(
+      $_db,
+      $_db.clinics,
+    ).filter((f) => f.clinicId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmsTable _farmIdTable(_$AppDatabase db) => db.farms.createAlias(
+    $_aliasNameGenerator(db.farmHealthRecords.farmId, db.farms.id),
+  );
+
+  $$FarmsTableProcessedTableManager get farmId {
+    final $_column = $_itemColumn<String>('farm_id')!;
+
+    final manager = $$FarmsTableTableManager(
+      $_db,
+      $_db.farms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_farmIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmDailyRecordsTable _dailyRecordIdTable(_$AppDatabase db) =>
+      db.farmDailyRecords.createAlias(
+        $_aliasNameGenerator(
+          db.farmHealthRecords.dailyRecordId,
+          db.farmDailyRecords.id,
+        ),
+      );
+
+  $$FarmDailyRecordsTableProcessedTableManager? get dailyRecordId {
+    final $_column = $_itemColumn<String>('daily_record_id');
+    if ($_column == null) return null;
+    final manager = $$FarmDailyRecordsTableTableManager(
+      $_db,
+      $_db.farmDailyRecords,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_dailyRecordIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmUnitsTable _farmUnitIdTable(_$AppDatabase db) =>
+      db.farmUnits.createAlias(
+        $_aliasNameGenerator(db.farmHealthRecords.farmUnitId, db.farmUnits.id),
+      );
+
+  $$FarmUnitsTableProcessedTableManager? get farmUnitId {
+    final $_column = $_itemColumn<int>('farm_unit_id');
+    if ($_column == null) return null;
+    final manager = $$FarmUnitsTableTableManager(
+      $_db,
+      $_db.farmUnits,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_farmUnitIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AppUsersTable _createdByUserIdTable(_$AppDatabase db) =>
+      db.appUsers.createAlias(
+        $_aliasNameGenerator(
+          db.farmHealthRecords.createdByUserId,
+          db.appUsers.userId,
+        ),
+      );
+
+  $$AppUsersTableProcessedTableManager get createdByUserId {
+    final $_column = $_itemColumn<String>('created_by_user_id')!;
+
+    final manager = $$AppUsersTableTableManager(
+      $_db,
+      $_db.appUsers,
+    ).filter((f) => f.userId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_createdByUserIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $InvoiceServiceLinesTable,
+    List<InvoiceServiceLine>
+  >
+  _invoiceServiceLinesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.invoiceServiceLines,
+        aliasName: $_aliasNameGenerator(
+          db.farmHealthRecords.id,
+          db.invoiceServiceLines.sourceTreatmentRecordId,
+        ),
+      );
+
+  $$InvoiceServiceLinesTableProcessedTableManager get invoiceServiceLinesRefs {
+    final manager =
+        $$InvoiceServiceLinesTableTableManager(
+          $_db,
+          $_db.invoiceServiceLines,
+        ).filter(
+          (f) =>
+              f.sourceTreatmentRecordId.id.sqlEquals($_itemColumn<int>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _invoiceServiceLinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$FarmHealthRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $FarmHealthRecordsTable> {
+  $$FarmHealthRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get eventType => $composableBuilder(
+    column: $table.eventType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get product => $composableBuilder(
+    column: $table.product,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get manufacturer => $composableBuilder(
+    column: $table.manufacturer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get batchNumber => $composableBuilder(
+    column: $table.batchNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get purpose => $composableBuilder(
+    column: $table.purpose,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dose => $composableBuilder(
+    column: $table.dose,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get route => $composableBuilder(
+    column: $table.route,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get animalsCovered => $composableBuilder(
+    column: $table.animalsCovered,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get administeredBy => $composableBuilder(
+    column: $table.administeredBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextDueDate => $composableBuilder(
+    column: $table.nextDueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get billableAmount => $composableBuilder(
+    column: $table.billableAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ClinicsTableFilterComposer get clinicId {
+    final $$ClinicsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableFilterComposer get farmId {
+    final $$FarmsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableFilterComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmDailyRecordsTableFilterComposer get dailyRecordId {
+    final $$FarmDailyRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.dailyRecordId,
+      referencedTable: $db.farmDailyRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmDailyRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmDailyRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmUnitsTableFilterComposer get farmUnitId {
+    final $$FarmUnitsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableFilterComposer get createdByUserId {
+    final $$AppUsersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableFilterComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> invoiceServiceLinesRefs(
+    Expression<bool> Function($$InvoiceServiceLinesTableFilterComposer f) f,
+  ) {
+    final $$InvoiceServiceLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.invoiceServiceLines,
+      getReferencedColumn: (t) => t.sourceTreatmentRecordId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoiceServiceLinesTableFilterComposer(
+            $db: $db,
+            $table: $db.invoiceServiceLines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$FarmHealthRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FarmHealthRecordsTable> {
+  $$FarmHealthRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get eventType => $composableBuilder(
+    column: $table.eventType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get product => $composableBuilder(
+    column: $table.product,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get manufacturer => $composableBuilder(
+    column: $table.manufacturer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get batchNumber => $composableBuilder(
+    column: $table.batchNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get purpose => $composableBuilder(
+    column: $table.purpose,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dose => $composableBuilder(
+    column: $table.dose,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get route => $composableBuilder(
+    column: $table.route,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get animalsCovered => $composableBuilder(
+    column: $table.animalsCovered,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get administeredBy => $composableBuilder(
+    column: $table.administeredBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextDueDate => $composableBuilder(
+    column: $table.nextDueDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get billableAmount => $composableBuilder(
+    column: $table.billableAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ClinicsTableOrderingComposer get clinicId {
+    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableOrderingComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableOrderingComposer get farmId {
+    final $$FarmsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmDailyRecordsTableOrderingComposer get dailyRecordId {
+    final $$FarmDailyRecordsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.dailyRecordId,
+      referencedTable: $db.farmDailyRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmDailyRecordsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farmDailyRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmUnitsTableOrderingComposer get farmUnitId {
+    final $$FarmUnitsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableOrderingComposer get createdByUserId {
+    final $$AppUsersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableOrderingComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FarmHealthRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FarmHealthRecordsTable> {
+  $$FarmHealthRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get eventType =>
+      $composableBuilder(column: $table.eventType, builder: (column) => column);
+
+  GeneratedColumn<String> get product =>
+      $composableBuilder(column: $table.product, builder: (column) => column);
+
+  GeneratedColumn<String> get manufacturer => $composableBuilder(
+    column: $table.manufacturer,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get batchNumber => $composableBuilder(
+    column: $table.batchNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get purpose =>
+      $composableBuilder(column: $table.purpose, builder: (column) => column);
+
+  GeneratedColumn<String> get dose =>
+      $composableBuilder(column: $table.dose, builder: (column) => column);
+
+  GeneratedColumn<String> get route =>
+      $composableBuilder(column: $table.route, builder: (column) => column);
+
+  GeneratedColumn<int> get animalsCovered => $composableBuilder(
+    column: $table.animalsCovered,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get administeredBy => $composableBuilder(
+    column: $table.administeredBy,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get nextDueDate => $composableBuilder(
+    column: $table.nextDueDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get billableAmount => $composableBuilder(
+    column: $table.billableAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  $$ClinicsTableAnnotationComposer get clinicId {
+    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clinicId,
+      referencedTable: $db.clinics,
+      getReferencedColumn: (t) => t.clinicId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.clinics,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmsTableAnnotationComposer get farmId {
+    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmId,
+      referencedTable: $db.farms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmDailyRecordsTableAnnotationComposer get dailyRecordId {
+    final $$FarmDailyRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.dailyRecordId,
+      referencedTable: $db.farmDailyRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmDailyRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmDailyRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmUnitsTableAnnotationComposer get farmUnitId {
+    final $$FarmUnitsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AppUsersTableAnnotationComposer get createdByUserId {
+    final $$AppUsersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.createdByUserId,
+      referencedTable: $db.appUsers,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AppUsersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.appUsers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> invoiceServiceLinesRefs<T extends Object>(
+    Expression<T> Function($$InvoiceServiceLinesTableAnnotationComposer a) f,
+  ) {
+    final $$InvoiceServiceLinesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.invoiceServiceLines,
+          getReferencedColumn: (t) => t.sourceTreatmentRecordId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$InvoiceServiceLinesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.invoiceServiceLines,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$FarmHealthRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FarmHealthRecordsTable,
+          FarmHealthRecord,
+          $$FarmHealthRecordsTableFilterComposer,
+          $$FarmHealthRecordsTableOrderingComposer,
+          $$FarmHealthRecordsTableAnnotationComposer,
+          $$FarmHealthRecordsTableCreateCompanionBuilder,
+          $$FarmHealthRecordsTableUpdateCompanionBuilder,
+          (FarmHealthRecord, $$FarmHealthRecordsTableReferences),
+          FarmHealthRecord,
+          PrefetchHooks Function({
+            bool clinicId,
+            bool farmId,
+            bool dailyRecordId,
+            bool farmUnitId,
+            bool createdByUserId,
+            bool invoiceServiceLinesRefs,
+          })
+        > {
+  $$FarmHealthRecordsTableTableManager(
+    _$AppDatabase db,
+    $FarmHealthRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FarmHealthRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FarmHealthRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FarmHealthRecordsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> clinicId = const Value.absent(),
+                Value<String> farmId = const Value.absent(),
+                Value<String?> dailyRecordId = const Value.absent(),
+                Value<int?> farmUnitId = const Value.absent(),
+                Value<DateTime> occurredAt = const Value.absent(),
+                Value<String> eventType = const Value.absent(),
+                Value<String?> product = const Value.absent(),
+                Value<String?> manufacturer = const Value.absent(),
+                Value<String?> batchNumber = const Value.absent(),
+                Value<String?> purpose = const Value.absent(),
+                Value<String?> dose = const Value.absent(),
+                Value<String?> route = const Value.absent(),
+                Value<int?> animalsCovered = const Value.absent(),
+                Value<String?> administeredBy = const Value.absent(),
+                Value<DateTime?> nextDueDate = const Value.absent(),
+                Value<double?> billableAmount = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<String> createdByUserId = const Value.absent(),
+              }) => FarmHealthRecordsCompanion(
+                id: id,
+                clinicId: clinicId,
+                farmId: farmId,
+                dailyRecordId: dailyRecordId,
+                farmUnitId: farmUnitId,
+                occurredAt: occurredAt,
+                eventType: eventType,
+                product: product,
+                manufacturer: manufacturer,
+                batchNumber: batchNumber,
+                purpose: purpose,
+                dose: dose,
+                route: route,
+                animalsCovered: animalsCovered,
+                administeredBy: administeredBy,
+                nextDueDate: nextDueDate,
+                billableAmount: billableAmount,
+                notes: notes,
+                createdByUserId: createdByUserId,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String clinicId,
+                required String farmId,
+                Value<String?> dailyRecordId = const Value.absent(),
+                Value<int?> farmUnitId = const Value.absent(),
+                required DateTime occurredAt,
+                required String eventType,
+                Value<String?> product = const Value.absent(),
+                Value<String?> manufacturer = const Value.absent(),
+                Value<String?> batchNumber = const Value.absent(),
+                Value<String?> purpose = const Value.absent(),
+                Value<String?> dose = const Value.absent(),
+                Value<String?> route = const Value.absent(),
+                Value<int?> animalsCovered = const Value.absent(),
+                Value<String?> administeredBy = const Value.absent(),
+                Value<DateTime?> nextDueDate = const Value.absent(),
+                Value<double?> billableAmount = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                required String createdByUserId,
+              }) => FarmHealthRecordsCompanion.insert(
+                id: id,
+                clinicId: clinicId,
+                farmId: farmId,
+                dailyRecordId: dailyRecordId,
+                farmUnitId: farmUnitId,
+                occurredAt: occurredAt,
+                eventType: eventType,
+                product: product,
+                manufacturer: manufacturer,
+                batchNumber: batchNumber,
+                purpose: purpose,
+                dose: dose,
+                route: route,
+                animalsCovered: animalsCovered,
+                administeredBy: administeredBy,
+                nextDueDate: nextDueDate,
+                billableAmount: billableAmount,
+                notes: notes,
+                createdByUserId: createdByUserId,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FarmHealthRecordsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                clinicId = false,
+                farmId = false,
+                dailyRecordId = false,
+                farmUnitId = false,
+                createdByUserId = false,
+                invoiceServiceLinesRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (invoiceServiceLinesRefs) db.invoiceServiceLines,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (clinicId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.clinicId,
+                                    referencedTable:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._clinicIdTable(db),
+                                    referencedColumn:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._clinicIdTable(db)
+                                            .clinicId,
+                                  )
+                                  as T;
+                        }
+                        if (farmId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.farmId,
+                                    referencedTable:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._farmIdTable(db),
+                                    referencedColumn:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._farmIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (dailyRecordId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.dailyRecordId,
+                                    referencedTable:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._dailyRecordIdTable(db),
+                                    referencedColumn:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._dailyRecordIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (farmUnitId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.farmUnitId,
+                                    referencedTable:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._farmUnitIdTable(db),
+                                    referencedColumn:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._farmUnitIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (createdByUserId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.createdByUserId,
+                                    referencedTable:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._createdByUserIdTable(db),
+                                    referencedColumn:
+                                        $$FarmHealthRecordsTableReferences
+                                            ._createdByUserIdTable(db)
+                                            .userId,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (invoiceServiceLinesRefs)
+                        await $_getPrefetchedData<
+                          FarmHealthRecord,
+                          $FarmHealthRecordsTable,
+                          InvoiceServiceLine
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmHealthRecordsTableReferences
+                              ._invoiceServiceLinesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmHealthRecordsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).invoiceServiceLinesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sourceTreatmentRecordId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$FarmHealthRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FarmHealthRecordsTable,
+      FarmHealthRecord,
+      $$FarmHealthRecordsTableFilterComposer,
+      $$FarmHealthRecordsTableOrderingComposer,
+      $$FarmHealthRecordsTableAnnotationComposer,
+      $$FarmHealthRecordsTableCreateCompanionBuilder,
+      $$FarmHealthRecordsTableUpdateCompanionBuilder,
+      (FarmHealthRecord, $$FarmHealthRecordsTableReferences),
+      FarmHealthRecord,
+      PrefetchHooks Function({
+        bool clinicId,
+        bool farmId,
+        bool dailyRecordId,
+        bool farmUnitId,
+        bool createdByUserId,
+        bool invoiceServiceLinesRefs,
+      })
+    >;
 typedef $$InvoiceServiceLinesTableCreateCompanionBuilder =
     InvoiceServiceLinesCompanion Function({
       Value<int> id,
       required int invoiceId,
       Value<int?> animalId,
+      Value<int?> farmUnitId,
+      Value<int?> sourceTreatmentRecordId,
       required String description,
       required double amount,
       Value<double?> costSnapshot,
@@ -64371,6 +72341,8 @@ typedef $$InvoiceServiceLinesTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int> invoiceId,
       Value<int?> animalId,
+      Value<int?> farmUnitId,
+      Value<int?> sourceTreatmentRecordId,
       Value<String> description,
       Value<double> amount,
       Value<double?> costSnapshot,
@@ -64421,6 +72393,53 @@ final class $$InvoiceServiceLinesTableReferences
       $_db.animals,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_animalIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmUnitsTable _farmUnitIdTable(_$AppDatabase db) =>
+      db.farmUnits.createAlias(
+        $_aliasNameGenerator(
+          db.invoiceServiceLines.farmUnitId,
+          db.farmUnits.id,
+        ),
+      );
+
+  $$FarmUnitsTableProcessedTableManager? get farmUnitId {
+    final $_column = $_itemColumn<int>('farm_unit_id');
+    if ($_column == null) return null;
+    final manager = $$FarmUnitsTableTableManager(
+      $_db,
+      $_db.farmUnits,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_farmUnitIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmHealthRecordsTable _sourceTreatmentRecordIdTable(
+    _$AppDatabase db,
+  ) => db.farmHealthRecords.createAlias(
+    $_aliasNameGenerator(
+      db.invoiceServiceLines.sourceTreatmentRecordId,
+      db.farmHealthRecords.id,
+    ),
+  );
+
+  $$FarmHealthRecordsTableProcessedTableManager? get sourceTreatmentRecordId {
+    final $_column = $_itemColumn<int>('source_treatment_record_id');
+    if ($_column == null) return null;
+    final manager = $$FarmHealthRecordsTableTableManager(
+      $_db,
+      $_db.farmHealthRecords,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(
+      _sourceTreatmentRecordIdTable($_db),
+    );
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -64494,6 +72513,52 @@ class $$InvoiceServiceLinesTableFilterComposer
           }) => $$AnimalsTableFilterComposer(
             $db: $db,
             $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmUnitsTableFilterComposer get farmUnitId {
+    final $$FarmUnitsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmHealthRecordsTableFilterComposer get sourceTreatmentRecordId {
+    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceTreatmentRecordId,
+      referencedTable: $db.farmHealthRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmHealthRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmHealthRecords,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -64578,6 +72643,52 @@ class $$InvoiceServiceLinesTableOrderingComposer
     );
     return composer;
   }
+
+  $$FarmUnitsTableOrderingComposer get farmUnitId {
+    final $$FarmUnitsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmHealthRecordsTableOrderingComposer get sourceTreatmentRecordId {
+    final $$FarmHealthRecordsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceTreatmentRecordId,
+      referencedTable: $db.farmHealthRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmHealthRecordsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farmHealthRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$InvoiceServiceLinesTableAnnotationComposer
@@ -64650,6 +72761,53 @@ class $$InvoiceServiceLinesTableAnnotationComposer
     );
     return composer;
   }
+
+  $$FarmUnitsTableAnnotationComposer get farmUnitId {
+    final $$FarmUnitsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmHealthRecordsTableAnnotationComposer get sourceTreatmentRecordId {
+    final $$FarmHealthRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.sourceTreatmentRecordId,
+          referencedTable: $db.farmHealthRecords,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FarmHealthRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.farmHealthRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
 }
 
 class $$InvoiceServiceLinesTableTableManager
@@ -64665,7 +72823,12 @@ class $$InvoiceServiceLinesTableTableManager
           $$InvoiceServiceLinesTableUpdateCompanionBuilder,
           (InvoiceServiceLine, $$InvoiceServiceLinesTableReferences),
           InvoiceServiceLine,
-          PrefetchHooks Function({bool invoiceId, bool animalId})
+          PrefetchHooks Function({
+            bool invoiceId,
+            bool animalId,
+            bool farmUnitId,
+            bool sourceTreatmentRecordId,
+          })
         > {
   $$InvoiceServiceLinesTableTableManager(
     _$AppDatabase db,
@@ -64691,6 +72854,8 @@ class $$InvoiceServiceLinesTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> invoiceId = const Value.absent(),
                 Value<int?> animalId = const Value.absent(),
+                Value<int?> farmUnitId = const Value.absent(),
+                Value<int?> sourceTreatmentRecordId = const Value.absent(),
                 Value<String> description = const Value.absent(),
                 Value<double> amount = const Value.absent(),
                 Value<double?> costSnapshot = const Value.absent(),
@@ -64698,6 +72863,8 @@ class $$InvoiceServiceLinesTableTableManager
                 id: id,
                 invoiceId: invoiceId,
                 animalId: animalId,
+                farmUnitId: farmUnitId,
+                sourceTreatmentRecordId: sourceTreatmentRecordId,
                 description: description,
                 amount: amount,
                 costSnapshot: costSnapshot,
@@ -64707,6 +72874,8 @@ class $$InvoiceServiceLinesTableTableManager
                 Value<int> id = const Value.absent(),
                 required int invoiceId,
                 Value<int?> animalId = const Value.absent(),
+                Value<int?> farmUnitId = const Value.absent(),
+                Value<int?> sourceTreatmentRecordId = const Value.absent(),
                 required String description,
                 required double amount,
                 Value<double?> costSnapshot = const Value.absent(),
@@ -64714,6 +72883,8 @@ class $$InvoiceServiceLinesTableTableManager
                 id: id,
                 invoiceId: invoiceId,
                 animalId: animalId,
+                farmUnitId: farmUnitId,
+                sourceTreatmentRecordId: sourceTreatmentRecordId,
                 description: description,
                 amount: amount,
                 costSnapshot: costSnapshot,
@@ -64726,64 +72897,101 @@ class $$InvoiceServiceLinesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({invoiceId = false, animalId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (invoiceId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.invoiceId,
-                                referencedTable:
-                                    $$InvoiceServiceLinesTableReferences
-                                        ._invoiceIdTable(db),
-                                referencedColumn:
-                                    $$InvoiceServiceLinesTableReferences
-                                        ._invoiceIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
-                    if (animalId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.animalId,
-                                referencedTable:
-                                    $$InvoiceServiceLinesTableReferences
-                                        ._animalIdTable(db),
-                                referencedColumn:
-                                    $$InvoiceServiceLinesTableReferences
-                                        ._animalIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                invoiceId = false,
+                animalId = false,
+                farmUnitId = false,
+                sourceTreatmentRecordId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (invoiceId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.invoiceId,
+                                    referencedTable:
+                                        $$InvoiceServiceLinesTableReferences
+                                            ._invoiceIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceServiceLinesTableReferences
+                                            ._invoiceIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (animalId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.animalId,
+                                    referencedTable:
+                                        $$InvoiceServiceLinesTableReferences
+                                            ._animalIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceServiceLinesTableReferences
+                                            ._animalIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (farmUnitId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.farmUnitId,
+                                    referencedTable:
+                                        $$InvoiceServiceLinesTableReferences
+                                            ._farmUnitIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceServiceLinesTableReferences
+                                            ._farmUnitIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (sourceTreatmentRecordId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn:
+                                        table.sourceTreatmentRecordId,
+                                    referencedTable:
+                                        $$InvoiceServiceLinesTableReferences
+                                            ._sourceTreatmentRecordIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceServiceLinesTableReferences
+                                            ._sourceTreatmentRecordIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -64800,7 +73008,12 @@ typedef $$InvoiceServiceLinesTableProcessedTableManager =
       $$InvoiceServiceLinesTableUpdateCompanionBuilder,
       (InvoiceServiceLine, $$InvoiceServiceLinesTableReferences),
       InvoiceServiceLine,
-      PrefetchHooks Function({bool invoiceId, bool animalId})
+      PrefetchHooks Function({
+        bool invoiceId,
+        bool animalId,
+        bool farmUnitId,
+        bool sourceTreatmentRecordId,
+      })
     >;
 typedef $$InventoryStockMovementsTableCreateCompanionBuilder =
     InventoryStockMovementsCompanion Function({
@@ -74027,4232 +82240,6 @@ typedef $$SubscriptionAuditLogsTableProcessedTableManager =
       SubscriptionAuditLog,
       PrefetchHooks Function({bool clinicId})
     >;
-typedef $$FarmsTableCreateCompanionBuilder =
-    FarmsCompanion Function({
-      required String id,
-      required String clinicId,
-      required String name,
-      Value<String?> location,
-      Value<String> speciesJson,
-      Value<String> breedJson,
-      Value<String?> ownerOrganization,
-      Value<String?> contactNumber,
-      Value<String?> farmType,
-      Value<String?> notes,
-      Value<String> status,
-      required DateTime createdAt,
-      required String createdByUserId,
-      required DateTime updatedAt,
-      Value<int> rowid,
-    });
-typedef $$FarmsTableUpdateCompanionBuilder =
-    FarmsCompanion Function({
-      Value<String> id,
-      Value<String> clinicId,
-      Value<String> name,
-      Value<String?> location,
-      Value<String> speciesJson,
-      Value<String> breedJson,
-      Value<String?> ownerOrganization,
-      Value<String?> contactNumber,
-      Value<String?> farmType,
-      Value<String?> notes,
-      Value<String> status,
-      Value<DateTime> createdAt,
-      Value<String> createdByUserId,
-      Value<DateTime> updatedAt,
-      Value<int> rowid,
-    });
-
-final class $$FarmsTableReferences
-    extends BaseReferences<_$AppDatabase, $FarmsTable, Farm> {
-  $$FarmsTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
-      db.clinics.createAlias(
-        $_aliasNameGenerator(db.farms.clinicId, db.clinics.clinicId),
-      );
-
-  $$ClinicsTableProcessedTableManager get clinicId {
-    final $_column = $_itemColumn<String>('clinic_id')!;
-
-    final manager = $$ClinicsTableTableManager(
-      $_db,
-      $_db.clinics,
-    ).filter((f) => f.clinicId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $AppUsersTable _createdByUserIdTable(_$AppDatabase db) =>
-      db.appUsers.createAlias(
-        $_aliasNameGenerator(db.farms.createdByUserId, db.appUsers.userId),
-      );
-
-  $$AppUsersTableProcessedTableManager get createdByUserId {
-    final $_column = $_itemColumn<String>('created_by_user_id')!;
-
-    final manager = $$AppUsersTableTableManager(
-      $_db,
-      $_db.appUsers,
-    ).filter((f) => f.userId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_createdByUserIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmUnitsTable, List<FarmUnit>>
-  _farmUnitsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmUnits,
-    aliasName: $_aliasNameGenerator(db.farms.id, db.farmUnits.farmId),
-  );
-
-  $$FarmUnitsTableProcessedTableManager get farmUnitsRefs {
-    final manager = $$FarmUnitsTableTableManager(
-      $_db,
-      $_db.farmUnits,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_farmUnitsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmDailyRecordsTable, List<FarmDailyRecord>>
-  _farmDailyRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmDailyRecords,
-    aliasName: $_aliasNameGenerator(db.farms.id, db.farmDailyRecords.farmId),
-  );
-
-  $$FarmDailyRecordsTableProcessedTableManager get farmDailyRecordsRefs {
-    final manager = $$FarmDailyRecordsTableTableManager(
-      $_db,
-      $_db.farmDailyRecords,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmDailyRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmSpeciesPopulationMovementsTable,
-    List<FarmSpeciesPopulationMovement>
-  >
-  _farmSpeciesPopulationMovementsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmSpeciesPopulationMovements,
-        aliasName: $_aliasNameGenerator(
-          db.farms.id,
-          db.farmSpeciesPopulationMovements.farmId,
-        ),
-      );
-
-  $$FarmSpeciesPopulationMovementsTableProcessedTableManager
-  get farmSpeciesPopulationMovementsRefs {
-    final manager = $$FarmSpeciesPopulationMovementsTableTableManager(
-      $_db,
-      $_db.farmSpeciesPopulationMovements,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmSpeciesPopulationMovementsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmMortalityRecordsTable,
-    List<FarmMortalityRecord>
-  >
-  _farmMortalityRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmMortalityRecords,
-        aliasName: $_aliasNameGenerator(
-          db.farms.id,
-          db.farmMortalityRecords.farmId,
-        ),
-      );
-
-  $$FarmMortalityRecordsTableProcessedTableManager
-  get farmMortalityRecordsRefs {
-    final manager = $$FarmMortalityRecordsTableTableManager(
-      $_db,
-      $_db.farmMortalityRecords,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmMortalityRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmFeedRecordsTable, List<FarmFeedRecord>>
-  _farmFeedRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmFeedRecords,
-    aliasName: $_aliasNameGenerator(db.farms.id, db.farmFeedRecords.farmId),
-  );
-
-  $$FarmFeedRecordsTableProcessedTableManager get farmFeedRecordsRefs {
-    final manager = $$FarmFeedRecordsTableTableManager(
-      $_db,
-      $_db.farmFeedRecords,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmFeedRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmEventsTable, List<FarmEvent>>
-  _farmEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmEvents,
-    aliasName: $_aliasNameGenerator(db.farms.id, db.farmEvents.farmId),
-  );
-
-  $$FarmEventsTableProcessedTableManager get farmEventsRefs {
-    final manager = $$FarmEventsTableTableManager(
-      $_db,
-      $_db.farmEvents,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_farmEventsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmReproductionRecordsTable,
-    List<FarmReproductionRecord>
-  >
-  _farmReproductionRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmReproductionRecords,
-        aliasName: $_aliasNameGenerator(
-          db.farms.id,
-          db.farmReproductionRecords.farmId,
-        ),
-      );
-
-  $$FarmReproductionRecordsTableProcessedTableManager
-  get farmReproductionRecordsRefs {
-    final manager = $$FarmReproductionRecordsTableTableManager(
-      $_db,
-      $_db.farmReproductionRecords,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmReproductionRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
-  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmHealthRecords,
-        aliasName: $_aliasNameGenerator(
-          db.farms.id,
-          db.farmHealthRecords.farmId,
-        ),
-      );
-
-  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
-    final manager = $$FarmHealthRecordsTableTableManager(
-      $_db,
-      $_db.farmHealthRecords,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmHealthRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmReportSnapshotsTable,
-    List<FarmReportSnapshot>
-  >
-  _farmReportSnapshotsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmReportSnapshots,
-        aliasName: $_aliasNameGenerator(
-          db.farms.id,
-          db.farmReportSnapshots.farmId,
-        ),
-      );
-
-  $$FarmReportSnapshotsTableProcessedTableManager get farmReportSnapshotsRefs {
-    final manager = $$FarmReportSnapshotsTableTableManager(
-      $_db,
-      $_db.farmReportSnapshots,
-    ).filter((f) => f.farmId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmReportSnapshotsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-}
-
-class $$FarmsTableFilterComposer extends Composer<_$AppDatabase, $FarmsTable> {
-  $$FarmsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get location => $composableBuilder(
-    column: $table.location,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get speciesJson => $composableBuilder(
-    column: $table.speciesJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get breedJson => $composableBuilder(
-    column: $table.breedJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get ownerOrganization => $composableBuilder(
-    column: $table.ownerOrganization,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get contactNumber => $composableBuilder(
-    column: $table.contactNumber,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get farmType => $composableBuilder(
-    column: $table.farmType,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  $$ClinicsTableFilterComposer get clinicId {
-    final $$ClinicsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableFilterComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableFilterComposer get createdByUserId {
-    final $$AppUsersTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableFilterComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  Expression<bool> farmUnitsRefs(
-    Expression<bool> Function($$FarmUnitsTableFilterComposer f) f,
-  ) {
-    final $$FarmUnitsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmUnits,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmUnitsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmUnits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmDailyRecordsRefs(
-    Expression<bool> Function($$FarmDailyRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmDailyRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmDailyRecords,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmDailyRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmDailyRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmSpeciesPopulationMovementsRefs(
-    Expression<bool> Function(
-      $$FarmSpeciesPopulationMovementsTableFilterComposer f,
-    )
-    f,
-  ) {
-    final $$FarmSpeciesPopulationMovementsTableFilterComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmSpeciesPopulationMovements,
-          getReferencedColumn: (t) => t.farmId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmSpeciesPopulationMovementsTableFilterComposer(
-                $db: $db,
-                $table: $db.farmSpeciesPopulationMovements,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<bool> farmMortalityRecordsRefs(
-    Expression<bool> Function($$FarmMortalityRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmMortalityRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmMortalityRecords,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmMortalityRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmMortalityRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmFeedRecordsRefs(
-    Expression<bool> Function($$FarmFeedRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmFeedRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmFeedRecords,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmFeedRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmFeedRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmEventsRefs(
-    Expression<bool> Function($$FarmEventsTableFilterComposer f) f,
-  ) {
-    final $$FarmEventsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmEvents,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmEventsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmEvents,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmReproductionRecordsRefs(
-    Expression<bool> Function($$FarmReproductionRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmReproductionRecordsTableFilterComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmReproductionRecords,
-          getReferencedColumn: (t) => t.farmId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmReproductionRecordsTableFilterComposer(
-                $db: $db,
-                $table: $db.farmReproductionRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<bool> farmHealthRecordsRefs(
-    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmHealthRecords,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmHealthRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmHealthRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmReportSnapshotsRefs(
-    Expression<bool> Function($$FarmReportSnapshotsTableFilterComposer f) f,
-  ) {
-    final $$FarmReportSnapshotsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmReportSnapshots,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmReportSnapshotsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmReportSnapshots,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-}
-
-class $$FarmsTableOrderingComposer
-    extends Composer<_$AppDatabase, $FarmsTable> {
-  $$FarmsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get location => $composableBuilder(
-    column: $table.location,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get speciesJson => $composableBuilder(
-    column: $table.speciesJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get breedJson => $composableBuilder(
-    column: $table.breedJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get ownerOrganization => $composableBuilder(
-    column: $table.ownerOrganization,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get contactNumber => $composableBuilder(
-    column: $table.contactNumber,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get farmType => $composableBuilder(
-    column: $table.farmType,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  $$ClinicsTableOrderingComposer get clinicId {
-    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableOrderingComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableOrderingComposer get createdByUserId {
-    final $$AppUsersTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableOrderingComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$FarmsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $FarmsTable> {
-  $$FarmsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<String> get location =>
-      $composableBuilder(column: $table.location, builder: (column) => column);
-
-  GeneratedColumn<String> get speciesJson => $composableBuilder(
-    column: $table.speciesJson,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get breedJson =>
-      $composableBuilder(column: $table.breedJson, builder: (column) => column);
-
-  GeneratedColumn<String> get ownerOrganization => $composableBuilder(
-    column: $table.ownerOrganization,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get contactNumber => $composableBuilder(
-    column: $table.contactNumber,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get farmType =>
-      $composableBuilder(column: $table.farmType, builder: (column) => column);
-
-  GeneratedColumn<String> get notes =>
-      $composableBuilder(column: $table.notes, builder: (column) => column);
-
-  GeneratedColumn<String> get status =>
-      $composableBuilder(column: $table.status, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
-
-  $$ClinicsTableAnnotationComposer get clinicId {
-    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableAnnotationComposer get createdByUserId {
-    final $$AppUsersTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableAnnotationComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  Expression<T> farmUnitsRefs<T extends Object>(
-    Expression<T> Function($$FarmUnitsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmUnitsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmUnits,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmUnitsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmUnits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmDailyRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmDailyRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmDailyRecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmDailyRecords,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmDailyRecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmDailyRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmSpeciesPopulationMovementsRefs<T extends Object>(
-    Expression<T> Function(
-      $$FarmSpeciesPopulationMovementsTableAnnotationComposer a,
-    )
-    f,
-  ) {
-    final $$FarmSpeciesPopulationMovementsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmSpeciesPopulationMovements,
-          getReferencedColumn: (t) => t.farmId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmSpeciesPopulationMovementsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmSpeciesPopulationMovements,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmMortalityRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmMortalityRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmMortalityRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmMortalityRecords,
-          getReferencedColumn: (t) => t.farmId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmMortalityRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmMortalityRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmFeedRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmFeedRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmFeedRecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmFeedRecords,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmFeedRecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmFeedRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmEventsRefs<T extends Object>(
-    Expression<T> Function($$FarmEventsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmEventsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmEvents,
-      getReferencedColumn: (t) => t.farmId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmEventsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmEvents,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmReproductionRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmReproductionRecordsTableAnnotationComposer a)
-    f,
-  ) {
-    final $$FarmReproductionRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmReproductionRecords,
-          getReferencedColumn: (t) => t.farmId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmReproductionRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmReproductionRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmHealthRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmHealthRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmHealthRecords,
-          getReferencedColumn: (t) => t.farmId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmHealthRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmHealthRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmReportSnapshotsRefs<T extends Object>(
-    Expression<T> Function($$FarmReportSnapshotsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmReportSnapshotsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmReportSnapshots,
-          getReferencedColumn: (t) => t.farmId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmReportSnapshotsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmReportSnapshots,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-}
-
-class $$FarmsTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $FarmsTable,
-          Farm,
-          $$FarmsTableFilterComposer,
-          $$FarmsTableOrderingComposer,
-          $$FarmsTableAnnotationComposer,
-          $$FarmsTableCreateCompanionBuilder,
-          $$FarmsTableUpdateCompanionBuilder,
-          (Farm, $$FarmsTableReferences),
-          Farm,
-          PrefetchHooks Function({
-            bool clinicId,
-            bool createdByUserId,
-            bool farmUnitsRefs,
-            bool farmDailyRecordsRefs,
-            bool farmSpeciesPopulationMovementsRefs,
-            bool farmMortalityRecordsRefs,
-            bool farmFeedRecordsRefs,
-            bool farmEventsRefs,
-            bool farmReproductionRecordsRefs,
-            bool farmHealthRecordsRefs,
-            bool farmReportSnapshotsRefs,
-          })
-        > {
-  $$FarmsTableTableManager(_$AppDatabase db, $FarmsTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$FarmsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$FarmsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$FarmsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> clinicId = const Value.absent(),
-                Value<String> name = const Value.absent(),
-                Value<String?> location = const Value.absent(),
-                Value<String> speciesJson = const Value.absent(),
-                Value<String> breedJson = const Value.absent(),
-                Value<String?> ownerOrganization = const Value.absent(),
-                Value<String?> contactNumber = const Value.absent(),
-                Value<String?> farmType = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                Value<DateTime> createdAt = const Value.absent(),
-                Value<String> createdByUserId = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => FarmsCompanion(
-                id: id,
-                clinicId: clinicId,
-                name: name,
-                location: location,
-                speciesJson: speciesJson,
-                breedJson: breedJson,
-                ownerOrganization: ownerOrganization,
-                contactNumber: contactNumber,
-                farmType: farmType,
-                notes: notes,
-                status: status,
-                createdAt: createdAt,
-                createdByUserId: createdByUserId,
-                updatedAt: updatedAt,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String clinicId,
-                required String name,
-                Value<String?> location = const Value.absent(),
-                Value<String> speciesJson = const Value.absent(),
-                Value<String> breedJson = const Value.absent(),
-                Value<String?> ownerOrganization = const Value.absent(),
-                Value<String?> contactNumber = const Value.absent(),
-                Value<String?> farmType = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                required DateTime createdAt,
-                required String createdByUserId,
-                required DateTime updatedAt,
-                Value<int> rowid = const Value.absent(),
-              }) => FarmsCompanion.insert(
-                id: id,
-                clinicId: clinicId,
-                name: name,
-                location: location,
-                speciesJson: speciesJson,
-                breedJson: breedJson,
-                ownerOrganization: ownerOrganization,
-                contactNumber: contactNumber,
-                farmType: farmType,
-                notes: notes,
-                status: status,
-                createdAt: createdAt,
-                createdByUserId: createdByUserId,
-                updatedAt: updatedAt,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) =>
-                    (e.readTable(table), $$FarmsTableReferences(db, table, e)),
-              )
-              .toList(),
-          prefetchHooksCallback:
-              ({
-                clinicId = false,
-                createdByUserId = false,
-                farmUnitsRefs = false,
-                farmDailyRecordsRefs = false,
-                farmSpeciesPopulationMovementsRefs = false,
-                farmMortalityRecordsRefs = false,
-                farmFeedRecordsRefs = false,
-                farmEventsRefs = false,
-                farmReproductionRecordsRefs = false,
-                farmHealthRecordsRefs = false,
-                farmReportSnapshotsRefs = false,
-              }) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [
-                    if (farmUnitsRefs) db.farmUnits,
-                    if (farmDailyRecordsRefs) db.farmDailyRecords,
-                    if (farmSpeciesPopulationMovementsRefs)
-                      db.farmSpeciesPopulationMovements,
-                    if (farmMortalityRecordsRefs) db.farmMortalityRecords,
-                    if (farmFeedRecordsRefs) db.farmFeedRecords,
-                    if (farmEventsRefs) db.farmEvents,
-                    if (farmReproductionRecordsRefs) db.farmReproductionRecords,
-                    if (farmHealthRecordsRefs) db.farmHealthRecords,
-                    if (farmReportSnapshotsRefs) db.farmReportSnapshots,
-                  ],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (clinicId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.clinicId,
-                                    referencedTable: $$FarmsTableReferences
-                                        ._clinicIdTable(db),
-                                    referencedColumn: $$FarmsTableReferences
-                                        ._clinicIdTable(db)
-                                        .clinicId,
-                                  )
-                                  as T;
-                        }
-                        if (createdByUserId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.createdByUserId,
-                                    referencedTable: $$FarmsTableReferences
-                                        ._createdByUserIdTable(db),
-                                    referencedColumn: $$FarmsTableReferences
-                                        ._createdByUserIdTable(db)
-                                        .userId,
-                                  )
-                                  as T;
-                        }
-
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [
-                      if (farmUnitsRefs)
-                        await $_getPrefetchedData<Farm, $FarmsTable, FarmUnit>(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmUnitsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmUnitsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmDailyRecordsRefs)
-                        await $_getPrefetchedData<
-                          Farm,
-                          $FarmsTable,
-                          FarmDailyRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmDailyRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmDailyRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmSpeciesPopulationMovementsRefs)
-                        await $_getPrefetchedData<
-                          Farm,
-                          $FarmsTable,
-                          FarmSpeciesPopulationMovement
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmSpeciesPopulationMovementsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmSpeciesPopulationMovementsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmMortalityRecordsRefs)
-                        await $_getPrefetchedData<
-                          Farm,
-                          $FarmsTable,
-                          FarmMortalityRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmMortalityRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmMortalityRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmFeedRecordsRefs)
-                        await $_getPrefetchedData<
-                          Farm,
-                          $FarmsTable,
-                          FarmFeedRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmFeedRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmFeedRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmEventsRefs)
-                        await $_getPrefetchedData<Farm, $FarmsTable, FarmEvent>(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmEventsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmEventsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmReproductionRecordsRefs)
-                        await $_getPrefetchedData<
-                          Farm,
-                          $FarmsTable,
-                          FarmReproductionRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmReproductionRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmReproductionRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmHealthRecordsRefs)
-                        await $_getPrefetchedData<
-                          Farm,
-                          $FarmsTable,
-                          FarmHealthRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmHealthRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmHealthRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmReportSnapshotsRefs)
-                        await $_getPrefetchedData<
-                          Farm,
-                          $FarmsTable,
-                          FarmReportSnapshot
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmsTableReferences
-                              ._farmReportSnapshotsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmReportSnapshotsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                    ];
-                  },
-                );
-              },
-        ),
-      );
-}
-
-typedef $$FarmsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $FarmsTable,
-      Farm,
-      $$FarmsTableFilterComposer,
-      $$FarmsTableOrderingComposer,
-      $$FarmsTableAnnotationComposer,
-      $$FarmsTableCreateCompanionBuilder,
-      $$FarmsTableUpdateCompanionBuilder,
-      (Farm, $$FarmsTableReferences),
-      Farm,
-      PrefetchHooks Function({
-        bool clinicId,
-        bool createdByUserId,
-        bool farmUnitsRefs,
-        bool farmDailyRecordsRefs,
-        bool farmSpeciesPopulationMovementsRefs,
-        bool farmMortalityRecordsRefs,
-        bool farmFeedRecordsRefs,
-        bool farmEventsRefs,
-        bool farmReproductionRecordsRefs,
-        bool farmHealthRecordsRefs,
-        bool farmReportSnapshotsRefs,
-      })
-    >;
-typedef $$FarmUnitsTableCreateCompanionBuilder =
-    FarmUnitsCompanion Function({
-      Value<int> id,
-      required String clinicId,
-      required String farmId,
-      required String name,
-      Value<String> unitType,
-      Value<String?> speciesId,
-      Value<String?> breedId,
-      Value<int?> capacity,
-      Value<int> maleCount,
-      Value<int> femaleCount,
-      Value<int> unknownCount,
-      Value<String> status,
-      Value<String?> notes,
-      required DateTime createdAt,
-      required String createdByUserId,
-      required DateTime updatedAt,
-    });
-typedef $$FarmUnitsTableUpdateCompanionBuilder =
-    FarmUnitsCompanion Function({
-      Value<int> id,
-      Value<String> clinicId,
-      Value<String> farmId,
-      Value<String> name,
-      Value<String> unitType,
-      Value<String?> speciesId,
-      Value<String?> breedId,
-      Value<int?> capacity,
-      Value<int> maleCount,
-      Value<int> femaleCount,
-      Value<int> unknownCount,
-      Value<String> status,
-      Value<String?> notes,
-      Value<DateTime> createdAt,
-      Value<String> createdByUserId,
-      Value<DateTime> updatedAt,
-    });
-
-final class $$FarmUnitsTableReferences
-    extends BaseReferences<_$AppDatabase, $FarmUnitsTable, FarmUnit> {
-  $$FarmUnitsTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
-      db.clinics.createAlias(
-        $_aliasNameGenerator(db.farmUnits.clinicId, db.clinics.clinicId),
-      );
-
-  $$ClinicsTableProcessedTableManager get clinicId {
-    final $_column = $_itemColumn<String>('clinic_id')!;
-
-    final manager = $$ClinicsTableTableManager(
-      $_db,
-      $_db.clinics,
-    ).filter((f) => f.clinicId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $FarmsTable _farmIdTable(_$AppDatabase db) => db.farms.createAlias(
-    $_aliasNameGenerator(db.farmUnits.farmId, db.farms.id),
-  );
-
-  $$FarmsTableProcessedTableManager get farmId {
-    final $_column = $_itemColumn<String>('farm_id')!;
-
-    final manager = $$FarmsTableTableManager(
-      $_db,
-      $_db.farms,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_farmIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $AppUsersTable _createdByUserIdTable(_$AppDatabase db) =>
-      db.appUsers.createAlias(
-        $_aliasNameGenerator(db.farmUnits.createdByUserId, db.appUsers.userId),
-      );
-
-  $$AppUsersTableProcessedTableManager get createdByUserId {
-    final $_column = $_itemColumn<String>('created_by_user_id')!;
-
-    final manager = $$AppUsersTableTableManager(
-      $_db,
-      $_db.appUsers,
-    ).filter((f) => f.userId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_createdByUserIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmMortalityRecordsTable,
-    List<FarmMortalityRecord>
-  >
-  _farmMortalityRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmMortalityRecords,
-        aliasName: $_aliasNameGenerator(
-          db.farmUnits.id,
-          db.farmMortalityRecords.farmUnitId,
-        ),
-      );
-
-  $$FarmMortalityRecordsTableProcessedTableManager
-  get farmMortalityRecordsRefs {
-    final manager = $$FarmMortalityRecordsTableTableManager(
-      $_db,
-      $_db.farmMortalityRecords,
-    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmMortalityRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmFeedRecordsTable, List<FarmFeedRecord>>
-  _farmFeedRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmFeedRecords,
-    aliasName: $_aliasNameGenerator(
-      db.farmUnits.id,
-      db.farmFeedRecords.farmUnitId,
-    ),
-  );
-
-  $$FarmFeedRecordsTableProcessedTableManager get farmFeedRecordsRefs {
-    final manager = $$FarmFeedRecordsTableTableManager(
-      $_db,
-      $_db.farmFeedRecords,
-    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmFeedRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmEventsTable, List<FarmEvent>>
-  _farmEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmEvents,
-    aliasName: $_aliasNameGenerator(db.farmUnits.id, db.farmEvents.farmUnitId),
-  );
-
-  $$FarmEventsTableProcessedTableManager get farmEventsRefs {
-    final manager = $$FarmEventsTableTableManager(
-      $_db,
-      $_db.farmEvents,
-    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_farmEventsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmReproductionRecordsTable,
-    List<FarmReproductionRecord>
-  >
-  _farmReproductionRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmReproductionRecords,
-        aliasName: $_aliasNameGenerator(
-          db.farmUnits.id,
-          db.farmReproductionRecords.farmUnitId,
-        ),
-      );
-
-  $$FarmReproductionRecordsTableProcessedTableManager
-  get farmReproductionRecordsRefs {
-    final manager = $$FarmReproductionRecordsTableTableManager(
-      $_db,
-      $_db.farmReproductionRecords,
-    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmReproductionRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
-  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmHealthRecords,
-        aliasName: $_aliasNameGenerator(
-          db.farmUnits.id,
-          db.farmHealthRecords.farmUnitId,
-        ),
-      );
-
-  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
-    final manager = $$FarmHealthRecordsTableTableManager(
-      $_db,
-      $_db.farmHealthRecords,
-    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmHealthRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-}
-
-class $$FarmUnitsTableFilterComposer
-    extends Composer<_$AppDatabase, $FarmUnitsTable> {
-  $$FarmUnitsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get unitType => $composableBuilder(
-    column: $table.unitType,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get speciesId => $composableBuilder(
-    column: $table.speciesId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get breedId => $composableBuilder(
-    column: $table.breedId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get capacity => $composableBuilder(
-    column: $table.capacity,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get maleCount => $composableBuilder(
-    column: $table.maleCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get femaleCount => $composableBuilder(
-    column: $table.femaleCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get unknownCount => $composableBuilder(
-    column: $table.unknownCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  $$ClinicsTableFilterComposer get clinicId {
-    final $$ClinicsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableFilterComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableFilterComposer get farmId {
-    final $$FarmsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableFilterComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableFilterComposer get createdByUserId {
-    final $$AppUsersTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableFilterComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  Expression<bool> farmMortalityRecordsRefs(
-    Expression<bool> Function($$FarmMortalityRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmMortalityRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmMortalityRecords,
-      getReferencedColumn: (t) => t.farmUnitId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmMortalityRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmMortalityRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmFeedRecordsRefs(
-    Expression<bool> Function($$FarmFeedRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmFeedRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmFeedRecords,
-      getReferencedColumn: (t) => t.farmUnitId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmFeedRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmFeedRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmEventsRefs(
-    Expression<bool> Function($$FarmEventsTableFilterComposer f) f,
-  ) {
-    final $$FarmEventsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmEvents,
-      getReferencedColumn: (t) => t.farmUnitId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmEventsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmEvents,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmReproductionRecordsRefs(
-    Expression<bool> Function($$FarmReproductionRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmReproductionRecordsTableFilterComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmReproductionRecords,
-          getReferencedColumn: (t) => t.farmUnitId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmReproductionRecordsTableFilterComposer(
-                $db: $db,
-                $table: $db.farmReproductionRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<bool> farmHealthRecordsRefs(
-    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmHealthRecords,
-      getReferencedColumn: (t) => t.farmUnitId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmHealthRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmHealthRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-}
-
-class $$FarmUnitsTableOrderingComposer
-    extends Composer<_$AppDatabase, $FarmUnitsTable> {
-  $$FarmUnitsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get unitType => $composableBuilder(
-    column: $table.unitType,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get speciesId => $composableBuilder(
-    column: $table.speciesId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get breedId => $composableBuilder(
-    column: $table.breedId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get capacity => $composableBuilder(
-    column: $table.capacity,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get maleCount => $composableBuilder(
-    column: $table.maleCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get femaleCount => $composableBuilder(
-    column: $table.femaleCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get unknownCount => $composableBuilder(
-    column: $table.unknownCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  $$ClinicsTableOrderingComposer get clinicId {
-    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableOrderingComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableOrderingComposer get farmId {
-    final $$FarmsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableOrderingComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableOrderingComposer get createdByUserId {
-    final $$AppUsersTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableOrderingComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$FarmUnitsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $FarmUnitsTable> {
-  $$FarmUnitsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<String> get unitType =>
-      $composableBuilder(column: $table.unitType, builder: (column) => column);
-
-  GeneratedColumn<String> get speciesId =>
-      $composableBuilder(column: $table.speciesId, builder: (column) => column);
-
-  GeneratedColumn<String> get breedId =>
-      $composableBuilder(column: $table.breedId, builder: (column) => column);
-
-  GeneratedColumn<int> get capacity =>
-      $composableBuilder(column: $table.capacity, builder: (column) => column);
-
-  GeneratedColumn<int> get maleCount =>
-      $composableBuilder(column: $table.maleCount, builder: (column) => column);
-
-  GeneratedColumn<int> get femaleCount => $composableBuilder(
-    column: $table.femaleCount,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get unknownCount => $composableBuilder(
-    column: $table.unknownCount,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get status =>
-      $composableBuilder(column: $table.status, builder: (column) => column);
-
-  GeneratedColumn<String> get notes =>
-      $composableBuilder(column: $table.notes, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
-
-  $$ClinicsTableAnnotationComposer get clinicId {
-    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableAnnotationComposer get farmId {
-    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableAnnotationComposer get createdByUserId {
-    final $$AppUsersTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableAnnotationComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  Expression<T> farmMortalityRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmMortalityRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmMortalityRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmMortalityRecords,
-          getReferencedColumn: (t) => t.farmUnitId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmMortalityRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmMortalityRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmFeedRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmFeedRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmFeedRecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmFeedRecords,
-      getReferencedColumn: (t) => t.farmUnitId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmFeedRecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmFeedRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmEventsRefs<T extends Object>(
-    Expression<T> Function($$FarmEventsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmEventsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmEvents,
-      getReferencedColumn: (t) => t.farmUnitId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmEventsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmEvents,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmReproductionRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmReproductionRecordsTableAnnotationComposer a)
-    f,
-  ) {
-    final $$FarmReproductionRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmReproductionRecords,
-          getReferencedColumn: (t) => t.farmUnitId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmReproductionRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmReproductionRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmHealthRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmHealthRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmHealthRecords,
-          getReferencedColumn: (t) => t.farmUnitId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmHealthRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmHealthRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-}
-
-class $$FarmUnitsTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $FarmUnitsTable,
-          FarmUnit,
-          $$FarmUnitsTableFilterComposer,
-          $$FarmUnitsTableOrderingComposer,
-          $$FarmUnitsTableAnnotationComposer,
-          $$FarmUnitsTableCreateCompanionBuilder,
-          $$FarmUnitsTableUpdateCompanionBuilder,
-          (FarmUnit, $$FarmUnitsTableReferences),
-          FarmUnit,
-          PrefetchHooks Function({
-            bool clinicId,
-            bool farmId,
-            bool createdByUserId,
-            bool farmMortalityRecordsRefs,
-            bool farmFeedRecordsRefs,
-            bool farmEventsRefs,
-            bool farmReproductionRecordsRefs,
-            bool farmHealthRecordsRefs,
-          })
-        > {
-  $$FarmUnitsTableTableManager(_$AppDatabase db, $FarmUnitsTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$FarmUnitsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$FarmUnitsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$FarmUnitsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<String> clinicId = const Value.absent(),
-                Value<String> farmId = const Value.absent(),
-                Value<String> name = const Value.absent(),
-                Value<String> unitType = const Value.absent(),
-                Value<String?> speciesId = const Value.absent(),
-                Value<String?> breedId = const Value.absent(),
-                Value<int?> capacity = const Value.absent(),
-                Value<int> maleCount = const Value.absent(),
-                Value<int> femaleCount = const Value.absent(),
-                Value<int> unknownCount = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
-                Value<DateTime> createdAt = const Value.absent(),
-                Value<String> createdByUserId = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
-              }) => FarmUnitsCompanion(
-                id: id,
-                clinicId: clinicId,
-                farmId: farmId,
-                name: name,
-                unitType: unitType,
-                speciesId: speciesId,
-                breedId: breedId,
-                capacity: capacity,
-                maleCount: maleCount,
-                femaleCount: femaleCount,
-                unknownCount: unknownCount,
-                status: status,
-                notes: notes,
-                createdAt: createdAt,
-                createdByUserId: createdByUserId,
-                updatedAt: updatedAt,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required String clinicId,
-                required String farmId,
-                required String name,
-                Value<String> unitType = const Value.absent(),
-                Value<String?> speciesId = const Value.absent(),
-                Value<String?> breedId = const Value.absent(),
-                Value<int?> capacity = const Value.absent(),
-                Value<int> maleCount = const Value.absent(),
-                Value<int> femaleCount = const Value.absent(),
-                Value<int> unknownCount = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
-                required DateTime createdAt,
-                required String createdByUserId,
-                required DateTime updatedAt,
-              }) => FarmUnitsCompanion.insert(
-                id: id,
-                clinicId: clinicId,
-                farmId: farmId,
-                name: name,
-                unitType: unitType,
-                speciesId: speciesId,
-                breedId: breedId,
-                capacity: capacity,
-                maleCount: maleCount,
-                femaleCount: femaleCount,
-                unknownCount: unknownCount,
-                status: status,
-                notes: notes,
-                createdAt: createdAt,
-                createdByUserId: createdByUserId,
-                updatedAt: updatedAt,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$FarmUnitsTableReferences(db, table, e),
-                ),
-              )
-              .toList(),
-          prefetchHooksCallback:
-              ({
-                clinicId = false,
-                farmId = false,
-                createdByUserId = false,
-                farmMortalityRecordsRefs = false,
-                farmFeedRecordsRefs = false,
-                farmEventsRefs = false,
-                farmReproductionRecordsRefs = false,
-                farmHealthRecordsRefs = false,
-              }) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [
-                    if (farmMortalityRecordsRefs) db.farmMortalityRecords,
-                    if (farmFeedRecordsRefs) db.farmFeedRecords,
-                    if (farmEventsRefs) db.farmEvents,
-                    if (farmReproductionRecordsRefs) db.farmReproductionRecords,
-                    if (farmHealthRecordsRefs) db.farmHealthRecords,
-                  ],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (clinicId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.clinicId,
-                                    referencedTable: $$FarmUnitsTableReferences
-                                        ._clinicIdTable(db),
-                                    referencedColumn: $$FarmUnitsTableReferences
-                                        ._clinicIdTable(db)
-                                        .clinicId,
-                                  )
-                                  as T;
-                        }
-                        if (farmId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.farmId,
-                                    referencedTable: $$FarmUnitsTableReferences
-                                        ._farmIdTable(db),
-                                    referencedColumn: $$FarmUnitsTableReferences
-                                        ._farmIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
-                        }
-                        if (createdByUserId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.createdByUserId,
-                                    referencedTable: $$FarmUnitsTableReferences
-                                        ._createdByUserIdTable(db),
-                                    referencedColumn: $$FarmUnitsTableReferences
-                                        ._createdByUserIdTable(db)
-                                        .userId,
-                                  )
-                                  as T;
-                        }
-
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [
-                      if (farmMortalityRecordsRefs)
-                        await $_getPrefetchedData<
-                          FarmUnit,
-                          $FarmUnitsTable,
-                          FarmMortalityRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmUnitsTableReferences
-                              ._farmMortalityRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmUnitsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmMortalityRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmUnitId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmFeedRecordsRefs)
-                        await $_getPrefetchedData<
-                          FarmUnit,
-                          $FarmUnitsTable,
-                          FarmFeedRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmUnitsTableReferences
-                              ._farmFeedRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmUnitsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmFeedRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmUnitId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmEventsRefs)
-                        await $_getPrefetchedData<
-                          FarmUnit,
-                          $FarmUnitsTable,
-                          FarmEvent
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmUnitsTableReferences
-                              ._farmEventsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmUnitsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmEventsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmUnitId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmReproductionRecordsRefs)
-                        await $_getPrefetchedData<
-                          FarmUnit,
-                          $FarmUnitsTable,
-                          FarmReproductionRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmUnitsTableReferences
-                              ._farmReproductionRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmUnitsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmReproductionRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmUnitId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmHealthRecordsRefs)
-                        await $_getPrefetchedData<
-                          FarmUnit,
-                          $FarmUnitsTable,
-                          FarmHealthRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmUnitsTableReferences
-                              ._farmHealthRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmUnitsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmHealthRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.farmUnitId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                    ];
-                  },
-                );
-              },
-        ),
-      );
-}
-
-typedef $$FarmUnitsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $FarmUnitsTable,
-      FarmUnit,
-      $$FarmUnitsTableFilterComposer,
-      $$FarmUnitsTableOrderingComposer,
-      $$FarmUnitsTableAnnotationComposer,
-      $$FarmUnitsTableCreateCompanionBuilder,
-      $$FarmUnitsTableUpdateCompanionBuilder,
-      (FarmUnit, $$FarmUnitsTableReferences),
-      FarmUnit,
-      PrefetchHooks Function({
-        bool clinicId,
-        bool farmId,
-        bool createdByUserId,
-        bool farmMortalityRecordsRefs,
-        bool farmFeedRecordsRefs,
-        bool farmEventsRefs,
-        bool farmReproductionRecordsRefs,
-        bool farmHealthRecordsRefs,
-      })
-    >;
-typedef $$FarmDailyRecordsTableCreateCompanionBuilder =
-    FarmDailyRecordsCompanion Function({
-      required String id,
-      required String clinicId,
-      required String farmId,
-      required DateTime recordDate,
-      Value<String> status,
-      Value<int> openingPopulation,
-      Value<int> births,
-      Value<int> purchases,
-      Value<int> transfersIn,
-      Value<int> mortality,
-      Value<int> sales,
-      Value<int> transfersOut,
-      Value<int> closingPopulation,
-      Value<double> feedSuppliedKg,
-      Value<String?> dailyNote,
-      Value<String?> tasksForTomorrow,
-      Value<String?> correctionReason,
-      Value<String?> originalSnapshotJson,
-      Value<String?> lastEditedByUserId,
-      Value<DateTime?> finalizedAt,
-      Value<String?> finalizedByUserId,
-      required DateTime createdAt,
-      required String createdByUserId,
-      required DateTime updatedAt,
-      Value<int> rowid,
-    });
-typedef $$FarmDailyRecordsTableUpdateCompanionBuilder =
-    FarmDailyRecordsCompanion Function({
-      Value<String> id,
-      Value<String> clinicId,
-      Value<String> farmId,
-      Value<DateTime> recordDate,
-      Value<String> status,
-      Value<int> openingPopulation,
-      Value<int> births,
-      Value<int> purchases,
-      Value<int> transfersIn,
-      Value<int> mortality,
-      Value<int> sales,
-      Value<int> transfersOut,
-      Value<int> closingPopulation,
-      Value<double> feedSuppliedKg,
-      Value<String?> dailyNote,
-      Value<String?> tasksForTomorrow,
-      Value<String?> correctionReason,
-      Value<String?> originalSnapshotJson,
-      Value<String?> lastEditedByUserId,
-      Value<DateTime?> finalizedAt,
-      Value<String?> finalizedByUserId,
-      Value<DateTime> createdAt,
-      Value<String> createdByUserId,
-      Value<DateTime> updatedAt,
-      Value<int> rowid,
-    });
-
-final class $$FarmDailyRecordsTableReferences
-    extends
-        BaseReferences<_$AppDatabase, $FarmDailyRecordsTable, FarmDailyRecord> {
-  $$FarmDailyRecordsTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
-
-  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
-      db.clinics.createAlias(
-        $_aliasNameGenerator(db.farmDailyRecords.clinicId, db.clinics.clinicId),
-      );
-
-  $$ClinicsTableProcessedTableManager get clinicId {
-    final $_column = $_itemColumn<String>('clinic_id')!;
-
-    final manager = $$ClinicsTableTableManager(
-      $_db,
-      $_db.clinics,
-    ).filter((f) => f.clinicId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $FarmsTable _farmIdTable(_$AppDatabase db) => db.farms.createAlias(
-    $_aliasNameGenerator(db.farmDailyRecords.farmId, db.farms.id),
-  );
-
-  $$FarmsTableProcessedTableManager get farmId {
-    final $_column = $_itemColumn<String>('farm_id')!;
-
-    final manager = $$FarmsTableTableManager(
-      $_db,
-      $_db.farms,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_farmIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $AppUsersTable _createdByUserIdTable(_$AppDatabase db) =>
-      db.appUsers.createAlias(
-        $_aliasNameGenerator(
-          db.farmDailyRecords.createdByUserId,
-          db.appUsers.userId,
-        ),
-      );
-
-  $$AppUsersTableProcessedTableManager get createdByUserId {
-    final $_column = $_itemColumn<String>('created_by_user_id')!;
-
-    final manager = $$AppUsersTableTableManager(
-      $_db,
-      $_db.appUsers,
-    ).filter((f) => f.userId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_createdByUserIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmSpeciesPopulationMovementsTable,
-    List<FarmSpeciesPopulationMovement>
-  >
-  _farmSpeciesPopulationMovementsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmSpeciesPopulationMovements,
-        aliasName: $_aliasNameGenerator(
-          db.farmDailyRecords.id,
-          db.farmSpeciesPopulationMovements.dailyRecordId,
-        ),
-      );
-
-  $$FarmSpeciesPopulationMovementsTableProcessedTableManager
-  get farmSpeciesPopulationMovementsRefs {
-    final manager = $$FarmSpeciesPopulationMovementsTableTableManager(
-      $_db,
-      $_db.farmSpeciesPopulationMovements,
-    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmSpeciesPopulationMovementsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmMortalityRecordsTable,
-    List<FarmMortalityRecord>
-  >
-  _farmMortalityRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmMortalityRecords,
-        aliasName: $_aliasNameGenerator(
-          db.farmDailyRecords.id,
-          db.farmMortalityRecords.dailyRecordId,
-        ),
-      );
-
-  $$FarmMortalityRecordsTableProcessedTableManager
-  get farmMortalityRecordsRefs {
-    final manager = $$FarmMortalityRecordsTableTableManager(
-      $_db,
-      $_db.farmMortalityRecords,
-    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmMortalityRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmFeedRecordsTable, List<FarmFeedRecord>>
-  _farmFeedRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmFeedRecords,
-    aliasName: $_aliasNameGenerator(
-      db.farmDailyRecords.id,
-      db.farmFeedRecords.dailyRecordId,
-    ),
-  );
-
-  $$FarmFeedRecordsTableProcessedTableManager get farmFeedRecordsRefs {
-    final manager = $$FarmFeedRecordsTableTableManager(
-      $_db,
-      $_db.farmFeedRecords,
-    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmFeedRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmEventsTable, List<FarmEvent>>
-  _farmEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.farmEvents,
-    aliasName: $_aliasNameGenerator(
-      db.farmDailyRecords.id,
-      db.farmEvents.dailyRecordId,
-    ),
-  );
-
-  $$FarmEventsTableProcessedTableManager get farmEventsRefs {
-    final manager = $$FarmEventsTableTableManager(
-      $_db,
-      $_db.farmEvents,
-    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_farmEventsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$FarmHealthRecordsTable, List<FarmHealthRecord>>
-  _farmHealthRecordsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmHealthRecords,
-        aliasName: $_aliasNameGenerator(
-          db.farmDailyRecords.id,
-          db.farmHealthRecords.dailyRecordId,
-        ),
-      );
-
-  $$FarmHealthRecordsTableProcessedTableManager get farmHealthRecordsRefs {
-    final manager = $$FarmHealthRecordsTableTableManager(
-      $_db,
-      $_db.farmHealthRecords,
-    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmHealthRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<
-    $FarmReportSnapshotsTable,
-    List<FarmReportSnapshot>
-  >
-  _farmReportSnapshotsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.farmReportSnapshots,
-        aliasName: $_aliasNameGenerator(
-          db.farmDailyRecords.id,
-          db.farmReportSnapshots.dailyRecordId,
-        ),
-      );
-
-  $$FarmReportSnapshotsTableProcessedTableManager get farmReportSnapshotsRefs {
-    final manager = $$FarmReportSnapshotsTableTableManager(
-      $_db,
-      $_db.farmReportSnapshots,
-    ).filter((f) => f.dailyRecordId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _farmReportSnapshotsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-}
-
-class $$FarmDailyRecordsTableFilterComposer
-    extends Composer<_$AppDatabase, $FarmDailyRecordsTable> {
-  $$FarmDailyRecordsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get recordDate => $composableBuilder(
-    column: $table.recordDate,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get openingPopulation => $composableBuilder(
-    column: $table.openingPopulation,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get births => $composableBuilder(
-    column: $table.births,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get purchases => $composableBuilder(
-    column: $table.purchases,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get transfersIn => $composableBuilder(
-    column: $table.transfersIn,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get mortality => $composableBuilder(
-    column: $table.mortality,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get sales => $composableBuilder(
-    column: $table.sales,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get transfersOut => $composableBuilder(
-    column: $table.transfersOut,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get closingPopulation => $composableBuilder(
-    column: $table.closingPopulation,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get feedSuppliedKg => $composableBuilder(
-    column: $table.feedSuppliedKg,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get dailyNote => $composableBuilder(
-    column: $table.dailyNote,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get tasksForTomorrow => $composableBuilder(
-    column: $table.tasksForTomorrow,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get correctionReason => $composableBuilder(
-    column: $table.correctionReason,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get originalSnapshotJson => $composableBuilder(
-    column: $table.originalSnapshotJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get lastEditedByUserId => $composableBuilder(
-    column: $table.lastEditedByUserId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get finalizedAt => $composableBuilder(
-    column: $table.finalizedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get finalizedByUserId => $composableBuilder(
-    column: $table.finalizedByUserId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  $$ClinicsTableFilterComposer get clinicId {
-    final $$ClinicsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableFilterComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableFilterComposer get farmId {
-    final $$FarmsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableFilterComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableFilterComposer get createdByUserId {
-    final $$AppUsersTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableFilterComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  Expression<bool> farmSpeciesPopulationMovementsRefs(
-    Expression<bool> Function(
-      $$FarmSpeciesPopulationMovementsTableFilterComposer f,
-    )
-    f,
-  ) {
-    final $$FarmSpeciesPopulationMovementsTableFilterComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmSpeciesPopulationMovements,
-          getReferencedColumn: (t) => t.dailyRecordId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmSpeciesPopulationMovementsTableFilterComposer(
-                $db: $db,
-                $table: $db.farmSpeciesPopulationMovements,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<bool> farmMortalityRecordsRefs(
-    Expression<bool> Function($$FarmMortalityRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmMortalityRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmMortalityRecords,
-      getReferencedColumn: (t) => t.dailyRecordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmMortalityRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmMortalityRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmFeedRecordsRefs(
-    Expression<bool> Function($$FarmFeedRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmFeedRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmFeedRecords,
-      getReferencedColumn: (t) => t.dailyRecordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmFeedRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmFeedRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmEventsRefs(
-    Expression<bool> Function($$FarmEventsTableFilterComposer f) f,
-  ) {
-    final $$FarmEventsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmEvents,
-      getReferencedColumn: (t) => t.dailyRecordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmEventsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmEvents,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmHealthRecordsRefs(
-    Expression<bool> Function($$FarmHealthRecordsTableFilterComposer f) f,
-  ) {
-    final $$FarmHealthRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmHealthRecords,
-      getReferencedColumn: (t) => t.dailyRecordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmHealthRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmHealthRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> farmReportSnapshotsRefs(
-    Expression<bool> Function($$FarmReportSnapshotsTableFilterComposer f) f,
-  ) {
-    final $$FarmReportSnapshotsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmReportSnapshots,
-      getReferencedColumn: (t) => t.dailyRecordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmReportSnapshotsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmReportSnapshots,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-}
-
-class $$FarmDailyRecordsTableOrderingComposer
-    extends Composer<_$AppDatabase, $FarmDailyRecordsTable> {
-  $$FarmDailyRecordsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get recordDate => $composableBuilder(
-    column: $table.recordDate,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get openingPopulation => $composableBuilder(
-    column: $table.openingPopulation,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get births => $composableBuilder(
-    column: $table.births,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get purchases => $composableBuilder(
-    column: $table.purchases,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get transfersIn => $composableBuilder(
-    column: $table.transfersIn,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get mortality => $composableBuilder(
-    column: $table.mortality,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get sales => $composableBuilder(
-    column: $table.sales,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get transfersOut => $composableBuilder(
-    column: $table.transfersOut,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get closingPopulation => $composableBuilder(
-    column: $table.closingPopulation,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get feedSuppliedKg => $composableBuilder(
-    column: $table.feedSuppliedKg,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get dailyNote => $composableBuilder(
-    column: $table.dailyNote,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get tasksForTomorrow => $composableBuilder(
-    column: $table.tasksForTomorrow,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get correctionReason => $composableBuilder(
-    column: $table.correctionReason,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get originalSnapshotJson => $composableBuilder(
-    column: $table.originalSnapshotJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get lastEditedByUserId => $composableBuilder(
-    column: $table.lastEditedByUserId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get finalizedAt => $composableBuilder(
-    column: $table.finalizedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get finalizedByUserId => $composableBuilder(
-    column: $table.finalizedByUserId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  $$ClinicsTableOrderingComposer get clinicId {
-    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableOrderingComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableOrderingComposer get farmId {
-    final $$FarmsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableOrderingComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableOrderingComposer get createdByUserId {
-    final $$AppUsersTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableOrderingComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$FarmDailyRecordsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $FarmDailyRecordsTable> {
-  $$FarmDailyRecordsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get recordDate => $composableBuilder(
-    column: $table.recordDate,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get status =>
-      $composableBuilder(column: $table.status, builder: (column) => column);
-
-  GeneratedColumn<int> get openingPopulation => $composableBuilder(
-    column: $table.openingPopulation,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get births =>
-      $composableBuilder(column: $table.births, builder: (column) => column);
-
-  GeneratedColumn<int> get purchases =>
-      $composableBuilder(column: $table.purchases, builder: (column) => column);
-
-  GeneratedColumn<int> get transfersIn => $composableBuilder(
-    column: $table.transfersIn,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get mortality =>
-      $composableBuilder(column: $table.mortality, builder: (column) => column);
-
-  GeneratedColumn<int> get sales =>
-      $composableBuilder(column: $table.sales, builder: (column) => column);
-
-  GeneratedColumn<int> get transfersOut => $composableBuilder(
-    column: $table.transfersOut,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get closingPopulation => $composableBuilder(
-    column: $table.closingPopulation,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<double> get feedSuppliedKg => $composableBuilder(
-    column: $table.feedSuppliedKg,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get dailyNote =>
-      $composableBuilder(column: $table.dailyNote, builder: (column) => column);
-
-  GeneratedColumn<String> get tasksForTomorrow => $composableBuilder(
-    column: $table.tasksForTomorrow,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get correctionReason => $composableBuilder(
-    column: $table.correctionReason,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get originalSnapshotJson => $composableBuilder(
-    column: $table.originalSnapshotJson,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get lastEditedByUserId => $composableBuilder(
-    column: $table.lastEditedByUserId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<DateTime> get finalizedAt => $composableBuilder(
-    column: $table.finalizedAt,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get finalizedByUserId => $composableBuilder(
-    column: $table.finalizedByUserId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
-
-  $$ClinicsTableAnnotationComposer get clinicId {
-    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableAnnotationComposer get farmId {
-    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableAnnotationComposer get createdByUserId {
-    final $$AppUsersTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableAnnotationComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  Expression<T> farmSpeciesPopulationMovementsRefs<T extends Object>(
-    Expression<T> Function(
-      $$FarmSpeciesPopulationMovementsTableAnnotationComposer a,
-    )
-    f,
-  ) {
-    final $$FarmSpeciesPopulationMovementsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmSpeciesPopulationMovements,
-          getReferencedColumn: (t) => t.dailyRecordId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmSpeciesPopulationMovementsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmSpeciesPopulationMovements,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmMortalityRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmMortalityRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmMortalityRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmMortalityRecords,
-          getReferencedColumn: (t) => t.dailyRecordId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmMortalityRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmMortalityRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmFeedRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmFeedRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmFeedRecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmFeedRecords,
-      getReferencedColumn: (t) => t.dailyRecordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmFeedRecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmFeedRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmEventsRefs<T extends Object>(
-    Expression<T> Function($$FarmEventsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmEventsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.farmEvents,
-      getReferencedColumn: (t) => t.dailyRecordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmEventsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmEvents,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> farmHealthRecordsRefs<T extends Object>(
-    Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmHealthRecordsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmHealthRecords,
-          getReferencedColumn: (t) => t.dailyRecordId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmHealthRecordsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmHealthRecords,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
-  Expression<T> farmReportSnapshotsRefs<T extends Object>(
-    Expression<T> Function($$FarmReportSnapshotsTableAnnotationComposer a) f,
-  ) {
-    final $$FarmReportSnapshotsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.farmReportSnapshots,
-          getReferencedColumn: (t) => t.dailyRecordId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$FarmReportSnapshotsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.farmReportSnapshots,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-}
-
-class $$FarmDailyRecordsTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $FarmDailyRecordsTable,
-          FarmDailyRecord,
-          $$FarmDailyRecordsTableFilterComposer,
-          $$FarmDailyRecordsTableOrderingComposer,
-          $$FarmDailyRecordsTableAnnotationComposer,
-          $$FarmDailyRecordsTableCreateCompanionBuilder,
-          $$FarmDailyRecordsTableUpdateCompanionBuilder,
-          (FarmDailyRecord, $$FarmDailyRecordsTableReferences),
-          FarmDailyRecord,
-          PrefetchHooks Function({
-            bool clinicId,
-            bool farmId,
-            bool createdByUserId,
-            bool farmSpeciesPopulationMovementsRefs,
-            bool farmMortalityRecordsRefs,
-            bool farmFeedRecordsRefs,
-            bool farmEventsRefs,
-            bool farmHealthRecordsRefs,
-            bool farmReportSnapshotsRefs,
-          })
-        > {
-  $$FarmDailyRecordsTableTableManager(
-    _$AppDatabase db,
-    $FarmDailyRecordsTable table,
-  ) : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$FarmDailyRecordsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$FarmDailyRecordsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$FarmDailyRecordsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> clinicId = const Value.absent(),
-                Value<String> farmId = const Value.absent(),
-                Value<DateTime> recordDate = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                Value<int> openingPopulation = const Value.absent(),
-                Value<int> births = const Value.absent(),
-                Value<int> purchases = const Value.absent(),
-                Value<int> transfersIn = const Value.absent(),
-                Value<int> mortality = const Value.absent(),
-                Value<int> sales = const Value.absent(),
-                Value<int> transfersOut = const Value.absent(),
-                Value<int> closingPopulation = const Value.absent(),
-                Value<double> feedSuppliedKg = const Value.absent(),
-                Value<String?> dailyNote = const Value.absent(),
-                Value<String?> tasksForTomorrow = const Value.absent(),
-                Value<String?> correctionReason = const Value.absent(),
-                Value<String?> originalSnapshotJson = const Value.absent(),
-                Value<String?> lastEditedByUserId = const Value.absent(),
-                Value<DateTime?> finalizedAt = const Value.absent(),
-                Value<String?> finalizedByUserId = const Value.absent(),
-                Value<DateTime> createdAt = const Value.absent(),
-                Value<String> createdByUserId = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => FarmDailyRecordsCompanion(
-                id: id,
-                clinicId: clinicId,
-                farmId: farmId,
-                recordDate: recordDate,
-                status: status,
-                openingPopulation: openingPopulation,
-                births: births,
-                purchases: purchases,
-                transfersIn: transfersIn,
-                mortality: mortality,
-                sales: sales,
-                transfersOut: transfersOut,
-                closingPopulation: closingPopulation,
-                feedSuppliedKg: feedSuppliedKg,
-                dailyNote: dailyNote,
-                tasksForTomorrow: tasksForTomorrow,
-                correctionReason: correctionReason,
-                originalSnapshotJson: originalSnapshotJson,
-                lastEditedByUserId: lastEditedByUserId,
-                finalizedAt: finalizedAt,
-                finalizedByUserId: finalizedByUserId,
-                createdAt: createdAt,
-                createdByUserId: createdByUserId,
-                updatedAt: updatedAt,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String clinicId,
-                required String farmId,
-                required DateTime recordDate,
-                Value<String> status = const Value.absent(),
-                Value<int> openingPopulation = const Value.absent(),
-                Value<int> births = const Value.absent(),
-                Value<int> purchases = const Value.absent(),
-                Value<int> transfersIn = const Value.absent(),
-                Value<int> mortality = const Value.absent(),
-                Value<int> sales = const Value.absent(),
-                Value<int> transfersOut = const Value.absent(),
-                Value<int> closingPopulation = const Value.absent(),
-                Value<double> feedSuppliedKg = const Value.absent(),
-                Value<String?> dailyNote = const Value.absent(),
-                Value<String?> tasksForTomorrow = const Value.absent(),
-                Value<String?> correctionReason = const Value.absent(),
-                Value<String?> originalSnapshotJson = const Value.absent(),
-                Value<String?> lastEditedByUserId = const Value.absent(),
-                Value<DateTime?> finalizedAt = const Value.absent(),
-                Value<String?> finalizedByUserId = const Value.absent(),
-                required DateTime createdAt,
-                required String createdByUserId,
-                required DateTime updatedAt,
-                Value<int> rowid = const Value.absent(),
-              }) => FarmDailyRecordsCompanion.insert(
-                id: id,
-                clinicId: clinicId,
-                farmId: farmId,
-                recordDate: recordDate,
-                status: status,
-                openingPopulation: openingPopulation,
-                births: births,
-                purchases: purchases,
-                transfersIn: transfersIn,
-                mortality: mortality,
-                sales: sales,
-                transfersOut: transfersOut,
-                closingPopulation: closingPopulation,
-                feedSuppliedKg: feedSuppliedKg,
-                dailyNote: dailyNote,
-                tasksForTomorrow: tasksForTomorrow,
-                correctionReason: correctionReason,
-                originalSnapshotJson: originalSnapshotJson,
-                lastEditedByUserId: lastEditedByUserId,
-                finalizedAt: finalizedAt,
-                finalizedByUserId: finalizedByUserId,
-                createdAt: createdAt,
-                createdByUserId: createdByUserId,
-                updatedAt: updatedAt,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$FarmDailyRecordsTableReferences(db, table, e),
-                ),
-              )
-              .toList(),
-          prefetchHooksCallback:
-              ({
-                clinicId = false,
-                farmId = false,
-                createdByUserId = false,
-                farmSpeciesPopulationMovementsRefs = false,
-                farmMortalityRecordsRefs = false,
-                farmFeedRecordsRefs = false,
-                farmEventsRefs = false,
-                farmHealthRecordsRefs = false,
-                farmReportSnapshotsRefs = false,
-              }) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [
-                    if (farmSpeciesPopulationMovementsRefs)
-                      db.farmSpeciesPopulationMovements,
-                    if (farmMortalityRecordsRefs) db.farmMortalityRecords,
-                    if (farmFeedRecordsRefs) db.farmFeedRecords,
-                    if (farmEventsRefs) db.farmEvents,
-                    if (farmHealthRecordsRefs) db.farmHealthRecords,
-                    if (farmReportSnapshotsRefs) db.farmReportSnapshots,
-                  ],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (clinicId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.clinicId,
-                                    referencedTable:
-                                        $$FarmDailyRecordsTableReferences
-                                            ._clinicIdTable(db),
-                                    referencedColumn:
-                                        $$FarmDailyRecordsTableReferences
-                                            ._clinicIdTable(db)
-                                            .clinicId,
-                                  )
-                                  as T;
-                        }
-                        if (farmId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.farmId,
-                                    referencedTable:
-                                        $$FarmDailyRecordsTableReferences
-                                            ._farmIdTable(db),
-                                    referencedColumn:
-                                        $$FarmDailyRecordsTableReferences
-                                            ._farmIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
-                        }
-                        if (createdByUserId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.createdByUserId,
-                                    referencedTable:
-                                        $$FarmDailyRecordsTableReferences
-                                            ._createdByUserIdTable(db),
-                                    referencedColumn:
-                                        $$FarmDailyRecordsTableReferences
-                                            ._createdByUserIdTable(db)
-                                            .userId,
-                                  )
-                                  as T;
-                        }
-
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [
-                      if (farmSpeciesPopulationMovementsRefs)
-                        await $_getPrefetchedData<
-                          FarmDailyRecord,
-                          $FarmDailyRecordsTable,
-                          FarmSpeciesPopulationMovement
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmDailyRecordsTableReferences
-                              ._farmSpeciesPopulationMovementsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmDailyRecordsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmSpeciesPopulationMovementsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.dailyRecordId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmMortalityRecordsRefs)
-                        await $_getPrefetchedData<
-                          FarmDailyRecord,
-                          $FarmDailyRecordsTable,
-                          FarmMortalityRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmDailyRecordsTableReferences
-                              ._farmMortalityRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmDailyRecordsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmMortalityRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.dailyRecordId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmFeedRecordsRefs)
-                        await $_getPrefetchedData<
-                          FarmDailyRecord,
-                          $FarmDailyRecordsTable,
-                          FarmFeedRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmDailyRecordsTableReferences
-                              ._farmFeedRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmDailyRecordsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmFeedRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.dailyRecordId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmEventsRefs)
-                        await $_getPrefetchedData<
-                          FarmDailyRecord,
-                          $FarmDailyRecordsTable,
-                          FarmEvent
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmDailyRecordsTableReferences
-                              ._farmEventsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmDailyRecordsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmEventsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.dailyRecordId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmHealthRecordsRefs)
-                        await $_getPrefetchedData<
-                          FarmDailyRecord,
-                          $FarmDailyRecordsTable,
-                          FarmHealthRecord
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmDailyRecordsTableReferences
-                              ._farmHealthRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmDailyRecordsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmHealthRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.dailyRecordId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (farmReportSnapshotsRefs)
-                        await $_getPrefetchedData<
-                          FarmDailyRecord,
-                          $FarmDailyRecordsTable,
-                          FarmReportSnapshot
-                        >(
-                          currentTable: table,
-                          referencedTable: $$FarmDailyRecordsTableReferences
-                              ._farmReportSnapshotsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$FarmDailyRecordsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).farmReportSnapshotsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.dailyRecordId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                    ];
-                  },
-                );
-              },
-        ),
-      );
-}
-
-typedef $$FarmDailyRecordsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $FarmDailyRecordsTable,
-      FarmDailyRecord,
-      $$FarmDailyRecordsTableFilterComposer,
-      $$FarmDailyRecordsTableOrderingComposer,
-      $$FarmDailyRecordsTableAnnotationComposer,
-      $$FarmDailyRecordsTableCreateCompanionBuilder,
-      $$FarmDailyRecordsTableUpdateCompanionBuilder,
-      (FarmDailyRecord, $$FarmDailyRecordsTableReferences),
-      FarmDailyRecord,
-      PrefetchHooks Function({
-        bool clinicId,
-        bool farmId,
-        bool createdByUserId,
-        bool farmSpeciesPopulationMovementsRefs,
-        bool farmMortalityRecordsRefs,
-        bool farmFeedRecordsRefs,
-        bool farmEventsRefs,
-        bool farmHealthRecordsRefs,
-        bool farmReportSnapshotsRefs,
-      })
-    >;
 typedef $$FarmSpeciesPopulationMovementsTableCreateCompanionBuilder =
     FarmSpeciesPopulationMovementsCompanion Function({
       Value<int> id,
@@ -82295,981 +86282,6 @@ typedef $$FarmReproductionRecordsTableProcessedTableManager =
         bool createdByUserId,
       })
     >;
-typedef $$FarmHealthRecordsTableCreateCompanionBuilder =
-    FarmHealthRecordsCompanion Function({
-      Value<int> id,
-      required String clinicId,
-      required String farmId,
-      Value<String?> dailyRecordId,
-      Value<int?> farmUnitId,
-      required DateTime occurredAt,
-      required String eventType,
-      Value<String?> product,
-      Value<String?> manufacturer,
-      Value<String?> batchNumber,
-      Value<String?> purpose,
-      Value<String?> dose,
-      Value<String?> route,
-      Value<int?> animalsCovered,
-      Value<String?> administeredBy,
-      Value<DateTime?> nextDueDate,
-      Value<String?> notes,
-      required String createdByUserId,
-    });
-typedef $$FarmHealthRecordsTableUpdateCompanionBuilder =
-    FarmHealthRecordsCompanion Function({
-      Value<int> id,
-      Value<String> clinicId,
-      Value<String> farmId,
-      Value<String?> dailyRecordId,
-      Value<int?> farmUnitId,
-      Value<DateTime> occurredAt,
-      Value<String> eventType,
-      Value<String?> product,
-      Value<String?> manufacturer,
-      Value<String?> batchNumber,
-      Value<String?> purpose,
-      Value<String?> dose,
-      Value<String?> route,
-      Value<int?> animalsCovered,
-      Value<String?> administeredBy,
-      Value<DateTime?> nextDueDate,
-      Value<String?> notes,
-      Value<String> createdByUserId,
-    });
-
-final class $$FarmHealthRecordsTableReferences
-    extends
-        BaseReferences<
-          _$AppDatabase,
-          $FarmHealthRecordsTable,
-          FarmHealthRecord
-        > {
-  $$FarmHealthRecordsTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
-
-  static $ClinicsTable _clinicIdTable(_$AppDatabase db) =>
-      db.clinics.createAlias(
-        $_aliasNameGenerator(
-          db.farmHealthRecords.clinicId,
-          db.clinics.clinicId,
-        ),
-      );
-
-  $$ClinicsTableProcessedTableManager get clinicId {
-    final $_column = $_itemColumn<String>('clinic_id')!;
-
-    final manager = $$ClinicsTableTableManager(
-      $_db,
-      $_db.clinics,
-    ).filter((f) => f.clinicId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_clinicIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $FarmsTable _farmIdTable(_$AppDatabase db) => db.farms.createAlias(
-    $_aliasNameGenerator(db.farmHealthRecords.farmId, db.farms.id),
-  );
-
-  $$FarmsTableProcessedTableManager get farmId {
-    final $_column = $_itemColumn<String>('farm_id')!;
-
-    final manager = $$FarmsTableTableManager(
-      $_db,
-      $_db.farms,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_farmIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $FarmDailyRecordsTable _dailyRecordIdTable(_$AppDatabase db) =>
-      db.farmDailyRecords.createAlias(
-        $_aliasNameGenerator(
-          db.farmHealthRecords.dailyRecordId,
-          db.farmDailyRecords.id,
-        ),
-      );
-
-  $$FarmDailyRecordsTableProcessedTableManager? get dailyRecordId {
-    final $_column = $_itemColumn<String>('daily_record_id');
-    if ($_column == null) return null;
-    final manager = $$FarmDailyRecordsTableTableManager(
-      $_db,
-      $_db.farmDailyRecords,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_dailyRecordIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $FarmUnitsTable _farmUnitIdTable(_$AppDatabase db) =>
-      db.farmUnits.createAlias(
-        $_aliasNameGenerator(db.farmHealthRecords.farmUnitId, db.farmUnits.id),
-      );
-
-  $$FarmUnitsTableProcessedTableManager? get farmUnitId {
-    final $_column = $_itemColumn<int>('farm_unit_id');
-    if ($_column == null) return null;
-    final manager = $$FarmUnitsTableTableManager(
-      $_db,
-      $_db.farmUnits,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_farmUnitIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $AppUsersTable _createdByUserIdTable(_$AppDatabase db) =>
-      db.appUsers.createAlias(
-        $_aliasNameGenerator(
-          db.farmHealthRecords.createdByUserId,
-          db.appUsers.userId,
-        ),
-      );
-
-  $$AppUsersTableProcessedTableManager get createdByUserId {
-    final $_column = $_itemColumn<String>('created_by_user_id')!;
-
-    final manager = $$AppUsersTableTableManager(
-      $_db,
-      $_db.appUsers,
-    ).filter((f) => f.userId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_createdByUserIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-}
-
-class $$FarmHealthRecordsTableFilterComposer
-    extends Composer<_$AppDatabase, $FarmHealthRecordsTable> {
-  $$FarmHealthRecordsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
-    column: $table.occurredAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get eventType => $composableBuilder(
-    column: $table.eventType,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get product => $composableBuilder(
-    column: $table.product,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get manufacturer => $composableBuilder(
-    column: $table.manufacturer,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get batchNumber => $composableBuilder(
-    column: $table.batchNumber,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get purpose => $composableBuilder(
-    column: $table.purpose,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get dose => $composableBuilder(
-    column: $table.dose,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get route => $composableBuilder(
-    column: $table.route,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get animalsCovered => $composableBuilder(
-    column: $table.animalsCovered,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get administeredBy => $composableBuilder(
-    column: $table.administeredBy,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get nextDueDate => $composableBuilder(
-    column: $table.nextDueDate,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  $$ClinicsTableFilterComposer get clinicId {
-    final $$ClinicsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableFilterComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableFilterComposer get farmId {
-    final $$FarmsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableFilterComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmDailyRecordsTableFilterComposer get dailyRecordId {
-    final $$FarmDailyRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.dailyRecordId,
-      referencedTable: $db.farmDailyRecords,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmDailyRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmDailyRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmUnitsTableFilterComposer get farmUnitId {
-    final $$FarmUnitsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmUnitId,
-      referencedTable: $db.farmUnits,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmUnitsTableFilterComposer(
-            $db: $db,
-            $table: $db.farmUnits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableFilterComposer get createdByUserId {
-    final $$AppUsersTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableFilterComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$FarmHealthRecordsTableOrderingComposer
-    extends Composer<_$AppDatabase, $FarmHealthRecordsTable> {
-  $$FarmHealthRecordsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
-    column: $table.occurredAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get eventType => $composableBuilder(
-    column: $table.eventType,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get product => $composableBuilder(
-    column: $table.product,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get manufacturer => $composableBuilder(
-    column: $table.manufacturer,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get batchNumber => $composableBuilder(
-    column: $table.batchNumber,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get purpose => $composableBuilder(
-    column: $table.purpose,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get dose => $composableBuilder(
-    column: $table.dose,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get route => $composableBuilder(
-    column: $table.route,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get animalsCovered => $composableBuilder(
-    column: $table.animalsCovered,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get administeredBy => $composableBuilder(
-    column: $table.administeredBy,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get nextDueDate => $composableBuilder(
-    column: $table.nextDueDate,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  $$ClinicsTableOrderingComposer get clinicId {
-    final $$ClinicsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableOrderingComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableOrderingComposer get farmId {
-    final $$FarmsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableOrderingComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmDailyRecordsTableOrderingComposer get dailyRecordId {
-    final $$FarmDailyRecordsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.dailyRecordId,
-      referencedTable: $db.farmDailyRecords,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmDailyRecordsTableOrderingComposer(
-            $db: $db,
-            $table: $db.farmDailyRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmUnitsTableOrderingComposer get farmUnitId {
-    final $$FarmUnitsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmUnitId,
-      referencedTable: $db.farmUnits,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmUnitsTableOrderingComposer(
-            $db: $db,
-            $table: $db.farmUnits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableOrderingComposer get createdByUserId {
-    final $$AppUsersTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableOrderingComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$FarmHealthRecordsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $FarmHealthRecordsTable> {
-  $$FarmHealthRecordsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
-    column: $table.occurredAt,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get eventType =>
-      $composableBuilder(column: $table.eventType, builder: (column) => column);
-
-  GeneratedColumn<String> get product =>
-      $composableBuilder(column: $table.product, builder: (column) => column);
-
-  GeneratedColumn<String> get manufacturer => $composableBuilder(
-    column: $table.manufacturer,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get batchNumber => $composableBuilder(
-    column: $table.batchNumber,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get purpose =>
-      $composableBuilder(column: $table.purpose, builder: (column) => column);
-
-  GeneratedColumn<String> get dose =>
-      $composableBuilder(column: $table.dose, builder: (column) => column);
-
-  GeneratedColumn<String> get route =>
-      $composableBuilder(column: $table.route, builder: (column) => column);
-
-  GeneratedColumn<int> get animalsCovered => $composableBuilder(
-    column: $table.animalsCovered,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get administeredBy => $composableBuilder(
-    column: $table.administeredBy,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<DateTime> get nextDueDate => $composableBuilder(
-    column: $table.nextDueDate,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get notes =>
-      $composableBuilder(column: $table.notes, builder: (column) => column);
-
-  $$ClinicsTableAnnotationComposer get clinicId {
-    final $$ClinicsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.clinicId,
-      referencedTable: $db.clinics,
-      getReferencedColumn: (t) => t.clinicId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ClinicsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.clinics,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmsTableAnnotationComposer get farmId {
-    final $$FarmsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmId,
-      referencedTable: $db.farms,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farms,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmDailyRecordsTableAnnotationComposer get dailyRecordId {
-    final $$FarmDailyRecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.dailyRecordId,
-      referencedTable: $db.farmDailyRecords,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmDailyRecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmDailyRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$FarmUnitsTableAnnotationComposer get farmUnitId {
-    final $$FarmUnitsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.farmUnitId,
-      referencedTable: $db.farmUnits,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$FarmUnitsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.farmUnits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AppUsersTableAnnotationComposer get createdByUserId {
-    final $$AppUsersTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.createdByUserId,
-      referencedTable: $db.appUsers,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AppUsersTableAnnotationComposer(
-            $db: $db,
-            $table: $db.appUsers,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$FarmHealthRecordsTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $FarmHealthRecordsTable,
-          FarmHealthRecord,
-          $$FarmHealthRecordsTableFilterComposer,
-          $$FarmHealthRecordsTableOrderingComposer,
-          $$FarmHealthRecordsTableAnnotationComposer,
-          $$FarmHealthRecordsTableCreateCompanionBuilder,
-          $$FarmHealthRecordsTableUpdateCompanionBuilder,
-          (FarmHealthRecord, $$FarmHealthRecordsTableReferences),
-          FarmHealthRecord,
-          PrefetchHooks Function({
-            bool clinicId,
-            bool farmId,
-            bool dailyRecordId,
-            bool farmUnitId,
-            bool createdByUserId,
-          })
-        > {
-  $$FarmHealthRecordsTableTableManager(
-    _$AppDatabase db,
-    $FarmHealthRecordsTable table,
-  ) : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$FarmHealthRecordsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$FarmHealthRecordsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$FarmHealthRecordsTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<String> clinicId = const Value.absent(),
-                Value<String> farmId = const Value.absent(),
-                Value<String?> dailyRecordId = const Value.absent(),
-                Value<int?> farmUnitId = const Value.absent(),
-                Value<DateTime> occurredAt = const Value.absent(),
-                Value<String> eventType = const Value.absent(),
-                Value<String?> product = const Value.absent(),
-                Value<String?> manufacturer = const Value.absent(),
-                Value<String?> batchNumber = const Value.absent(),
-                Value<String?> purpose = const Value.absent(),
-                Value<String?> dose = const Value.absent(),
-                Value<String?> route = const Value.absent(),
-                Value<int?> animalsCovered = const Value.absent(),
-                Value<String?> administeredBy = const Value.absent(),
-                Value<DateTime?> nextDueDate = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
-                Value<String> createdByUserId = const Value.absent(),
-              }) => FarmHealthRecordsCompanion(
-                id: id,
-                clinicId: clinicId,
-                farmId: farmId,
-                dailyRecordId: dailyRecordId,
-                farmUnitId: farmUnitId,
-                occurredAt: occurredAt,
-                eventType: eventType,
-                product: product,
-                manufacturer: manufacturer,
-                batchNumber: batchNumber,
-                purpose: purpose,
-                dose: dose,
-                route: route,
-                animalsCovered: animalsCovered,
-                administeredBy: administeredBy,
-                nextDueDate: nextDueDate,
-                notes: notes,
-                createdByUserId: createdByUserId,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required String clinicId,
-                required String farmId,
-                Value<String?> dailyRecordId = const Value.absent(),
-                Value<int?> farmUnitId = const Value.absent(),
-                required DateTime occurredAt,
-                required String eventType,
-                Value<String?> product = const Value.absent(),
-                Value<String?> manufacturer = const Value.absent(),
-                Value<String?> batchNumber = const Value.absent(),
-                Value<String?> purpose = const Value.absent(),
-                Value<String?> dose = const Value.absent(),
-                Value<String?> route = const Value.absent(),
-                Value<int?> animalsCovered = const Value.absent(),
-                Value<String?> administeredBy = const Value.absent(),
-                Value<DateTime?> nextDueDate = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
-                required String createdByUserId,
-              }) => FarmHealthRecordsCompanion.insert(
-                id: id,
-                clinicId: clinicId,
-                farmId: farmId,
-                dailyRecordId: dailyRecordId,
-                farmUnitId: farmUnitId,
-                occurredAt: occurredAt,
-                eventType: eventType,
-                product: product,
-                manufacturer: manufacturer,
-                batchNumber: batchNumber,
-                purpose: purpose,
-                dose: dose,
-                route: route,
-                animalsCovered: animalsCovered,
-                administeredBy: administeredBy,
-                nextDueDate: nextDueDate,
-                notes: notes,
-                createdByUserId: createdByUserId,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$FarmHealthRecordsTableReferences(db, table, e),
-                ),
-              )
-              .toList(),
-          prefetchHooksCallback:
-              ({
-                clinicId = false,
-                farmId = false,
-                dailyRecordId = false,
-                farmUnitId = false,
-                createdByUserId = false,
-              }) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (clinicId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.clinicId,
-                                    referencedTable:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._clinicIdTable(db),
-                                    referencedColumn:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._clinicIdTable(db)
-                                            .clinicId,
-                                  )
-                                  as T;
-                        }
-                        if (farmId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.farmId,
-                                    referencedTable:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._farmIdTable(db),
-                                    referencedColumn:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._farmIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
-                        }
-                        if (dailyRecordId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.dailyRecordId,
-                                    referencedTable:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._dailyRecordIdTable(db),
-                                    referencedColumn:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._dailyRecordIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
-                        }
-                        if (farmUnitId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.farmUnitId,
-                                    referencedTable:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._farmUnitIdTable(db),
-                                    referencedColumn:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._farmUnitIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
-                        }
-                        if (createdByUserId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.createdByUserId,
-                                    referencedTable:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._createdByUserIdTable(db),
-                                    referencedColumn:
-                                        $$FarmHealthRecordsTableReferences
-                                            ._createdByUserIdTable(db)
-                                            .userId,
-                                  )
-                                  as T;
-                        }
-
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [];
-                  },
-                );
-              },
-        ),
-      );
-}
-
-typedef $$FarmHealthRecordsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $FarmHealthRecordsTable,
-      FarmHealthRecord,
-      $$FarmHealthRecordsTableFilterComposer,
-      $$FarmHealthRecordsTableOrderingComposer,
-      $$FarmHealthRecordsTableAnnotationComposer,
-      $$FarmHealthRecordsTableCreateCompanionBuilder,
-      $$FarmHealthRecordsTableUpdateCompanionBuilder,
-      (FarmHealthRecord, $$FarmHealthRecordsTableReferences),
-      FarmHealthRecord,
-      PrefetchHooks Function({
-        bool clinicId,
-        bool farmId,
-        bool dailyRecordId,
-        bool farmUnitId,
-        bool createdByUserId,
-      })
-    >;
 typedef $$FarmReportSnapshotsTableCreateCompanionBuilder =
     FarmReportSnapshotsCompanion Function({
       required String id,
@@ -84026,8 +87038,12 @@ class $AppDatabaseManager {
       );
   $$VaccinationsTableTableManager get vaccinations =>
       $$VaccinationsTableTableManager(_db, _db.vaccinations);
+  $$ProductUnitsTableTableManager get productUnits =>
+      $$ProductUnitsTableTableManager(_db, _db.productUnits);
   $$SalesTableTableManager get sales =>
       $$SalesTableTableManager(_db, _db.sales);
+  $$FarmsTableTableManager get farms =>
+      $$FarmsTableTableManager(_db, _db.farms);
   $$AppointmentsTableTableManager get appointments =>
       $$AppointmentsTableTableManager(_db, _db.appointments);
   $$InvoicesTableTableManager get invoices =>
@@ -84036,6 +87052,12 @@ class $AppDatabaseManager {
       $$InvoicePaymentsTableTableManager(_db, _db.invoicePayments);
   $$InvoiceProductLinesTableTableManager get invoiceProductLines =>
       $$InvoiceProductLinesTableTableManager(_db, _db.invoiceProductLines);
+  $$FarmUnitsTableTableManager get farmUnits =>
+      $$FarmUnitsTableTableManager(_db, _db.farmUnits);
+  $$FarmDailyRecordsTableTableManager get farmDailyRecords =>
+      $$FarmDailyRecordsTableTableManager(_db, _db.farmDailyRecords);
+  $$FarmHealthRecordsTableTableManager get farmHealthRecords =>
+      $$FarmHealthRecordsTableTableManager(_db, _db.farmHealthRecords);
   $$InvoiceServiceLinesTableTableManager get invoiceServiceLines =>
       $$InvoiceServiceLinesTableTableManager(_db, _db.invoiceServiceLines);
   $$InventoryStockMovementsTableTableManager get inventoryStockMovements =>
@@ -84094,12 +87116,6 @@ class $AppDatabaseManager {
       $$SubscriptionOverridesTableTableManager(_db, _db.subscriptionOverrides);
   $$SubscriptionAuditLogsTableTableManager get subscriptionAuditLogs =>
       $$SubscriptionAuditLogsTableTableManager(_db, _db.subscriptionAuditLogs);
-  $$FarmsTableTableManager get farms =>
-      $$FarmsTableTableManager(_db, _db.farms);
-  $$FarmUnitsTableTableManager get farmUnits =>
-      $$FarmUnitsTableTableManager(_db, _db.farmUnits);
-  $$FarmDailyRecordsTableTableManager get farmDailyRecords =>
-      $$FarmDailyRecordsTableTableManager(_db, _db.farmDailyRecords);
   $$FarmSpeciesPopulationMovementsTableTableManager
   get farmSpeciesPopulationMovements =>
       $$FarmSpeciesPopulationMovementsTableTableManager(
@@ -84117,8 +87133,6 @@ class $AppDatabaseManager {
         _db,
         _db.farmReproductionRecords,
       );
-  $$FarmHealthRecordsTableTableManager get farmHealthRecords =>
-      $$FarmHealthRecordsTableTableManager(_db, _db.farmHealthRecords);
   $$FarmReportSnapshotsTableTableManager get farmReportSnapshots =>
       $$FarmReportSnapshotsTableTableManager(_db, _db.farmReportSnapshots);
 }

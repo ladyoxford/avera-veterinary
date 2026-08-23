@@ -7,12 +7,14 @@ import {
   createAppointmentSchema,
   createInventoryItemSchema,
   createInvoiceSchema,
+  createReorderRequestSchema,
   createPatientSchema,
   createVaccinationSchema,
   formatPatientHospitalNumber,
   patientStatusSchema,
   patientsShareBillingOwner,
   recordInvoicePaymentSchema,
+  replaceProductUnitsSchema,
   suggestedPatientPrefix,
   cancelAppointmentSchema,
   updateAppointmentSchema,
@@ -644,4 +646,82 @@ test('patient photo migration preserves patients and adds only the photo path', 
   assert.match(migration, /ALTER TABLE patients/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS profile_photo_path TEXT/);
   assert.doesNotMatch(migration, /DROP TABLE|DELETE FROM patients|TRUNCATE/i);
+});
+
+test('farm billing and product unit migration is additive, tenant scoped, and race safe', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/024_farm_billing_product_units.sql', import.meta.url),
+    'utf8',
+  );
+  for (const table of [
+    'inventory_product_units',
+    'farms',
+    'farm_units',
+    'farm_treatment_records',
+    'inventory_reorder_requests',
+  ]) {
+    assert.match(migration, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
+  }
+  assert.match(migration, /inventory_product_units_one_base/);
+  assert.match(migration, /WHERE is_base_unit/);
+  assert.match(migration, /conversion_to_base INTEGER NOT NULL CHECK \(conversion_to_base > 0\)/);
+  assert.match(migration, /CHECK \(NOT is_base_unit OR conversion_to_base = 1\)/);
+  assert.match(migration, /invoice_line_items_treatment_unique/);
+  assert.match(migration, /WHERE source_treatment_record_id IS NOT NULL/);
+  assert.match(migration, /inventory_deducted_at TIMESTAMPTZ/);
+  assert.match(migration, /display_unit_snapshot TEXT/);
+  assert.match(migration, /unit_cost_snapshot NUMERIC/);
+  assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration, /clinic_id::text = current_setting\('avera\.clinic_id'/);
+  assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM inventory_products/i);
+});
+
+test('product unit and reorder payloads enforce canonical inventory rules', () => {
+  const base = {
+    unitLabel: 'Vial',
+    isBaseUnit: true,
+    conversionToBase: 1,
+    sellingPrice: 3200,
+  };
+  assert.equal(replaceProductUnitsSchema.safeParse({ units: [base] }).success, true);
+  assert.equal(replaceProductUnitsSchema.safeParse({ units: [
+    base,
+    { unitLabel: 'Box', isBaseUnit: false, conversionToBase: 10, sellingPrice: 30000 },
+  ] }).success, true);
+  assert.equal(replaceProductUnitsSchema.safeParse({ units: [
+    base,
+    { ...base, unitLabel: 'Bottle' },
+  ] }).success, false);
+  assert.equal(replaceProductUnitsSchema.safeParse({ units: [
+    base,
+    { unitLabel: ' vial ', isBaseUnit: false, conversionToBase: 10, sellingPrice: 30000 },
+  ] }).success, false);
+  assert.equal(replaceProductUnitsSchema.safeParse({ units: [
+    { ...base, conversionToBase: 2 },
+  ] }).success, false);
+  assert.equal(createReorderRequestSchema.safeParse({ requestedQuantity: 5 }).success, true);
+  assert.equal(createReorderRequestSchema.safeParse({ requestedQuantity: 0 }).success, false);
+});
+
+test('farm invoice and package stock routes lock, scope, snapshot, and reject expiry', () => {
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(routes, /async function prepareProductLines/);
+  assert.match(routes, /FOR UPDATE/);
+  assert.match(routes, /inventory_product_expired/);
+  assert.match(routes, /Number\(row\.quantity\) < Number\(row\.base_quantity\)/);
+  assert.match(routes, /SELECT inventory_deducted_at FROM invoices[\s\S]*FOR UPDATE/);
+  assert.match(routes, /inventory_deducted_at\) return/);
+  assert.match(routes, /source_treatment_record_id/);
+  assert.match(routes, /display_unit_snapshot/);
+  assert.match(routes, /conversion_to_base_snapshot/);
+  assert.match(routes, /unit_cost_snapshot/);
+  assert.match(routes, /request\.auth\.clinicId/);
+  assert.match(routes, /duplicate_invoice_source/);
+  assert.match(routes, /permissions\.inventoryAdjust/);
+  assert.match(routes, /\/api\/v1\/inventory\/products\/:inventoryProductId\/units/);
+  assert.match(routes, /\/api\/v1\/inventory\/products\/:inventoryProductId\/reorder-requests/);
+  assert.match(routes, /\/api\/v1\/inventory\/products\/:inventoryProductId\/related/);
 });

@@ -533,7 +533,7 @@ class HospitalLoadTestSeeder {
           .insert(
             InvoicesCompanion.insert(
               clinicId: clinicId,
-              animalId: animals[index % animals.length].id,
+              animalId: Value(animals[index % animals.length].id),
               reference:
                   'AMV-INV-$_year-${(index + 1).toString().padLeft(5, '0')}',
               status: Value(status),

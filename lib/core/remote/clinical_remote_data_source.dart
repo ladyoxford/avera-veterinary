@@ -236,6 +236,43 @@ String? _ownerAddress(Map<String, dynamic> value) {
   return parts.isEmpty ? null : parts.join(', ');
 }
 
+class RemoteProductUnit {
+  const RemoteProductUnit({
+    required this.id,
+    required this.label,
+    required this.isBaseUnit,
+    required this.conversionToBase,
+    required this.sellingPrice,
+    this.revision,
+  });
+
+  final String id;
+  final String label;
+  final bool isBaseUnit;
+  final int conversionToBase;
+  final num sellingPrice;
+  final int? revision;
+
+  factory RemoteProductUnit.fromJson(Map<String, dynamic> value) =>
+      RemoteProductUnit(
+        id: value['product_unit_id'] as String,
+        label: value['unit_label'] as String? ?? 'unit',
+        isBaseUnit: value['is_base_unit'] as bool? ?? false,
+        conversionToBase: _int(value['conversion_to_base']),
+        sellingPrice: _num(value['selling_price']),
+        revision: _nullableInt(value['revision']),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'product_unit_id': id,
+    'unit_label': label,
+    'is_base_unit': isBaseUnit,
+    'conversion_to_base': conversionToBase,
+    'selling_price': sellingPrice,
+    'revision': revision,
+  };
+}
+
 class RemoteInventoryItem {
   const RemoteInventoryItem({
     required this.id,
@@ -247,11 +284,24 @@ class RemoteInventoryItem {
     required this.purchasePrice,
     required this.sellingPrice,
     required this.status,
+    this.genericName,
+    this.manufacturer,
+    this.supplier,
     this.batchNumber,
     this.expiryDate,
     this.createdAt,
     this.updatedAt,
     this.revision,
+    this.baseUnitLabel = 'unit',
+    this.activeIngredient,
+    this.dosageAndRoute,
+    this.withdrawalMeat,
+    this.withdrawalMilk,
+    this.withdrawalEggs,
+    this.warnings,
+    this.isSellable = true,
+    this.isArchived = false,
+    this.productUnits = const [],
   });
 
   final String id;
@@ -263,11 +313,24 @@ class RemoteInventoryItem {
   final num purchasePrice;
   final num sellingPrice;
   final String status;
+  final String? genericName;
+  final String? manufacturer;
+  final String? supplier;
   final String? batchNumber;
   final DateTime? expiryDate;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final int? revision;
+  final String baseUnitLabel;
+  final String? activeIngredient;
+  final String? dosageAndRoute;
+  final String? withdrawalMeat;
+  final String? withdrawalMilk;
+  final String? withdrawalEggs;
+  final String? warnings;
+  final bool isSellable;
+  final bool isArchived;
+  final List<RemoteProductUnit> productUnits;
 
   factory RemoteInventoryItem.fromJson(Map<String, dynamic> value) {
     final categoryName = value['category'] as String? ?? 'Other';
@@ -283,11 +346,30 @@ class RemoteInventoryItem {
       purchasePrice: _num(value['purchase_price']),
       sellingPrice: _num(value['selling_price']),
       status: value['status'] as String? ?? 'Active',
+      genericName: value['generic_name'] as String?,
+      manufacturer: value['manufacturer'] as String?,
+      supplier: value['supplier'] as String?,
       batchNumber: value['batch_number'] as String?,
       expiryDate: _date(value['expiry_date']),
       createdAt: _date(value['created_at']),
       updatedAt: _date(value['updated_at']),
       revision: _nullableInt(value['revision']),
+      baseUnitLabel: value['base_unit_label'] as String? ?? 'unit',
+      activeIngredient: value['active_ingredient'] as String?,
+      dosageAndRoute: value['dosage_and_route'] as String?,
+      withdrawalMeat: value['withdrawal_meat'] as String?,
+      withdrawalMilk: value['withdrawal_milk'] as String?,
+      withdrawalEggs: value['withdrawal_eggs'] as String?,
+      warnings: value['warnings'] as String?,
+      isSellable: value['is_sellable'] as bool? ?? true,
+      isArchived: value['is_archived'] as bool? ?? false,
+      productUnits: (value['product_units'] as List<dynamic>? ?? const [])
+          .map(
+            (unit) => RemoteProductUnit.fromJson(
+              Map<String, dynamic>.from(unit as Map),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
@@ -301,11 +383,24 @@ class RemoteInventoryItem {
     'purchase_price': purchasePrice,
     'selling_price': sellingPrice,
     'status': status,
+    'generic_name': genericName,
+    'manufacturer': manufacturer,
+    'supplier': supplier,
     'batch_number': batchNumber,
     'expiry_date': expiryDate?.toIso8601String(),
     'created_at': createdAt?.toIso8601String(),
     'updated_at': updatedAt?.toIso8601String(),
     'revision': revision,
+    'base_unit_label': baseUnitLabel,
+    'active_ingredient': activeIngredient,
+    'dosage_and_route': dosageAndRoute,
+    'withdrawal_meat': withdrawalMeat,
+    'withdrawal_milk': withdrawalMilk,
+    'withdrawal_eggs': withdrawalEggs,
+    'warnings': warnings,
+    'is_sellable': isSellable,
+    'is_archived': isArchived,
+    'product_units': productUnits.map((unit) => unit.toJson()).toList(),
   };
 }
 
@@ -787,6 +882,49 @@ class ClinicalRemoteDataSource {
     return RemoteInventoryItem.fromJson(
       Map<String, dynamic>.from(response['item'] as Map),
     );
+  }
+
+  Future<RemoteInventoryItem> replaceInventoryProductUnits({
+    required String inventoryProductId,
+    required List<Map<String, dynamic>> units,
+  }) async {
+    final response = await _client.put(
+      '/api/v1/inventory/products/$inventoryProductId/units',
+      body: {'units': units},
+    );
+    return RemoteInventoryItem.fromJson(
+      Map<String, dynamic>.from(response['item'] as Map),
+    );
+  }
+
+  Future<Map<String, dynamic>> createInventoryReorderRequest({
+    required String inventoryProductId,
+    required int requestedQuantity,
+    String? productUnitId,
+  }) async => Map<String, dynamic>.from(
+    await _client.post(
+      '/api/v1/inventory/products/$inventoryProductId/reorder-requests',
+      body: {
+        'requestedQuantity': requestedQuantity,
+        if (productUnitId != null) 'productUnitId': productUnitId,
+      },
+      authenticated: true,
+    ),
+  );
+
+  Future<List<RemoteInventoryItem>> relatedInventoryProducts(
+    String inventoryProductId,
+  ) async {
+    final response = await _client.get(
+      '/api/v1/inventory/products/$inventoryProductId/related',
+    );
+    return (response['items'] as List<dynamic>? ?? const [])
+        .map(
+          (item) => RemoteInventoryItem.fromJson(
+            Map<String, dynamic>.from(item as Map),
+          ),
+        )
+        .toList(growable: false);
   }
 
   Future<RemotePage<Map<String, dynamic>>> inventoryMovements({

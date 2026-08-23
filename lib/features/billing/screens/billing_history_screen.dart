@@ -186,9 +186,11 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
     return [
       entry.invoice.reference,
       entry.invoice.status,
-      entry.animal.animalName,
-      entry.animal.hospitalNumber,
-      entry.owner.fullName,
+      entry.animal?.animalName,
+      entry.animal?.hospitalNumber,
+      entry.owner?.fullName,
+      entry.farm?.name,
+      entry.invoice.clientNameSnapshot,
       entry.processedBy?.fullName,
     ].whereType<String>().join(' ').toLowerCase().contains(query);
   }
@@ -466,11 +468,18 @@ class _InvoiceHistoryCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${entry.animal.animalName} - '
-                    '${entry.animal.hospitalNumber}',
+                    entry.farm != null
+                        ? '${entry.farm!.name} - Farm visit'
+                        : '${entry.animal?.animalName ?? 'Patient'} - '
+                              '${entry.animal?.hospitalNumber ?? 'No hospital number'}',
                     style: averaText(context).listItemSubtitle,
                   ),
-                  Text(entry.owner.fullName, style: averaText(context).caption),
+                  Text(
+                    entry.owner?.fullName ??
+                        entry.invoice.clientNameSnapshot ??
+                        'Farm client',
+                    style: averaText(context).caption,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     DateFormat.yMMMd().add_jm().format(entry.invoice.createdAt),

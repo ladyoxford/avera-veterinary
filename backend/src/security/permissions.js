@@ -24,7 +24,7 @@ export const permissions = {
   treatmentBoardAdminister: 'treatment_board.administer', treatmentBoardDelay: 'treatment_board.delay',
   treatmentBoardWithhold: 'treatment_board.withhold', treatmentBoardCancel: 'treatment_board.cancel',
   treatmentBoardReopen: 'treatment_board.reopen',
-  inventoryView: 'inventory.view', inventoryCreate: 'inventory.create', inventoryEdit: 'inventory.edit', inventoryManage: 'inventory.manage',
+  inventoryView: 'inventory.view', inventoryCreate: 'inventory.create', inventoryEdit: 'inventory.edit', inventoryAdjust: 'inventory.adjust',
   appointmentsView: 'appointments.view', appointmentsCreate: 'appointments.create',
   appointmentsEdit: 'appointments.edit', appointmentsCancel: 'appointments.cancel',
   appointmentsStartConsultation: 'appointments.start_consultation',

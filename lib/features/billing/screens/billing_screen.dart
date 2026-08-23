@@ -31,6 +31,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   final List<RemotePatient> _remotePatients = [];
   late final String _submissionId = const Uuid().v4();
   final List<_ProductCharge> _products = [];
+  final List<_RemoteProductCharge> _remoteProducts = [];
   final List<_ServiceCharge> _services = [];
   final _consultationFee = TextEditingController(text: '0');
   final _homeFee = TextEditingController(text: '0');
@@ -55,6 +56,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final repository = ref.watch(clinicRepositoryProvider);
+    final usesRemoteInventory = BackendConfiguration.isConfigured;
+    final remoteInventory = ref.watch(remoteInventoryListProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Billing'),
@@ -80,12 +83,28 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     !item.isArchived;
               })
               .toList();
-          final productSubtotal = _products.fold<double>(0, (sum, charge) {
-            final item = allowedProducts
-                .where((item) => item.id == charge.inventoryItemId)
-                .firstOrNull;
-            return sum + (item?.sellingPrice ?? 0) * charge.quantity;
-          });
+          final allowedRemoteProducts = remoteInventory.items.where((item) {
+            return repository.canSellInventoryCategory(
+                  session,
+                  item.categoryId,
+                ) &&
+                item.isSellable &&
+                !item.isArchived;
+          }).toList();
+          final productSubtotal = usesRemoteInventory
+              ? _remoteProducts.fold<double>(
+                  0,
+                  (sum, charge) => sum + charge.lineTotal,
+                )
+              : _products.fold<double>(0, (sum, charge) {
+                  final item = allowedProducts
+                      .where((item) => item.id == charge.inventoryItemId)
+                      .firstOrNull;
+                  return sum + (item?.sellingPrice ?? 0) * charge.quantity;
+                });
+          final hasProducts = usesRemoteInventory
+              ? _remoteProducts.isNotEmpty
+              : _products.isNotEmpty;
           final servicesSubtotal = _services.fold<double>(
             0,
             (sum, service) => sum + service.amount,
@@ -116,23 +135,44 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
               _SectionAction(
                 title: 'Products',
                 action: 'Add Product',
-                onPressed: () => _addProduct(allowedProducts),
+                onPressed: usesRemoteInventory
+                    ? () => _addRemoteProduct(allowedRemoteProducts)
+                    : () => _addProduct(allowedProducts),
               ),
               const SizedBox(height: 8),
               AveraSurfaceCard(
-                child: _ProductLines(
-                  items: allowedProducts,
-                  charges: _products,
-                  onChanged: (index, quantity) => setState(() {
-                    if (quantity <= 0) {
-                      _products.removeAt(index);
-                    } else {
-                      _products[index] = _products[index].copyWith(
-                        quantity: quantity,
-                      );
-                    }
-                  }),
-                ),
+                child: usesRemoteInventory
+                    ? _RemoteProductLines(
+                        charges: _remoteProducts,
+                        loading:
+                            remoteInventory.isLoading &&
+                            remoteInventory.items.isEmpty,
+                        error: remoteInventory.error,
+                        onRetry: () => ref
+                            .read(remoteInventoryListProvider.notifier)
+                            .refresh(),
+                        onChanged: (index, quantity) => setState(() {
+                          if (quantity <= 0) {
+                            _remoteProducts.removeAt(index);
+                          } else {
+                            _remoteProducts[index] = _remoteProducts[index]
+                                .copyWith(quantity: quantity);
+                          }
+                        }),
+                      )
+                    : _ProductLines(
+                        items: allowedProducts,
+                        charges: _products,
+                        onChanged: (index, quantity) => setState(() {
+                          if (quantity <= 0) {
+                            _products.removeAt(index);
+                          } else {
+                            _products[index] = _products[index].copyWith(
+                              quantity: quantity,
+                            );
+                          }
+                        }),
+                      ),
               ),
               const SizedBox(height: 20),
               _SectionAction(
@@ -177,7 +217,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
               Chip(label: Text(_invoiceStatus)),
               const SizedBox(height: 16),
               AveraPrimaryActionButton(
-                label: _products.isEmpty
+                label: !hasProducts
                     ? 'Record Payment'
                     : 'Record Payment & Deduct Stock',
                 icon: Icons.receipt_long_outlined,
@@ -185,8 +225,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 onPressed:
                     _busy ||
                         !session.can(Permissions.billingRecordPayment) ||
-                        (_products.isNotEmpty &&
-                            !session.can(Permissions.inventorySell))
+                        (hasProducts && !session.can(Permissions.inventorySell))
                     ? null
                     : () => _pay(session, total),
               ),
@@ -334,6 +373,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
               (charge.target.localAnimalId != null &&
                   !localIds.contains(charge.target.localAnimalId))),
     );
+    _remoteProducts.removeWhere(
+      (charge) =>
+          !charge.target.isGeneral &&
+          (charge.target.remotePatientId == null ||
+              !remoteIds.contains(charge.target.remotePatientId)),
+    );
     _services.removeWhere(
       (charge) =>
           !charge.target.isGeneral &&
@@ -356,6 +401,91 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         setState(() => _products.add(_ProductCharge(product.id, 1, target)));
       }
     }
+  }
+
+  Future<void> _addRemoteProduct(List<RemoteInventoryItem> items) async {
+    if (items.isEmpty) {
+      final inventoryState = ref.read(remoteInventoryListProvider);
+      _message(
+        inventoryState.error == null
+            ? 'No sellable inventory products are available.'
+            : 'Inventory could not be refreshed. Try again.',
+      );
+      return;
+    }
+    final product = await showModalBottomSheet<RemoteInventoryItem>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.78,
+        child: _RemoteBillingProductPicker(items: items),
+      ),
+    );
+    if (product == null || !mounted) return;
+    final units = _billableUnits(product);
+    if (units.isEmpty) {
+      _message('This product has no unit with available stock.');
+      return;
+    }
+    final unit = units.length == 1
+        ? units.first
+        : await showModalBottomSheet<_RemoteBillableUnit>(
+            context: context,
+            useSafeArea: true,
+            showDragHandle: true,
+            builder: (context) => _RemoteBillingUnitPicker(
+              productName: product.name,
+              units: units,
+            ),
+          );
+    if (unit == null || !mounted) return;
+    final target = await _selectChargeTarget();
+    if (target == null || !mounted) return;
+    setState(() {
+      _remoteProducts.add(
+        _RemoteProductCharge(
+          inventoryProductId: product.id,
+          productUnitId: unit.productUnitId,
+          productName: product.name,
+          unitLabel: unit.label,
+          conversionToBase: unit.conversionToBase,
+          unitPrice: unit.sellingPrice,
+          availableBaseQuantity: product.quantity,
+          quantity: 1,
+          target: target,
+        ),
+      );
+    });
+  }
+
+  List<_RemoteBillableUnit> _billableUnits(RemoteInventoryItem product) {
+    final configured = product.productUnits
+        .map(
+          (unit) => _RemoteBillableUnit(
+            productUnitId: unit.id,
+            label: unit.label,
+            conversionToBase: unit.conversionToBase,
+            sellingPrice: unit.sellingPrice.toDouble(),
+            availableBaseQuantity: product.quantity,
+          ),
+        )
+        .where((unit) => unit.availableQuantity > 0)
+        .toList();
+    if (configured.isNotEmpty) return configured;
+    if (product.productUnits.isNotEmpty || product.quantity <= 0) {
+      return const [];
+    }
+    return [
+      _RemoteBillableUnit(
+        productUnitId: null,
+        label: product.baseUnitLabel,
+        conversionToBase: 1,
+        sellingPrice: product.sellingPrice.toDouble(),
+        availableBaseQuantity: product.quantity,
+      ),
+    ];
   }
 
   Future<_BillingTarget?> _selectChargeTarget() async {
@@ -600,11 +730,13 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       throw StateError('Select at least one animal before billing.');
     }
     final patient = _remotePatients.first;
-    if (_products.isNotEmpty) {
-      throw StateError(
-        'Refresh inventory before recording product sales in production.',
-      );
+    if (_remoteProducts.any((charge) => charge.quantity > charge.maxQuantity)) {
+      throw StateError('A selected product quantity exceeds available stock.');
     }
+    final products = _remoteProducts.fold<double>(
+      0,
+      (sum, product) => sum + product.lineTotal,
+    );
     final services = _services.fold<double>(
       0,
       (sum, service) => sum + service.amount,
@@ -613,7 +745,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         ? double.tryParse(_consultationFee.text) ?? 0
         : 0;
     final home = _homeEnabled ? double.tryParse(_homeFee.text) ?? 0 : 0;
-    final total = services + consultation + home;
+    final total = products + services + consultation + home;
     final created = await ref
         .read(clinicalRemoteDataSourceProvider)
         .createInvoice({
@@ -623,6 +755,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           'status': status,
           'subtotal': total,
           'total': total,
+          'products': [
+            for (final product in _remoteProducts)
+              {
+                'inventoryProductId': product.inventoryProductId,
+                'productUnitId': product.productUnitId,
+                'quantity': product.quantity,
+                'patientId': product.target.remotePatientId,
+              },
+          ],
           'services': [
             for (final service in _services)
               {
@@ -660,6 +801,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     for (final selected in _remotePatients) {
       ref.invalidate(remotePatientMedicalFileProvider(selected.id));
     }
+    ref.invalidate(remoteInventoryListProvider);
+    ref.invalidate(remoteDashboardProvider);
     final invoiceId = created['invoice_id']?.toString();
     if (invoiceId == null || invoiceId.isEmpty) {
       throw StateError('The invoice was saved without a valid reference.');
@@ -779,6 +922,65 @@ class _ProductCharge {
 
   _ProductCharge copyWith({int? quantity}) =>
       _ProductCharge(inventoryItemId, quantity ?? this.quantity, target);
+}
+
+class _RemoteBillableUnit {
+  const _RemoteBillableUnit({
+    required this.productUnitId,
+    required this.label,
+    required this.conversionToBase,
+    required this.sellingPrice,
+    required this.availableBaseQuantity,
+  });
+
+  final String? productUnitId;
+  final String label;
+  final int conversionToBase;
+  final double sellingPrice;
+  final int availableBaseQuantity;
+
+  int get availableQuantity =>
+      conversionToBase <= 0 ? 0 : availableBaseQuantity ~/ conversionToBase;
+}
+
+class _RemoteProductCharge {
+  const _RemoteProductCharge({
+    required this.inventoryProductId,
+    required this.productUnitId,
+    required this.productName,
+    required this.unitLabel,
+    required this.conversionToBase,
+    required this.unitPrice,
+    required this.availableBaseQuantity,
+    required this.quantity,
+    required this.target,
+  });
+
+  final String inventoryProductId;
+  final String? productUnitId;
+  final String productName;
+  final String unitLabel;
+  final int conversionToBase;
+  final double unitPrice;
+  final int availableBaseQuantity;
+  final int quantity;
+  final _BillingTarget target;
+
+  int get maxQuantity =>
+      conversionToBase <= 0 ? 0 : availableBaseQuantity ~/ conversionToBase;
+  double get lineTotal => quantity * unitPrice;
+
+  _RemoteProductCharge copyWith({int? quantity}) => _RemoteProductCharge(
+    inventoryProductId: inventoryProductId,
+    productUnitId: productUnitId,
+    productName: productName,
+    unitLabel: unitLabel,
+    conversionToBase: conversionToBase,
+    unitPrice: unitPrice,
+    availableBaseQuantity: availableBaseQuantity,
+    quantity: quantity ?? this.quantity,
+    target: target,
+  );
 }
 
 class _ServiceCharge {
@@ -978,6 +1180,101 @@ class _ProductLines extends StatelessWidget {
                 );
               },
             ),
+      ],
+    );
+  }
+}
+
+class _RemoteProductLines extends StatelessWidget {
+  const _RemoteProductLines({
+    required this.charges,
+    required this.loading,
+    required this.error,
+    required this.onRetry,
+    required this.onChanged,
+  });
+
+  final List<_RemoteProductCharge> charges;
+  final bool loading;
+  final Object? error;
+  final VoidCallback onRetry;
+  final void Function(int, int) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (charges.isEmpty && error != null) {
+      return Row(
+        children: [
+          const Expanded(child: Text('Inventory is temporarily unavailable.')),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      );
+    }
+    if (charges.isEmpty) return const Text('No products added.');
+    return Column(
+      children: [
+        for (var index = 0; index < charges.length; index++) ...[
+          Builder(
+            builder: (context) {
+              final charge = charges[index];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              charge.productName,
+                              style: averaText(context).fieldValue,
+                            ),
+                            Text(
+                              '${charge.target.label} | ${charge.quantity} ${charge.unitLabel} x ${formatNaira(charge.unitPrice)}',
+                              style: averaText(context).caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        formatNaira(charge.lineTotal),
+                        style: averaText(context).fieldValue,
+                      ),
+                    ],
+                  ),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    children: [
+                      IconButton(
+                        tooltip: 'Reduce quantity',
+                        onPressed: () => onChanged(index, charge.quantity - 1),
+                        icon: const Icon(Icons.remove_circle_outline),
+                      ),
+                      Text('${charge.quantity}'),
+                      IconButton(
+                        tooltip: 'Increase quantity',
+                        onPressed: charge.quantity < charge.maxQuantity
+                            ? () => onChanged(index, charge.quantity + 1)
+                            : null,
+                        icon: const Icon(Icons.add_circle_outline),
+                      ),
+                      TextButton(
+                        onPressed: () => onChanged(index, 0),
+                        child: const Text('Remove'),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+          if (index < charges.length - 1) const Divider(),
+        ],
       ],
     );
   }
@@ -1184,6 +1481,92 @@ class _BillingProductPicker extends StatelessWidget {
           ),
         ],
       ),
+    ),
+  );
+}
+
+class _RemoteBillingProductPicker extends StatelessWidget {
+  const _RemoteBillingProductPicker({required this.items});
+
+  final List<RemoteInventoryItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateUtils.dateOnly(DateTime.now());
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Add Product', style: averaText(context).sectionTitle),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final expired =
+                    item.expiryDate != null &&
+                    DateUtils.dateOnly(item.expiryDate!).isBefore(today);
+                final hasStock = item.quantity > 0;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(item.name),
+                  subtitle: Text(
+                    '${item.quantity} ${item.baseUnitLabel} available | ${item.productUnits.length} sale unit${item.productUnits.length == 1 ? '' : 's'}',
+                  ),
+                  trailing: expired
+                      ? const Chip(label: Text('Expired'))
+                      : const Icon(Icons.chevron_right_rounded),
+                  enabled: !expired && hasStock,
+                  onTap: !expired && hasStock
+                      ? () => Navigator.pop(context, item)
+                      : null,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RemoteBillingUnitPicker extends StatelessWidget {
+  const _RemoteBillingUnitPicker({
+    required this.productName,
+    required this.units,
+  });
+
+  final String productName;
+  final List<_RemoteBillableUnit> units;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Select Unit', style: averaText(context).sectionTitle),
+        const SizedBox(height: 4),
+        Text(productName, style: averaText(context).caption),
+        const SizedBox(height: 12),
+        for (final unit in units)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(unit.label),
+            subtitle: Text(
+              '${unit.availableQuantity} available | ${unit.conversionToBase} base unit${unit.conversionToBase == 1 ? '' : 's'} each',
+            ),
+            trailing: Text(
+              formatNaira(unit.sellingPrice),
+              style: averaText(context).fieldValue,
+            ),
+            onTap: () => Navigator.pop(context, unit),
+          ),
+      ],
     ),
   );
 }

@@ -306,12 +306,20 @@ class InvoiceServiceDraft {
   final bool isGeneral;
 }
 
+class FarmInvoiceCandidate {
+  const FarmInvoiceCandidate({required this.record, required this.unit});
+
+  final FarmHealthRecord record;
+  final FarmUnit? unit;
+}
+
 class InvoiceDetail {
   const InvoiceDetail({
     required this.invoice,
     required this.products,
     required this.services,
     this.animals = const [],
+    this.farmUnits = const [],
     this.payments = const [],
   });
 
@@ -319,20 +327,23 @@ class InvoiceDetail {
   final List<InvoiceProductLine> products;
   final List<InvoiceServiceLine> services;
   final List<Animal> animals;
+  final List<FarmUnit> farmUnits;
   final List<InvoicePayment> payments;
 }
 
 class BillingHistoryEntry {
   const BillingHistoryEntry({
     required this.invoice,
-    required this.animal,
-    required this.owner,
+    this.animal,
+    this.owner,
+    this.farm,
     required this.processedBy,
   });
 
   final Invoice invoice;
-  final Animal animal;
-  final Owner owner;
+  final Animal? animal;
+  final Owner? owner;
+  final Farm? farm;
   final AppUser? processedBy;
 }
 
@@ -4452,7 +4463,7 @@ class ClinicRepository {
           .insert(
             InvoicesCompanion.insert(
               clinicId: activeClinicId,
-              animalId: operation.animalId,
+              animalId: Value(operation.animalId),
               reference: 'PENDING-${_uuid.v4()}',
               linkedClinicalOperationId: Value(operation.id),
               clinicNameSnapshot: session.clinic.clinicName,
@@ -5364,6 +5375,7 @@ class ClinicRepository {
     String? dose,
     String? route,
     DateTime? nextDueDate,
+    double? billableAmount,
     String? notes,
   }) async {
     _requireFarmPermission(session, Permissions.farmHealthRecord);
@@ -5384,6 +5396,9 @@ class ClinicRepository {
     }
     if (nextDueDate != null && nextDueDate.isBefore(administeredAt)) {
       throw StateError('Next due date cannot be before treatment date.');
+    }
+    if (billableAmount != null && billableAmount < 0) {
+      throw StateError('Treatment charge cannot be negative.');
     }
     final now = _clock.nowForClinic(session.clinic);
     if (administeredAt.isAfter(now.add(const Duration(days: 1)))) {
@@ -5408,6 +5423,7 @@ class ClinicRepository {
               animalsCovered: Value(animalsCovered),
               administeredBy: Value(session.user.fullName),
               nextDueDate: Value(nextDueDate),
+              billableAmount: Value(billableAmount),
               notes: Value(_nullIfBlank(notes)),
               createdByUserId: session.user.userId,
             ),
@@ -5423,6 +5439,7 @@ class ClinicRepository {
           'product': normalizedProduct,
           'animalsCovered': animalsCovered,
           'nextDueDate': nextDueDate?.toIso8601String(),
+          'billableAmount': billableAmount,
         },
         createdAt: now,
       );
@@ -5438,6 +5455,191 @@ class ClinicRepository {
       return (db.select(
         db.farmHealthRecords,
       )..where((row) => row.id.equals(id))).getSingle();
+    });
+  }
+
+  Future<List<FarmInvoiceCandidate>> getFarmInvoiceCandidates({
+    required UserSession session,
+    required String farmId,
+    DateTime? visitDate,
+  }) async {
+    _requireBillingPermission(session, Permissions.billingCreate);
+    await _farmForSession(farmId, session);
+    final records =
+        await (db.select(db.farmHealthRecords)
+              ..where(
+                (row) =>
+                    row.clinicId.equals(activeClinicId) &
+                    row.farmId.equals(farmId) &
+                    row.billableAmount.isBiggerThanValue(0),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.occurredAt)]))
+            .get();
+    final filtered = visitDate == null
+        ? records
+        : records
+              .where(
+                (record) =>
+                    record.occurredAt.year == visitDate.year &&
+                    record.occurredAt.month == visitDate.month &&
+                    record.occurredAt.day == visitDate.day,
+              )
+              .toList();
+    if (filtered.isEmpty) return const [];
+    final sourceIds = filtered.map((record) => record.id).toSet();
+    final billed =
+        await (db.select(db.invoiceServiceLines).join([
+              innerJoin(
+                db.invoices,
+                db.invoices.id.equalsExp(db.invoiceServiceLines.invoiceId),
+              ),
+            ])..where(
+              db.invoiceServiceLines.sourceTreatmentRecordId.isIn(sourceIds) &
+                  db.invoices.clinicId.equals(activeClinicId) &
+                  db.invoices.status.isNotIn(['Voided', 'Cancelled']),
+            ))
+            .map(
+              (row) =>
+                  row.readTable(db.invoiceServiceLines).sourceTreatmentRecordId,
+            )
+            .get();
+    final billedIds = billed.whereType<int>().toSet();
+    final unitIds = filtered
+        .map((record) => record.farmUnitId)
+        .whereType<int>()
+        .toSet();
+    final units = unitIds.isEmpty
+        ? const <FarmUnit>[]
+        : await (db.select(db.farmUnits)..where(
+                (row) =>
+                    row.clinicId.equals(activeClinicId) & row.id.isIn(unitIds),
+              ))
+              .get();
+    final unitById = {for (final unit in units) unit.id: unit};
+    return [
+      for (final record in filtered)
+        if (!billedIds.contains(record.id))
+          FarmInvoiceCandidate(
+            record: record,
+            unit: unitById[record.farmUnitId],
+          ),
+    ];
+  }
+
+  Future<InvoiceDetail> saveFarmInvoiceDraft({
+    required UserSession session,
+    required String farmId,
+    required DateTime visitDate,
+    required Set<int> treatmentRecordIds,
+    double sharedFarmFee = 0,
+    String sharedFeeDescription = 'Farm visit fee',
+  }) async {
+    _requireBillingPermission(session, Permissions.billingCreate);
+    await _requireActiveFeature(AveraFeature.billing);
+    final farm = await _farmForSession(farmId, session);
+    if (treatmentRecordIds.isEmpty) {
+      throw StateError('Select at least one unbilled treatment.');
+    }
+    if (sharedFarmFee < 0) throw StateError('Farm fee cannot be negative.');
+    final now = _clock.nowForClinic(session.clinic);
+    return db.transaction(() async {
+      final candidates = await getFarmInvoiceCandidates(
+        session: session,
+        farmId: farmId,
+        visitDate: visitDate,
+      );
+      final selected = candidates
+          .where(
+            (candidate) => treatmentRecordIds.contains(candidate.record.id),
+          )
+          .toList();
+      if (selected.length != treatmentRecordIds.length) {
+        throw StateError(
+          'One or more treatments were already billed or are no longer available.',
+        );
+      }
+      final id = await db
+          .into(db.invoices)
+          .insert(
+            InvoicesCompanion.insert(
+              clinicId: session.clinic.clinicId,
+              animalId: const Value(null),
+              farmId: Value(farmId),
+              farmVisitDate: Value(visitDate),
+              clientNameSnapshot: Value(
+                _nullIfBlank(farm.ownerOrganization) ?? farm.name,
+              ),
+              clientPhoneSnapshot: Value(_nullIfBlank(farm.contactNumber)),
+              reference: 'PENDING-${_uuid.v4()}',
+              contextType: const Value('farm_visit'),
+              clinicNameSnapshot: session.clinic.clinicName,
+              clinicAddressSnapshot: Value(session.clinic.address),
+              clinicPhoneSnapshot: Value(session.clinic.phoneNumber),
+              clinicEmailSnapshot: Value(session.clinic.email),
+              createdByUserId: session.user.userId,
+              createdAt: now,
+              updatedAt: Value(now),
+            ),
+          );
+      await (db.update(db.invoices)..where((row) => row.id.equals(id))).write(
+        InvoicesCompanion(
+          reference: Value('INV-${now.year}-${id.toString().padLeft(5, '0')}'),
+        ),
+      );
+      var servicesTotal = 0.0;
+      for (final candidate in selected) {
+        final record = candidate.record;
+        final amount = record.billableAmount!;
+        servicesTotal += amount;
+        await db
+            .into(db.invoiceServiceLines)
+            .insert(
+              InvoiceServiceLinesCompanion.insert(
+                invoiceId: id,
+                farmUnitId: Value(record.farmUnitId),
+                sourceTreatmentRecordId: Value(record.id),
+                description:
+                    '${candidate.unit?.name ?? 'Farm unit'} - ${record.eventType}${record.product?.trim().isNotEmpty == true ? ' (${record.product})' : ''}',
+                amount: amount,
+              ),
+            );
+      }
+      if (sharedFarmFee > 0) {
+        servicesTotal += sharedFarmFee;
+        await db
+            .into(db.invoiceServiceLines)
+            .insert(
+              InvoiceServiceLinesCompanion.insert(
+                invoiceId: id,
+                description: sharedFeeDescription.trim().isEmpty
+                    ? 'Farm visit fee'
+                    : sharedFeeDescription.trim(),
+                amount: sharedFarmFee,
+              ),
+            );
+      }
+      await (db.update(db.invoices)..where((row) => row.id.equals(id))).write(
+        InvoicesCompanion(
+          status: const Value('Draft'),
+          servicesSubtotal: Value(servicesTotal),
+          total: Value(servicesTotal),
+          balance: Value(servicesTotal),
+          updatedAt: Value(now),
+        ),
+      );
+      await _writeInvoiceAudit(
+        session: session,
+        invoiceId: id,
+        action: 'farm_invoice.draft_saved',
+        details: {
+          'farmId': farmId,
+          'visitDate': visitDate.toIso8601String(),
+          'treatmentRecordIds': treatmentRecordIds.toList(),
+          'sharedFarmFee': sharedFarmFee,
+          'total': servicesTotal,
+        },
+      );
+      return _invoiceDetailForSession(id, session);
     });
   }
 
@@ -7492,6 +7694,123 @@ class ClinicRepository {
     return id;
   }
 
+  Stream<List<ProductUnit>> watchProductUnits({
+    required UserSession session,
+    required int inventoryItemId,
+  }) {
+    _requireInventoryPermission(session, Permissions.inventoryView);
+    return (db.select(db.productUnits)
+          ..where(
+            (unit) =>
+                unit.clinicId.equals(session.clinic.clinicId) &
+                unit.inventoryItemId.equals(inventoryItemId),
+          )
+          ..orderBy([
+            (unit) => OrderingTerm.desc(unit.isBaseUnit),
+            (unit) => OrderingTerm.asc(unit.conversionToBase),
+          ]))
+        .watch();
+  }
+
+  Future<void> replaceProductUnits({
+    required UserSession session,
+    required int inventoryItemId,
+    required List<
+      ({String label, int conversionToBase, double sellingPrice, bool isBase})
+    >
+    units,
+  }) async {
+    _requireInventoryPermission(session, Permissions.inventoryEdit);
+    final item = await _inventoryItemForSession(inventoryItemId, session);
+    final normalized = units
+        .map(
+          (unit) => (
+            label: unit.label.trim(),
+            conversionToBase: unit.conversionToBase,
+            sellingPrice: unit.sellingPrice,
+            isBase: unit.isBase,
+          ),
+        )
+        .toList(growable: false);
+    final labels = normalized.map((unit) => unit.label.toLowerCase()).toSet();
+    if (normalized.isEmpty ||
+        normalized.where((unit) => unit.isBase).length != 1 ||
+        normalized.any(
+          (unit) =>
+              unit.label.isEmpty ||
+              unit.conversionToBase <= 0 ||
+              unit.sellingPrice < 0,
+        ) ||
+        labels.length != normalized.length) {
+      throw StateError(
+        'Use unique unit names, positive conversions, and exactly one base unit.',
+      );
+    }
+    final base = normalized.singleWhere((unit) => unit.isBase);
+    if (base.conversionToBase != 1) {
+      throw StateError('The base unit conversion must be 1.');
+    }
+    final now = _clock.nowForClinic(session.clinic);
+    await db.transaction(() async {
+      await (db.delete(db.productUnits)..where(
+            (unit) =>
+                unit.clinicId.equals(session.clinic.clinicId) &
+                unit.inventoryItemId.equals(item.id),
+          ))
+          .go();
+      for (final unit in normalized) {
+        await db
+            .into(db.productUnits)
+            .insert(
+              ProductUnitsCompanion.insert(
+                clinicId: session.clinic.clinicId,
+                inventoryItemId: item.id,
+                unitLabel: unit.label,
+                isBaseUnit: Value(unit.isBase),
+                conversionToBase: unit.conversionToBase,
+                sellingPrice: unit.sellingPrice,
+                createdAt: now,
+              ),
+            );
+      }
+      await (db.update(
+        db.inventoryItems,
+      )..where((row) => row.id.equals(item.id))).write(
+        InventoryItemsCompanion(
+          baseUnitLabel: Value(base.label),
+          sellingPrice: Value(base.sellingPrice),
+          updatedAt: Value(now),
+        ),
+      );
+    });
+    await _writeInventoryAudit(
+      session: session,
+      action: 'inventory.product_units_changed',
+      itemId: item.id,
+      details: {
+        'units': [
+          for (final unit in normalized)
+            {
+              'label': unit.label,
+              'conversionToBase': unit.conversionToBase,
+              'sellingPrice': unit.sellingPrice,
+              'isBase': unit.isBase,
+            },
+        ],
+      },
+    );
+  }
+
+  static int displayedStockForUnit({
+    required int baseStock,
+    required int conversionToBase,
+  }) {
+    if (baseStock < 0 || conversionToBase <= 0) {
+      throw ArgumentError('Stock and conversion values must be valid.');
+    }
+    return baseStock ~/ conversionToBase;
+  }
+
   Future<void> archiveInventoryItem({
     required UserSession session,
     required int itemId,
@@ -7567,7 +7886,7 @@ class ClinicRepository {
               .insert(
                 InvoicesCompanion.insert(
                   clinicId: clinic.clinicId,
-                  animalId: animalId,
+                  animalId: Value(animalId),
                   // A UUID keeps the required unique value safe until the
                   // auto-incremented invoice id is available below.
                   reference: 'PENDING-${_uuid.v4()}',
@@ -7861,8 +8180,9 @@ class ClinicRepository {
       throw StateError('You do not have permission to view billing history.');
     }
     final query = db.select(db.invoices).join([
-      innerJoin(db.animals, db.animals.id.equalsExp(db.invoices.animalId)),
-      innerJoin(db.owners, db.owners.id.equalsExp(db.animals.ownerId)),
+      leftOuterJoin(db.animals, db.animals.id.equalsExp(db.invoices.animalId)),
+      leftOuterJoin(db.owners, db.owners.id.equalsExp(db.animals.ownerId)),
+      leftOuterJoin(db.farms, db.farms.id.equalsExp(db.invoices.farmId)),
       leftOuterJoin(
         db.appUsers,
         db.appUsers.userId.equalsExp(db.invoices.paidByUserId),
@@ -7875,8 +8195,9 @@ class ClinicRepository {
           .map(
             (row) => BillingHistoryEntry(
               invoice: row.readTable(db.invoices),
-              animal: row.readTable(db.animals),
-              owner: row.readTable(db.owners),
+              animal: row.readTableOrNull(db.animals),
+              owner: row.readTableOrNull(db.owners),
+              farm: row.readTableOrNull(db.farms),
               processedBy: row.readTableOrNull(db.appUsers),
             ),
           )
@@ -7960,7 +8281,7 @@ class ClinicRepository {
           ? -payment.amount
           : payment.amount;
       revenue += signedAmount;
-      if (invoice.contextType == 'farm') {
+      if (invoice.contextType == 'farm_visit') {
         farmRevenue += signedAmount;
       } else {
         clinicRevenue += signedAmount;
@@ -8272,7 +8593,10 @@ class ClinicRepository {
               )
               ..orderBy([(payment) => OrderingTerm.desc(payment.createdAt)]))
             .get();
-    final animalIds = <int>{invoice.animalId};
+    final animalIds = <int>{};
+    if (invoice.animalId case final animalId?) {
+      animalIds.add(animalId);
+    }
     animalIds.addAll(products.map((line) => line.animalId).whereType<int>());
     animalIds.addAll(services.map((line) => line.animalId).whereType<int>());
     final animals =
@@ -8282,12 +8606,25 @@ class ClinicRepository {
                   animal.id.isIn(animalIds),
             ))
             .get();
+    final farmUnitIds = services
+        .map((line) => line.farmUnitId)
+        .whereType<int>()
+        .toSet();
+    final farmUnits = farmUnitIds.isEmpty
+        ? const <FarmUnit>[]
+        : await (db.select(db.farmUnits)..where(
+                (unit) =>
+                    unit.clinicId.equals(session.clinic.clinicId) &
+                    unit.id.isIn(farmUnitIds),
+              ))
+              .get();
     return InvoiceDetail(
       invoice: invoice,
       products: products,
       services: services,
       payments: payments,
       animals: animals,
+      farmUnits: farmUnits,
     );
   }
 

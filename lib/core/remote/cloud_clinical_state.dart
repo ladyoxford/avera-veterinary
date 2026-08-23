@@ -474,6 +474,46 @@ class RemoteInventoryListController
     return item;
   }
 
+  Future<RemoteInventoryItem> replaceUnits({
+    required String itemId,
+    required List<Map<String, dynamic>> units,
+  }) async {
+    final session = await _session();
+    if (!session.can(Permissions.inventoryEdit)) {
+      throw StateError('You do not have permission to edit product units.');
+    }
+    final item = await _source.replaceInventoryProductUnits(
+      inventoryProductId: itemId,
+      units: units,
+    );
+    await _upsertAndCache(session, item, [...state.items]);
+    return item;
+  }
+
+  Future<void> requestReorder({
+    required String itemId,
+    required int requestedQuantity,
+    String? productUnitId,
+  }) async {
+    final session = await _session();
+    if (!session.can(Permissions.inventoryAdjust)) {
+      throw StateError('You do not have permission to request inventory.');
+    }
+    await _source.createInventoryReorderRequest(
+      inventoryProductId: itemId,
+      requestedQuantity: requestedQuantity,
+      productUnitId: productUnitId,
+    );
+  }
+
+  Future<List<RemoteInventoryItem>> relatedProducts(String itemId) async {
+    final session = await _session();
+    if (!session.can(Permissions.inventoryView)) {
+      throw StateError('You do not have permission to view inventory.');
+    }
+    return _source.relatedInventoryProducts(itemId);
+  }
+
   Future<void> _upsertAndCache(
     UserSession session,
     RemoteInventoryItem item,

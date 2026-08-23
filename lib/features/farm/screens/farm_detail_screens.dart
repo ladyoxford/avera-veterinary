@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/backend_configuration.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/animal_catalogue.dart';
 import '../../../core/models/vaccine_catalogue.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/clinic_document_branding.dart';
@@ -27,6 +30,12 @@ class FarmOverviewScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Farm Overview'),
         actions: [
+          if (session?.can(Permissions.billingCreate) == true)
+            IconButton(
+              tooltip: 'Generate farm invoice',
+              onPressed: () => context.push('/farm-records/$farmId/invoice'),
+              icon: const Icon(Icons.receipt_long_outlined),
+            ),
           if (session?.can(Permissions.farmsCreate) == true)
             IconButton(
               tooltip: 'Edit farm',
@@ -127,6 +136,354 @@ class FarmOverviewScreen extends ConsumerWidget {
   }
 }
 
+class FarmInvoiceScreen extends ConsumerStatefulWidget {
+  const FarmInvoiceScreen({super.key, required this.farmId});
+
+  final String farmId;
+
+  @override
+  ConsumerState<FarmInvoiceScreen> createState() => _FarmInvoiceScreenState();
+}
+
+class _FarmInvoiceScreenState extends ConsumerState<FarmInvoiceScreen> {
+  static const _uuid = Uuid();
+  final _sharedFee = TextEditingController();
+  DateTime _visitDate = DateTime.now();
+  Set<int> _selected = {};
+  bool _saving = false;
+  late String _submissionId = _uuid.v4();
+
+  @override
+  void dispose() {
+    _sharedFee.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(userSessionProvider).valueOrNull;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Generate Farm Invoice')),
+      body: session == null
+          ? const _DetailMessage(
+              title: 'Sign in required',
+              message: 'Sign in again to create this invoice.',
+            )
+          : FutureBuilder<List<FarmInvoiceCandidate>>(
+              key: ValueKey(_visitDate.toIso8601String()),
+              future: ref
+                  .read(clinicRepositoryProvider)
+                  .getFarmInvoiceCandidates(
+                    session: session,
+                    farmId: widget.farmId,
+                    visitDate: _visitDate,
+                  ),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return _DetailMessage(
+                    title: 'Invoice data unavailable',
+                    message: snapshot.error.toString().replaceFirst(
+                      'Bad state: ',
+                      '',
+                    ),
+                  );
+                }
+                final candidates = snapshot.data ?? const [];
+                final availableIds = candidates
+                    .map((candidate) => candidate.record.id)
+                    .toSet();
+                _selected = _selected.intersection(availableIds);
+                final total =
+                    candidates
+                        .where(
+                          (candidate) =>
+                              _selected.contains(candidate.record.id),
+                        )
+                        .fold<double>(
+                          0,
+                          (sum, candidate) =>
+                              sum + (candidate.record.billableAmount ?? 0),
+                        ) +
+                    (double.tryParse(_sharedFee.text.trim()) ?? 0);
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    AveraSpacing.pageHorizontalPadding,
+                    AveraSpacing.pageTopPadding,
+                    AveraSpacing.pageHorizontalPadding,
+                    AveraSpacing.bottomContentClearance,
+                  ),
+                  children: [
+                    const AveraPageHeader(
+                      title: 'Farm Visit Invoice',
+                      subtitle:
+                          'Select unbilled treatments from one visit date.',
+                    ),
+                    const SizedBox(height: AveraSpacing.sectionGap),
+                    AveraSurfaceCard(
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.calendar_today_outlined),
+                        title: const Text('Visit date'),
+                        subtitle: Text(DateFormat.yMMMMd().format(_visitDate)),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: _pickVisitDate,
+                      ),
+                    ),
+                    const SizedBox(height: AveraSpacing.sectionGap),
+                    AveraSectionHeader(
+                      title: 'Billable Treatments',
+                      subtitle: candidates.isEmpty
+                          ? 'No unbilled treatments with charges exist on this date.'
+                          : '${candidates.length} treatment${candidates.length == 1 ? '' : 's'} available',
+                    ),
+                    const SizedBox(height: AveraSpacing.cardGap),
+                    for (final candidate in candidates) ...[
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: CheckboxListTile(
+                          value: _selected.contains(candidate.record.id),
+                          onChanged: (checked) => setState(() {
+                            if (checked == true) {
+                              _selected.add(candidate.record.id);
+                            } else {
+                              _selected.remove(candidate.record.id);
+                            }
+                          }),
+                          title: Text(
+                            '${candidate.unit?.name ?? 'Farm unit'} - ${candidate.record.eventType}',
+                          ),
+                          subtitle: Text(
+                            '${candidate.record.product ?? 'Product not recorded'} • '
+                            '${session.clinic.currency} '
+                            '${candidate.record.billableAmount!.toStringAsFixed(2)}',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AveraSpacing.cardGap),
+                    ],
+                    AveraLabeledFieldCard(
+                      label: 'Shared Farm Fee',
+                      child: TextField(
+                        controller: _sharedFee,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Optional farm visit fee',
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(height: AveraSpacing.sectionGap),
+                    AveraSurfaceCard(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Invoice total',
+                            style: averaText(context).fieldValue,
+                          ),
+                          Text(
+                            '${session.clinic.currency} ${total.toStringAsFixed(2)}',
+                            style: averaText(context).pageTitle,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AveraSpacing.cardGap),
+                    FilledButton.icon(
+                      onPressed: _saving || _selected.isEmpty
+                          ? null
+                          : () => _save(session),
+                      icon: _saving
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.receipt_long_outlined),
+                      label: const Text('Create Invoice'),
+                    ),
+                  ],
+                );
+              },
+            ),
+    );
+  }
+
+  Future<void> _pickVisitDate() async {
+    final value = await showDatePicker(
+      context: context,
+      initialDate: _visitDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (value == null) return;
+    setState(() {
+      _visitDate = value;
+      _selected = {};
+    });
+  }
+
+  Future<void> _save(UserSession session) async {
+    setState(() => _saving = true);
+    try {
+      final repository = ref.read(clinicRepositoryProvider);
+      if (BackendConfiguration.isConfigured) {
+        await _saveRemote(session, repository);
+        return;
+      }
+      final detail = await repository.saveFarmInvoiceDraft(
+        session: session,
+        farmId: widget.farmId,
+        visitDate: _visitDate,
+        treatmentRecordIds: _selected,
+        sharedFarmFee: double.tryParse(_sharedFee.text.trim()) ?? 0,
+      );
+      await repository.issueInvoice(
+        session: session,
+        invoiceId: detail.invoice.id,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${detail.invoice.reference} created.')),
+      );
+      context.go('/billing/history?invoiceId=${detail.invoice.id}');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Bad state: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _saveRemote(
+    UserSession session,
+    ClinicRepository repository,
+  ) async {
+    final dashboard = await repository.getFarmDashboard(widget.farmId);
+    if (dashboard == null ||
+        dashboard.farm.clinicId != session.clinic.clinicId) {
+      throw StateError('This farm is not available in the active clinic.');
+    }
+    final candidates = await repository.getFarmInvoiceCandidates(
+      session: session,
+      farmId: widget.farmId,
+      visitDate: _visitDate,
+    );
+    final selected = candidates
+        .where((candidate) => _selected.contains(candidate.record.id))
+        .toList();
+    if (selected.length != _selected.length) {
+      throw StateError(
+        'One or more treatments were already billed or are no longer available.',
+      );
+    }
+
+    final sharedFee = double.tryParse(_sharedFee.text.trim()) ?? 0;
+    final treatmentTotal = selected.fold<double>(
+      0,
+      (sum, candidate) => sum + (candidate.record.billableAmount ?? 0),
+    );
+    final total = treatmentTotal + sharedFee;
+    final units = <String, Map<String, dynamic>>{};
+    final treatments = <Map<String, dynamic>>[];
+    final services = <Map<String, dynamic>>[];
+    for (final candidate in selected) {
+      final record = candidate.record;
+      final unit = candidate.unit;
+      final remoteUnitId = unit == null ? null : _remoteUnitId(unit.id);
+      if (unit != null) {
+        units[remoteUnitId!] = {
+          'farmUnitId': remoteUnitId,
+          'name': unit.name,
+          'unitType': unit.unitType,
+          'species': unit.speciesId,
+          'breed': unit.breedId,
+        };
+      }
+      final remoteTreatmentId = _remoteTreatmentId(record.id);
+      final amount = record.billableAmount ?? 0;
+      treatments.add({
+        'treatmentRecordId': remoteTreatmentId,
+        'farmUnitId': remoteUnitId,
+        'treatmentType': record.eventType,
+        'productName': record.product,
+        'occurredAt': record.occurredAt.toUtc().toIso8601String(),
+        'animalsCovered': record.animalsCovered,
+        'billableAmount': amount,
+        'notes': record.notes,
+      });
+      services.add({
+        'description':
+            '${unit?.name ?? 'Farm unit'} - ${record.eventType}${record.product?.trim().isNotEmpty == true ? ' (${record.product})' : ''}',
+        'amount': amount,
+        'quantity': 1,
+        'unitPrice': amount,
+        'farmUnitId': remoteUnitId,
+        'sourceTreatmentRecordId': remoteTreatmentId,
+      });
+    }
+    if (sharedFee > 0) {
+      services.add({
+        'description': 'Farm visit fee',
+        'amount': sharedFee,
+        'quantity': 1,
+        'unitPrice': sharedFee,
+      });
+    }
+
+    final created = await ref
+        .read(clinicalRemoteDataSourceProvider)
+        .createInvoice({
+          'submissionId': _submissionId,
+          'contextType': 'farm_visit',
+          'status': 'Unpaid',
+          'subtotal': total,
+          'total': total,
+          'services': services,
+          'products': const <Map<String, dynamic>>[],
+          'farm': {
+            'farmId': dashboard.farm.id,
+            'name': dashboard.farm.name,
+            'clientName':
+                dashboard.farm.ownerOrganization ?? dashboard.farm.name,
+            'clientPhone': dashboard.farm.contactNumber,
+            'visitDate': DateFormat('yyyy-MM-dd').format(_visitDate),
+            'units': units.values.toList(),
+            'treatments': treatments,
+          },
+        });
+    final invoiceId = created['invoice_id']?.toString();
+    final reference = created['invoice_number']?.toString();
+    if (invoiceId == null || invoiceId.isEmpty) {
+      throw StateError('The invoice was saved without a valid reference.');
+    }
+    _submissionId = _uuid.v4();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${reference ?? 'Farm invoice'} created.')),
+    );
+    context.go('/billing/history?invoiceId=$invoiceId');
+  }
+
+  String _remoteUnitId(int localId) => _uuid.v5(
+    Namespace.url.value,
+    'avera:${widget.farmId}:farm-unit:$localId',
+  );
+
+  String _remoteTreatmentId(int localId) => _uuid.v5(
+    Namespace.url.value,
+    'avera:${widget.farmId}:farm-treatment:$localId',
+  );
+}
+
 class FarmUnitDetailScreen extends ConsumerStatefulWidget {
   const FarmUnitDetailScreen({
     super.key,
@@ -224,7 +581,7 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
                     '${unit.unitType} • $total/${unit.capacity ?? total} • ${unit.status}',
               ),
               const SizedBox(height: AveraSpacing.subtitleToContentGap),
-              _UnitSummaryCard(unit: unit),
+              FarmUnitSummaryCard(unit: unit),
               if (unit.notes?.trim().isNotEmpty == true) ...[
                 const SizedBox(height: AveraSpacing.cardGap),
                 AveraLabeledFieldCard(
@@ -253,7 +610,7 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
                 ),
                 const SizedBox(height: AveraSpacing.cardGap),
               ],
-              _TreatmentOverviewGrid(treatments: data.treatments),
+              FarmTreatmentOverviewGrid(treatments: data.treatments),
               const SizedBox(height: AveraSpacing.sectionGap),
               const AveraSectionHeader(title: 'Recent Treatments'),
               const SizedBox(height: AveraSpacing.cardGap),
@@ -336,24 +693,35 @@ class _FarmUnitTreatmentData {
   final List<FarmHealthRecord> treatments;
 }
 
-class _UnitSummaryCard extends StatelessWidget {
-  const _UnitSummaryCard({required this.unit});
+class FarmUnitSummaryCard extends StatelessWidget {
+  const FarmUnitSummaryCard({required this.unit, super.key});
   final FarmUnit unit;
 
   @override
   Widget build(BuildContext context) => AveraSurfaceCard(
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _SummaryValue('SPECIES', _speciesName(unit.speciesId))),
-        Expanded(child: _SummaryValue('BREED', _breedName(unit.breedId))),
-        Expanded(
-          child: _SummaryValue(
-            'MALE / FEMALE',
-            '${unit.maleCount} / ${unit.femaleCount}',
+    child: IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 9,
+            child: _SummaryValue('SPECIES', _speciesName(unit.speciesId)),
           ),
-        ),
-      ],
+          const VerticalDivider(width: 17, thickness: 1),
+          Expanded(
+            flex: 14,
+            child: _SummaryValue('BREED', _breedName(unit.breedId)),
+          ),
+          const VerticalDivider(width: 17, thickness: 1),
+          Expanded(
+            flex: 10,
+            child: _SummaryValue(
+              'MALE / FEMALE',
+              '${unit.maleCount} / ${unit.femaleCount}',
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -365,25 +733,29 @@ class _SummaryValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 2),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: averaText(context).sectionLabel),
+        Text(
+          label,
+          maxLines: 2,
+          style: averaText(context).sectionLabel.copyWith(fontSize: 11),
+        ),
         const SizedBox(height: 5),
         Text(
           value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: averaText(context).listItemTitle,
+          maxLines: 3,
+          softWrap: true,
+          style: averaText(context).listItemTitle.copyWith(fontSize: 15),
         ),
       ],
     ),
   );
 }
 
-class _TreatmentOverviewGrid extends StatelessWidget {
-  const _TreatmentOverviewGrid({required this.treatments});
+class FarmTreatmentOverviewGrid extends StatelessWidget {
+  const FarmTreatmentOverviewGrid({required this.treatments, super.key});
   final List<FarmHealthRecord> treatments;
 
   @override
@@ -394,23 +766,26 @@ class _TreatmentOverviewGrid extends StatelessWidget {
       ('Antitrypanocide', Icons.medication_outlined),
       ('Vaccination', Icons.vaccines_outlined),
     ];
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        mainAxisExtent: 134,
+      ),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.7,
-      children: [
-        for (final type in types)
-          _TreatmentSummaryCard(
-            title: type.$1,
-            icon: type.$2,
-            treatment: treatments
-                .where((record) => record.eventType == type.$1)
-                .firstOrNull,
-          ),
-      ],
+      itemCount: types.length,
+      itemBuilder: (context, index) {
+        final type = types[index];
+        return _TreatmentSummaryCard(
+          title: type.$1,
+          icon: type.$2,
+          treatment: treatments
+              .where((record) => record.eventType == type.$1)
+              .firstOrNull,
+        );
+      },
     );
   }
 }
@@ -439,15 +814,35 @@ class _TreatmentSummaryCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Icon(icon, color: color, size: 22),
-          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
           Text(
-            treatment == null
-                ? 'Not recorded'
-                : 'Last: ${DateFormat.MMMd().format(treatment!.occurredAt)}'
-                      '${due == null ? '' : ' • Next: ${DateFormat.MMMd().format(due)}'}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: averaText(context).listItemSubtitle.copyWith(color: color),
+            title,
+            maxLines: 2,
+            softWrap: true,
+            style: averaText(context).listItemTitle.copyWith(fontSize: 14),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Last: ${treatment == null ? 'Not recorded' : DateFormat.yMMMd().format(treatment!.occurredAt)}',
+                maxLines: 1,
+                style: averaText(
+                  context,
+                ).listItemSubtitle.copyWith(color: color, fontSize: 11),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Next: ${treatment == null
+                    ? 'Not recorded'
+                    : due == null
+                    ? 'Not scheduled'
+                    : DateFormat.yMMMd().format(due)}',
+                maxLines: 1,
+                style: averaText(
+                  context,
+                ).listItemSubtitle.copyWith(color: color, fontSize: 11),
+              ),
+            ],
           ),
         ],
       ),
@@ -495,6 +890,7 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
   final _dose = TextEditingController();
   final _route = TextEditingController();
   final _animals = TextEditingController();
+  final _charge = TextEditingController();
   final _notes = TextEditingController();
   String _type = 'Deworming';
   VaccineProtocolDefinition? _protocol;
@@ -521,6 +917,7 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
       _dose,
       _route,
       _animals,
+      _charge,
       _notes,
     ]) {
       controller.dispose();
@@ -615,6 +1012,25 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
                 controller: _animals,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Animals treated'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _charge,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText:
+                      'Billable amount (${widget.session.clinic.currency}, optional)',
+                  helperText: 'Used when generating a farm visit invoice.',
+                ),
+                validator: (value) {
+                  if (value?.trim().isEmpty == true) return null;
+                  final parsed = double.tryParse(value!.trim());
+                  return parsed == null || parsed < 0
+                      ? 'Enter a valid amount.'
+                      : null;
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -727,6 +1143,7 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
             dose: _dose.text,
             route: _route.text,
             nextDueDate: _nextDue,
+            billableAmount: double.tryParse(_charge.text.trim()),
             notes: _notes.text,
           );
       if (mounted) Navigator.pop(context, true);

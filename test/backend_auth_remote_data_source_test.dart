@@ -745,6 +745,170 @@ void main() {
   );
 
   test(
+    'product units, reorder requests, and related items use production inventory routes',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'avera_access_token': 'production-access-token',
+      });
+      const productId = 'db681307-05a9-47ca-b6f6-8a8ba86037da';
+      const baseUnitId = 'eb681307-05a9-47ca-b6f6-8a8ba86037db';
+      final requests = <http.Request>[];
+      Map<String, dynamic> item({String id = productId}) => {
+        'inventory_product_id': id,
+        'name': id == productId ? 'Amoxicillin' : 'Ampicillin',
+        'category_key': 'drugs',
+        'category': 'Drugs',
+        'quantity': 84,
+        'reorder_level': 10,
+        'purchase_price': '2000.00',
+        'selling_price': '3200.00',
+        'base_unit_label': 'Vial',
+        'status': 'Active',
+        'product_units': [
+          {
+            'product_unit_id': baseUnitId,
+            'unit_label': 'Vial',
+            'is_base_unit': true,
+            'conversion_to_base': 1,
+            'selling_price': '3200.00',
+            'revision': 1,
+          },
+        ],
+      };
+      final client = MockClient((request) async {
+        requests.add(request);
+        expect(
+          request.headers['authorization'],
+          'Bearer production-access-token',
+        );
+        if (request.url.path.endsWith('/units')) {
+          return http.Response(jsonEncode({'item': item()}), 200);
+        }
+        if (request.url.path.endsWith('/reorder-requests')) {
+          return http.Response(
+            jsonEncode({
+              'reorderRequest': {
+                'requested_quantity': 2,
+                'requested_unit_snapshot': 'Vial',
+              },
+            }),
+            201,
+          );
+        }
+        return http.Response(
+          jsonEncode({
+            'items': [item(id: 'fb681307-05a9-47ca-b6f6-8a8ba86037dc')],
+          }),
+          200,
+        );
+      });
+      final source = ClinicalRemoteDataSource(
+        ApiClient(
+          baseUrl: BackendConfiguration.productionApiBaseUrl,
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: client,
+        ),
+      );
+
+      final updated = await source.replaceInventoryProductUnits(
+        inventoryProductId: productId,
+        units: const [
+          {
+            'productUnitId': baseUnitId,
+            'unitLabel': 'Vial',
+            'isBaseUnit': true,
+            'conversionToBase': 1,
+            'sellingPrice': 3200,
+          },
+        ],
+      );
+      final reorder = await source.createInventoryReorderRequest(
+        inventoryProductId: productId,
+        requestedQuantity: 2,
+        productUnitId: baseUnitId,
+      );
+      final related = await source.relatedInventoryProducts(productId);
+
+      expect(updated.productUnits.single.isBaseUnit, true);
+      expect(updated.productUnits.single.conversionToBase, 1);
+      expect(reorder['reorderRequest'], isA<Map>());
+      expect(related.single.name, 'Ampicillin');
+      expect(
+        requests.map((request) => '${request.method} ${request.url.path}'),
+        [
+          'PUT /api/v1/inventory/products/$productId/units',
+          'POST /api/v1/inventory/products/$productId/reorder-requests',
+          'GET /api/v1/inventory/products/$productId/related',
+        ],
+      );
+      expect(
+        jsonDecode(requests.first.body),
+        containsPair('units', isA<List<dynamic>>()),
+      );
+      expect(
+        jsonDecode(requests[1].body),
+        containsPair('productUnitId', baseUnitId),
+      );
+    },
+  );
+
+  test('invoice creation preserves package-unit product attribution', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'avera_access_token': 'production-access-token',
+    });
+    const productId = 'db681307-05a9-47ca-b6f6-8a8ba86037da';
+    const unitId = 'eb681307-05a9-47ca-b6f6-8a8ba86037db';
+    const patientId = 'ab681307-05a9-47ca-b6f6-8a8ba86037dc';
+    late Map<String, dynamic> submitted;
+    final source = ClinicalRemoteDataSource(
+      ApiClient(
+        baseUrl: BackendConfiguration.productionApiBaseUrl,
+        tokens: const TokenStore(FlutterSecureStorage()),
+        client: MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/api/v1/invoices');
+          submitted = Map<String, dynamic>.from(
+            jsonDecode(request.body) as Map,
+          );
+          return http.Response(
+            jsonEncode({
+              'invoice_id': 'fb681307-05a9-47ca-b6f6-8a8ba86037dd',
+              'status': 'Unpaid',
+            }),
+            201,
+          );
+        }),
+      ),
+    );
+
+    await source.createInvoice({
+      'submissionId': 'cb681307-05a9-47ca-b6f6-8a8ba86037de',
+      'contextType': 'patient',
+      'patientId': patientId,
+      'patientIds': const [patientId],
+      'status': 'Unpaid',
+      'subtotal': 9600,
+      'total': 9600,
+      'products': const [
+        {
+          'inventoryProductId': productId,
+          'productUnitId': unitId,
+          'patientId': patientId,
+          'quantity': 3,
+        },
+      ],
+      'services': const [],
+    });
+
+    final products = submitted['products'] as List<dynamic>;
+    expect(products, hasLength(1));
+    expect(products.single, containsPair('inventoryProductId', productId));
+    expect(products.single, containsPair('productUnitId', unitId));
+    expect(products.single, containsPair('patientId', patientId));
+    expect(products.single, containsPair('quantity', 3));
+  });
+
+  test(
     'clinic administrator activation uses public production endpoints',
     () async {
       final requests = <http.Request>[];

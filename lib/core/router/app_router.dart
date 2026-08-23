@@ -270,6 +270,11 @@ final appRouter = GoRouter(
               FarmOverviewScreen(farmId: state.pathParameters['farmId']!),
         ),
         GoRoute(
+          path: '/farm-records/:farmId/invoice',
+          builder: (context, state) =>
+              FarmInvoiceScreen(farmId: state.pathParameters['farmId']!),
+        ),
+        GoRoute(
           path: '/farm-records/:farmId/units/:unitId',
           builder: (context, state) => FarmUnitDetailScreen(
             farmId: state.pathParameters['farmId']!,

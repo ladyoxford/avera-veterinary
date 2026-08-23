@@ -400,10 +400,37 @@ class InventoryItems extends Table {
   RealColumn get sellingPrice => real().withDefault(const Constant(0))();
   TextColumn get supplier => text().nullable()();
   TextColumn get location => text().nullable()();
+  TextColumn get baseUnitLabel => text().withDefault(const Constant('unit'))();
+  TextColumn get activeIngredient => text().nullable()();
+  TextColumn get dosageAndRoute => text().nullable()();
+  TextColumn get withdrawalMeat => text().nullable()();
+  TextColumn get withdrawalMilk => text().nullable()();
+  TextColumn get withdrawalEggs => text().nullable()();
+  TextColumn get warnings => text().nullable()();
+  TextColumn get imagePath => text().nullable()();
   BoolColumn get isSellable => boolean().withDefault(const Constant(true))();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().nullable()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
+}
+
+/// Sellable pack sizes derive from the single authoritative base quantity on
+/// [InventoryItems]. A box/carton is never maintained as separate stock.
+class ProductUnits extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  IntColumn get inventoryItemId => integer().references(InventoryItems, #id)();
+  TextColumn get unitLabel => text()();
+  BoolColumn get isBaseUnit => boolean().withDefault(const Constant(false))();
+  IntColumn get conversionToBase => integer()();
+  RealColumn get sellingPrice => real()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {inventoryItemId, unitLabel},
+  ];
 }
 
 class Sales extends Table {
@@ -421,7 +448,11 @@ class Sales extends Table {
 class Invoices extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get clinicId => text().references(Clinics, #clinicId)();
-  IntColumn get animalId => integer().references(Animals, #id)();
+  IntColumn get animalId => integer().nullable().references(Animals, #id)();
+  TextColumn get farmId => text().nullable().references(Farms, #id)();
+  DateTimeColumn get farmVisitDate => dateTime().nullable()();
+  TextColumn get clientNameSnapshot => text().nullable()();
+  TextColumn get clientPhoneSnapshot => text().nullable()();
   IntColumn get appointmentId =>
       integer().nullable().references(Appointments, #id)();
   IntColumn get consultationId =>
@@ -504,6 +535,9 @@ class InvoiceServiceLines extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get invoiceId => integer().references(Invoices, #id)();
   IntColumn get animalId => integer().nullable().references(Animals, #id)();
+  IntColumn get farmUnitId => integer().nullable().references(FarmUnits, #id)();
+  IntColumn get sourceTreatmentRecordId =>
+      integer().nullable().references(FarmHealthRecords, #id)();
   TextColumn get description => text()();
   RealColumn get amount => real()();
   RealColumn get costSnapshot => real().nullable()();
@@ -1063,6 +1097,7 @@ class FarmHealthRecords extends Table {
   IntColumn get animalsCovered => integer().nullable()();
   TextColumn get administeredBy => text().nullable()();
   DateTimeColumn get nextDueDate => dateTime().nullable()();
+  RealColumn get billableAmount => real().nullable()();
   TextColumn get notes => text().nullable()();
   TextColumn get createdByUserId => text().references(AppUsers, #userId)();
 }
@@ -1098,6 +1133,7 @@ class FarmReportSnapshots extends Table {
     ClinicalDocumentVersions,
     Vaccinations,
     InventoryItems,
+    ProductUnits,
     Sales,
     Invoices,
     InvoicePayments,
@@ -1141,7 +1177,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 26;
+  static const currentSchemaVersion = 27;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1706,6 +1742,73 @@ class AppDatabase extends _$AppDatabase {
             farmHealthRecords.administeredBy,
           );
         }
+      }
+      if (from < 27) {
+        final inventoryColumns = <String, GeneratedColumn>{
+          'base_unit_label': inventoryItems.baseUnitLabel,
+          'active_ingredient': inventoryItems.activeIngredient,
+          'dosage_and_route': inventoryItems.dosageAndRoute,
+          'withdrawal_meat': inventoryItems.withdrawalMeat,
+          'withdrawal_milk': inventoryItems.withdrawalMilk,
+          'withdrawal_eggs': inventoryItems.withdrawalEggs,
+          'warnings': inventoryItems.warnings,
+          'image_path': inventoryItems.imagePath,
+        };
+        for (final entry in inventoryColumns.entries) {
+          if (!await _hasColumn('inventory_items', entry.key)) {
+            await m.addColumn(inventoryItems, entry.value);
+          }
+        }
+        if (!await _hasTable(productUnits.actualTableName)) {
+          await m.createTable(productUnits);
+        }
+        await customStatement(
+          'INSERT OR IGNORE INTO product_units '
+          '(clinic_id, inventory_item_id, unit_label, is_base_unit, '
+          'conversion_to_base, selling_price, created_at) '
+          "SELECT clinic_id, id, base_unit_label, 1, 1, selling_price, "
+          "COALESCE(created_at, CURRENT_TIMESTAMP) FROM inventory_items",
+        );
+
+        // Farm invoices have no patient. Rebuild this one table so the legacy
+        // animal foreign key becomes nullable while every existing row and
+        // relationship remains intact.
+        await m.alterTable(TableMigration(invoices));
+        if (!await _hasColumn('invoice_service_lines', 'farm_unit_id')) {
+          await m.addColumn(
+            invoiceServiceLines,
+            invoiceServiceLines.farmUnitId,
+          );
+        }
+        if (!await _hasColumn(
+          'invoice_service_lines',
+          'source_treatment_record_id',
+        )) {
+          await m.addColumn(
+            invoiceServiceLines,
+            invoiceServiceLines.sourceTreatmentRecordId,
+          );
+        }
+        if (!await _hasColumn('farm_health_records', 'billable_amount')) {
+          await m.addColumn(
+            farmHealthRecords,
+            farmHealthRecords.billableAmount,
+          );
+        }
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS '
+          'invoice_service_treatment_source_unique '
+          'ON invoice_service_lines (source_treatment_record_id) '
+          'WHERE source_treatment_record_id IS NOT NULL',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS invoices_farm_visit_index '
+          'ON invoices (clinic_id, farm_id, farm_visit_date, status)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS product_units_item_index '
+          'ON product_units (clinic_id, inventory_item_id)',
+        );
       }
     },
   );

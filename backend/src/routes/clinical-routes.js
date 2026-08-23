@@ -166,8 +166,9 @@ export const cancelAppointmentSchema = z.object({
 
 export const createInvoiceSchema = z.object({
   submissionId: z.string().uuid(),
-  patientId: z.string().uuid(),
-  patientIds: z.array(z.string().uuid()).min(1).max(100).optional(),
+  contextType: z.enum(['patient', 'farm_visit']).default('patient'),
+  patientId: z.string().uuid().nullable().optional(),
+  patientIds: z.array(z.string().uuid()).max(100).default([]),
   status: z.enum(['Draft', 'Unpaid', 'Paid']),
   subtotal: z.number().min(0).max(1000000000000),
   total: z.number().min(0).max(1000000000000),
@@ -177,7 +178,48 @@ export const createInvoiceSchema = z.object({
     patientId: z.string().uuid().nullable().optional(),
     quantity: z.number().positive().max(1000000).default(1),
     unitPrice: z.number().min(0).max(1000000000000).optional(),
+    farmUnitId: z.string().uuid().nullable().optional(),
+    sourceTreatmentRecordId: z.string().uuid().nullable().optional(),
+    costSnapshot: z.number().min(0).max(1000000000000).nullable().optional(),
   })).max(100).default([]),
+  products: z.array(z.object({
+    inventoryProductId: z.string().uuid(),
+    productUnitId: z.string().uuid().nullable().optional(),
+    patientId: z.string().uuid().nullable().optional(),
+    quantity: z.number().int().positive().max(1000000),
+  })).max(100).default([]),
+  farm: z.object({
+    farmId: z.string().uuid(),
+    name: z.string().trim().min(1).max(240),
+    clientName: z.string().trim().max(240).nullish(),
+    clientPhone: z.string().trim().max(80).nullish(),
+    visitDate: z.string().date(),
+    units: z.array(z.object({
+      farmUnitId: z.string().uuid(),
+      name: z.string().trim().min(1).max(240),
+      unitType: z.string().trim().max(120).nullish(),
+      species: z.string().trim().max(120).nullish(),
+      breed: z.string().trim().max(160).nullish(),
+    })).max(100).default([]),
+    treatments: z.array(z.object({
+      treatmentRecordId: z.string().uuid(),
+      farmUnitId: z.string().uuid().nullable().optional(),
+      treatmentType: z.string().trim().min(1).max(200),
+      productName: z.string().trim().max(240).nullish(),
+      occurredAt: z.string().datetime(),
+      animalsCovered: z.number().int().positive().nullable().optional(),
+      billableAmount: z.number().min(0).max(1000000000000),
+      costSnapshot: z.number().min(0).max(1000000000000).nullable().optional(),
+      notes: z.string().trim().max(4000).nullish(),
+    })).max(200).default([]),
+  }).nullable().optional(),
+}).superRefine((input, ctx) => {
+  if (input.contextType === 'patient' && !input.patientId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['patientId'], message: 'A patient is required.' });
+  }
+  if (input.contextType === 'farm_visit' && !input.farm) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['farm'], message: 'Farm context is required.' });
+  }
 });
 
 export const recordInvoicePaymentSchema = z.object({
@@ -402,6 +444,9 @@ function clinicalOperationStatusPermission(type, status, fromStatus) {
 
 const inventoryFields = {
   name: z.string().trim().min(1).max(200),
+  genericName: z.string().trim().max(200).nullish(),
+  manufacturer: z.string().trim().max(200).nullish(),
+  supplier: z.string().trim().max(200).nullish(),
   categoryId: z.string().trim().regex(/^[a-z0-9_]{2,80}$/),
   categoryName: z.string().trim().min(1).max(160),
   quantity: z.number().int().min(0).max(100000000),
@@ -410,6 +455,15 @@ const inventoryFields = {
   expiryDate: z.string().date().nullish(),
   purchasePrice: z.number().min(0).max(1000000000000),
   sellingPrice: z.number().min(0).max(1000000000000),
+  baseUnitLabel: z.string().trim().min(1).max(80).default('unit'),
+  activeIngredient: z.string().trim().max(240).nullish(),
+  dosageAndRoute: z.string().trim().max(1000).nullish(),
+  withdrawalMeat: z.string().trim().max(240).nullish(),
+  withdrawalMilk: z.string().trim().max(240).nullish(),
+  withdrawalEggs: z.string().trim().max(240).nullish(),
+  warnings: z.string().trim().max(4000).nullish(),
+  isSellable: z.boolean().default(true),
+  isArchived: z.boolean().default(false),
 };
 
 export const createInventoryItemSchema = z.object({
@@ -421,6 +475,34 @@ export const updateInventoryItemSchema = z.object({
   ...inventoryFields,
   revision: z.number().int().min(1).optional(),
 });
+
+const productUnitSchema = z.object({
+  productUnitId: z.string().uuid().optional(),
+  unitLabel: z.string().trim().min(1).max(80),
+  isBaseUnit: z.boolean(),
+  conversionToBase: z.number().int().positive().max(100000000),
+  sellingPrice: z.number().min(0).max(1000000000000),
+});
+
+export const replaceProductUnitsSchema = z.object({
+  units: z.array(productUnitSchema).min(1).max(100),
+}).superRefine((input, ctx) => {
+  if (input.units.filter((unit) => unit.isBaseUnit).length !== 1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['units'], message: 'Exactly one base unit is required.' });
+  }
+  if (input.units.some((unit) => unit.isBaseUnit && unit.conversionToBase !== 1)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['units'], message: 'The base unit conversion must be one.' });
+  }
+  const labels = input.units.map((unit) => unit.unitLabel.trim().toLowerCase());
+  if (new Set(labels).size !== labels.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['units'], message: 'Unit labels must be unique.' });
+  }
+});
+
+export const createReorderRequestSchema = z.object({
+  productUnitId: z.string().uuid().nullable().optional(),
+  requestedQuantity: z.number().int().positive().max(100000000),
+}).strict();
 
 const patientNumberStopWords = new Set(['VETERINARY', 'VET', 'CLINIC', 'HOSPITAL', 'ANIMAL', 'PET', 'CARE', 'SERVICES']);
 
@@ -503,6 +585,18 @@ function inventoryResponse(row) {
     name: row.name,
     category: row.category,
     category_key: row.category_key,
+    generic_name: row.generic_name,
+    manufacturer: row.manufacturer,
+    supplier: row.supplier,
+    base_unit_label: row.base_unit_label,
+    active_ingredient: row.active_ingredient,
+    dosage_and_route: row.dosage_and_route,
+    withdrawal_meat: row.withdrawal_meat,
+    withdrawal_milk: row.withdrawal_milk,
+    withdrawal_eggs: row.withdrawal_eggs,
+    warnings: row.warnings,
+    is_sellable: row.is_sellable,
+    is_archived: row.is_archived,
     batch_number: row.batch_number,
     expiry_date: row.expiry_date,
     purchase_price: row.purchase_price,
@@ -513,7 +607,19 @@ function inventoryResponse(row) {
     created_at: row.created_at,
     updated_at: row.updated_at,
     revision: row.revision,
+    product_units: row.product_units ?? [],
   };
+}
+
+async function inventoryProductWithUnits(client, clinicId, inventoryProductId) {
+  const result = await client.query(
+    `SELECT ${inventoryList.select}
+       FROM inventory_products i
+      WHERE i.clinic_id=$1 AND i.inventory_product_id=$2
+        AND i.deleted_at IS NULL`,
+    [clinicId, inventoryProductId],
+  );
+  return result.rows[0] ?? null;
 }
 
 function requireClinic(request, reply) {
@@ -646,8 +752,27 @@ const lists = {
 
 const inventoryList = {
   from: 'inventory_products i',
-  select: 'i.inventory_product_id, i.name, i.generic_name, i.category, i.category_key, i.manufacturer, i.supplier, i.batch_number, i.expiry_date, i.purchase_price, i.selling_price, i.quantity, i.reorder_level, i.status, i.created_at, i.updated_at, i.revision',
-  where: `i.clinic_id = $1 AND i.deleted_at IS NULL AND ($2::text IS NULL OR i.name ILIKE $3 OR i.generic_name ILIKE $3 OR i.batch_number ILIKE $3 OR i.category ILIKE $3)
+  select: `i.inventory_product_id, i.name, i.generic_name, i.category,
+           i.category_key, i.manufacturer, i.supplier, i.batch_number,
+           i.expiry_date, i.purchase_price, i.selling_price, i.quantity,
+           i.reorder_level, i.status, i.created_at, i.updated_at, i.revision,
+           i.base_unit_label, i.active_ingredient, i.dosage_and_route,
+           i.withdrawal_meat, i.withdrawal_milk, i.withdrawal_eggs,
+           i.warnings, i.is_sellable, i.is_archived,
+           COALESCE((
+             SELECT jsonb_agg(jsonb_build_object(
+               'product_unit_id', u.product_unit_id,
+               'unit_label', u.unit_label,
+               'is_base_unit', u.is_base_unit,
+               'conversion_to_base', u.conversion_to_base,
+               'selling_price', u.selling_price,
+               'revision', u.revision
+             ) ORDER BY u.is_base_unit DESC, lower(u.unit_label))
+             FROM inventory_product_units u
+             WHERE u.clinic_id=i.clinic_id
+               AND u.inventory_product_id=i.inventory_product_id
+           ), '[]'::jsonb) AS product_units`,
+  where: `i.clinic_id = $1 AND i.deleted_at IS NULL AND i.is_archived = false AND ($2::text IS NULL OR i.name ILIKE $3 OR i.generic_name ILIKE $3 OR i.batch_number ILIKE $3 OR i.category ILIKE $3)
           AND ($4::text IS NULL OR i.status = $4)`,
   values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.status ?? null],
   order: (query) => orderBy(query.sort, query.direction, { name: 'i.name', expiry: 'i.expiry_date', quantity: 'i.quantity' }, 'i.name'),
@@ -662,10 +787,17 @@ const movementsList = {
 };
 
 const invoiceList = {
-  from: 'invoices i LEFT JOIN patients p ON p.patient_id = i.patient_id LEFT JOIN owners o ON o.owner_id = i.owner_id',
+  from: `invoices i
+         LEFT JOIN patients p ON p.patient_id = i.patient_id
+         LEFT JOIN owners o ON o.owner_id = i.owner_id
+         LEFT JOIN farms f ON f.farm_id = i.farm_id AND f.clinic_id = i.clinic_id`,
   select: `i.invoice_id, i.invoice_number, i.status, i.subtotal, i.tax,
            i.discount, i.total, i.amount_paid, i.balance, i.issued_at, i.due_at,
-           p.name AS patient_name, o.full_name AS owner_name, o.phone AS owner_phone,
+            i.context_type, i.farm_id, i.farm_visit_date,
+            COALESCE(i.client_name_snapshot, f.client_name) AS farm_client_name,
+            COALESCE(i.client_phone_snapshot, f.client_phone) AS farm_client_phone,
+            f.name AS farm_name,
+            p.name AS patient_name, o.full_name AS owner_name, o.phone AS owner_phone,
            (SELECT string_agg(DISTINCT linked_patient.name, ', ' ORDER BY linked_patient.name)
               FROM invoice_line_items linked_names
               JOIN patients linked_patient ON linked_patient.patient_id=linked_names.patient_id
@@ -674,7 +806,7 @@ const invoiceList = {
               FROM invoice_line_items linked
              WHERE linked.clinic_id=i.clinic_id AND linked.invoice_id=i.invoice_id
                AND linked.patient_id IS NOT NULL) AS patient_count`,
-  where: `i.clinic_id = $1 AND ($2::text IS NULL OR i.invoice_number ILIKE $3 OR p.name ILIKE $3 OR o.full_name ILIKE $3 OR EXISTS (
+  where: `i.clinic_id = $1 AND ($2::text IS NULL OR i.invoice_number ILIKE $3 OR p.name ILIKE $3 OR o.full_name ILIKE $3 OR f.name ILIKE $3 OR i.client_name_snapshot ILIKE $3 OR EXISTS (
             SELECT 1 FROM invoice_line_items linked_search
             JOIN patients linked_patient ON linked_patient.patient_id=linked_search.patient_id
             WHERE linked_search.clinic_id=i.clinic_id AND linked_search.invoice_id=i.invoice_id
@@ -683,6 +815,182 @@ const invoiceList = {
   values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.status ?? null, query.from ?? null, query.to ?? null],
   order: (query) => orderBy(query.sort, query.direction, { date: 'i.issued_at', number: 'i.invoice_number', balance: 'i.balance' }, 'i.issued_at'),
 };
+
+async function upsertFarmInvoiceContext(client, clinicId, userId, farm) {
+  await client.query(
+    `INSERT INTO farms (farm_id, clinic_id, name, client_name, client_phone)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (farm_id) DO UPDATE
+       SET name=EXCLUDED.name, client_name=EXCLUDED.client_name,
+           client_phone=EXCLUDED.client_phone, updated_at=now()
+       WHERE farms.clinic_id=EXCLUDED.clinic_id`,
+    [farm.farmId, clinicId, farm.name, farm.clientName ?? null, farm.clientPhone ?? null],
+  );
+  const ownedFarm = await client.query(
+    'SELECT farm_id FROM farms WHERE clinic_id=$1 AND farm_id=$2',
+    [clinicId, farm.farmId],
+  );
+  if (!ownedFarm.rows[0]) return false;
+  for (const unit of farm.units) {
+    await client.query(
+      `INSERT INTO farm_units
+         (farm_unit_id, clinic_id, farm_id, name, unit_type, species, breed)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (farm_unit_id) DO UPDATE
+         SET name=EXCLUDED.name, unit_type=EXCLUDED.unit_type,
+             species=EXCLUDED.species, breed=EXCLUDED.breed, updated_at=now()
+         WHERE farm_units.clinic_id=EXCLUDED.clinic_id
+           AND farm_units.farm_id=EXCLUDED.farm_id`,
+      [unit.farmUnitId, clinicId, farm.farmId, unit.name,
+        unit.unitType ?? null, unit.species ?? null, unit.breed ?? null],
+    );
+  }
+  for (const treatment of farm.treatments) {
+    await client.query(
+      `INSERT INTO farm_treatment_records
+         (farm_treatment_record_id, clinic_id, farm_id, farm_unit_id,
+          treatment_type, product_name, occurred_at, animals_covered,
+          billable_amount, cost_snapshot, notes, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       ON CONFLICT (farm_treatment_record_id) DO UPDATE
+         SET treatment_type=EXCLUDED.treatment_type,
+             product_name=EXCLUDED.product_name,
+             animals_covered=EXCLUDED.animals_covered,
+             billable_amount=EXCLUDED.billable_amount,
+             cost_snapshot=EXCLUDED.cost_snapshot,
+             notes=EXCLUDED.notes, updated_at=now()
+         WHERE farm_treatment_records.clinic_id=EXCLUDED.clinic_id
+           AND farm_treatment_records.farm_id=EXCLUDED.farm_id`,
+      [treatment.treatmentRecordId, clinicId, farm.farmId,
+        treatment.farmUnitId ?? null, treatment.treatmentType,
+        treatment.productName ?? null, treatment.occurredAt,
+        treatment.animalsCovered ?? null, treatment.billableAmount,
+        treatment.costSnapshot ?? null, treatment.notes ?? null, userId],
+    );
+  }
+  const treatmentIds = farm.treatments.map((item) => item.treatmentRecordId);
+  if (treatmentIds.length > 0) {
+    const owned = await client.query(
+      `SELECT farm_treatment_record_id FROM farm_treatment_records
+        WHERE clinic_id=$1 AND farm_id=$2
+          AND farm_treatment_record_id=ANY($3::uuid[])`,
+      [clinicId, farm.farmId, treatmentIds],
+    );
+    if (owned.rows.length !== treatmentIds.length) return false;
+  }
+  return true;
+}
+
+async function prepareProductLines(client, clinicId, products) {
+  const lines = [];
+  for (const requested of products) {
+    const result = await client.query(
+      `SELECT p.inventory_product_id, p.name, p.batch_number, p.expiry_date,
+              p.purchase_price, p.selling_price, p.quantity, p.base_unit_label,
+              p.is_sellable, p.is_archived,
+              u.product_unit_id, u.unit_label, u.conversion_to_base,
+              u.selling_price AS unit_selling_price
+         FROM inventory_products p
+         LEFT JOIN inventory_product_units u
+           ON u.clinic_id=p.clinic_id AND u.inventory_product_id=p.inventory_product_id
+          AND (($3::uuid IS NOT NULL AND u.product_unit_id=$3)
+            OR ($3::uuid IS NULL AND u.is_base_unit=true))
+        WHERE p.clinic_id=$1 AND p.inventory_product_id=$2
+          AND p.deleted_at IS NULL
+        FOR UPDATE OF p`,
+      [clinicId, requested.inventoryProductId, requested.productUnitId ?? null],
+    );
+    const row = result.rows[0];
+    if (!row || !row.product_unit_id || !row.is_sellable || row.is_archived) {
+      return { error: 'inventory_product_unavailable' };
+    }
+    if (row.expiry_date && new Date(row.expiry_date) < new Date(new Date().toISOString().slice(0, 10))) {
+      return { error: 'inventory_product_expired' };
+    }
+    const conversion = Number(row.conversion_to_base);
+    const quantity = Number(requested.quantity);
+    const baseQuantity = quantity * conversion;
+    const unitPrice = Number(row.unit_selling_price);
+    lines.push({
+      patientId: requested.patientId ?? null,
+      inventoryProductId: row.inventory_product_id,
+      productUnitId: row.product_unit_id,
+      description: row.name,
+      quantity,
+      unitPrice,
+      lineTotal: Number((quantity * unitPrice).toFixed(2)),
+      displayUnit: row.unit_label,
+      conversion,
+      baseQuantity,
+      unitCost: row.purchase_price == null ? null : Number(row.purchase_price) * conversion,
+      productName: row.name,
+      batchNumber: row.batch_number,
+      expiryDate: row.expiry_date,
+    });
+  }
+  return { lines };
+}
+
+async function deductInvoiceInventory(client, clinicId, invoiceId) {
+  const invoice = await client.query(
+    `SELECT inventory_deducted_at FROM invoices
+      WHERE clinic_id=$1 AND invoice_id=$2 FOR UPDATE`,
+    [clinicId, invoiceId],
+  );
+  if (!invoice.rows[0] || invoice.rows[0].inventory_deducted_at) return;
+  const quantities = await client.query(
+    `SELECT l.inventory_product_id,
+            sum(l.base_quantity_snapshot)::int AS base_quantity
+       FROM invoice_line_items l
+      WHERE l.clinic_id=$1 AND l.invoice_id=$2
+        AND l.inventory_product_id IS NOT NULL
+      GROUP BY l.inventory_product_id
+      ORDER BY l.inventory_product_id`,
+    [clinicId, invoiceId],
+  );
+  const rows = [];
+  for (const quantity of quantities.rows) {
+    const product = await client.query(
+      `SELECT inventory_product_id, quantity, name
+         FROM inventory_products
+        WHERE clinic_id=$1 AND inventory_product_id=$2
+        FOR UPDATE`,
+      [clinicId, quantity.inventory_product_id],
+    );
+    if (!product.rows[0]) {
+      const error = new Error('An invoiced inventory product is unavailable.');
+      error.code = 'inventory_product_unavailable';
+      throw error;
+    }
+    rows.push({ ...product.rows[0], base_quantity: quantity.base_quantity });
+  }
+  for (const row of rows) {
+    if (Number(row.quantity) < Number(row.base_quantity)) {
+      const error = new Error(`Insufficient stock for ${row.name}.`);
+      error.code = 'insufficient_stock';
+      throw error;
+    }
+  }
+  for (const row of rows) {
+    await client.query(
+      `UPDATE inventory_products
+          SET quantity=quantity-$3, revision=revision+1, updated_at=now()
+        WHERE clinic_id=$1 AND inventory_product_id=$2`,
+      [clinicId, row.inventory_product_id, Number(row.base_quantity)],
+    );
+    await client.query(
+      `INSERT INTO stock_movements
+         (clinic_id, inventory_product_id, occurred_at, movement_type,
+          quantity_delta, reference)
+       VALUES ($1,$2,now(),'Invoice Sale',$3,$4)`,
+      [clinicId, row.inventory_product_id, -Number(row.base_quantity), `Invoice ${invoiceId}`],
+    );
+  }
+  await client.query(
+    'UPDATE invoices SET inventory_deducted_at=now() WHERE clinic_id=$1 AND invoice_id=$2',
+    [clinicId, invoiceId],
+  );
+}
 
 const paymentList = {
   from: 'payments p JOIN invoices i ON i.invoice_id = p.invoice_id',
@@ -1801,7 +2109,8 @@ export async function clinicalRoutes(app) {
     if (!requireClinic(request, reply)) return undefined;
     const parsed = createInvoiceSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the invoice information.' });
-    return withTenantTransaction(app.pool, request.auth, async (client) => {
+    try {
+      return await withTenantTransaction(app.pool, request.auth, async (client) => {
       const input = parsed.data;
       const duplicate = await client.query(
         `SELECT invoice_id, invoice_number, patient_id, status, subtotal,
@@ -1813,6 +2122,7 @@ export async function clinicalRoutes(app) {
       if (duplicate.rows[0]) {
         const existing = duplicate.rows[0];
         if (existing.status === 'Draft' && input.status === 'Unpaid') {
+          await deductInvoiceInventory(client, request.auth.clinicId, existing.invoice_id);
           const issued = await client.query(
             `UPDATE invoices
                 SET status='Unpaid', balance=total
@@ -1836,6 +2146,7 @@ export async function clinicalRoutes(app) {
           }
         }
         if (existing.status === 'Draft' && input.status === 'Paid') {
+          await deductInvoiceInventory(client, request.auth.clinicId, existing.invoice_id);
           const promoted = await client.query(
             `UPDATE invoices
                 SET status='Paid', amount_paid=total, balance=0
@@ -1877,38 +2188,86 @@ export async function clinicalRoutes(app) {
         return { ...existing, submissionId: input.submissionId, duplicateSubmission: true };
       }
       const patientIds = [...new Set([
-        input.patientId,
+        ...(input.patientId ? [input.patientId] : []),
         ...(input.patientIds ?? []),
         ...input.services.map((line) => line.patientId).filter(Boolean),
+        ...input.products.map((line) => line.patientId).filter(Boolean),
       ])];
-      const patients = await client.query(
-        `SELECT p.patient_id, p.owner_id, o.phone AS owner_phone,
-                o.email AS owner_email
-           FROM patients p
-           JOIN owners o ON o.owner_id=p.owner_id AND o.clinic_id=p.clinic_id
-          WHERE p.clinic_id=$1 AND p.patient_id = ANY($2::uuid[])
-            AND p.status ILIKE $3 AND p.deleted_at IS NULL
-            AND o.deleted_at IS NULL`,
-        [request.auth.clinicId, patientIds, 'active'],
-      );
-      if (patients.rows.length !== patientIds.length) {
-        return reply.code(404).send({ error: 'patient_not_found', message: 'One or more selected active patients were not found in this clinic.' });
-      }
-      if (!patientsShareBillingOwner(patients.rows)) {
-        return reply.code(409).send({ error: 'invoice_owner_mismatch', message: 'All animals on one invoice must belong to the same client.' });
+      let patients = { rows: [] };
+      let ownerId = null;
+      if (input.contextType === 'patient') {
+        patients = await client.query(
+          `SELECT p.patient_id, p.owner_id, o.phone AS owner_phone,
+                  o.email AS owner_email
+             FROM patients p
+             JOIN owners o ON o.owner_id=p.owner_id AND o.clinic_id=p.clinic_id
+            WHERE p.clinic_id=$1 AND p.patient_id = ANY($2::uuid[])
+              AND p.status ILIKE $3 AND p.deleted_at IS NULL
+              AND o.deleted_at IS NULL`,
+          [request.auth.clinicId, patientIds, 'active'],
+        );
+        if (patients.rows.length !== patientIds.length) {
+          return reply.code(404).send({ error: 'patient_not_found', message: 'One or more selected active patients were not found in this clinic.' });
+        }
+        if (!patientsShareBillingOwner(patients.rows)) {
+          return reply.code(409).send({ error: 'invoice_owner_mismatch', message: 'All animals on one invoice must belong to the same client.' });
+        }
+        ownerId = patients.rows.find((row) => row.patient_id === input.patientId)?.owner_id ?? null;
+      } else {
+        const validFarm = await upsertFarmInvoiceContext(
+          client,
+          request.auth.clinicId,
+          request.auth.userId,
+          input.farm,
+        );
+        if (!validFarm) {
+          return reply.code(404).send({ error: 'farm_not_found', message: 'The selected farm records are not available in this clinic.' });
+        }
       }
       const allowedPatients = new Set(patients.rows.map((row) => row.patient_id));
-      if (input.services.some((line) => line.patientId && !allowedPatients.has(line.patientId))) {
+      if (input.contextType === 'patient'
+          && [...input.services, ...input.products].some((line) => line.patientId && !allowedPatients.has(line.patientId))) {
         return reply.code(409).send({ error: 'invoice_patient_mismatch', message: 'An invoice item references an animal outside this invoice.' });
       }
-      const lines = input.services.map((line) => {
+      const farmTreatments = new Map(
+        (input.farm?.treatments ?? []).map((item) => [item.treatmentRecordId, item]),
+      );
+      const serviceLines = input.services.map((line) => {
+        const treatment = line.sourceTreatmentRecordId
+          ? farmTreatments.get(line.sourceTreatmentRecordId)
+          : null;
+        if (line.sourceTreatmentRecordId && !treatment) {
+          const error = new Error('A selected farm treatment is not part of this visit.');
+          error.code = 'farm_treatment_mismatch';
+          throw error;
+        }
         const quantity = Number(line.quantity);
-        const unitPrice = line.unitPrice == null
-          ? Number(line.amount) / quantity
-          : Number(line.unitPrice);
+        const unitPrice = treatment
+          ? Number(treatment.billableAmount)
+          : line.unitPrice == null
+            ? Number(line.amount) / quantity
+            : Number(line.unitPrice);
         const lineTotal = Number((quantity * unitPrice).toFixed(2));
-        return { ...line, quantity, unitPrice, lineTotal };
+        return {
+          ...line,
+          quantity,
+          unitPrice,
+          lineTotal,
+          farmUnitId: treatment?.farmUnitId ?? line.farmUnitId ?? null,
+          costSnapshot: treatment?.costSnapshot ?? line.costSnapshot ?? null,
+          lineType: 'Service',
+        };
       });
+      const preparedProducts = await prepareProductLines(client, request.auth.clinicId, input.products);
+      if (preparedProducts.error) {
+        const error = new Error('A selected inventory product is unavailable for billing.');
+        error.code = preparedProducts.error;
+        throw error;
+      }
+      const lines = [
+        ...serviceLines,
+        ...preparedProducts.lines.map((line) => ({ ...line, lineType: 'Product' })),
+      ];
       const itemizedTotal = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
       if (itemizedTotal > input.total + 0.01) {
         return reply.code(400).send({ error: 'invoice_total_mismatch', message: 'Invoice items exceed the submitted total.' });
@@ -1921,6 +2280,7 @@ export async function clinicalRoutes(app) {
           description: 'General clinic services', patientId: null,
           quantity: 1, unitPrice: Number((input.total - itemizedTotal).toFixed(2)),
           lineTotal: Number((input.total - itemizedTotal).toFixed(2)),
+          lineType: 'Service',
         });
       }
       const authoritativeTotal = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
@@ -1929,26 +2289,42 @@ export async function clinicalRoutes(app) {
       const inserted = await client.query(
         `INSERT INTO invoices
            (clinic_id, owner_id, patient_id, invoice_number, status, subtotal,
-            tax, discount, total, amount_paid, balance, issued_at, submission_id)
-         VALUES ($1,$2,$3,$4,$5,$6,0,0,$7,$8,$9,now(),$10)
-         RETURNING invoice_id, invoice_number, patient_id, status, subtotal,
-                   total, amount_paid, balance, issued_at`,
-        [request.auth.clinicId,
-          patients.rows.find((row) => row.patient_id === input.patientId).owner_id,
-          input.patientId,
+             tax, discount, total, amount_paid, balance, issued_at, submission_id,
+             context_type, farm_id, farm_visit_date, client_name_snapshot,
+             client_phone_snapshot)
+          VALUES ($1,$2,$3,$4,$5,$6,0,0,$7,$8,$9,now(),$10,$11,$12,$13,$14,$15)
+          RETURNING invoice_id, invoice_number, patient_id, status, subtotal,
+                    total, amount_paid, balance, issued_at, context_type, farm_id`,
+         [request.auth.clinicId,
+          ownerId,
+          input.patientId ?? null,
           invoiceNumber, input.status, authoritativeTotal, authoritativeTotal, paid,
-          authoritativeTotal - paid, input.submissionId],
+          authoritativeTotal - paid, input.submissionId, input.contextType,
+          input.farm?.farmId ?? null, input.farm?.visitDate ?? null,
+          input.farm?.clientName ?? null, input.farm?.clientPhone ?? null],
       );
       for (const line of lines) {
         await client.query(
           `INSERT INTO invoice_line_items
              (clinic_id, invoice_id, patient_id, line_type, description,
-              quantity, unit_price, line_total)
-           VALUES ($1,$2,$3,'Service',$4,$5,$6,$7)`,
+              quantity, unit_price, line_total, farm_unit_id,
+              source_treatment_record_id, inventory_product_id, product_unit_id,
+              display_unit_snapshot, conversion_to_base_snapshot,
+              base_quantity_snapshot, unit_cost_snapshot, product_name_snapshot,
+              batch_number_snapshot, expiry_date_snapshot)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
           [request.auth.clinicId, inserted.rows[0].invoice_id,
-            line.patientId ?? null, line.description, line.quantity,
-            line.unitPrice, line.lineTotal],
+            line.patientId ?? null, line.lineType, line.description, line.quantity,
+            line.unitPrice, line.lineTotal, line.farmUnitId ?? null,
+            line.sourceTreatmentRecordId ?? null, line.inventoryProductId ?? null,
+            line.productUnitId ?? null, line.displayUnit ?? null,
+            line.conversion ?? null, line.baseQuantity ?? null,
+            line.unitCost ?? line.costSnapshot ?? null, line.productName ?? null,
+            line.batchNumber ?? null, line.expiryDate ?? null],
         );
+      }
+      if (input.status !== 'Draft') {
+        await deductInvoiceInventory(client, request.auth.clinicId, inserted.rows[0].invoice_id);
       }
       if (input.status === 'Paid' && authoritativeTotal > 0) {
         await client.query(
@@ -1967,12 +2343,40 @@ export async function clinicalRoutes(app) {
           : input.status === 'Unpaid'
             ? 'billing.invoice_issued'
             : 'billing.draft_created',
-        newSummary: { patientId: input.patientId, patientIds, total: authoritativeTotal, serviceCount: lines.length },
+        newSummary: {
+          contextType: input.contextType,
+          patientId: input.patientId ?? null,
+          patientIds,
+          farmId: input.farm?.farmId ?? null,
+          total: authoritativeTotal,
+          lineCount: lines.length,
+        },
         sessionId: request.auth.sessionId,
       });
       reply.code(201);
       return { ...inserted.rows[0], submissionId: input.submissionId, duplicateSubmission: false, patientIds };
-    });
+      });
+    } catch (error) {
+      if (error.code === 'insufficient_stock') {
+        return reply.code(409).send({ error: error.code, message: error.message });
+      }
+      if (error.code === 'inventory_product_expired') {
+        return reply.code(409).send({ error: error.code, message: 'An expired inventory product cannot be sold.' });
+      }
+      if (error.code === 'inventory_product_unavailable') {
+        return reply.code(409).send({ error: error.code, message: 'A selected inventory product is unavailable.' });
+      }
+      if (error.code === 'farm_treatment_mismatch') {
+        return reply.code(409).send({ error: error.code, message: error.message });
+      }
+      if (error.code === '23505') {
+        return reply.code(409).send({
+          error: 'duplicate_invoice_source',
+          message: 'This treatment or submission has already been invoiced.',
+        });
+      }
+      throw error;
+    }
   });
 
   app.get('/api/v1/invoices/:invoiceId', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, async (request, reply) => {
@@ -1982,18 +2386,29 @@ export async function clinicalRoutes(app) {
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const invoice = await client.query(
         `SELECT i.*, o.full_name AS owner_name, o.phone AS owner_phone,
-                o.email AS owner_email
-           FROM invoices i JOIN owners o ON o.owner_id=i.owner_id
+                o.email AS owner_email, f.name AS farm_name,
+                COALESCE(i.client_name_snapshot, f.client_name) AS farm_client_name,
+                COALESCE(i.client_phone_snapshot, f.client_phone) AS farm_client_phone
+           FROM invoices i
+           LEFT JOIN owners o ON o.owner_id=i.owner_id
+           LEFT JOIN farms f ON f.farm_id=i.farm_id AND f.clinic_id=i.clinic_id
           WHERE i.clinic_id=$1 AND i.invoice_id=$2`,
         [request.auth.clinicId, parsed.data.invoiceId],
       );
       if (!invoice.rows[0]) return reply.code(404).send({ error: 'not_found', message: 'The invoice was not found in this clinic.' });
       const lines = await client.query(
         `SELECT l.invoice_line_item_id, l.patient_id, l.line_type,
-                l.description, l.quantity, l.unit_price, l.line_total,
-                p.name AS patient_name, p.hospital_number
+                 l.description, l.quantity, l.unit_price, l.line_total,
+                 l.farm_unit_id, l.source_treatment_record_id,
+                 l.inventory_product_id, l.product_unit_id,
+                 l.display_unit_snapshot, l.conversion_to_base_snapshot,
+                 l.base_quantity_snapshot, l.unit_cost_snapshot,
+                 l.product_name_snapshot, l.batch_number_snapshot,
+                 l.expiry_date_snapshot, u.name AS farm_unit_name,
+                 p.name AS patient_name, p.hospital_number
            FROM invoice_line_items l
            LEFT JOIN patients p ON p.patient_id=l.patient_id AND p.clinic_id=l.clinic_id
+           LEFT JOIN farm_units u ON u.farm_unit_id=l.farm_unit_id AND u.clinic_id=l.clinic_id
           WHERE l.clinic_id=$1 AND l.invoice_id=$2
           ORDER BY p.name NULLS LAST, l.created_at, l.invoice_line_item_id`,
         [request.auth.clinicId, parsed.data.invoiceId],
@@ -2089,22 +2504,28 @@ export async function clinicalRoutes(app) {
       if (existing.rows[0]) {
         return { item: inventoryResponse(existing.rows[0]), submissionId: input.submissionId, duplicateSubmission: true };
       }
-      const inserted = await client.query(
-        `INSERT INTO inventory_products
-           (clinic_id, name, category, category_key, batch_number, expiry_date,
-            purchase_price, selling_price, quantity, reorder_level, status,
-            submission_id, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Active',$11,now(),now())
+       const inserted = await client.query(
+         `INSERT INTO inventory_products
+            (clinic_id, name, generic_name, manufacturer, supplier, category,
+             category_key, batch_number, expiry_date, purchase_price, selling_price,
+             quantity, reorder_level, status, submission_id, base_unit_label,
+             active_ingredient, dosage_and_route, withdrawal_meat, withdrawal_milk,
+             withdrawal_eggs, warnings, is_sellable, is_archived, created_at, updated_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Active',$14,$15,
+                  $16,$17,$18,$19,$20,$21,$22,$23,now(),now())
          ON CONFLICT (clinic_id, submission_id)
            WHERE submission_id IS NOT NULL
          DO NOTHING
-         RETURNING inventory_product_id, name, category, category_key,
-                   batch_number, expiry_date, purchase_price, selling_price,
-                   quantity, reorder_level, status, created_at, updated_at, revision`,
-        [request.auth.clinicId, input.name, input.categoryName, input.categoryId,
-          input.batchNumber ?? null, input.expiryDate ?? null, input.purchasePrice,
-          input.sellingPrice, input.quantity, input.reorderLevel, input.submissionId],
-      );
+          RETURNING *`,
+        [request.auth.clinicId, input.name, input.genericName ?? null,
+          input.manufacturer ?? null, input.supplier ?? null, input.categoryName,
+          input.categoryId, input.batchNumber ?? null, input.expiryDate ?? null,
+          input.purchasePrice, input.sellingPrice, input.quantity, input.reorderLevel,
+          input.submissionId, input.baseUnitLabel, input.activeIngredient ?? null,
+          input.dosageAndRoute ?? null, input.withdrawalMeat ?? null,
+          input.withdrawalMilk ?? null, input.withdrawalEggs ?? null,
+          input.warnings ?? null, input.isSellable, input.isArchived],
+       );
       if (!inserted.rows[0]) {
         const duplicate = await client.query(
           `SELECT ${inventoryList.select}
@@ -2118,7 +2539,7 @@ export async function clinicalRoutes(app) {
           duplicateSubmission: true,
         };
       }
-      if (input.quantity > 0) {
+       if (input.quantity > 0) {
         await client.query(
           `INSERT INTO stock_movements
              (clinic_id, inventory_product_id, occurred_at, movement_type,
@@ -2126,7 +2547,15 @@ export async function clinicalRoutes(app) {
            VALUES ($1,$2,now(),'Opening Balance',$3,'Inventory item created')`,
           [request.auth.clinicId, inserted.rows[0].inventory_product_id, input.quantity],
         );
-      }
+       }
+       await client.query(
+         `INSERT INTO inventory_product_units
+            (clinic_id, inventory_product_id, unit_label, is_base_unit,
+             conversion_to_base, selling_price)
+          VALUES ($1,$2,$3,true,1,$4)`,
+         [request.auth.clinicId, inserted.rows[0].inventory_product_id,
+           input.baseUnitLabel, input.sellingPrice],
+       );
       await writeAudit(client, {
         clinicId: request.auth.clinicId,
         actingUserId: request.auth.userId,
@@ -2137,7 +2566,12 @@ export async function clinicalRoutes(app) {
         sessionId: request.auth.sessionId,
       });
       reply.code(201);
-      return { item: inventoryResponse(inserted.rows[0]), submissionId: input.submissionId, duplicateSubmission: false };
+      const item = await inventoryProductWithUnits(
+        client,
+        request.auth.clinicId,
+        inserted.rows[0].inventory_product_id,
+      );
+      return { item: inventoryResponse(item), submissionId: input.submissionId, duplicateSubmission: false };
     });
   });
 
@@ -2150,7 +2584,8 @@ export async function clinicalRoutes(app) {
     }
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const current = await client.query(
-        `SELECT inventory_product_id, name, category_key, quantity, revision
+        `SELECT inventory_product_id, name, category_key, quantity, revision,
+                base_unit_label
            FROM inventory_products
           WHERE clinic_id = $1 AND inventory_product_id = $2 AND deleted_at IS NULL
           FOR UPDATE`,
@@ -2166,19 +2601,33 @@ export async function clinicalRoutes(app) {
       }
       const updated = await client.query(
         `UPDATE inventory_products
-            SET name = $1, category = $2, category_key = $3, batch_number = $4,
-                expiry_date = $5, purchase_price = $6, selling_price = $7,
-                quantity = $8, reorder_level = $9, updated_at = now(),
+            SET name = $1, generic_name = $2, manufacturer = $3, supplier = $4,
+                category = $5, category_key = $6, batch_number = $7,
+                expiry_date = $8, purchase_price = $9, selling_price = $10,
+                quantity = $11, reorder_level = $12, base_unit_label = $13,
+                active_ingredient = $14, dosage_and_route = $15,
+                withdrawal_meat = $16, withdrawal_milk = $17,
+                withdrawal_eggs = $18, warnings = $19, is_sellable = $20,
+                is_archived = $21, updated_at = now(),
                 revision = revision + 1
-          WHERE clinic_id = $10 AND inventory_product_id = $11
-          RETURNING inventory_product_id, name, category, category_key,
-                    batch_number, expiry_date, purchase_price, selling_price,
-                    quantity, reorder_level, status, created_at, updated_at, revision`,
-        [input.name, input.categoryName, input.categoryId, input.batchNumber ?? null,
-          input.expiryDate ?? null, input.purchasePrice, input.sellingPrice,
-          input.quantity, input.reorderLevel, request.auth.clinicId,
-          params.data.inventoryProductId],
-      );
+          WHERE clinic_id = $22 AND inventory_product_id = $23
+          RETURNING *`,
+        [input.name, input.genericName ?? null, input.manufacturer ?? null,
+          input.supplier ?? null, input.categoryName, input.categoryId,
+          input.batchNumber ?? null, input.expiryDate ?? null, input.purchasePrice,
+          input.sellingPrice, input.quantity, input.reorderLevel, input.baseUnitLabel,
+          input.activeIngredient ?? null, input.dosageAndRoute ?? null,
+          input.withdrawalMeat ?? null, input.withdrawalMilk ?? null,
+          input.withdrawalEggs ?? null, input.warnings ?? null, input.isSellable,
+          input.isArchived, request.auth.clinicId, params.data.inventoryProductId],
+       );
+       await client.query(
+         `UPDATE inventory_product_units
+             SET unit_label=$1, selling_price=$2, updated_at=now(), revision=revision+1
+           WHERE clinic_id=$3 AND inventory_product_id=$4 AND is_base_unit=true`,
+         [input.baseUnitLabel, input.sellingPrice, request.auth.clinicId,
+           params.data.inventoryProductId],
+       );
       const quantityDelta = input.quantity - Number(previous.quantity);
       if (quantityDelta !== 0) {
         await client.query(
@@ -2199,7 +2648,232 @@ export async function clinicalRoutes(app) {
         newSummary: { name: input.name, categoryId: input.categoryId, quantity: input.quantity, revision: Number(updated.rows[0].revision) },
         sessionId: request.auth.sessionId,
       });
-      return { item: inventoryResponse(updated.rows[0]) };
+      const item = await inventoryProductWithUnits(
+        client,
+        request.auth.clinicId,
+        params.data.inventoryProductId,
+      );
+      return { item: inventoryResponse(item) };
+    });
+  });
+
+  app.get('/api/v1/inventory/products/:inventoryProductId/units', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = inventoryUuidSchema.safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'The inventory item identifier is invalid.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const product = await inventoryProductWithUnits(
+        client,
+        request.auth.clinicId,
+        params.data.inventoryProductId,
+      );
+      if (!product) {
+        return reply.code(404).send({ error: 'not_found', message: 'The inventory item was not found in this clinic.' });
+      }
+      return { productUnits: product.product_units ?? [] };
+    });
+  });
+
+  app.put('/api/v1/inventory/products/:inventoryProductId/units', { preHandler: [authenticate, requirePermission(permissions.inventoryEdit)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = inventoryUuidSchema.safeParse(request.params);
+    const parsed = replaceProductUnitsSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the product unit configuration.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const product = await client.query(
+        `SELECT inventory_product_id, name
+           FROM inventory_products
+          WHERE clinic_id=$1 AND inventory_product_id=$2
+            AND deleted_at IS NULL
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.inventoryProductId],
+      );
+      if (!product.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The inventory item was not found in this clinic.' });
+      }
+
+      const suppliedIds = parsed.data.units
+        .map((unit) => unit.productUnitId)
+        .filter(Boolean);
+      if (suppliedIds.length > 0) {
+        const owned = await client.query(
+          `SELECT product_unit_id
+             FROM inventory_product_units
+            WHERE clinic_id=$1 AND inventory_product_id=$2
+              AND product_unit_id = ANY($3::uuid[])`,
+          [request.auth.clinicId, params.data.inventoryProductId, suppliedIds],
+        );
+        if (owned.rowCount !== suppliedIds.length) {
+          return reply.code(409).send({
+            error: 'product_unit_conflict',
+            message: 'One or more product units are stale or belong to another inventory item.',
+          });
+        }
+      }
+
+      await client.query(
+        `DELETE FROM inventory_product_units
+          WHERE clinic_id=$1 AND inventory_product_id=$2
+            AND NOT (product_unit_id = ANY($3::uuid[]))`,
+        [request.auth.clinicId, params.data.inventoryProductId, suppliedIds],
+      );
+      await client.query(
+        `UPDATE inventory_product_units
+            SET is_base_unit=false
+          WHERE clinic_id=$1 AND inventory_product_id=$2 AND is_base_unit=true`,
+        [request.auth.clinicId, params.data.inventoryProductId],
+      );
+      for (const unit of parsed.data.units) {
+        if (unit.productUnitId) {
+          await client.query(
+            `UPDATE inventory_product_units
+                SET unit_label=$1, is_base_unit=$2, conversion_to_base=$3,
+                    selling_price=$4, updated_at=now(), revision=revision+1
+              WHERE clinic_id=$5 AND inventory_product_id=$6 AND product_unit_id=$7`,
+            [unit.unitLabel, unit.isBaseUnit, unit.conversionToBase, unit.sellingPrice,
+              request.auth.clinicId, params.data.inventoryProductId, unit.productUnitId],
+          );
+        } else {
+          await client.query(
+            `INSERT INTO inventory_product_units
+               (clinic_id, inventory_product_id, unit_label, is_base_unit,
+                conversion_to_base, selling_price)
+             VALUES ($1,$2,$3,$4,$5,$6)`,
+            [request.auth.clinicId, params.data.inventoryProductId, unit.unitLabel,
+              unit.isBaseUnit, unit.conversionToBase, unit.sellingPrice],
+          );
+        }
+      }
+      const baseUnit = parsed.data.units.find((unit) => unit.isBaseUnit);
+      await client.query(
+        `UPDATE inventory_products
+            SET base_unit_label=$1, selling_price=$2,
+                updated_at=now(), revision=revision+1
+          WHERE clinic_id=$3 AND inventory_product_id=$4`,
+        [baseUnit.unitLabel, baseUnit.sellingPrice, request.auth.clinicId,
+          params.data.inventoryProductId],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'InventoryProduct',
+        targetId: params.data.inventoryProductId,
+        action: 'inventory.product_units_replaced',
+        newSummary: { unitCount: parsed.data.units.length, baseUnit: baseUnit.unitLabel },
+        sessionId: request.auth.sessionId,
+      });
+      const refreshed = await inventoryProductWithUnits(
+        client,
+        request.auth.clinicId,
+        params.data.inventoryProductId,
+      );
+      return { item: inventoryResponse(refreshed) };
+    });
+  });
+
+  app.post('/api/v1/inventory/products/:inventoryProductId/reorder-requests', { preHandler: [authenticate, requirePermission(permissions.inventoryAdjust)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = inventoryUuidSchema.safeParse(request.params);
+    const parsed = createReorderRequestSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the reorder request.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const product = await client.query(
+        `SELECT inventory_product_id, name, supplier, base_unit_label
+           FROM inventory_products
+          WHERE clinic_id=$1 AND inventory_product_id=$2
+            AND deleted_at IS NULL AND is_archived=false`,
+        [request.auth.clinicId, params.data.inventoryProductId],
+      );
+      if (!product.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The inventory item was not found in this clinic.' });
+      }
+      if (!product.rows[0].supplier?.trim()) {
+        return reply.code(409).send({ error: 'supplier_required', message: 'Add a supplier to this item before requesting a reorder.' });
+      }
+      let requestedUnit = product.rows[0].base_unit_label;
+      if (parsed.data.productUnitId) {
+        const unit = await client.query(
+          `SELECT unit_label
+             FROM inventory_product_units
+            WHERE clinic_id=$1 AND inventory_product_id=$2 AND product_unit_id=$3`,
+          [request.auth.clinicId, params.data.inventoryProductId,
+            parsed.data.productUnitId],
+        );
+        if (!unit.rows[0]) {
+          return reply.code(409).send({ error: 'product_unit_conflict', message: 'The selected product unit is unavailable.' });
+        }
+        requestedUnit = unit.rows[0].unit_label;
+      }
+      const inserted = await client.query(
+        `INSERT INTO inventory_reorder_requests
+           (clinic_id, inventory_product_id, product_unit_id, supplier_snapshot,
+            requested_quantity, requested_unit_snapshot, requested_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING *`,
+        [request.auth.clinicId, params.data.inventoryProductId,
+          parsed.data.productUnitId ?? null, product.rows[0].supplier,
+          parsed.data.requestedQuantity, requestedUnit, request.auth.userId],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'InventoryReorderRequest',
+        targetId: inserted.rows[0].reorder_request_id,
+        action: 'inventory.reorder_requested',
+        newSummary: {
+          product: product.rows[0].name,
+          quantity: parsed.data.requestedQuantity,
+          unit: requestedUnit,
+          supplier: product.rows[0].supplier,
+        },
+        sessionId: request.auth.sessionId,
+      });
+      reply.code(201);
+      return { reorderRequest: inserted.rows[0] };
+    });
+  });
+
+  app.get('/api/v1/inventory/products/:inventoryProductId/related', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = inventoryUuidSchema.safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'The inventory item identifier is invalid.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT supplier, manufacturer, category_key
+           FROM inventory_products
+          WHERE clinic_id=$1 AND inventory_product_id=$2 AND deleted_at IS NULL`,
+        [request.auth.clinicId, params.data.inventoryProductId],
+      );
+      if (!current.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The inventory item was not found in this clinic.' });
+      }
+      const row = current.rows[0];
+      const related = await client.query(
+        `SELECT ${inventoryList.select}
+           FROM inventory_products i
+          WHERE i.clinic_id=$1 AND i.inventory_product_id<>$2
+            AND i.deleted_at IS NULL AND i.is_archived=false
+            AND (
+              ($3::text IS NOT NULL AND lower(i.supplier)=lower($3)) OR
+              ($4::text IS NOT NULL AND lower(i.manufacturer)=lower($4)) OR
+              i.category_key=$5
+            )
+          ORDER BY
+            CASE WHEN $3::text IS NOT NULL AND lower(i.supplier)=lower($3) THEN 0 ELSE 1 END,
+            lower(i.name)
+          LIMIT 20`,
+        [request.auth.clinicId, params.data.inventoryProductId,
+          row.supplier ?? null, row.manufacturer ?? null, row.category_key],
+      );
+      return { items: related.rows.map(inventoryResponse) };
     });
   });
 

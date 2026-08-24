@@ -853,6 +853,8 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
   String _type = 'Pen';
   String? _speciesId;
   String? _breedId;
+  bool _mixedSpecies = false;
+  final List<_FarmPopulationDraft> _populationDrafts = [];
   bool _saving = false;
   late final Future<FarmDashboardData?> _farmData;
 
@@ -862,12 +864,16 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
     _farmData = ref
         .read(clinicRepositoryProvider)
         .getFarmDashboard(widget.farmId);
+    _populationDrafts.addAll([_FarmPopulationDraft(), _FarmPopulationDraft()]);
   }
 
   @override
   void dispose() {
     for (final controller in [_name, _capacity, _male, _female, _unknown]) {
       controller.dispose();
+    }
+    for (final draft in _populationDrafts) {
+      draft.dispose();
     }
     super.dispose();
   }
@@ -910,6 +916,18 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
             ),
           ),
           const SizedBox(height: 12),
+          Text('Population Type', style: averaText(context).sectionLabel),
+          const SizedBox(height: 8),
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('Single species')),
+              ButtonSegment(value: true, label: Text('Mixed species')),
+            ],
+            selected: {_mixedSpecies},
+            onSelectionChanged: (selection) =>
+                setState(() => _mixedSpecies = selection.first),
+          ),
+          const SizedBox(height: 12),
           FutureBuilder<FarmDashboardData?>(
             future: _farmData,
             builder: (context, snapshot) {
@@ -920,6 +938,49 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
               final speciesOptions = configuredSpecies
                   .where((id) => AnimalCatalogue.speciesById(id) != null)
                   .toList();
+              if (_mixedSpecies) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Animal Groups',
+                      style: averaText(context).sectionLabel,
+                    ),
+                    const SizedBox(height: 8),
+                    for (
+                      var index = 0;
+                      index < _populationDrafts.length;
+                      index++
+                    ) ...[
+                      _FarmPopulationDraftCard(
+                        key: ValueKey(_populationDrafts[index]),
+                        draft: _populationDrafts[index],
+                        speciesOptions: speciesOptions,
+                        canRemove: _populationDrafts.length > 2,
+                        onChanged: () => setState(() {}),
+                        onRemove: () {
+                          final draft = _populationDrafts.removeAt(index);
+                          draft.dispose();
+                          setState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    OutlinedButton.icon(
+                      onPressed: () => setState(
+                        () => _populationDrafts.add(_FarmPopulationDraft()),
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add Animal Group'),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Total: ${_populationDrafts.fold<int>(0, (sum, draft) => sum + draft.total)} animals',
+                      style: averaText(context).listItemTitle,
+                    ),
+                  ],
+                );
+              }
               final breedOptions = _speciesId == null
                   ? const <AnimalBreedOption>[]
                   : AnimalCatalogue.breedsFor(_speciesId!);
@@ -996,15 +1057,16 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _count('Male', _male)),
-              const SizedBox(width: 8),
-              Expanded(child: _count('Female', _female)),
-              const SizedBox(width: 8),
-              Expanded(child: _count('Unknown', _unknown)),
-            ],
-          ),
+          if (!_mixedSpecies)
+            Row(
+              children: [
+                Expanded(child: _count('Male', _male)),
+                const SizedBox(width: 8),
+                Expanded(child: _count('Female', _female)),
+                const SizedBox(width: 8),
+                Expanded(child: _count('Unknown', _unknown)),
+              ],
+            ),
           const SizedBox(height: 20),
           AveraPrimaryActionButton(
             label: _saving ? 'Adding...' : 'Add Unit',
@@ -1030,9 +1092,25 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
       _female,
       _unknown,
     ].map((controller) => int.tryParse(controller.text) ?? -1).toList();
+    final populations = _mixedSpecies
+        ? _populationDrafts.map((draft) => draft.toInput()).toList()
+        : const <FarmUnitPopulationInput>[];
+    final invalidMixed =
+        _mixedSpecies &&
+        (_populationDrafts.length < 2 ||
+            populations.any(
+              (item) =>
+                  item.speciesId.isEmpty ||
+                  [
+                    item.maleCount,
+                    item.femaleCount,
+                    item.unknownCount,
+                  ].any((value) => value < 0),
+            ));
     if (_name.text.trim().isEmpty ||
-        _speciesId == null ||
-        values.any((value) => value < 0)) {
+        (!_mixedSpecies && _speciesId == null) ||
+        (!_mixedSpecies && values.any((value) => value < 0)) ||
+        invalidMixed) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -1058,6 +1136,7 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
             maleCount: values[0],
             femaleCount: values[1],
             unknownCount: values[2],
+            populations: populations,
           );
       if (mounted) {
         context.pop(true);
@@ -1071,6 +1150,147 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+}
+
+class _FarmPopulationDraft {
+  String? speciesId;
+  String? breedId;
+  final male = TextEditingController(text: '0');
+  final female = TextEditingController(text: '0');
+  final unknown = TextEditingController(text: '0');
+
+  int _value(TextEditingController controller) =>
+      int.tryParse(controller.text.trim()) ?? -1;
+
+  int get total => [male, female, unknown]
+      .map(_value)
+      .where((value) => value > 0)
+      .fold(0, (sum, value) => sum + value);
+
+  FarmUnitPopulationInput toInput() => FarmUnitPopulationInput(
+    speciesId: speciesId ?? '',
+    breedId: breedId,
+    maleCount: _value(male),
+    femaleCount: _value(female),
+    unknownCount: _value(unknown),
+  );
+
+  void dispose() {
+    male.dispose();
+    female.dispose();
+    unknown.dispose();
+  }
+}
+
+class _FarmPopulationDraftCard extends StatelessWidget {
+  const _FarmPopulationDraftCard({
+    super.key,
+    required this.draft,
+    required this.speciesOptions,
+    required this.canRemove,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  final _FarmPopulationDraft draft;
+  final List<String> speciesOptions;
+  final bool canRemove;
+  final VoidCallback onChanged;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final breeds = draft.speciesId == null
+        ? const <AnimalBreedOption>[]
+        : AnimalCatalogue.breedsFor(draft.speciesId!);
+    return AveraSurfaceCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Animal Group',
+                  style: averaText(context).listItemTitle,
+                ),
+              ),
+              if (canRemove)
+                IconButton(
+                  tooltip: 'Remove animal group',
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+            ],
+          ),
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            value: speciesOptions.contains(draft.speciesId)
+                ? draft.speciesId
+                : null,
+            decoration: const InputDecoration(labelText: 'Species'),
+            items: speciesOptions
+                .map(
+                  (id) => DropdownMenuItem(
+                    value: id,
+                    child: Text(AnimalCatalogue.speciesById(id)!.displayName),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              draft.speciesId = value;
+              draft.breedId = null;
+              onChanged();
+            },
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            value: breeds.any((breed) => breed.id == draft.breedId)
+                ? draft.breedId
+                : null,
+            decoration: const InputDecoration(labelText: 'Breed or type'),
+            items: breeds
+                .map(
+                  (breed) => DropdownMenuItem(
+                    value: breed.id,
+                    child: Text(
+                      breed.displayName,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: draft.speciesId == null
+                ? null
+                : (value) {
+                    draft.breedId = value;
+                    onChanged();
+                  },
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (final entry in [
+                ('Male', draft.male),
+                ('Female', draft.female),
+                ('Unknown', draft.unknown),
+              ]) ...[
+                Expanded(
+                  child: TextField(
+                    controller: entry.$2,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: entry.$1),
+                    onChanged: (_) => onChanged(),
+                  ),
+                ),
+                if (entry.$1 != 'Unknown') const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

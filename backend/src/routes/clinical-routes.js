@@ -16,6 +16,11 @@ const pageSchema = z.object({
   to: z.string().datetime().optional(),
 });
 
+const revenueSummaryQuerySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+}).strict();
+
 const clinicActivityUnionSql = `
   SELECT 'Consultation' AS type, 'Consultations' AS module,
          'Consultation' AS related_entity_type,
@@ -57,6 +62,7 @@ const vaccinationUuidSchema = z.object({ vaccinationId: z.string().uuid() });
 const appointmentUuidSchema = z.object({ appointmentId: z.string().uuid() });
 const inventoryUuidSchema = z.object({ inventoryProductId: z.string().uuid() });
 const clinicalOperationUuidSchema = z.object({ operationId: z.string().uuid() });
+const farmUuidSchema = z.object({ farmId: z.string().uuid() });
 
 function normalizedBillingPhone(value) {
   const digits = String(value ?? '').replace(/[^0-9]/g, '');
@@ -164,6 +170,62 @@ export const cancelAppointmentSchema = z.object({
   revision: z.number().int().min(1),
 }).strict();
 
+const farmUnitPopulationSchema = z.object({
+  farmUnitPopulationId: z.string().uuid(),
+  speciesId: z.string().trim().min(1).max(120),
+  breedId: z.string().trim().max(160).nullish(),
+  maleCount: z.number().int().min(0).max(1000000000).default(0),
+  femaleCount: z.number().int().min(0).max(1000000000).default(0),
+  unknownCount: z.number().int().min(0).max(1000000000).default(0),
+}).strict();
+
+const farmUnitSchema = z.object({
+  farmUnitId: z.string().uuid(),
+  name: z.string().trim().min(1).max(240),
+  unitType: z.string().trim().max(120).nullish(),
+  species: z.string().trim().max(120).nullish(),
+  breed: z.string().trim().max(160).nullish(),
+  populations: z.array(farmUnitPopulationSchema).max(200).default([]),
+}).strict();
+
+const farmTreatmentSchema = z.object({
+  treatmentRecordId: z.string().uuid(),
+  farmUnitId: z.string().uuid().nullable().optional(),
+  treatmentType: z.string().trim().min(1).max(200),
+  productName: z.string().trim().max(240).nullish(),
+  occurredAt: z.string().datetime(),
+  animalsCovered: z.number().int().positive().nullable().optional(),
+  billableAmount: z.number().min(0).max(1000000000000),
+  costSnapshot: z.number().min(0).max(1000000000000).nullable().optional(),
+  notes: z.string().trim().max(4000).nullish(),
+  targetScope: z.enum(['EntireUnit', 'SelectedGroups']).default('EntireUnit'),
+  targetPopulationIds: z.array(z.string().uuid()).max(200).default([]),
+}).strict().superRefine((value, ctx) => {
+  if (value.targetScope === 'SelectedGroups' && value.targetPopulationIds.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['targetPopulationIds'],
+      message: 'Select at least one population group.',
+    });
+  }
+  if (value.targetScope === 'EntireUnit' && value.targetPopulationIds.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['targetPopulationIds'],
+      message: 'Entire-unit treatments cannot contain selected population groups.',
+    });
+  }
+});
+
+export const farmContextSchema = z.object({
+  farmId: z.string().uuid(),
+  name: z.string().trim().min(1).max(240),
+  clientName: z.string().trim().max(240).nullish(),
+  clientPhone: z.string().trim().max(80).nullish(),
+  units: z.array(farmUnitSchema).max(100).default([]),
+  treatments: z.array(farmTreatmentSchema).max(200).default([]),
+}).strict();
+
 export const createInvoiceSchema = z.object({
   submissionId: z.string().uuid(),
   contextType: z.enum(['patient', 'farm_visit']).default('patient'),
@@ -188,30 +250,8 @@ export const createInvoiceSchema = z.object({
     patientId: z.string().uuid().nullable().optional(),
     quantity: z.number().int().positive().max(1000000),
   })).max(100).default([]),
-  farm: z.object({
-    farmId: z.string().uuid(),
-    name: z.string().trim().min(1).max(240),
-    clientName: z.string().trim().max(240).nullish(),
-    clientPhone: z.string().trim().max(80).nullish(),
+  farm: farmContextSchema.extend({
     visitDate: z.string().date(),
-    units: z.array(z.object({
-      farmUnitId: z.string().uuid(),
-      name: z.string().trim().min(1).max(240),
-      unitType: z.string().trim().max(120).nullish(),
-      species: z.string().trim().max(120).nullish(),
-      breed: z.string().trim().max(160).nullish(),
-    })).max(100).default([]),
-    treatments: z.array(z.object({
-      treatmentRecordId: z.string().uuid(),
-      farmUnitId: z.string().uuid().nullable().optional(),
-      treatmentType: z.string().trim().min(1).max(200),
-      productName: z.string().trim().max(240).nullish(),
-      occurredAt: z.string().datetime(),
-      animalsCovered: z.number().int().positive().nullable().optional(),
-      billableAmount: z.number().min(0).max(1000000000000),
-      costSnapshot: z.number().min(0).max(1000000000000).nullable().optional(),
-      notes: z.string().trim().max(4000).nullish(),
-    })).max(200).default([]),
   }).nullable().optional(),
 }).superRefine((input, ctx) => {
   if (input.contextType === 'patient' && !input.patientId) {
@@ -816,7 +856,7 @@ const invoiceList = {
   order: (query) => orderBy(query.sort, query.direction, { date: 'i.issued_at', number: 'i.invoice_number', balance: 'i.balance' }, 'i.issued_at'),
 };
 
-async function upsertFarmInvoiceContext(client, clinicId, userId, farm) {
+export async function upsertFarmInvoiceContext(client, clinicId, userId, farm) {
   await client.query(
     `INSERT INTO farms (farm_id, clinic_id, name, client_name, client_phone)
      VALUES ($1,$2,$3,$4,$5)
@@ -844,28 +884,90 @@ async function upsertFarmInvoiceContext(client, clinicId, userId, farm) {
       [unit.farmUnitId, clinicId, farm.farmId, unit.name,
         unit.unitType ?? null, unit.species ?? null, unit.breed ?? null],
     );
+    for (const population of unit.populations) {
+      await client.query(
+        `INSERT INTO farm_unit_populations
+           (farm_unit_population_id, clinic_id, farm_id, farm_unit_id,
+            species_id, breed_id, male_count, female_count, unknown_count)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         ON CONFLICT (farm_unit_population_id) DO UPDATE
+           SET species_id=EXCLUDED.species_id, breed_id=EXCLUDED.breed_id,
+               male_count=EXCLUDED.male_count, female_count=EXCLUDED.female_count,
+               unknown_count=EXCLUDED.unknown_count, updated_at=now()
+           WHERE farm_unit_populations.clinic_id=EXCLUDED.clinic_id
+             AND farm_unit_populations.farm_id=EXCLUDED.farm_id
+             AND farm_unit_populations.farm_unit_id=EXCLUDED.farm_unit_id`,
+        [population.farmUnitPopulationId, clinicId, farm.farmId, unit.farmUnitId,
+          population.speciesId, population.breedId ?? null,
+          population.maleCount, population.femaleCount, population.unknownCount],
+      );
+    }
+    const populationIds = unit.populations.map((item) => item.farmUnitPopulationId);
+    await client.query(
+      `DELETE FROM farm_unit_populations
+        WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3
+          AND NOT (farm_unit_population_id=ANY($4::uuid[]))`,
+      [clinicId, farm.farmId, unit.farmUnitId, populationIds],
+    );
   }
   for (const treatment of farm.treatments) {
+    if (treatment.farmUnitId) {
+      const ownedUnit = await client.query(
+        `SELECT farm_unit_id FROM farm_units
+          WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3`,
+        [clinicId, farm.farmId, treatment.farmUnitId],
+      );
+      if (!ownedUnit.rows[0]) {
+        const error = new Error('The treatment unit is not available in this clinic.');
+        error.code = 'farm_unit_mismatch';
+        throw error;
+      }
+    }
+    if (treatment.targetScope === 'SelectedGroups') {
+      if (!treatment.farmUnitId) {
+        const error = new Error('Selected population groups require a farm unit.');
+        error.code = 'farm_population_mismatch';
+        throw error;
+      }
+      const ownedPopulations = await client.query(
+        `SELECT farm_unit_population_id FROM farm_unit_populations
+          WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3
+            AND farm_unit_population_id=ANY($4::uuid[])`,
+        [clinicId, farm.farmId, treatment.farmUnitId,
+          treatment.targetPopulationIds],
+      );
+      if (ownedPopulations.rows.length !== treatment.targetPopulationIds.length) {
+        const error = new Error(
+          'One or more selected population groups are not part of this farm unit.',
+        );
+        error.code = 'farm_population_mismatch';
+        throw error;
+      }
+    }
     await client.query(
       `INSERT INTO farm_treatment_records
          (farm_treatment_record_id, clinic_id, farm_id, farm_unit_id,
           treatment_type, product_name, occurred_at, animals_covered,
-          billable_amount, cost_snapshot, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          billable_amount, cost_snapshot, notes, target_scope,
+          target_population_ids, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        ON CONFLICT (farm_treatment_record_id) DO UPDATE
          SET treatment_type=EXCLUDED.treatment_type,
              product_name=EXCLUDED.product_name,
              animals_covered=EXCLUDED.animals_covered,
              billable_amount=EXCLUDED.billable_amount,
              cost_snapshot=EXCLUDED.cost_snapshot,
-             notes=EXCLUDED.notes, updated_at=now()
+             notes=EXCLUDED.notes, target_scope=EXCLUDED.target_scope,
+             target_population_ids=EXCLUDED.target_population_ids,
+             updated_at=now()
          WHERE farm_treatment_records.clinic_id=EXCLUDED.clinic_id
            AND farm_treatment_records.farm_id=EXCLUDED.farm_id`,
       [treatment.treatmentRecordId, clinicId, farm.farmId,
         treatment.farmUnitId ?? null, treatment.treatmentType,
         treatment.productName ?? null, treatment.occurredAt,
         treatment.animalsCovered ?? null, treatment.billableAmount,
-        treatment.costSnapshot ?? null, treatment.notes ?? null, userId],
+        treatment.costSnapshot ?? null, treatment.notes ?? null,
+        treatment.targetScope, treatment.targetPopulationIds, userId],
     );
   }
   const treatmentIds = farm.treatments.map((item) => item.treatmentRecordId);
@@ -879,6 +981,63 @@ async function upsertFarmInvoiceContext(client, clinicId, userId, farm) {
     if (owned.rows.length !== treatmentIds.length) return false;
   }
   return true;
+}
+
+export async function readFarmContext(client, clinicId, farmId) {
+  const farm = (
+    await client.query(
+      `SELECT farm_id, name, client_name, client_phone, status, created_at, updated_at
+         FROM farms WHERE clinic_id=$1 AND farm_id=$2`,
+      [clinicId, farmId],
+    )
+  ).rows[0];
+  if (!farm) return null;
+  const units = (
+    await client.query(
+      `SELECT farm_unit_id, name, unit_type, species, breed, status,
+              created_at, updated_at
+         FROM farm_units
+        WHERE clinic_id=$1 AND farm_id=$2
+        ORDER BY name, farm_unit_id`,
+      [clinicId, farmId],
+    )
+  ).rows;
+  const populations = (
+    await client.query(
+      `SELECT farm_unit_population_id, farm_unit_id, species_id, breed_id,
+              male_count, female_count, unknown_count, created_at, updated_at
+         FROM farm_unit_populations
+        WHERE clinic_id=$1 AND farm_id=$2
+        ORDER BY farm_unit_id, species_id, breed_id`,
+      [clinicId, farmId],
+    )
+  ).rows;
+  const populationsByUnit = new Map();
+  for (const population of populations) {
+    const values = populationsByUnit.get(population.farm_unit_id) ?? [];
+    values.push(population);
+    populationsByUnit.set(population.farm_unit_id, values);
+  }
+  const treatments = (
+    await client.query(
+      `SELECT farm_treatment_record_id, farm_unit_id, treatment_type,
+              product_name, occurred_at, animals_covered, billable_amount,
+              cost_snapshot, notes, target_scope, target_population_ids,
+              created_at, updated_at
+         FROM farm_treatment_records
+        WHERE clinic_id=$1 AND farm_id=$2
+        ORDER BY occurred_at DESC, farm_treatment_record_id`,
+      [clinicId, farmId],
+    )
+  ).rows;
+  return {
+    farm,
+    units: units.map((unit) => ({
+      ...unit,
+      populations: populationsByUnit.get(unit.farm_unit_id) ?? [],
+    })),
+    treatments,
+  };
 }
 
 async function prepareProductLines(client, clinicId, products) {
@@ -2105,6 +2264,95 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.get('/api/v1/farms/:farmId/context', {
+    preHandler: [authenticate, requirePermission(permissions.farmsView)],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = farmUuidSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'validation_error',
+        message: 'The farm identifier is invalid.',
+      });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const context = await readFarmContext(
+        client,
+        request.auth.clinicId,
+        parsed.data.farmId,
+      );
+      if (!context) {
+        return reply.code(404).send({
+          error: 'farm_not_found',
+          message: 'The selected farm is not available in this clinic.',
+        });
+      }
+      return { farmContext: context };
+    });
+  });
+
+  app.put('/api/v1/farms/:farmId/context', {
+    preHandler: [authenticate, requirePermission(permissions.farmUnitsManage)],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = farmUuidSchema.safeParse(request.params);
+    const body = farmContextSchema.safeParse(request.body);
+    if (!params.success || !body.success || params.data.farmId !== body.data.farmId) {
+      return reply.code(400).send({
+        error: 'validation_error',
+        message: 'Please review the farm information.',
+      });
+    }
+    if (body.data.treatments.length > 0
+        && !hasPermission(request, permissions.farmHealthRecord)) {
+      return reply.code(403).send({
+        error: 'permission_required',
+        message: 'You do not have permission to record farm treatments.',
+      });
+    }
+    try {
+      return await withTenantTransaction(app.pool, request.auth, async (client) => {
+        const saved = await upsertFarmInvoiceContext(
+          client,
+          request.auth.clinicId,
+          request.auth.userId,
+          body.data,
+        );
+        if (!saved) {
+          return reply.code(404).send({
+            error: 'farm_not_found',
+            message: 'The selected farm is not available in this clinic.',
+          });
+        }
+        await writeAudit(client, {
+          clinicId: request.auth.clinicId,
+          actingUserId: request.auth.userId,
+          targetType: 'Farm',
+          targetId: body.data.farmId,
+          action: 'farm.context_updated',
+          newSummary: {
+            unitCount: body.data.units.length,
+            treatmentCount: body.data.treatments.length,
+          },
+          sessionId: request.auth.sessionId,
+        });
+        return {
+          farmContext: await readFarmContext(
+            client,
+            request.auth.clinicId,
+            body.data.farmId,
+          ),
+        };
+      });
+    } catch (error) {
+      if (error.code === 'farm_unit_mismatch'
+          || error.code === 'farm_population_mismatch') {
+        return reply.code(409).send({ error: error.code, message: error.message });
+      }
+      throw error;
+    }
+  });
+
   app.post('/api/v1/invoices', { preHandler: [authenticate, requirePermission(permissions.billingCreate)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     const parsed = createInvoiceSchema.safeParse(request.body);
@@ -2366,7 +2614,9 @@ export async function clinicalRoutes(app) {
       if (error.code === 'inventory_product_unavailable') {
         return reply.code(409).send({ error: error.code, message: 'A selected inventory product is unavailable.' });
       }
-      if (error.code === 'farm_treatment_mismatch') {
+      if (error.code === 'farm_treatment_mismatch'
+          || error.code === 'farm_unit_mismatch'
+          || error.code === 'farm_population_mismatch') {
         return reply.code(409).send({ error: error.code, message: error.message });
       }
       if (error.code === '23505') {
@@ -2879,6 +3129,74 @@ export async function clinicalRoutes(app) {
 
   app.get('/api/v1/inventory/products', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, tenantList(inventoryList));
   app.get('/api/v1/inventory/movements', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, tenantList(movementsList));
+  app.get('/api/v1/billing/revenue-summary', {
+    preHandler: [authenticate, requirePermission(permissions.billingHistory)],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = revenueSummaryQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'validation_error',
+        message: 'The revenue date range is invalid.',
+      });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const result = await client.query(
+        `WITH filtered_payments AS (
+           SELECT p.payment_id, p.invoice_id, p.amount, i.total, i.context_type
+             FROM payments p
+             JOIN invoices i
+               ON i.clinic_id=p.clinic_id AND i.invoice_id=p.invoice_id
+            WHERE p.clinic_id=$1
+              AND ($2::timestamptz IS NULL OR p.paid_at >= $2)
+              AND ($3::timestamptz IS NULL OR p.paid_at < $3)
+         ),
+         paid_by_invoice AS (
+           SELECT invoice_id, total, context_type,
+                  sum(amount) AS paid_in_range,
+                  count(*)::int AS transaction_count
+             FROM filtered_payments
+            GROUP BY invoice_id, total, context_type
+         ),
+         invoice_costs AS (
+           SELECT pbi.invoice_id,
+                  coalesce(sum(
+                    CASE WHEN li.unit_cost_snapshot IS NULL THEN 0
+                         ELSE li.unit_cost_snapshot * li.quantity END
+                  ), 0) AS recorded_cost,
+                  count(li.invoice_line_item_id) FILTER (
+                    WHERE li.invoice_line_item_id IS NOT NULL
+                      AND li.unit_cost_snapshot IS NULL
+                  )::int
+                    AS missing_cost_lines
+             FROM paid_by_invoice pbi
+             LEFT JOIN invoice_line_items li
+               ON li.clinic_id=$1 AND li.invoice_id=pbi.invoice_id
+            GROUP BY pbi.invoice_id
+         )
+         SELECT coalesce(sum(pbi.paid_in_range), 0) AS revenue,
+                coalesce(sum(
+                  CASE WHEN pbi.context_type='farm_visit'
+                       THEN pbi.paid_in_range ELSE 0 END
+                ), 0) AS farm_revenue,
+                coalesce(sum(
+                  CASE WHEN pbi.context_type<>'farm_visit'
+                       THEN pbi.paid_in_range ELSE 0 END
+                ), 0) AS clinic_revenue,
+                coalesce(sum(
+                  CASE WHEN pbi.total > 0 THEN
+                    costs.recorded_cost * least(pbi.paid_in_range / pbi.total, 1)
+                  ELSE 0 END
+                ), 0) AS cost,
+                coalesce(sum(pbi.transaction_count), 0)::int AS transaction_count,
+                coalesce(sum(costs.missing_cost_lines), 0)::int AS missing_cost_lines
+           FROM paid_by_invoice pbi
+           JOIN invoice_costs costs ON costs.invoice_id=pbi.invoice_id`,
+        [request.auth.clinicId, parsed.data.from ?? null, parsed.data.to ?? null],
+      );
+      return result.rows[0];
+    });
+  });
   app.get('/api/v1/invoices', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, tenantList(invoiceList));
   app.get('/api/v1/payments', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, tenantList(paymentList));
   app.get('/api/v1/media', { preHandler: [authenticate, requirePermission(permissions.mediaView)] }, tenantList(mediaList));

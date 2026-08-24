@@ -184,20 +184,34 @@ class FarmDashboardData {
     required this.farm,
     required this.units,
     required this.dailyRecords,
+    this.populations = const [],
   });
 
   final Farm farm;
   final List<FarmUnit> units;
   final List<FarmDailyRecord> dailyRecords;
+  final List<FarmUnitPopulation> populations;
 
-  int get currentPopulation => units.fold(
-    0,
-    (total, unit) =>
-        total + unit.maleCount + unit.femaleCount + unit.unknownCount,
-  );
+  int get currentPopulation => populations.isNotEmpty
+      ? populations.fold(0, (total, item) => total + item.total)
+      : units.fold(
+          0,
+          (total, unit) =>
+              total + unit.maleCount + unit.femaleCount + unit.unknownCount,
+        );
 
   Map<String, int> get populationBySpecies {
     final result = <String, int>{};
+    if (populations.isNotEmpty) {
+      for (final population in populations) {
+        result.update(
+          population.speciesId,
+          (value) => value + population.total,
+          ifAbsent: () => population.total,
+        );
+      }
+      return result;
+    }
     for (final unit in units) {
       final speciesId = unit.speciesId ?? 'unassigned';
       result.update(
@@ -209,6 +223,28 @@ class FarmDashboardData {
     }
     return result;
   }
+}
+
+extension FarmUnitPopulationTotal on FarmUnitPopulation {
+  int get total => maleCount + femaleCount + unknownCount;
+}
+
+class FarmUnitPopulationInput {
+  const FarmUnitPopulationInput({
+    required this.speciesId,
+    this.breedId,
+    this.maleCount = 0,
+    this.femaleCount = 0,
+    this.unknownCount = 0,
+  });
+
+  final String speciesId;
+  final String? breedId;
+  final int maleCount;
+  final int femaleCount;
+  final int unknownCount;
+
+  int get total => maleCount + femaleCount + unknownCount;
 }
 
 class FarmSpeciesMovementInput {
@@ -5174,10 +5210,18 @@ class ClinicRepository {
               )
               ..orderBy([(row) => OrderingTerm.desc(row.recordDate)]))
             .get();
+    final populations =
+        await (db.select(db.farmUnitPopulations)..where(
+              (row) =>
+                  row.clinicId.equals(activeClinicId) &
+                  row.farmId.equals(farmId),
+            ))
+            .get();
     return FarmDashboardData(
       farm: farm,
       units: units,
       dailyRecords: dailyRecords,
+      populations: populations,
     );
   }
 
@@ -5295,48 +5339,104 @@ class ClinicRepository {
     int maleCount = 0,
     int femaleCount = 0,
     int unknownCount = 0,
+    List<FarmUnitPopulationInput> populations = const [],
   }) async {
     _requireFarmPermission(session, Permissions.farmUnitsManage);
     if ([maleCount, femaleCount, unknownCount].any((value) => value < 0)) {
       throw StateError('Population counts cannot be negative.');
     }
     final farm = await _farmForSession(farmId, session);
-    final population = maleCount + femaleCount + unknownCount;
+    final normalizedPopulations = _validateFarmUnitPopulations(
+      populations.isEmpty
+          ? [
+              FarmUnitPopulationInput(
+                speciesId: speciesId ?? 'species_unknown',
+                breedId: breedId,
+                maleCount: maleCount,
+                femaleCount: femaleCount,
+                unknownCount: unknownCount,
+              ),
+            ]
+          : populations,
+    );
+    final population = normalizedPopulations.fold<int>(
+      0,
+      (total, item) => total + item.total,
+    );
     if (capacity != null && capacity >= 0 && population > capacity) {
       throw StateError('This population exceeds the unit capacity.');
     }
     final now = _clock.nowForClinic(session.clinic);
-    final id = await db
-        .into(db.farmUnits)
-        .insert(
-          FarmUnitsCompanion.insert(
-            clinicId: session.clinic.clinicId,
-            farmId: farm.id,
-            name: name.trim(),
-            unitType: Value(_nullIfBlank(unitType) ?? 'Pen'),
-            speciesId: Value(_nullIfBlank(speciesId)),
-            breedId: Value(_nullIfBlank(breedId)),
-            capacity: Value(capacity),
-            maleCount: Value(maleCount),
-            femaleCount: Value(femaleCount),
-            unknownCount: Value(unknownCount),
-            notes: Value(_nullIfBlank(notes)),
-            createdAt: now,
-            createdByUserId: session.user.userId,
-            updatedAt: now,
-          ),
-        );
-    await _writeFarmAudit(
-      session: session,
-      action: 'farm.unit_created',
-      farmId: farm.id,
-      details: {'unitId': id, 'name': name.trim(), 'unitType': unitType},
-      createdAt: now,
-    );
-    return (db.select(
-      db.farmUnits,
-    )..where((row) => row.id.equals(id))).getSingle();
+    return db.transaction(() async {
+      final primary = normalizedPopulations.length == 1
+          ? normalizedPopulations.single
+          : null;
+      final id = await db
+          .into(db.farmUnits)
+          .insert(
+            FarmUnitsCompanion.insert(
+              clinicId: session.clinic.clinicId,
+              farmId: farm.id,
+              name: name.trim(),
+              unitType: Value(_nullIfBlank(unitType) ?? 'Pen'),
+              speciesId: Value(primary?.speciesId),
+              breedId: Value(primary?.breedId),
+              capacity: Value(capacity),
+              maleCount: Value(
+                normalizedPopulations.fold(
+                  0,
+                  (sum, item) => sum + item.maleCount,
+                ),
+              ),
+              femaleCount: Value(
+                normalizedPopulations.fold(
+                  0,
+                  (sum, item) => sum + item.femaleCount,
+                ),
+              ),
+              unknownCount: Value(
+                normalizedPopulations.fold(
+                  0,
+                  (sum, item) => sum + item.unknownCount,
+                ),
+              ),
+              notes: Value(_nullIfBlank(notes)),
+              createdAt: now,
+              createdByUserId: session.user.userId,
+              updatedAt: now,
+            ),
+          );
+      await _replaceFarmUnitPopulations(
+        clinicId: session.clinic.clinicId,
+        farmId: farm.id,
+        unitId: id,
+        populations: normalizedPopulations,
+        now: now,
+      );
+      await _writeFarmAudit(
+        session: session,
+        action: 'farm.unit_created',
+        farmId: farm.id,
+        details: {'unitId': id, 'name': name.trim(), 'unitType': unitType},
+        createdAt: now,
+      );
+      return (db.select(
+        db.farmUnits,
+      )..where((row) => row.id.equals(id))).getSingle();
+    });
   }
+
+  Future<List<FarmUnitPopulation>> getFarmUnitPopulations({
+    required String farmId,
+    required int unitId,
+  }) =>
+      (db.select(db.farmUnitPopulations)..where(
+            (row) =>
+                row.clinicId.equals(activeClinicId) &
+                row.farmId.equals(farmId) &
+                row.farmUnitId.equals(unitId),
+          ))
+          .get();
 
   Future<FarmUnit?> getFarmUnit(String farmId, int unitId) {
     return (db.select(db.farmUnits)..where(
@@ -5377,6 +5477,8 @@ class ClinicRepository {
     DateTime? nextDueDate,
     double? billableAmount,
     String? notes,
+    String targetScope = 'EntireUnit',
+    Set<int> targetPopulationIds = const {},
   }) async {
     _requireFarmPermission(session, Permissions.farmHealthRecord);
     await _farmForSession(farmId, session);
@@ -5389,7 +5491,24 @@ class ClinicRepository {
     if (normalizedType.isEmpty || normalizedProduct.isEmpty) {
       throw StateError('Select a treatment and enter the product used.');
     }
-    final population = unit.maleCount + unit.femaleCount + unit.unknownCount;
+    final populations = await getFarmUnitPopulations(
+      farmId: farmId,
+      unitId: unitId,
+    );
+    final normalizedScope = targetScope == 'SelectedGroups'
+        ? 'SelectedGroups'
+        : 'EntireUnit';
+    final selected = populations
+        .where((item) => targetPopulationIds.contains(item.id))
+        .toList();
+    if (normalizedScope == 'SelectedGroups' && selected.isEmpty) {
+      throw StateError('Select at least one animal group to treat.');
+    }
+    final population = normalizedScope == 'SelectedGroups'
+        ? selected.fold<int>(0, (total, item) => total + item.total)
+        : (populations.isEmpty
+              ? unit.maleCount + unit.femaleCount + unit.unknownCount
+              : populations.fold<int>(0, (total, item) => total + item.total));
     if (animalsCovered <= 0 ||
         (population > 0 && animalsCovered > population)) {
       throw StateError('Enter a valid number of animals treated.');
@@ -5421,6 +5540,12 @@ class ClinicRepository {
               dose: Value(_nullIfBlank(dose)),
               route: Value(_nullIfBlank(route)),
               animalsCovered: Value(animalsCovered),
+              targetScope: Value(normalizedScope),
+              targetPopulationIdsJson: Value(
+                normalizedScope == 'SelectedGroups'
+                    ? jsonEncode(selected.map((item) => item.id).toList())
+                    : null,
+              ),
               administeredBy: Value(session.user.fullName),
               nextDueDate: Value(nextDueDate),
               billableAmount: Value(billableAmount),
@@ -5656,6 +5781,7 @@ class ClinicRepository {
     int femaleCount = 0,
     int unknownCount = 0,
     String? notes,
+    List<FarmUnitPopulationInput> populations = const [],
   }) async {
     _requireFarmPermission(session, Permissions.farmUnitsManage);
     await _farmForSession(farmId, session);
@@ -5666,37 +5792,131 @@ class ClinicRepository {
     if ([maleCount, femaleCount, unknownCount].any((value) => value < 0)) {
       throw StateError('Population counts cannot be negative.');
     }
-    final total = maleCount + femaleCount + unknownCount;
+    final normalizedPopulations = _validateFarmUnitPopulations(
+      populations.isEmpty && speciesId != null
+          ? [
+              FarmUnitPopulationInput(
+                speciesId: speciesId,
+                breedId: breedId,
+                maleCount: maleCount,
+                femaleCount: femaleCount,
+                unknownCount: unknownCount,
+              ),
+            ]
+          : populations,
+    );
+    final total = normalizedPopulations.fold<int>(
+      0,
+      (sum, item) => sum + item.total,
+    );
     if (capacity != null && capacity >= 0 && total > capacity) {
       throw StateError('This population exceeds the unit capacity.');
     }
     final now = _clock.nowForClinic(session.clinic);
-    await (db.update(
-      db.farmUnits,
-    )..where((row) => row.id.equals(unitId))).write(
-      FarmUnitsCompanion(
-        name: Value(name.trim()),
-        unitType: Value(_nullIfBlank(unitType) ?? 'Pen'),
-        speciesId: Value(_nullIfBlank(speciesId)),
-        breedId: Value(_nullIfBlank(breedId)),
-        capacity: Value(capacity),
-        maleCount: Value(maleCount),
-        femaleCount: Value(femaleCount),
-        unknownCount: Value(unknownCount),
-        notes: Value(_nullIfBlank(notes)),
-        updatedAt: Value(now),
-      ),
-    );
-    await _writeFarmAudit(
-      session: session,
-      action: 'farm.unit_updated',
-      farmId: farmId,
-      details: {'unitId': unitId, 'population': total},
-      createdAt: now,
-    );
+    await db.transaction(() async {
+      final primary = normalizedPopulations.length == 1
+          ? normalizedPopulations.single
+          : null;
+      await (db.update(
+        db.farmUnits,
+      )..where((row) => row.id.equals(unitId))).write(
+        FarmUnitsCompanion(
+          name: Value(name.trim()),
+          unitType: Value(_nullIfBlank(unitType) ?? 'Pen'),
+          speciesId: Value(primary?.speciesId),
+          breedId: Value(primary?.breedId),
+          capacity: Value(capacity),
+          maleCount: Value(
+            normalizedPopulations.fold(0, (sum, item) => sum + item.maleCount),
+          ),
+          femaleCount: Value(
+            normalizedPopulations.fold(
+              0,
+              (sum, item) => sum + item.femaleCount,
+            ),
+          ),
+          unknownCount: Value(
+            normalizedPopulations.fold(
+              0,
+              (sum, item) => sum + item.unknownCount,
+            ),
+          ),
+          notes: Value(_nullIfBlank(notes)),
+          updatedAt: Value(now),
+        ),
+      );
+      await _replaceFarmUnitPopulations(
+        clinicId: session.clinic.clinicId,
+        farmId: farmId,
+        unitId: unitId,
+        populations: normalizedPopulations,
+        now: now,
+      );
+      await _writeFarmAudit(
+        session: session,
+        action: 'farm.unit_updated',
+        farmId: farmId,
+        details: {'unitId': unitId, 'population': total},
+        createdAt: now,
+      );
+    });
     return (db.select(
       db.farmUnits,
     )..where((row) => row.id.equals(unitId))).getSingle();
+  }
+
+  List<FarmUnitPopulationInput> _validateFarmUnitPopulations(
+    List<FarmUnitPopulationInput> populations,
+  ) {
+    if (populations.isEmpty) {
+      throw StateError('Add at least one animal group to this unit.');
+    }
+    final identities = <String>{};
+    for (final item in populations) {
+      if (item.speciesId.trim().isEmpty ||
+          [
+            item.maleCount,
+            item.femaleCount,
+            item.unknownCount,
+          ].any((value) => value < 0)) {
+        throw StateError('Animal groups require a species and valid counts.');
+      }
+      final identity = '${item.speciesId}|${item.breedId ?? ''}';
+      if (!identities.add(identity)) {
+        throw StateError('The same species and breed cannot be added twice.');
+      }
+    }
+    return List.unmodifiable(populations);
+  }
+
+  Future<void> _replaceFarmUnitPopulations({
+    required String clinicId,
+    required String farmId,
+    required int unitId,
+    required List<FarmUnitPopulationInput> populations,
+    required DateTime now,
+  }) async {
+    await (db.delete(
+      db.farmUnitPopulations,
+    )..where((row) => row.farmUnitId.equals(unitId))).go();
+    for (final item in populations) {
+      await db
+          .into(db.farmUnitPopulations)
+          .insert(
+            FarmUnitPopulationsCompanion.insert(
+              clinicId: clinicId,
+              farmId: farmId,
+              farmUnitId: unitId,
+              speciesId: item.speciesId,
+              breedId: Value(_nullIfBlank(item.breedId)),
+              maleCount: Value(item.maleCount),
+              femaleCount: Value(item.femaleCount),
+              unknownCount: Value(item.unknownCount),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
+    }
   }
 
   Future<FarmDailyRecord> saveFarmDailyRecord({

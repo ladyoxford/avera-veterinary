@@ -393,6 +393,7 @@ class _FarmInvoiceScreenState extends ConsumerState<FarmInvoiceScreen> {
     );
     final total = treatmentTotal + sharedFee;
     final units = <String, Map<String, dynamic>>{};
+    final populationsByUnit = <int, List<FarmUnitPopulation>>{};
     final treatments = <Map<String, dynamic>>[];
     final services = <Map<String, dynamic>>[];
     for (final candidate in selected) {
@@ -400,14 +401,38 @@ class _FarmInvoiceScreenState extends ConsumerState<FarmInvoiceScreen> {
       final unit = candidate.unit;
       final remoteUnitId = unit == null ? null : _remoteUnitId(unit.id);
       if (unit != null) {
+        final populations = populationsByUnit[unit.id] ??= await repository
+            .getFarmUnitPopulations(farmId: widget.farmId, unitId: unit.id);
         units[remoteUnitId!] = {
           'farmUnitId': remoteUnitId,
           'name': unit.name,
           'unitType': unit.unitType,
           'species': unit.speciesId,
           'breed': unit.breedId,
+          'populations': populations
+              .map(
+                (population) => {
+                  'farmUnitPopulationId': _remotePopulationId(population.id),
+                  'speciesId': population.speciesId,
+                  'breedId': population.breedId,
+                  'maleCount': population.maleCount,
+                  'femaleCount': population.femaleCount,
+                  'unknownCount': population.unknownCount,
+                },
+              )
+              .toList(),
         };
       }
+      final targetPopulationIds = unit == null
+          ? const <String>[]
+          : _localTargetPopulationIds(record.targetPopulationIdsJson)
+                .where(
+                  (id) => populationsByUnit[unit.id]!.any(
+                    (population) => population.id == id,
+                  ),
+                )
+                .map(_remotePopulationId)
+                .toList();
       final remoteTreatmentId = _remoteTreatmentId(record.id);
       final amount = record.billableAmount ?? 0;
       treatments.add({
@@ -419,6 +444,8 @@ class _FarmInvoiceScreenState extends ConsumerState<FarmInvoiceScreen> {
         'animalsCovered': record.animalsCovered,
         'billableAmount': amount,
         'notes': record.notes,
+        'targetScope': record.targetScope,
+        'targetPopulationIds': targetPopulationIds,
       });
       services.add({
         'description':
@@ -482,6 +509,25 @@ class _FarmInvoiceScreenState extends ConsumerState<FarmInvoiceScreen> {
     Namespace.url.value,
     'avera:${widget.farmId}:farm-treatment:$localId',
   );
+
+  String _remotePopulationId(int localId) => _uuid.v5(
+    Namespace.url.value,
+    'avera:${widget.farmId}:farm-population:$localId',
+  );
+
+  List<int> _localTargetPopulationIds(String? encoded) {
+    if (encoded == null || encoded.trim().isEmpty) return const [];
+    try {
+      final value = jsonDecode(encoded);
+      if (value is! List) return const [];
+      return value
+          .map((item) => item is int ? item : int.tryParse('$item'))
+          .whereType<int>()
+          .toList();
+    } on FormatException {
+      return const [];
+    }
+  }
 }
 
 class FarmUnitDetailScreen extends ConsumerStatefulWidget {
@@ -519,7 +565,15 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
       farmId: widget.farmId,
       unitId: widget.unitId,
     );
-    return _FarmUnitTreatmentData(unit: unit, treatments: treatments);
+    final populations = await repository.getFarmUnitPopulations(
+      farmId: widget.farmId,
+      unitId: widget.unitId,
+    );
+    return _FarmUnitTreatmentData(
+      unit: unit,
+      populations: populations,
+      treatments: treatments,
+    );
   }
 
   @override
@@ -541,8 +595,11 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
                   isScrollControlled: true,
                   useSafeArea: true,
                   showDragHandle: true,
-                  builder: (_) =>
-                      _EditUnitSheet(farmId: widget.farmId, unit: unit),
+                  builder: (_) => _EditUnitSheet(
+                    farmId: widget.farmId,
+                    unit: unit,
+                    populations: data!.populations,
+                  ),
                 );
                 if (changed == true && context.mounted) {
                   setState(_reload);
@@ -581,7 +638,7 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
                     '${unit.unitType} • $total/${unit.capacity ?? total} • ${unit.status}',
               ),
               const SizedBox(height: AveraSpacing.subtitleToContentGap),
-              FarmUnitSummaryCard(unit: unit),
+              FarmUnitSummaryCard(unit: unit, populations: data.populations),
               if (unit.notes?.trim().isNotEmpty == true) ...[
                 const SizedBox(height: AveraSpacing.cardGap),
                 AveraLabeledFieldCard(
@@ -603,7 +660,8 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: () => _recordTreatment(unit, session!),
+                    onPressed: () =>
+                        _recordTreatment(unit, data.populations, session!),
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Record Treatment'),
                   ),
@@ -635,7 +693,11 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
     );
   }
 
-  Future<void> _recordTreatment(FarmUnit unit, UserSession session) async {
+  Future<void> _recordTreatment(
+    FarmUnit unit,
+    List<FarmUnitPopulation> populations,
+    UserSession session,
+  ) async {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -644,86 +706,174 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
       builder: (_) => _RecordTreatmentSheet(
         farmId: widget.farmId,
         unit: unit,
+        populations: populations,
         session: session,
       ),
     );
     if (saved == true && mounted) setState(_reload);
   }
 
-  Future<void> _showTreatmentDetails(FarmHealthRecord treatment) =>
-      showModalBottomSheet<void>(
-        context: context,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (context) => Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(treatment.eventType, style: averaText(context).pageTitle),
-              const SizedBox(height: 8),
-              Text(
-                treatment.product ?? 'Product not recorded',
-                style: averaText(context).fieldValue,
-              ),
-              const SizedBox(height: 16),
-              _InfoCard(
-                rows: {
-                  'Date': DateFormat.yMMMd().format(treatment.occurredAt),
-                  'Animals treated': '${treatment.animalsCovered ?? 0}',
-                  'Dose': treatment.dose ?? 'Not recorded',
-                  'Route': treatment.route ?? 'Not recorded',
-                  'Batch': treatment.batchNumber ?? 'Not recorded',
-                  'Administered by': treatment.administeredBy ?? 'Not recorded',
-                  'Next due': treatment.nextDueDate == null
-                      ? 'Not scheduled'
-                      : DateFormat.yMMMd().format(treatment.nextDueDate!),
-                },
-              ),
-            ],
-          ),
+  Future<void> _showTreatmentDetails(
+    FarmHealthRecord treatment,
+  ) => showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => FractionallySizedBox(
+      heightFactor: .82,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          AveraSpacing.pageHorizontalPadding,
+          8,
+          AveraSpacing.pageHorizontalPadding,
+          24 + MediaQuery.viewPaddingOf(sheetContext).bottom,
         ),
-      );
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(treatment.eventType, style: averaText(sheetContext).pageTitle),
+            const SizedBox(height: 8),
+            Text(
+              treatment.product ?? 'Product not recorded',
+              style: averaText(sheetContext).fieldValue,
+            ),
+            const SizedBox(height: 16),
+            _InfoCard(
+              rows: {
+                'Date': DateFormat.yMMMd().format(treatment.occurredAt),
+                'Animals treated': '${treatment.animalsCovered ?? 0}',
+                'Dose': treatment.dose ?? 'Not recorded',
+                'Route': treatment.route ?? 'Not recorded',
+                'Batch': treatment.batchNumber ?? 'Not recorded',
+                'Administered by': treatment.administeredBy ?? 'Not recorded',
+                'Next due': treatment.nextDueDate == null
+                    ? 'Not scheduled'
+                    : DateFormat.yMMMd().format(treatment.nextDueDate!),
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _FarmUnitTreatmentData {
-  const _FarmUnitTreatmentData({required this.unit, required this.treatments});
+  const _FarmUnitTreatmentData({
+    required this.unit,
+    required this.populations,
+    required this.treatments,
+  });
   final FarmUnit unit;
+  final List<FarmUnitPopulation> populations;
   final List<FarmHealthRecord> treatments;
 }
 
 class FarmUnitSummaryCard extends StatelessWidget {
-  const FarmUnitSummaryCard({required this.unit, super.key});
+  const FarmUnitSummaryCard({
+    required this.unit,
+    this.populations = const [],
+    super.key,
+  });
   final FarmUnit unit;
+  final List<FarmUnitPopulation> populations;
 
   @override
-  Widget build(BuildContext context) => AveraSurfaceCard(
-    child: IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            flex: 9,
-            child: _SummaryValue('SPECIES', _speciesName(unit.speciesId)),
-          ),
-          const VerticalDivider(width: 17, thickness: 1),
-          Expanded(
-            flex: 14,
-            child: _SummaryValue('BREED', _breedName(unit.breedId)),
-          ),
-          const VerticalDivider(width: 17, thickness: 1),
-          Expanded(
-            flex: 10,
-            child: _SummaryValue(
-              'MALE / FEMALE',
-              '${unit.maleCount} / ${unit.femaleCount}',
+  Widget build(BuildContext context) {
+    if (populations.length > 1) {
+      final total = populations.fold<int>(
+        0,
+        (sum, group) =>
+            sum + group.maleCount + group.femaleCount + group.unknownCount,
+      );
+      return AveraSurfaceCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('POPULATION', style: averaText(context).sectionLabel),
+            const SizedBox(height: 8),
+            for (var index = 0; index < populations.length; index++) ...[
+              _PopulationSummaryRow(population: populations[index]),
+              if (index != populations.length - 1) const Divider(height: 20),
+            ],
+            const Divider(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('TOTAL', style: averaText(context).sectionLabel),
+                Text('$total animals', style: averaText(context).listItemTitle),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
+      );
+    }
+    return AveraSurfaceCard(
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 9,
+              child: _SummaryValue('SPECIES', _speciesName(unit.speciesId)),
+            ),
+            const VerticalDivider(width: 17, thickness: 1),
+            Expanded(
+              flex: 14,
+              child: _SummaryValue('BREED', _breedName(unit.breedId)),
+            ),
+            const VerticalDivider(width: 17, thickness: 1),
+            Expanded(
+              flex: 10,
+              child: _SummaryValue(
+                'MALE / FEMALE',
+                '${unit.maleCount} / ${unit.femaleCount}',
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+class _PopulationSummaryRow extends StatelessWidget {
+  const _PopulationSummaryRow({required this.population});
+  final FarmUnitPopulation population;
+
+  @override
+  Widget build(BuildContext context) {
+    final total =
+        population.maleCount + population.femaleCount + population.unknownCount;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _speciesName(population.speciesId),
+                style: averaText(context).listItemTitle,
+              ),
+              Text(
+                _breedName(population.breedId),
+                style: averaText(context).listItemSubtitle,
+              ),
+              Text(
+                '${population.maleCount} male • ${population.femaleCount} female'
+                '${population.unknownCount > 0 ? ' • ${population.unknownCount} unknown' : ''}',
+                style: averaText(context).caption,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text('$total', style: averaText(context).listItemTitle),
+      ],
+    );
+  }
 }
 
 class _SummaryValue extends StatelessWidget {
@@ -936,10 +1086,12 @@ class _RecordTreatmentSheet extends ConsumerStatefulWidget {
   const _RecordTreatmentSheet({
     required this.farmId,
     required this.unit,
+    required this.populations,
     required this.session,
   });
   final String farmId;
   final FarmUnit unit;
+  final List<FarmUnitPopulation> populations;
   final UserSession session;
 
   @override
@@ -962,18 +1114,36 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
   DateTime _date = DateTime.now();
   DateTime? _nextDue;
   bool _saving = false;
+  String _targetScope = 'EntireUnit';
+  final Set<int> _selectedPopulationIds = {};
 
-  int get _totalAnimals =>
-      widget.unit.maleCount +
-      widget.unit.femaleCount +
-      widget.unit.unknownCount;
+  int get _unitTotal => widget.populations.isEmpty
+      ? widget.unit.maleCount +
+            widget.unit.femaleCount +
+            widget.unit.unknownCount
+      : widget.populations.fold<int>(
+          0,
+          (sum, group) =>
+              sum + group.maleCount + group.femaleCount + group.unknownCount,
+        );
+
+  int get _targetTotal {
+    if (_targetScope == 'EntireUnit') return _unitTotal;
+    return widget.populations
+        .where((group) => _selectedPopulationIds.contains(group.id))
+        .fold<int>(
+          0,
+          (sum, group) =>
+              sum + group.maleCount + group.femaleCount + group.unknownCount,
+        );
+  }
 
   int get _animalsTreated => int.tryParse(_animals.text) ?? 0;
 
   @override
   void initState() {
     super.initState();
-    _animals.text = '$_totalAnimals';
+    _animals.text = '$_unitTotal';
   }
 
   @override
@@ -1019,7 +1189,7 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
               Text('Record Treatment', style: averaText(context).pageTitle),
               const SizedBox(height: 4),
               Text(
-                '${widget.unit.name.toUpperCase()} • $_totalAnimals animals',
+                '${widget.unit.name.toUpperCase()} • $_unitTotal animals',
                 style: averaText(context).listItemSubtitle,
               ),
               const SizedBox(height: 20),
@@ -1126,6 +1296,66 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
                 ),
               ),
               const SizedBox(height: 20),
+              if (widget.populations.length > 1) ...[
+                const _TreatmentSectionLabel('TREAT'),
+                const SizedBox(height: 8),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                      value: 'EntireUnit',
+                      label: Text('Entire unit'),
+                    ),
+                    ButtonSegment(
+                      value: 'SelectedGroups',
+                      label: Text('Selected groups'),
+                    ),
+                  ],
+                  selected: {_targetScope},
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _targetScope = selection.first;
+                      if (_targetScope == 'EntireUnit') {
+                        _selectedPopulationIds.clear();
+                      }
+                      _animals.text = '$_targetTotal';
+                    });
+                  },
+                ),
+                if (_targetScope == 'SelectedGroups') ...[
+                  const SizedBox(height: 8),
+                  AveraSurfaceCard(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      children: widget.populations.map((group) {
+                        final count =
+                            group.maleCount +
+                            group.femaleCount +
+                            group.unknownCount;
+                        return CheckboxListTile(
+                          value: _selectedPopulationIds.contains(group.id),
+                          title: Text(_speciesName(group.speciesId)),
+                          subtitle: Text(
+                            '${_breedName(group.breedId)} • $count',
+                          ),
+                          onChanged: (selected) {
+                            setState(() {
+                              if (selected == true) {
+                                _selectedPopulationIds.add(group.id);
+                              } else {
+                                _selectedPopulationIds.remove(group.id);
+                              }
+                              _animals.text = _targetTotal == 0
+                                  ? ''
+                                  : '$_targetTotal';
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+              ],
               const _TreatmentSectionLabel('ANIMALS TREATED'),
               const SizedBox(height: 8),
               AveraSurfaceCard(
@@ -1151,14 +1381,16 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
-                          helperText: 'of $_totalAnimals in this unit',
+                          helperText:
+                              'of $_targetTotal in this treatment target',
                         ),
                         validator: _validateAnimalCount,
                       ),
                     ),
                     IconButton(
                       tooltip: 'Increase animals treated',
-                      onPressed: _animalsTreated >= _totalAnimals
+                      onPressed:
+                          _targetTotal == 0 || _animalsTreated >= _targetTotal
                           ? null
                           : () => _setAnimalsTreated(_animalsTreated + 1),
                       icon: const Icon(Icons.add_rounded),
@@ -1248,14 +1480,17 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
   }
 
   void _setAnimalsTreated(int value) {
-    setState(() => _animals.text = value.clamp(1, _totalAnimals).toString());
+    setState(() => _animals.text = value.clamp(1, _targetTotal).toString());
   }
 
   String? _validateAnimalCount(String? value) {
     final parsed = int.tryParse(value?.trim() ?? '');
     if (parsed == null || parsed < 1) return 'Enter at least one animal.';
-    if (parsed > _totalAnimals) {
-      return 'Cannot exceed the unit population ($_totalAnimals).';
+    if (_targetScope == 'SelectedGroups' && _selectedPopulationIds.isEmpty) {
+      return 'Select at least one animal group.';
+    }
+    if (parsed > _targetTotal) {
+      return 'Cannot exceed the selected population ($_targetTotal).';
     }
     return null;
   }
@@ -1298,6 +1533,8 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
             product: _product.text,
             administeredAt: _date,
             animalsCovered: int.tryParse(_animals.text) ?? 0,
+            targetScope: _targetScope,
+            targetPopulationIds: _selectedPopulationIds,
             manufacturer: _manufacturer.text,
             batchNumber: _batch.text,
             dose: _dose.text,
@@ -1629,9 +1866,14 @@ class _FarmDailyRecordDetailScreenState
 }
 
 class _EditUnitSheet extends ConsumerStatefulWidget {
-  const _EditUnitSheet({required this.farmId, required this.unit});
+  const _EditUnitSheet({
+    required this.farmId,
+    required this.unit,
+    required this.populations,
+  });
   final String farmId;
   final FarmUnit unit;
+  final List<FarmUnitPopulation> populations;
 
   @override
   ConsumerState<_EditUnitSheet> createState() => _EditUnitSheetState();
@@ -1679,6 +1921,15 @@ class _EditUnitSheetState extends ConsumerState<_EditUnitSheet> {
         children: [
           Text('Edit Unit', style: averaText(context).pageTitle),
           const SizedBox(height: AveraSpacing.cardGap),
+          if (widget.populations.length > 1) ...[
+            AveraSurfaceCard(
+              child: Text(
+                'This mixed-species unit contains ${widget.populations.length} animal groups. Population groups remain preserved when these unit details are saved.',
+                style: averaText(context).listItemSubtitle,
+              ),
+            ),
+            const SizedBox(height: AveraSpacing.cardGap),
+          ],
           for (final field in [
             ('Unit name', _name),
             ('Capacity', _capacity),
@@ -1737,6 +1988,17 @@ class _EditUnitSheetState extends ConsumerState<_EditUnitSheet> {
             femaleCount: int.tryParse(_female.text) ?? 0,
             unknownCount: int.tryParse(_unknown.text) ?? 0,
             notes: _notes.text,
+            populations: widget.populations
+                .map(
+                  (group) => FarmUnitPopulationInput(
+                    speciesId: group.speciesId,
+                    breedId: group.breedId,
+                    maleCount: group.maleCount,
+                    femaleCount: group.femaleCount,
+                    unknownCount: group.unknownCount,
+                  ),
+                )
+                .toList(),
           );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {

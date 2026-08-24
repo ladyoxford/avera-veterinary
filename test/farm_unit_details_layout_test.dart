@@ -136,6 +136,7 @@ FarmHealthRecord _treatment({
   eventType: eventType,
   product: 'A treatment product with a long name',
   animalsCovered: 13,
+  targetScope: 'EntireUnit',
   nextDueDate: nextDueDate,
   createdByUserId: 'user-1',
 );

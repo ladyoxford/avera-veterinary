@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
+import '../../../core/config/backend_configuration.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
@@ -27,13 +29,7 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final range = _range(_period, DateTime.now());
-    final future = ref
-        .read(clinicRepositoryProvider)
-        .getRevenueProfitSummary(
-          session: session,
-          from: range.$1,
-          to: range.$2,
-        );
+    final future = _loadSummary(session, range.$1, range.$2);
     final money = NumberFormat.simpleCurrency(
       name: session.clinic.currency,
       decimalDigits: 0,
@@ -185,6 +181,42 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
         ],
       ),
     );
+  }
+
+  Future<RevenueProfitSummary> _loadSummary(
+    UserSession session,
+    DateTime? from,
+    DateTime? to,
+  ) async {
+    final repository = ref.read(clinicRepositoryProvider);
+    if (!BackendConfiguration.isConfigured) {
+      return repository.getRevenueProfitSummary(
+        session: session,
+        from: from,
+        to: to,
+      );
+    }
+    try {
+      final remote = await ref
+          .read(clinicalRemoteDataSourceProvider)
+          .revenueProfitSummary(from: from, to: to);
+      return RevenueProfitSummary(
+        revenue: remote.revenue,
+        cost: remote.cost,
+        clinicRevenue: remote.clinicRevenue,
+        farmRevenue: remote.farmRevenue,
+        transactionCount: remote.transactionCount,
+        missingCostLines: remote.missingCostLines,
+      );
+    } catch (_) {
+      final cached = await repository.getRevenueProfitSummary(
+        session: session,
+        from: from,
+        to: to,
+      );
+      if (cached.transactionCount > 0) return cached;
+      rethrow;
+    }
   }
 }
 

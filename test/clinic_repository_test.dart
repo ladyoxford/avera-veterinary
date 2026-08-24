@@ -415,6 +415,89 @@ void main() {
   );
 
   test(
+    'mixed farm unit populations aggregate and treatments target selected groups',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final farm = await repository.createFarm(
+        session: session,
+        name: 'Mixed Population Farm',
+        speciesIds: const ['species_goat', 'species_sheep'],
+      );
+
+      final unit = await repository.createFarmUnit(
+        session: session,
+        farmId: farm.id,
+        name: 'Mixed Small Ruminants',
+        unitType: 'Pen',
+        capacity: 20,
+        populations: const [
+          FarmUnitPopulationInput(
+            speciesId: 'species_goat',
+            breedId: 'breed_goat_red_sokoto',
+            maleCount: 2,
+            femaleCount: 6,
+          ),
+          FarmUnitPopulationInput(
+            speciesId: 'species_sheep',
+            breedId: 'breed_sheep_yankasa',
+            maleCount: 1,
+            femaleCount: 4,
+          ),
+        ],
+      );
+
+      expect(unit.speciesId, equals(null));
+      expect(unit.maleCount, 3);
+      expect(unit.femaleCount, 10);
+      final populations = await repository.getFarmUnitPopulations(
+        farmId: farm.id,
+        unitId: unit.id,
+      );
+      expect(populations, hasLength(2));
+      expect(populations.fold<int>(0, (sum, item) => sum + item.total), 13);
+      final goatGroup = populations.singleWhere(
+        (item) => item.speciesId == 'species_goat',
+      );
+
+      final treatment = await repository.recordFarmUnitTreatment(
+        session: session,
+        farmId: farm.id,
+        unitId: unit.id,
+        treatmentType: 'Deworming',
+        product: 'Albendazole',
+        administeredAt: DateTime(2026, 8, 1),
+        animalsCovered: 8,
+        targetScope: 'SelectedGroups',
+        targetPopulationIds: {goatGroup.id},
+      );
+      expect(treatment.targetScope, 'SelectedGroups');
+      expect(treatment.targetPopulationIdsJson, '[${goatGroup.id}]');
+
+      await expectLater(
+        repository.recordFarmUnitTreatment(
+          session: session,
+          farmId: farm.id,
+          unitId: unit.id,
+          treatmentType: 'Deworming',
+          product: 'Albendazole',
+          administeredAt: DateTime(2026, 8, 1),
+          animalsCovered: 9,
+          targetScope: 'SelectedGroups',
+          targetPopulationIds: {goatGroup.id},
+        ),
+        throwsA(isA<StateError>()),
+      );
+    },
+  );
+
+  test(
     'farm invoices preserve unselected treatments and prevent duplicate billing',
     () async {
       final database = AppDatabase.forTesting(NativeDatabase.memory());

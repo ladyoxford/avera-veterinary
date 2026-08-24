@@ -560,6 +560,34 @@ class RemoteDashboardSummary {
   };
 }
 
+class RemoteRevenueProfitSummary {
+  const RemoteRevenueProfitSummary({
+    required this.revenue,
+    required this.cost,
+    required this.clinicRevenue,
+    required this.farmRevenue,
+    required this.transactionCount,
+    required this.missingCostLines,
+  });
+
+  final double revenue;
+  final double cost;
+  final double clinicRevenue;
+  final double farmRevenue;
+  final int transactionCount;
+  final int missingCostLines;
+
+  factory RemoteRevenueProfitSummary.fromJson(Map<String, dynamic> value) =>
+      RemoteRevenueProfitSummary(
+        revenue: _num(value['revenue']).toDouble(),
+        cost: _num(value['cost']).toDouble(),
+        clinicRevenue: _num(value['clinic_revenue']).toDouble(),
+        farmRevenue: _num(value['farm_revenue']).toDouble(),
+        transactionCount: _int(value['transaction_count']),
+        missingCostLines: _int(value['missing_cost_lines']),
+      );
+}
+
 class RemotePatientMedicalFile {
   const RemotePatientMedicalFile({
     required this.patient,
@@ -987,6 +1015,23 @@ class ClinicalRemoteDataSource {
   ) async => Map<String, dynamic>.from(
     await _client.post('/api/v1/invoices', body: payload, authenticated: true),
   );
+  Future<Map<String, dynamic>> farmContext(String farmId) async {
+    final response = await _client.get('/api/v1/farms/$farmId/context');
+    return Map<String, dynamic>.from(response['farmContext'] as Map);
+  }
+
+  Future<Map<String, dynamic>> saveFarmContext({
+    required String farmId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final response = await _client.put(
+      '/api/v1/farms/$farmId/context',
+      body: payload,
+      authenticated: true,
+    );
+    return Map<String, dynamic>.from(response['farmContext'] as Map);
+  }
+
   Future<Map<String, dynamic>> invoice(String invoiceId) async =>
       Map<String, dynamic>.from(
         await _client.get('/api/v1/invoices/$invoiceId'),
@@ -1005,6 +1050,17 @@ class ClinicalRemoteDataSource {
     int page = 1,
     String? search,
   }) => _generic('/api/v1/payments', page: page, search: search);
+  Future<RemoteRevenueProfitSummary> revenueProfitSummary({
+    DateTime? from,
+    DateTime? to,
+  }) async => RemoteRevenueProfitSummary.fromJson(
+    await _client.get(
+      _path('/api/v1/billing/revenue-summary', {
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (to != null) 'to': to.toUtc().toIso8601String(),
+      }),
+    ),
+  );
   Future<RemotePage<Map<String, dynamic>>> media({
     int page = 1,
     String? search,

@@ -959,6 +959,25 @@ class FarmUnits extends Table {
   ];
 }
 
+class FarmUnitPopulations extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get clinicId => text().references(Clinics, #clinicId)();
+  TextColumn get farmId => text().references(Farms, #id)();
+  IntColumn get farmUnitId => integer().references(FarmUnits, #id)();
+  TextColumn get speciesId => text()();
+  TextColumn get breedId => text().nullable()();
+  IntColumn get maleCount => integer().withDefault(const Constant(0))();
+  IntColumn get femaleCount => integer().withDefault(const Constant(0))();
+  IntColumn get unknownCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {farmUnitId, speciesId, breedId},
+  ];
+}
+
 class FarmDailyRecords extends Table {
   TextColumn get id => text()();
   TextColumn get clinicId => text().references(Clinics, #clinicId)();
@@ -1095,6 +1114,9 @@ class FarmHealthRecords extends Table {
   TextColumn get dose => text().nullable()();
   TextColumn get route => text().nullable()();
   IntColumn get animalsCovered => integer().nullable()();
+  TextColumn get targetScope =>
+      text().withDefault(const Constant('EntireUnit'))();
+  TextColumn get targetPopulationIdsJson => text().nullable()();
   TextColumn get administeredBy => text().nullable()();
   DateTimeColumn get nextDueDate => dateTime().nullable()();
   RealColumn get billableAmount => real().nullable()();
@@ -1162,6 +1184,7 @@ class FarmReportSnapshots extends Table {
     SubscriptionAuditLogs,
     Farms,
     FarmUnits,
+    FarmUnitPopulations,
     FarmDailyRecords,
     FarmSpeciesPopulationMovements,
     FarmMortalityRecords,
@@ -1177,7 +1200,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 28;
+  static const currentSchemaVersion = 29;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1837,6 +1860,39 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           "UPDATE invoices SET client_phone_snapshot = NULL "
           "WHERE client_phone_snapshot = 'client_phone_snapshot'",
+        );
+      }
+      if (from < 29) {
+        if (!await _hasTable(farmUnitPopulations.actualTableName)) {
+          await m.createTable(farmUnitPopulations);
+        }
+        if (!await _hasColumn('farm_health_records', 'target_scope')) {
+          await m.addColumn(farmHealthRecords, farmHealthRecords.targetScope);
+        }
+        if (!await _hasColumn(
+          'farm_health_records',
+          'target_population_ids_json',
+        )) {
+          await m.addColumn(
+            farmHealthRecords,
+            farmHealthRecords.targetPopulationIdsJson,
+          );
+        }
+        await customStatement(
+          'INSERT OR IGNORE INTO farm_unit_populations '
+          '(clinic_id, farm_id, farm_unit_id, species_id, breed_id, '
+          'male_count, female_count, unknown_count, created_at, updated_at) '
+          'SELECT clinic_id, farm_id, id, species_id, breed_id, male_count, '
+          'female_count, unknown_count, created_at, updated_at FROM farm_units '
+          "WHERE species_id IS NOT NULL AND TRIM(species_id) <> ''",
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS farm_unit_populations_unit_index '
+          'ON farm_unit_populations (clinic_id, farm_id, farm_unit_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS farm_health_treatment_target_index '
+          'ON farm_health_records (clinic_id, farm_id, farm_unit_id, target_scope)',
         );
       }
     },

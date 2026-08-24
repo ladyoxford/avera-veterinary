@@ -252,56 +252,6 @@ final appRouter = GoRouter(
           builder: (context, state) => const MyProfileScreen(),
         ),
         GoRoute(
-          path: '/farm-records',
-          builder: (context, state) => const FarmRecordsScreen(),
-        ),
-        GoRoute(
-          path: '/farm-records/new',
-          builder: (context, state) => const FarmProfileEditorScreen(),
-        ),
-        GoRoute(
-          path: '/farm-records/:farmId/edit',
-          builder: (context, state) =>
-              FarmProfileEditorScreen(farmId: state.pathParameters['farmId']!),
-        ),
-        GoRoute(
-          path: '/farm-records/:farmId/overview',
-          builder: (context, state) =>
-              FarmOverviewScreen(farmId: state.pathParameters['farmId']!),
-        ),
-        GoRoute(
-          path: '/farm-records/:farmId/invoice',
-          builder: (context, state) =>
-              FarmInvoiceScreen(farmId: state.pathParameters['farmId']!),
-        ),
-        GoRoute(
-          path: '/farm-records/:farmId/units/:unitId',
-          builder: (context, state) => FarmUnitDetailScreen(
-            farmId: state.pathParameters['farmId']!,
-            unitId: int.parse(state.pathParameters['unitId']!),
-          ),
-        ),
-        GoRoute(
-          path: '/farm-records/:farmId/daily/:recordId',
-          builder: (context, state) => FarmDailyRecordDetailScreen(
-            farmId: state.pathParameters['farmId']!,
-            recordId: state.pathParameters['recordId']!,
-          ),
-        ),
-        GoRoute(
-          path: '/farm-records/:farmId',
-          builder: (context, state) =>
-              FarmDetailScreen(farmId: state.pathParameters['farmId']!),
-        ),
-        GoRoute(
-          path: '/farm-records/:farmId/daily',
-          builder: (context, state) => FarmDailyRecordEditorScreen(
-            farmId: state.pathParameters['farmId']!,
-            recordId: state.uri.queryParameters['recordId'],
-            correctionMode: state.uri.queryParameters['correct'] == 'true',
-          ),
-        ),
-        GoRoute(
           path: '/vera',
           builder: (context, state) => FeatureGate(
             feature: AveraFeature.vera,
@@ -673,6 +623,58 @@ final appRouter = GoRouter(
           builder: (context, state) => const TwoFactorAuthenticationScreen(),
         ),
       ],
+    ),
+    // Farm workflows own their full screen. Keeping them outside AppScaffold
+    // prevents clinic navigation from obscuring unit records and modal sheets.
+    GoRoute(
+      path: '/farm-records',
+      builder: (context, state) => const FarmRecordsScreen(),
+    ),
+    GoRoute(
+      path: '/farm-records/new',
+      builder: (context, state) => const FarmProfileEditorScreen(),
+    ),
+    GoRoute(
+      path: '/farm-records/:farmId/edit',
+      builder: (context, state) =>
+          FarmProfileEditorScreen(farmId: state.pathParameters['farmId']!),
+    ),
+    GoRoute(
+      path: '/farm-records/:farmId/overview',
+      builder: (context, state) =>
+          FarmOverviewScreen(farmId: state.pathParameters['farmId']!),
+    ),
+    GoRoute(
+      path: '/farm-records/:farmId/invoice',
+      builder: (context, state) =>
+          FarmInvoiceScreen(farmId: state.pathParameters['farmId']!),
+    ),
+    GoRoute(
+      path: '/farm-records/:farmId/units/:unitId',
+      builder: (context, state) => FarmUnitDetailScreen(
+        farmId: state.pathParameters['farmId']!,
+        unitId: int.parse(state.pathParameters['unitId']!),
+      ),
+    ),
+    GoRoute(
+      path: '/farm-records/:farmId/daily/:recordId',
+      builder: (context, state) => FarmDailyRecordDetailScreen(
+        farmId: state.pathParameters['farmId']!,
+        recordId: state.pathParameters['recordId']!,
+      ),
+    ),
+    GoRoute(
+      path: '/farm-records/:farmId',
+      builder: (context, state) =>
+          FarmDetailScreen(farmId: state.pathParameters['farmId']!),
+    ),
+    GoRoute(
+      path: '/farm-records/:farmId/daily',
+      builder: (context, state) => FarmDailyRecordEditorScreen(
+        farmId: state.pathParameters['farmId']!,
+        recordId: state.uri.queryParameters['recordId'],
+        correctionMode: state.uri.queryParameters['correct'] == 'true',
+      ),
     ),
   ],
 );

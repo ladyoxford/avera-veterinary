@@ -144,6 +144,24 @@ test('payment capture follows the clinic billing role policy', () => {
   }
 });
 
+test('billing history remains canonical and limited to intended billing roles', () => {
+  const allowed = [
+    'veterinarian',
+    'pharmacist',
+    'cashier',
+    'practice_manager',
+    'sales_representative',
+  ];
+  for (const template of defaultClinicRoleTemplates) {
+    assert.equal(
+      template.permissions.includes('billing.history'),
+      allowed.includes(template.code),
+      `Unexpected billing.history policy for ${template.code}`,
+    );
+  }
+  assert.ok(clinicAdministratorPermissionKeys.includes('billing.history'));
+});
+
 test('every default role permission exists in the production permission catalog', () => {
   const migration = fs.readFileSync(
     new URL('../migrations/010_production_permission_catalog.sql', import.meta.url),

@@ -50,6 +50,26 @@ test('patient profile photos are scoped by clinic and canonical patient identifi
   );
 });
 
+test('inventory images are scoped by clinic and canonical product identifiers', () => {
+  const storage = new ProfilePhotoStorageService({ environment });
+  assert.equal(
+    storage.inventoryObjectPath({
+      clinicId: 'clinic-a',
+      inventoryProductId: 'product-a',
+      contentType: 'image/jpeg',
+    }),
+    'clinic-a/inventory/product-a/product.jpg',
+  );
+  assert.notEqual(
+    storage.inventoryObjectPath({
+      clinicId: 'clinic-a', inventoryProductId: 'product-a', contentType: 'image/png',
+    }),
+    storage.inventoryObjectPath({
+      clinicId: 'clinic-b', inventoryProductId: 'product-a', contentType: 'image/png',
+    }),
+  );
+});
+
 test('patient photo route requires edit permission and tenant-scoped UUID lookup', async () => {
   const source = await readFile(new URL('../src/routes/clinical-routes.js', import.meta.url), 'utf8');
   const start = source.indexOf("app.post('/api/v1/patients/:patientId/profile-photo'");
@@ -63,6 +83,21 @@ test('patient photo route requires edit permission and tenant-scoped UUID lookup
   assert.match(route, /request\.auth\.clinicId, params\.data\.patientId/);
   assert.match(route, /patient\.photo_updated/);
   assert.doesNotMatch(route, /profile_photo_path:/);
+});
+
+test('inventory photo route requires edit permission and tenant-scoped product lookup', async () => {
+  const source = await readFile(new URL('../src/routes/clinical-routes.js', import.meta.url), 'utf8');
+  const start = source.indexOf("app.post('/api/v1/inventory/products/:inventoryProductId/photo'");
+  const end = source.indexOf("app.get('/api/v1/inventory/products/:inventoryProductId/units'", start);
+  const route = source.slice(start, end);
+
+  assert.ok(start >= 0);
+  assert.match(route, /requirePermission\(permissions\.inventoryEdit\)/);
+  assert.match(route, /inventoryUuidSchema\.safeParse\(request\.params\)/);
+  assert.match(route, /WHERE clinic_id=\$1 AND inventory_product_id=\$2/);
+  assert.match(route, /request\.auth\.clinicId, params\.data\.inventoryProductId/);
+  assert.match(route, /inventory\.photo_updated/);
+  assert.doesNotMatch(route, /image_path:/);
 });
 
 test('self profile routes never accept a target user id', async () => {

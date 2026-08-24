@@ -648,6 +648,17 @@ test('patient photo migration preserves patients and adds only the photo path', 
   assert.doesNotMatch(migration, /DROP TABLE|DELETE FROM patients|TRUNCATE/i);
 });
 
+test('inventory image migration preserves products and adds only the private object path', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/026_inventory_product_images.sql', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(migration, /ALTER TABLE inventory_products/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS image_path TEXT/);
+  assert.doesNotMatch(migration, /DROP TABLE|DELETE FROM inventory_products|TRUNCATE/i);
+});
+
 test('farm billing and product unit migration is additive, tenant scoped, and race safe', () => {
   const migration = fs.readFileSync(
     new URL('../migrations/024_farm_billing_product_units.sql', import.meta.url),

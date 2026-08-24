@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
@@ -308,12 +311,24 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       onSubmit: (draft) async {
         if (BackendConfiguration.isConfigured) {
           final controller = ref.read(remoteInventoryListProvider.notifier);
+          late final RemoteInventoryItem item;
           if (draft.remoteId == null) {
-            await controller.create(draft.toRemotePayload());
+            item = await controller.create(draft.toRemotePayload());
           } else {
-            await controller.update(
+            item = await controller.update(
               itemId: draft.remoteId!,
               payload: draft.toRemotePayload(),
+            );
+          }
+          if (draft.pendingImagePath != null) {
+            final bytes = await XFile(draft.pendingImagePath!).readAsBytes();
+            if (bytes.length > 1024 * 1024) {
+              throw StateError('Choose a product image smaller than 1 MB.');
+            }
+            await controller.updatePhoto(
+              itemId: item.id,
+              contentType: 'image/jpeg',
+              base64Data: base64Encode(bytes),
             );
           }
           ref.invalidate(remoteDashboardProvider);
@@ -333,6 +348,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               buyingPrice: session.can(Permissions.inventoryCostView)
                   ? draft.buyingPrice
                   : null,
+              imagePath: draft.pendingImagePath ?? draft.imageReference,
             );
       },
     );
@@ -727,6 +743,7 @@ class _InventoryDisplayItem {
         withdrawalMilk: item.withdrawalMilk,
         withdrawalEggs: item.withdrawalEggs,
         warnings: item.warnings,
+        imagePath: item.imageUrl,
         remote: item,
       );
 }

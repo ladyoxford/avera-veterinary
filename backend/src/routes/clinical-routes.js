@@ -516,6 +516,11 @@ export const updateInventoryItemSchema = z.object({
   revision: z.number().int().min(1).optional(),
 });
 
+const inventoryPhotoSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png']),
+  data: z.string().min(4).max(1400000),
+}).strict();
+
 const productUnitSchema = z.object({
   productUnitId: z.string().uuid().optional(),
   unitLabel: z.string().trim().min(1).max(80),
@@ -648,6 +653,13 @@ function inventoryResponse(row) {
     updated_at: row.updated_at,
     revision: row.revision,
     product_units: row.product_units ?? [],
+  };
+}
+
+async function inventoryResponseWithPhoto(app, row) {
+  return {
+    ...inventoryResponse(row),
+    image_url: await app.profilePhotoStorage.signedUrl(row.image_path),
   };
 }
 
@@ -798,7 +810,7 @@ const inventoryList = {
            i.reorder_level, i.status, i.created_at, i.updated_at, i.revision,
            i.base_unit_label, i.active_ingredient, i.dosage_and_route,
            i.withdrawal_meat, i.withdrawal_milk, i.withdrawal_eggs,
-           i.warnings, i.is_sellable, i.is_archived,
+           i.warnings, i.is_sellable, i.is_archived, i.image_path,
            COALESCE((
              SELECT jsonb_agg(jsonb_build_object(
                'product_unit_id', u.product_unit_id,
@@ -2752,7 +2764,7 @@ export async function clinicalRoutes(app) {
         [request.auth.clinicId, input.submissionId],
       );
       if (existing.rows[0]) {
-        return { item: inventoryResponse(existing.rows[0]), submissionId: input.submissionId, duplicateSubmission: true };
+        return { item: await inventoryResponseWithPhoto(app, existing.rows[0]), submissionId: input.submissionId, duplicateSubmission: true };
       }
        const inserted = await client.query(
          `INSERT INTO inventory_products
@@ -2784,7 +2796,7 @@ export async function clinicalRoutes(app) {
           [request.auth.clinicId, input.submissionId],
         );
         return {
-          item: inventoryResponse(duplicate.rows[0]),
+          item: await inventoryResponseWithPhoto(app, duplicate.rows[0]),
           submissionId: input.submissionId,
           duplicateSubmission: true,
         };
@@ -2821,7 +2833,7 @@ export async function clinicalRoutes(app) {
         request.auth.clinicId,
         inserted.rows[0].inventory_product_id,
       );
-      return { item: inventoryResponse(item), submissionId: input.submissionId, duplicateSubmission: false };
+      return { item: await inventoryResponseWithPhoto(app, item), submissionId: input.submissionId, duplicateSubmission: false };
     });
   });
 
@@ -2903,8 +2915,71 @@ export async function clinicalRoutes(app) {
         request.auth.clinicId,
         params.data.inventoryProductId,
       );
-      return { item: inventoryResponse(item) };
+      return { item: await inventoryResponseWithPhoto(app, item) };
     });
+  });
+
+  app.post('/api/v1/inventory/products/:inventoryProductId/photo', { preHandler: [authenticate, requirePermission(permissions.inventoryEdit)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = inventoryUuidSchema.safeParse(request.params);
+    const parsed = inventoryPhotoSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'invalid_inventory_photo', message: 'Choose a JPEG or PNG image.' });
+    }
+    const bytes = Buffer.from(parsed.data.data, 'base64');
+    try {
+      return await withTenantTransaction(app.pool, request.auth, async (client) => {
+        const current = await client.query(
+          `SELECT image_path
+             FROM inventory_products
+            WHERE clinic_id=$1 AND inventory_product_id=$2
+              AND deleted_at IS NULL
+            FOR UPDATE`,
+          [request.auth.clinicId, params.data.inventoryProductId],
+        );
+        if (!current.rows[0]) {
+          return reply.code(404).send({ error: 'not_found', message: 'The inventory item was not found in this clinic.' });
+        }
+        const path = await app.profilePhotoStorage.uploadInventoryPhoto({
+          clinicId: request.auth.clinicId,
+          inventoryProductId: params.data.inventoryProductId,
+          contentType: parsed.data.contentType,
+          bytes,
+        });
+        await client.query(
+          `UPDATE inventory_products
+              SET image_path=$1, updated_at=now(), revision=revision+1
+            WHERE clinic_id=$2 AND inventory_product_id=$3`,
+          [path, request.auth.clinicId, params.data.inventoryProductId],
+        );
+        const item = await inventoryProductWithUnits(
+          client,
+          request.auth.clinicId,
+          params.data.inventoryProductId,
+        );
+        await writeAudit(client, {
+          clinicId: request.auth.clinicId,
+          actingUserId: request.auth.userId,
+          targetType: 'InventoryProduct',
+          targetId: params.data.inventoryProductId,
+          action: 'inventory.photo_updated',
+          newSummary: { photoUpdated: true },
+          sessionId: request.auth.sessionId,
+        });
+        const previousPath = current.rows[0].image_path;
+        if (previousPath && previousPath !== path) {
+          await app.profilePhotoStorage.remove(previousPath);
+        }
+        return { item: await inventoryResponseWithPhoto(app, item) };
+      });
+    } catch (error) {
+      return reply.code(error.statusCode ?? 500).send({
+        error: error.code ?? 'inventory_photo_upload_failed',
+        message: error.statusCode
+          ? error.message
+          : 'The inventory image could not be uploaded.',
+      });
+    }
   });
 
   app.get('/api/v1/inventory/products/:inventoryProductId/units', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, async (request, reply) => {
@@ -3021,7 +3096,7 @@ export async function clinicalRoutes(app) {
         request.auth.clinicId,
         params.data.inventoryProductId,
       );
-      return { item: inventoryResponse(refreshed) };
+      return { item: await inventoryResponseWithPhoto(app, refreshed) };
     });
   });
 
@@ -3123,11 +3198,26 @@ export async function clinicalRoutes(app) {
         [request.auth.clinicId, params.data.inventoryProductId,
           row.supplier ?? null, row.manufacturer ?? null, row.category_key],
       );
-      return { items: related.rows.map(inventoryResponse) };
+      return {
+        items: await Promise.all(
+          related.rows.map((item) => inventoryResponseWithPhoto(app, item)),
+        ),
+      };
     });
   });
 
-  app.get('/api/v1/inventory/products', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, tenantList(inventoryList));
+  app.get('/api/v1/inventory/products', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const query = parsePage(request, reply);
+    if (!query) return undefined;
+    const result = await paged(app, request, inventoryList, query);
+    return {
+      ...result,
+      items: await Promise.all(
+        result.items.map((item) => inventoryResponseWithPhoto(app, item)),
+      ),
+    };
+  });
   app.get('/api/v1/inventory/movements', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, tenantList(movementsList));
   app.get('/api/v1/billing/revenue-summary', {
     preHandler: [authenticate, requirePermission(permissions.billingHistory)],

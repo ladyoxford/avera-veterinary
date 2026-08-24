@@ -113,10 +113,23 @@ void main() {
     await tester.tap(find.text('Open inventory form'));
     await tester.pumpAndSettle();
     expect(find.text('Edit Inventory Item'), findsOneWidget);
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.text('PRODUCT IMAGE'), findsOneWidget);
+    expect(find.text('Add product image'), findsOneWidget);
     expect(find.text('ITEM NAME'), findsOneWidget);
     expect(find.text('CATEGORY'), findsOneWidget);
     expect(find.text('QUANTITY'), findsOneWidget);
     expect(find.text('MINIMUM QUANTITY'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final itemNameField = find.widgetWithText(
+      TextFormField,
+      'Amoxicillin 250 mg',
+    );
+    await tester.ensureVisible(itemNameField);
+    await tester.tap(itemNameField);
+    await tester.pump();
+    expect(find.text('Edit Inventory Item'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.text('Save'));

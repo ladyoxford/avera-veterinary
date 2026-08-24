@@ -7,6 +7,8 @@ import '../../../core/remote/api_client.dart';
 import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/avera_photo_actions.dart';
+import '../../shared/widgets/identity_avatar_image.dart';
 
 class InventoryItemDraft {
   const InventoryItemDraft({
@@ -21,6 +23,8 @@ class InventoryItemDraft {
     this.batchNumber,
     this.expiryDate,
     this.revision,
+    this.imageReference,
+    this.pendingImagePath,
   });
 
   final String submissionId;
@@ -34,6 +38,8 @@ class InventoryItemDraft {
   final double sellingPrice;
   final double buyingPrice;
   final int? revision;
+  final String? imageReference;
+  final String? pendingImagePath;
 
   factory InventoryItemDraft.fromRemote(RemoteInventoryItem item) =>
       InventoryItemDraft(
@@ -48,6 +54,7 @@ class InventoryItemDraft {
         sellingPrice: item.sellingPrice.toDouble(),
         buyingPrice: item.purchasePrice.toDouble(),
         revision: item.revision,
+        imageReference: item.imageUrl,
       );
 
   Map<String, dynamic> toRemotePayload() {
@@ -120,6 +127,8 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
   DateTime? _expiry;
   bool _saving = false;
   String? _submissionError;
+  String? _imageReference;
+  String? _pendingImagePath;
 
   @override
   void initState() {
@@ -135,6 +144,7 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
     );
     _cost = TextEditingController(text: _numberText(initial?.buyingPrice ?? 0));
     _expiry = initial?.expiryDate;
+    _imageReference = initial?.imageReference;
     _categoryId = widget.allowedCategoryIds.contains(initial?.categoryId)
         ? initial!.categoryId
         : widget.allowedCategoryIds.isEmpty
@@ -155,229 +165,258 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
     final categories = InventoryCategories.all
         .where((item) => widget.allowedCategoryIds.contains(item.id))
         .toList();
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + viewInsets.bottom),
-        child: Dialog(
-          insetPadding: EdgeInsets.zero,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            widget.initial == null
-                                ? 'New Inventory Item'
-                                : 'Edit Inventory Item',
-                            style: averaText(context).sectionTitle,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Close',
-                          onPressed: _saving
-                              ? null
-                              : () => Navigator.of(context).pop(false),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AveraLabeledTextField(
-                            label: 'Item Name',
-                            controller: _name,
-                            hintText: 'Enter item name',
-                            textInputAction: TextInputAction.next,
-                            validator: _required,
-                          ),
-                          const SizedBox(height: AveraSpacing.cardGap),
-                          AveraLabeledDropdownField<String>(
-                            label: 'Category',
-                            hintText: 'Select category',
-                            value: _categoryId,
-                            items: [
-                              for (final category in categories)
-                                DropdownMenuItem(
-                                  value: category.id,
-                                  child: Text(
-                                    category.name,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                            ],
-                            onChanged: _saving
-                                ? null
-                                : (value) =>
-                                      setState(() => _categoryId = value),
-                            validator: (value) => value == null
-                                ? 'Please select a category.'
-                                : null,
-                          ),
-                          const SizedBox(height: AveraSpacing.cardGap),
-                          _ResponsiveNumberFields(
-                            first: AveraLabeledTextField(
-                              label: 'Quantity',
-                              controller: _quantity,
-                              hintText: '0',
-                              keyboardType: TextInputType.number,
-                              textInputAction: TextInputAction.next,
-                              validator: _wholeNumber,
-                            ),
-                            second: AveraLabeledTextField(
-                              label: 'Minimum Quantity',
-                              controller: _minimum,
-                              hintText: '5',
-                              keyboardType: TextInputType.number,
-                              textInputAction: TextInputAction.next,
-                              validator: _wholeNumber,
-                            ),
-                          ),
-                          const SizedBox(height: AveraSpacing.cardGap),
-                          AveraLabeledTextField(
-                            label: 'Batch Number',
-                            controller: _batch,
-                            hintText: _requiresBatchAndExpiry
-                                ? 'Enter batch number'
-                                : 'Optional batch number',
-                            textInputAction: TextInputAction.next,
-                            validator: (value) =>
-                                _requiresBatchAndExpiry &&
-                                    (value?.trim().isEmpty ?? true)
-                                ? 'Enter the manufacturer batch number.'
-                                : null,
-                          ),
-                          const SizedBox(height: AveraSpacing.cardGap),
-                          AveraLabeledFieldCard(
-                            label: 'Expiry Date',
-                            child: InkWell(
-                              onTap: _saving ? null : _pickExpiry,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _expiry == null
-                                          ? 'No expiry date'
-                                          : DateFormat.yMMMd().format(_expiry!),
-                                      style: _expiry == null
-                                          ? averaText(context).fieldPlaceholder
-                                          : averaText(context).fieldValue,
-                                    ),
-                                  ),
-                                  if (_expiry != null)
-                                    IconButton(
-                                      tooltip: 'Clear expiry date',
-                                      onPressed: _saving
-                                          ? null
-                                          : () =>
-                                                setState(() => _expiry = null),
-                                      icon: const Icon(Icons.clear_rounded),
-                                    )
-                                  else
-                                    const Icon(Icons.calendar_today_outlined),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: AveraSpacing.cardGap),
-                          AveraLabeledTextField(
-                            label: 'Selling Price (NGN)',
-                            controller: _selling,
-                            hintText: '0.00',
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            textInputAction: widget.canSeeCost
-                                ? TextInputAction.next
-                                : TextInputAction.done,
-                            validator: _money,
-                          ),
-                          if (widget.canSeeCost) ...[
-                            const SizedBox(height: AveraSpacing.cardGap),
-                            AveraLabeledTextField(
-                              label: 'Cost Price (NGN)',
-                              controller: _cost,
-                              hintText: '0.00',
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              textInputAction: TextInputAction.done,
-                              validator: _money,
-                            ),
-                          ],
-                          if (_submissionError != null) ...[
-                            const SizedBox(height: AveraSpacing.cardGap),
-                            Text(
-                              _submissionError!,
-                              style: averaText(context).listItemSubtitle
-                                  .copyWith(
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _saving
-                                ? null
-                                : () => Navigator.of(context).pop(false),
-                            child: const Text('Cancel'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _saving ? null : _submit,
-                            icon: _saving
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.save_outlined),
-                            label: Text(_saving ? 'Saving' : 'Save'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+    final compact = MediaQuery.sizeOf(context).width < 600;
+
+    if (compact) {
+      return Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: Text(
+              widget.initial == null
+                  ? 'New Inventory Item'
+                  : 'Edit Inventory Item',
+            ),
+            actions: [
+              IconButton(
+                tooltip: 'Close',
+                onPressed: _saving
+                    ? null
+                    : () => Navigator.of(context).pop(false),
+                icon: const Icon(Icons.close_rounded),
               ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+              children: [
+                ..._formFields(context, categories),
+                const SizedBox(height: 24),
+                _actionButtons(context),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      child: Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.initial == null
+                              ? 'New Inventory Item'
+                              : 'Edit Inventory Item',
+                          style: averaText(context).sectionTitle,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: _saving
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _formFields(context, categories),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: _actionButtons(context),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+
+  List<Widget> _formFields(
+    BuildContext context,
+    List<InventoryCategoryDefinition> categories,
+  ) => [
+    _InventoryImageField(
+      name: _name.text.trim().isEmpty ? 'Inventory item' : _name.text.trim(),
+      imageReference: _pendingImagePath ?? _imageReference,
+      onPressed: _saving ? null : _manageImage,
+    ),
+    const SizedBox(height: AveraSpacing.cardGap),
+    AveraLabeledTextField(
+      label: 'Item Name',
+      controller: _name,
+      hintText: 'Enter item name',
+      textInputAction: TextInputAction.next,
+      validator: _required,
+    ),
+    const SizedBox(height: AveraSpacing.cardGap),
+    AveraLabeledDropdownField<String>(
+      label: 'Category',
+      hintText: 'Select category',
+      value: _categoryId,
+      items: [
+        for (final category in categories)
+          DropdownMenuItem(
+            value: category.id,
+            child: Text(category.name, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: _saving
+          ? null
+          : (value) => setState(() => _categoryId = value),
+      validator: (value) => value == null ? 'Please select a category.' : null,
+    ),
+    const SizedBox(height: AveraSpacing.cardGap),
+    _ResponsiveNumberFields(
+      first: AveraLabeledTextField(
+        label: 'Quantity',
+        controller: _quantity,
+        hintText: '0',
+        keyboardType: TextInputType.number,
+        textInputAction: TextInputAction.next,
+        validator: _wholeNumber,
+      ),
+      second: AveraLabeledTextField(
+        label: 'Minimum Quantity',
+        controller: _minimum,
+        hintText: '5',
+        keyboardType: TextInputType.number,
+        textInputAction: TextInputAction.next,
+        validator: _wholeNumber,
+      ),
+    ),
+    const SizedBox(height: AveraSpacing.cardGap),
+    AveraLabeledTextField(
+      label: 'Batch Number',
+      controller: _batch,
+      hintText: _requiresBatchAndExpiry
+          ? 'Enter batch number'
+          : 'Optional batch number',
+      textInputAction: TextInputAction.next,
+      validator: (value) =>
+          _requiresBatchAndExpiry && (value?.trim().isEmpty ?? true)
+          ? 'Enter the manufacturer batch number.'
+          : null,
+    ),
+    const SizedBox(height: AveraSpacing.cardGap),
+    AveraLabeledFieldCard(
+      label: 'Expiry Date',
+      child: InkWell(
+        onTap: _saving ? null : _pickExpiry,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                _expiry == null
+                    ? 'No expiry date'
+                    : DateFormat.yMMMd().format(_expiry!),
+                style: _expiry == null
+                    ? averaText(context).fieldPlaceholder
+                    : averaText(context).fieldValue,
+              ),
+            ),
+            if (_expiry != null)
+              IconButton(
+                tooltip: 'Clear expiry date',
+                onPressed: _saving
+                    ? null
+                    : () => setState(() => _expiry = null),
+                icon: const Icon(Icons.clear_rounded),
+              )
+            else
+              const Icon(Icons.calendar_today_outlined),
+          ],
+        ),
+      ),
+    ),
+    const SizedBox(height: AveraSpacing.cardGap),
+    AveraLabeledTextField(
+      label: 'Selling Price (NGN)',
+      controller: _selling,
+      hintText: '0.00',
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textInputAction: widget.canSeeCost
+          ? TextInputAction.next
+          : TextInputAction.done,
+      validator: _money,
+    ),
+    if (widget.canSeeCost) ...[
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Cost Price (NGN)',
+        controller: _cost,
+        hintText: '0.00',
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        textInputAction: TextInputAction.done,
+        validator: _money,
+      ),
+    ],
+    if (_submissionError != null) ...[
+      const SizedBox(height: AveraSpacing.cardGap),
+      Text(
+        _submissionError!,
+        style: averaText(
+          context,
+        ).listItemSubtitle.copyWith(color: Theme.of(context).colorScheme.error),
+      ),
+    ],
+  ];
+
+  Widget _actionButtons(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: OutlinedButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: FilledButton.icon(
+          onPressed: _saving ? null : _submit,
+          icon: _saving
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save_outlined),
+          label: Text(_saving ? 'Saving' : 'Save'),
+        ),
+      ),
+    ],
+  );
 
   Future<void> _pickExpiry() async {
     final now = DateTime.now();
@@ -419,6 +458,8 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
           ? double.parse(_cost.text.trim())
           : initial?.buyingPrice ?? 0,
       revision: initial?.revision,
+      imageReference: _imageReference,
+      pendingImagePath: _pendingImagePath,
     );
     try {
       await widget.onSubmit(draft);
@@ -454,9 +495,106 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
   bool get _requiresBatchAndExpiry =>
       _categoryId == 'drugs' || _categoryId == 'vaccines';
 
+  Future<void> _manageImage() async {
+    final current = _pendingImagePath ?? _imageReference;
+    final action = await showAveraPhotoActionSheet(
+      context: context,
+      subjectName: _name.text.trim().isEmpty
+          ? 'Inventory item'
+          : _name.text.trim(),
+      hasPhoto: current?.trim().isNotEmpty == true,
+      canRemovePhoto: false,
+    );
+    if (!mounted || action == null) return;
+    if (action == AveraPhotoAction.viewPhoto && current != null) {
+      await showAveraPhotoViewer(
+        context: context,
+        subjectName: _name.text.trim().isEmpty
+            ? 'Inventory item'
+            : _name.text.trim(),
+        photoReference: current,
+      );
+      return;
+    }
+    final picked = await pickAndCropAveraPhoto(action);
+    if (!mounted || picked == null) return;
+    setState(() => _pendingImagePath = picked.path);
+  }
+
   static String _numberText(num value) => value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(2);
+}
+
+class _InventoryImageField extends StatelessWidget {
+  const _InventoryImageField({
+    required this.name,
+    required this.imageReference,
+    required this.onPressed,
+  });
+
+  final String name;
+  final String? imageReference;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final reference = imageReference?.trim();
+    final image = reference == null || reference.isEmpty
+        ? null
+        : reference.startsWith('http')
+        ? NetworkImage(reference) as ImageProvider<Object>
+        : localIdentityImage(reference);
+    return AveraLabeledFieldCard(
+      label: 'Product Image',
+      child: InkWell(
+        onTap: onPressed,
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox.square(
+                dimension: 76,
+                child: image == null
+                    ? ColoredBox(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        child: const Icon(Icons.add_photo_alternate_outlined),
+                      )
+                    : Image(
+                        image: image,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const ColoredBox(
+                          color: Colors.transparent,
+                          child: Icon(Icons.broken_image_outlined),
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    image == null
+                        ? 'Add product image'
+                        : 'Change product image',
+                    style: averaText(context).fieldValue,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Square photos display best in inventory and the future clinic shop.',
+                    style: averaText(context).caption,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ResponsiveNumberFields extends StatelessWidget {

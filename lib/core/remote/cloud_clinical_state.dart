@@ -474,6 +474,24 @@ class RemoteInventoryListController
     return item;
   }
 
+  Future<RemoteInventoryItem> updatePhoto({
+    required String itemId,
+    required String contentType,
+    required String base64Data,
+  }) async {
+    final session = await _session();
+    if (!session.can(Permissions.inventoryEdit)) {
+      throw StateError('You do not have permission to edit inventory items.');
+    }
+    final item = await _source.updateInventoryItemPhoto(
+      inventoryProductId: itemId,
+      contentType: contentType,
+      base64Data: base64Data,
+    );
+    await _upsertAndCache(session, item, [...state.items]);
+    return item;
+  }
+
   Future<RemoteInventoryItem> replaceUnits({
     required String itemId,
     required List<Map<String, dynamic>> units,

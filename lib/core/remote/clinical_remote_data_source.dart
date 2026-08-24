@@ -302,6 +302,7 @@ class RemoteInventoryItem {
     this.isSellable = true,
     this.isArchived = false,
     this.productUnits = const [],
+    this.imageUrl,
   });
 
   final String id;
@@ -331,6 +332,7 @@ class RemoteInventoryItem {
   final bool isSellable;
   final bool isArchived;
   final List<RemoteProductUnit> productUnits;
+  final String? imageUrl;
 
   factory RemoteInventoryItem.fromJson(Map<String, dynamic> value) {
     final categoryName = value['category'] as String? ?? 'Other';
@@ -363,6 +365,7 @@ class RemoteInventoryItem {
       warnings: value['warnings'] as String?,
       isSellable: value['is_sellable'] as bool? ?? true,
       isArchived: value['is_archived'] as bool? ?? false,
+      imageUrl: value['image_url'] as String?,
       productUnits: (value['product_units'] as List<dynamic>? ?? const [])
           .map(
             (unit) => RemoteProductUnit.fromJson(
@@ -400,6 +403,7 @@ class RemoteInventoryItem {
     'warnings': warnings,
     'is_sellable': isSellable,
     'is_archived': isArchived,
+    'image_url': imageUrl,
     'product_units': productUnits.map((unit) => unit.toJson()).toList(),
   };
 }
@@ -906,6 +910,21 @@ class ClinicalRemoteDataSource {
     final response = await _client.patch(
       '/api/v1/inventory/products/$inventoryProductId',
       body: payload,
+    );
+    return RemoteInventoryItem.fromJson(
+      Map<String, dynamic>.from(response['item'] as Map),
+    );
+  }
+
+  Future<RemoteInventoryItem> updateInventoryItemPhoto({
+    required String inventoryProductId,
+    required String contentType,
+    required String base64Data,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/inventory/products/$inventoryProductId/photo',
+      authenticated: true,
+      body: {'contentType': contentType, 'data': base64Data},
     );
     return RemoteInventoryItem.fromJson(
       Map<String, dynamic>.from(response['item'] as Map),

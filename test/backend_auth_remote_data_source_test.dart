@@ -104,6 +104,27 @@ void main() {
     await apiClient.get('/api/v1/patients?page=1', authenticated: false);
   });
 
+  test('remote inventory products preserve signed product image URLs', () {
+    final item = RemoteInventoryItem.fromJson({
+      'inventory_product_id': 'inventory-id',
+      'name': 'Canine recovery food',
+      'category': 'Food',
+      'category_key': 'food',
+      'purchase_price': 1200,
+      'selling_price': 1800,
+      'quantity': 8,
+      'reorder_level': 2,
+      'status': 'Active',
+      'created_at': '2026-08-24T10:00:00.000Z',
+      'updated_at': '2026-08-24T10:00:00.000Z',
+      'revision': 1,
+      'image_url': 'https://storage.example.test/signed-product-image',
+    });
+
+    expect(item.imageUrl, 'https://storage.example.test/signed-product-image');
+    expect(item.toJson()['image_url'], item.imageUrl);
+  });
+
   test(
     'production reminders and notification mutations retain exact IDs',
     () async {

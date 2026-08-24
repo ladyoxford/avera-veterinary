@@ -7865,6 +7865,7 @@ class ClinicRepository {
     DateTime? expiryDate,
     required double sellingPrice,
     double? buyingPrice,
+    String? imagePath,
   }) async {
     _requireInventoryPermission(session, Permissions.inventoryCreate);
     await _requireActiveFeature(AveraFeature.inventory);
@@ -7900,6 +7901,7 @@ class ClinicRepository {
             expiryDate: Value(expiryDate),
             sellingPrice: Value(sellingPrice),
             buyingPrice: Value(buyingPrice ?? 0),
+            imagePath: Value(_nullIfBlank(imagePath)),
             isSellable: Value(category.isSellable),
             createdAt: Value(now),
             updatedAt: Value(now),

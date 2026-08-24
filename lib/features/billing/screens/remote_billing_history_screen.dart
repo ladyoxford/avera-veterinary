@@ -15,9 +15,18 @@ import '../widgets/invoice_preview_sheet.dart';
 import '../widgets/payment_capture_dialog.dart';
 
 class RemoteBillingHistoryScreen extends ConsumerStatefulWidget {
-  const RemoteBillingHistoryScreen({super.key, required this.session});
+  const RemoteBillingHistoryScreen({
+    super.key,
+    required this.session,
+    this.initialInvoiceId,
+    this.initialContext,
+    this.initialFarmId,
+  });
 
   final UserSession session;
+  final String? initialInvoiceId;
+  final String? initialContext;
+  final String? initialFarmId;
 
   @override
   ConsumerState<RemoteBillingHistoryScreen> createState() =>
@@ -30,11 +39,18 @@ class _RemoteBillingHistoryScreenState
   String _query = '';
   String _status = 'All';
   String _period = 'All time';
+  late String _invoiceContext;
   bool _newestFirst = true;
+  bool _openedInitialInvoice = false;
 
   @override
   void initState() {
     super.initState();
+    _invoiceContext = switch (widget.initialContext?.toLowerCase()) {
+      'farm' => 'Farm',
+      'patient' || 'clinic' => 'Patient / Clinic',
+      _ => 'All',
+    };
     _reload();
   }
 
@@ -93,6 +109,7 @@ class _RemoteBillingHistoryScreenState
                     ? b.issuedAt.compareTo(a.issuedAt)
                     : a.issuedAt.compareTo(b.issuedAt),
               );
+        _openInitialInvoice(invoices);
         return RefreshIndicator(
           onRefresh: () async {
             setState(_reload);
@@ -148,6 +165,20 @@ class _RemoteBillingHistoryScreenState
               const SizedBox(height: AveraSpacing.compactRowGap),
               SegmentedButton<String>(
                 segments: const [
+                  ButtonSegment(value: 'All', label: Text('All')),
+                  ButtonSegment(
+                    value: 'Patient / Clinic',
+                    label: Text('Patient / Clinic'),
+                  ),
+                  ButtonSegment(value: 'Farm', label: Text('Farm')),
+                ],
+                selected: {_invoiceContext},
+                onSelectionChanged: (value) =>
+                    setState(() => _invoiceContext = value.first),
+              ),
+              const SizedBox(height: AveraSpacing.compactRowGap),
+              SegmentedButton<String>(
+                segments: const [
                   ButtonSegment(value: '30 days', label: Text('30 days')),
                   ButtonSegment(value: 'This year', label: Text('This year')),
                   ButtonSegment(value: 'All time', label: Text('All time')),
@@ -179,6 +210,12 @@ class _RemoteBillingHistoryScreenState
   );
 
   bool _matches(_RemoteInvoiceSummary invoice) {
+    if (_invoiceContext == 'Farm' && !invoice.isFarm) return false;
+    if (_invoiceContext == 'Patient / Clinic' && invoice.isFarm) return false;
+    if (widget.initialFarmId != null &&
+        invoice.farmId != widget.initialFarmId) {
+      return false;
+    }
     if (_status != 'All' && invoice.state.label != _status.toUpperCase()) {
       return false;
     }
@@ -192,6 +229,16 @@ class _RemoteBillingHistoryScreenState
     }
     final query = _query.trim().toLowerCase();
     return query.isEmpty || invoice.searchable.contains(query);
+  }
+
+  void _openInitialInvoice(List<_RemoteInvoiceSummary> invoices) {
+    if (_openedInitialInvoice || widget.initialInvoiceId == null) return;
+    _openedInitialInvoice = true;
+    if (invoices.any((invoice) => invoice.id == widget.initialInvoiceId)) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _openInvoice(widget.initialInvoiceId!),
+      );
+    }
   }
 
   Future<void> _openInvoice(String invoiceId) async {
@@ -294,6 +341,9 @@ class _RemoteInvoiceSummary {
     required this.amountPaid,
     required this.balance,
     required this.state,
+    required this.contextType,
+    required this.farmId,
+    required this.farmName,
   });
 
   final String id;
@@ -306,9 +356,14 @@ class _RemoteInvoiceSummary {
   final double amountPaid;
   final double balance;
   final InvoicePaymentState state;
+  final String contextType;
+  final String? farmId;
+  final String? farmName;
+
+  bool get isFarm => contextType == 'farm_visit';
 
   String get searchable =>
-      '$number $ownerName $ownerPhone $patientNames ${state.label}'
+      '$number $ownerName $ownerPhone $patientNames ${farmName ?? ''} ${state.label}'
           .toLowerCase();
 
   factory _RemoteInvoiceSummary.fromJson(Map<String, dynamic> json) {
@@ -334,6 +389,9 @@ class _RemoteInvoiceSummary {
         amountPaid: paid,
         balance: balance,
       ),
+      contextType: '${json['context_type'] ?? 'patient'}',
+      farmId: json['farm_id']?.toString(),
+      farmName: json['farm_name']?.toString(),
     );
   }
 
@@ -387,7 +445,9 @@ class _RemoteInvoiceCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    invoice.patientNames,
+                    invoice.isFarm
+                        ? (invoice.farmName ?? invoice.ownerName)
+                        : invoice.patientNames,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

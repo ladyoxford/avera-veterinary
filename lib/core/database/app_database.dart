@@ -522,6 +522,7 @@ class InvoiceProductLines extends Table {
   IntColumn get invoiceId => integer().references(Invoices, #id)();
   IntColumn get inventoryItemId => integer().references(InventoryItems, #id)();
   IntColumn get animalId => integer().nullable().references(Animals, #id)();
+  IntColumn get farmUnitId => integer().nullable().references(FarmUnits, #id)();
   TextColumn get productNameSnapshot => text()();
   TextColumn get categoryNameSnapshot => text()();
   TextColumn get batchNumberSnapshot => text().nullable()();
@@ -1200,7 +1201,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 29;
+  static const currentSchemaVersion = 30;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1893,6 +1894,18 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE INDEX IF NOT EXISTS farm_health_treatment_target_index '
           'ON farm_health_records (clinic_id, farm_id, farm_unit_id, target_scope)',
+        );
+      }
+      if (from < 30) {
+        if (!await _hasColumn('invoice_product_lines', 'farm_unit_id')) {
+          await m.addColumn(
+            invoiceProductLines,
+            invoiceProductLines.farmUnitId,
+          );
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS invoice_product_lines_farm_unit_index '
+          'ON invoice_product_lines (invoice_id, farm_unit_id)',
         );
       }
     },

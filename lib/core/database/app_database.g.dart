@@ -21589,709 +21589,6 @@ class InvoicePaymentsCompanion extends UpdateCompanion<InvoicePayment> {
   }
 }
 
-class $InvoiceProductLinesTable extends InvoiceProductLines
-    with TableInfo<$InvoiceProductLinesTable, InvoiceProductLine> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $InvoiceProductLinesTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _invoiceIdMeta = const VerificationMeta(
-    'invoiceId',
-  );
-  @override
-  late final GeneratedColumn<int> invoiceId = GeneratedColumn<int>(
-    'invoice_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES invoices (id)',
-    ),
-  );
-  static const VerificationMeta _inventoryItemIdMeta = const VerificationMeta(
-    'inventoryItemId',
-  );
-  @override
-  late final GeneratedColumn<int> inventoryItemId = GeneratedColumn<int>(
-    'inventory_item_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES inventory_items (id)',
-    ),
-  );
-  static const VerificationMeta _animalIdMeta = const VerificationMeta(
-    'animalId',
-  );
-  @override
-  late final GeneratedColumn<int> animalId = GeneratedColumn<int>(
-    'animal_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES animals (id)',
-    ),
-  );
-  static const VerificationMeta _productNameSnapshotMeta =
-      const VerificationMeta('productNameSnapshot');
-  @override
-  late final GeneratedColumn<String> productNameSnapshot =
-      GeneratedColumn<String>(
-        'product_name_snapshot',
-        aliasedName,
-        false,
-        type: DriftSqlType.string,
-        requiredDuringInsert: true,
-      );
-  static const VerificationMeta _categoryNameSnapshotMeta =
-      const VerificationMeta('categoryNameSnapshot');
-  @override
-  late final GeneratedColumn<String> categoryNameSnapshot =
-      GeneratedColumn<String>(
-        'category_name_snapshot',
-        aliasedName,
-        false,
-        type: DriftSqlType.string,
-        requiredDuringInsert: true,
-      );
-  static const VerificationMeta _batchNumberSnapshotMeta =
-      const VerificationMeta('batchNumberSnapshot');
-  @override
-  late final GeneratedColumn<String> batchNumberSnapshot =
-      GeneratedColumn<String>(
-        'batch_number_snapshot',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _quantityMeta = const VerificationMeta(
-    'quantity',
-  );
-  @override
-  late final GeneratedColumn<int> quantity = GeneratedColumn<int>(
-    'quantity',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _unitPriceMeta = const VerificationMeta(
-    'unitPrice',
-  );
-  @override
-  late final GeneratedColumn<double> unitPrice = GeneratedColumn<double>(
-    'unit_price',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _unitCostSnapshotMeta = const VerificationMeta(
-    'unitCostSnapshot',
-  );
-  @override
-  late final GeneratedColumn<double> unitCostSnapshot = GeneratedColumn<double>(
-    'unit_cost_snapshot',
-    aliasedName,
-    true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _lineTotalMeta = const VerificationMeta(
-    'lineTotal',
-  );
-  @override
-  late final GeneratedColumn<double> lineTotal = GeneratedColumn<double>(
-    'line_total',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    invoiceId,
-    inventoryItemId,
-    animalId,
-    productNameSnapshot,
-    categoryNameSnapshot,
-    batchNumberSnapshot,
-    quantity,
-    unitPrice,
-    unitCostSnapshot,
-    lineTotal,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'invoice_product_lines';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<InvoiceProductLine> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
-    if (data.containsKey('invoice_id')) {
-      context.handle(
-        _invoiceIdMeta,
-        invoiceId.isAcceptableOrUnknown(data['invoice_id']!, _invoiceIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_invoiceIdMeta);
-    }
-    if (data.containsKey('inventory_item_id')) {
-      context.handle(
-        _inventoryItemIdMeta,
-        inventoryItemId.isAcceptableOrUnknown(
-          data['inventory_item_id']!,
-          _inventoryItemIdMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_inventoryItemIdMeta);
-    }
-    if (data.containsKey('animal_id')) {
-      context.handle(
-        _animalIdMeta,
-        animalId.isAcceptableOrUnknown(data['animal_id']!, _animalIdMeta),
-      );
-    }
-    if (data.containsKey('product_name_snapshot')) {
-      context.handle(
-        _productNameSnapshotMeta,
-        productNameSnapshot.isAcceptableOrUnknown(
-          data['product_name_snapshot']!,
-          _productNameSnapshotMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_productNameSnapshotMeta);
-    }
-    if (data.containsKey('category_name_snapshot')) {
-      context.handle(
-        _categoryNameSnapshotMeta,
-        categoryNameSnapshot.isAcceptableOrUnknown(
-          data['category_name_snapshot']!,
-          _categoryNameSnapshotMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_categoryNameSnapshotMeta);
-    }
-    if (data.containsKey('batch_number_snapshot')) {
-      context.handle(
-        _batchNumberSnapshotMeta,
-        batchNumberSnapshot.isAcceptableOrUnknown(
-          data['batch_number_snapshot']!,
-          _batchNumberSnapshotMeta,
-        ),
-      );
-    }
-    if (data.containsKey('quantity')) {
-      context.handle(
-        _quantityMeta,
-        quantity.isAcceptableOrUnknown(data['quantity']!, _quantityMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_quantityMeta);
-    }
-    if (data.containsKey('unit_price')) {
-      context.handle(
-        _unitPriceMeta,
-        unitPrice.isAcceptableOrUnknown(data['unit_price']!, _unitPriceMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_unitPriceMeta);
-    }
-    if (data.containsKey('unit_cost_snapshot')) {
-      context.handle(
-        _unitCostSnapshotMeta,
-        unitCostSnapshot.isAcceptableOrUnknown(
-          data['unit_cost_snapshot']!,
-          _unitCostSnapshotMeta,
-        ),
-      );
-    }
-    if (data.containsKey('line_total')) {
-      context.handle(
-        _lineTotalMeta,
-        lineTotal.isAcceptableOrUnknown(data['line_total']!, _lineTotalMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_lineTotalMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  InvoiceProductLine map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return InvoiceProductLine(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      invoiceId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}invoice_id'],
-      )!,
-      inventoryItemId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}inventory_item_id'],
-      )!,
-      animalId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}animal_id'],
-      ),
-      productNameSnapshot: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}product_name_snapshot'],
-      )!,
-      categoryNameSnapshot: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}category_name_snapshot'],
-      )!,
-      batchNumberSnapshot: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}batch_number_snapshot'],
-      ),
-      quantity: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}quantity'],
-      )!,
-      unitPrice: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}unit_price'],
-      )!,
-      unitCostSnapshot: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}unit_cost_snapshot'],
-      ),
-      lineTotal: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}line_total'],
-      )!,
-    );
-  }
-
-  @override
-  $InvoiceProductLinesTable createAlias(String alias) {
-    return $InvoiceProductLinesTable(attachedDatabase, alias);
-  }
-}
-
-class InvoiceProductLine extends DataClass
-    implements Insertable<InvoiceProductLine> {
-  final int id;
-  final int invoiceId;
-  final int inventoryItemId;
-  final int? animalId;
-  final String productNameSnapshot;
-  final String categoryNameSnapshot;
-  final String? batchNumberSnapshot;
-  final int quantity;
-  final double unitPrice;
-  final double? unitCostSnapshot;
-  final double lineTotal;
-  const InvoiceProductLine({
-    required this.id,
-    required this.invoiceId,
-    required this.inventoryItemId,
-    this.animalId,
-    required this.productNameSnapshot,
-    required this.categoryNameSnapshot,
-    this.batchNumberSnapshot,
-    required this.quantity,
-    required this.unitPrice,
-    this.unitCostSnapshot,
-    required this.lineTotal,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['invoice_id'] = Variable<int>(invoiceId);
-    map['inventory_item_id'] = Variable<int>(inventoryItemId);
-    if (!nullToAbsent || animalId != null) {
-      map['animal_id'] = Variable<int>(animalId);
-    }
-    map['product_name_snapshot'] = Variable<String>(productNameSnapshot);
-    map['category_name_snapshot'] = Variable<String>(categoryNameSnapshot);
-    if (!nullToAbsent || batchNumberSnapshot != null) {
-      map['batch_number_snapshot'] = Variable<String>(batchNumberSnapshot);
-    }
-    map['quantity'] = Variable<int>(quantity);
-    map['unit_price'] = Variable<double>(unitPrice);
-    if (!nullToAbsent || unitCostSnapshot != null) {
-      map['unit_cost_snapshot'] = Variable<double>(unitCostSnapshot);
-    }
-    map['line_total'] = Variable<double>(lineTotal);
-    return map;
-  }
-
-  InvoiceProductLinesCompanion toCompanion(bool nullToAbsent) {
-    return InvoiceProductLinesCompanion(
-      id: Value(id),
-      invoiceId: Value(invoiceId),
-      inventoryItemId: Value(inventoryItemId),
-      animalId: animalId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(animalId),
-      productNameSnapshot: Value(productNameSnapshot),
-      categoryNameSnapshot: Value(categoryNameSnapshot),
-      batchNumberSnapshot: batchNumberSnapshot == null && nullToAbsent
-          ? const Value.absent()
-          : Value(batchNumberSnapshot),
-      quantity: Value(quantity),
-      unitPrice: Value(unitPrice),
-      unitCostSnapshot: unitCostSnapshot == null && nullToAbsent
-          ? const Value.absent()
-          : Value(unitCostSnapshot),
-      lineTotal: Value(lineTotal),
-    );
-  }
-
-  factory InvoiceProductLine.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return InvoiceProductLine(
-      id: serializer.fromJson<int>(json['id']),
-      invoiceId: serializer.fromJson<int>(json['invoiceId']),
-      inventoryItemId: serializer.fromJson<int>(json['inventoryItemId']),
-      animalId: serializer.fromJson<int?>(json['animalId']),
-      productNameSnapshot: serializer.fromJson<String>(
-        json['productNameSnapshot'],
-      ),
-      categoryNameSnapshot: serializer.fromJson<String>(
-        json['categoryNameSnapshot'],
-      ),
-      batchNumberSnapshot: serializer.fromJson<String?>(
-        json['batchNumberSnapshot'],
-      ),
-      quantity: serializer.fromJson<int>(json['quantity']),
-      unitPrice: serializer.fromJson<double>(json['unitPrice']),
-      unitCostSnapshot: serializer.fromJson<double?>(json['unitCostSnapshot']),
-      lineTotal: serializer.fromJson<double>(json['lineTotal']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'invoiceId': serializer.toJson<int>(invoiceId),
-      'inventoryItemId': serializer.toJson<int>(inventoryItemId),
-      'animalId': serializer.toJson<int?>(animalId),
-      'productNameSnapshot': serializer.toJson<String>(productNameSnapshot),
-      'categoryNameSnapshot': serializer.toJson<String>(categoryNameSnapshot),
-      'batchNumberSnapshot': serializer.toJson<String?>(batchNumberSnapshot),
-      'quantity': serializer.toJson<int>(quantity),
-      'unitPrice': serializer.toJson<double>(unitPrice),
-      'unitCostSnapshot': serializer.toJson<double?>(unitCostSnapshot),
-      'lineTotal': serializer.toJson<double>(lineTotal),
-    };
-  }
-
-  InvoiceProductLine copyWith({
-    int? id,
-    int? invoiceId,
-    int? inventoryItemId,
-    Value<int?> animalId = const Value.absent(),
-    String? productNameSnapshot,
-    String? categoryNameSnapshot,
-    Value<String?> batchNumberSnapshot = const Value.absent(),
-    int? quantity,
-    double? unitPrice,
-    Value<double?> unitCostSnapshot = const Value.absent(),
-    double? lineTotal,
-  }) => InvoiceProductLine(
-    id: id ?? this.id,
-    invoiceId: invoiceId ?? this.invoiceId,
-    inventoryItemId: inventoryItemId ?? this.inventoryItemId,
-    animalId: animalId.present ? animalId.value : this.animalId,
-    productNameSnapshot: productNameSnapshot ?? this.productNameSnapshot,
-    categoryNameSnapshot: categoryNameSnapshot ?? this.categoryNameSnapshot,
-    batchNumberSnapshot: batchNumberSnapshot.present
-        ? batchNumberSnapshot.value
-        : this.batchNumberSnapshot,
-    quantity: quantity ?? this.quantity,
-    unitPrice: unitPrice ?? this.unitPrice,
-    unitCostSnapshot: unitCostSnapshot.present
-        ? unitCostSnapshot.value
-        : this.unitCostSnapshot,
-    lineTotal: lineTotal ?? this.lineTotal,
-  );
-  InvoiceProductLine copyWithCompanion(InvoiceProductLinesCompanion data) {
-    return InvoiceProductLine(
-      id: data.id.present ? data.id.value : this.id,
-      invoiceId: data.invoiceId.present ? data.invoiceId.value : this.invoiceId,
-      inventoryItemId: data.inventoryItemId.present
-          ? data.inventoryItemId.value
-          : this.inventoryItemId,
-      animalId: data.animalId.present ? data.animalId.value : this.animalId,
-      productNameSnapshot: data.productNameSnapshot.present
-          ? data.productNameSnapshot.value
-          : this.productNameSnapshot,
-      categoryNameSnapshot: data.categoryNameSnapshot.present
-          ? data.categoryNameSnapshot.value
-          : this.categoryNameSnapshot,
-      batchNumberSnapshot: data.batchNumberSnapshot.present
-          ? data.batchNumberSnapshot.value
-          : this.batchNumberSnapshot,
-      quantity: data.quantity.present ? data.quantity.value : this.quantity,
-      unitPrice: data.unitPrice.present ? data.unitPrice.value : this.unitPrice,
-      unitCostSnapshot: data.unitCostSnapshot.present
-          ? data.unitCostSnapshot.value
-          : this.unitCostSnapshot,
-      lineTotal: data.lineTotal.present ? data.lineTotal.value : this.lineTotal,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('InvoiceProductLine(')
-          ..write('id: $id, ')
-          ..write('invoiceId: $invoiceId, ')
-          ..write('inventoryItemId: $inventoryItemId, ')
-          ..write('animalId: $animalId, ')
-          ..write('productNameSnapshot: $productNameSnapshot, ')
-          ..write('categoryNameSnapshot: $categoryNameSnapshot, ')
-          ..write('batchNumberSnapshot: $batchNumberSnapshot, ')
-          ..write('quantity: $quantity, ')
-          ..write('unitPrice: $unitPrice, ')
-          ..write('unitCostSnapshot: $unitCostSnapshot, ')
-          ..write('lineTotal: $lineTotal')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    invoiceId,
-    inventoryItemId,
-    animalId,
-    productNameSnapshot,
-    categoryNameSnapshot,
-    batchNumberSnapshot,
-    quantity,
-    unitPrice,
-    unitCostSnapshot,
-    lineTotal,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is InvoiceProductLine &&
-          other.id == this.id &&
-          other.invoiceId == this.invoiceId &&
-          other.inventoryItemId == this.inventoryItemId &&
-          other.animalId == this.animalId &&
-          other.productNameSnapshot == this.productNameSnapshot &&
-          other.categoryNameSnapshot == this.categoryNameSnapshot &&
-          other.batchNumberSnapshot == this.batchNumberSnapshot &&
-          other.quantity == this.quantity &&
-          other.unitPrice == this.unitPrice &&
-          other.unitCostSnapshot == this.unitCostSnapshot &&
-          other.lineTotal == this.lineTotal);
-}
-
-class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
-  final Value<int> id;
-  final Value<int> invoiceId;
-  final Value<int> inventoryItemId;
-  final Value<int?> animalId;
-  final Value<String> productNameSnapshot;
-  final Value<String> categoryNameSnapshot;
-  final Value<String?> batchNumberSnapshot;
-  final Value<int> quantity;
-  final Value<double> unitPrice;
-  final Value<double?> unitCostSnapshot;
-  final Value<double> lineTotal;
-  const InvoiceProductLinesCompanion({
-    this.id = const Value.absent(),
-    this.invoiceId = const Value.absent(),
-    this.inventoryItemId = const Value.absent(),
-    this.animalId = const Value.absent(),
-    this.productNameSnapshot = const Value.absent(),
-    this.categoryNameSnapshot = const Value.absent(),
-    this.batchNumberSnapshot = const Value.absent(),
-    this.quantity = const Value.absent(),
-    this.unitPrice = const Value.absent(),
-    this.unitCostSnapshot = const Value.absent(),
-    this.lineTotal = const Value.absent(),
-  });
-  InvoiceProductLinesCompanion.insert({
-    this.id = const Value.absent(),
-    required int invoiceId,
-    required int inventoryItemId,
-    this.animalId = const Value.absent(),
-    required String productNameSnapshot,
-    required String categoryNameSnapshot,
-    this.batchNumberSnapshot = const Value.absent(),
-    required int quantity,
-    required double unitPrice,
-    this.unitCostSnapshot = const Value.absent(),
-    required double lineTotal,
-  }) : invoiceId = Value(invoiceId),
-       inventoryItemId = Value(inventoryItemId),
-       productNameSnapshot = Value(productNameSnapshot),
-       categoryNameSnapshot = Value(categoryNameSnapshot),
-       quantity = Value(quantity),
-       unitPrice = Value(unitPrice),
-       lineTotal = Value(lineTotal);
-  static Insertable<InvoiceProductLine> custom({
-    Expression<int>? id,
-    Expression<int>? invoiceId,
-    Expression<int>? inventoryItemId,
-    Expression<int>? animalId,
-    Expression<String>? productNameSnapshot,
-    Expression<String>? categoryNameSnapshot,
-    Expression<String>? batchNumberSnapshot,
-    Expression<int>? quantity,
-    Expression<double>? unitPrice,
-    Expression<double>? unitCostSnapshot,
-    Expression<double>? lineTotal,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (invoiceId != null) 'invoice_id': invoiceId,
-      if (inventoryItemId != null) 'inventory_item_id': inventoryItemId,
-      if (animalId != null) 'animal_id': animalId,
-      if (productNameSnapshot != null)
-        'product_name_snapshot': productNameSnapshot,
-      if (categoryNameSnapshot != null)
-        'category_name_snapshot': categoryNameSnapshot,
-      if (batchNumberSnapshot != null)
-        'batch_number_snapshot': batchNumberSnapshot,
-      if (quantity != null) 'quantity': quantity,
-      if (unitPrice != null) 'unit_price': unitPrice,
-      if (unitCostSnapshot != null) 'unit_cost_snapshot': unitCostSnapshot,
-      if (lineTotal != null) 'line_total': lineTotal,
-    });
-  }
-
-  InvoiceProductLinesCompanion copyWith({
-    Value<int>? id,
-    Value<int>? invoiceId,
-    Value<int>? inventoryItemId,
-    Value<int?>? animalId,
-    Value<String>? productNameSnapshot,
-    Value<String>? categoryNameSnapshot,
-    Value<String?>? batchNumberSnapshot,
-    Value<int>? quantity,
-    Value<double>? unitPrice,
-    Value<double?>? unitCostSnapshot,
-    Value<double>? lineTotal,
-  }) {
-    return InvoiceProductLinesCompanion(
-      id: id ?? this.id,
-      invoiceId: invoiceId ?? this.invoiceId,
-      inventoryItemId: inventoryItemId ?? this.inventoryItemId,
-      animalId: animalId ?? this.animalId,
-      productNameSnapshot: productNameSnapshot ?? this.productNameSnapshot,
-      categoryNameSnapshot: categoryNameSnapshot ?? this.categoryNameSnapshot,
-      batchNumberSnapshot: batchNumberSnapshot ?? this.batchNumberSnapshot,
-      quantity: quantity ?? this.quantity,
-      unitPrice: unitPrice ?? this.unitPrice,
-      unitCostSnapshot: unitCostSnapshot ?? this.unitCostSnapshot,
-      lineTotal: lineTotal ?? this.lineTotal,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
-    }
-    if (invoiceId.present) {
-      map['invoice_id'] = Variable<int>(invoiceId.value);
-    }
-    if (inventoryItemId.present) {
-      map['inventory_item_id'] = Variable<int>(inventoryItemId.value);
-    }
-    if (animalId.present) {
-      map['animal_id'] = Variable<int>(animalId.value);
-    }
-    if (productNameSnapshot.present) {
-      map['product_name_snapshot'] = Variable<String>(
-        productNameSnapshot.value,
-      );
-    }
-    if (categoryNameSnapshot.present) {
-      map['category_name_snapshot'] = Variable<String>(
-        categoryNameSnapshot.value,
-      );
-    }
-    if (batchNumberSnapshot.present) {
-      map['batch_number_snapshot'] = Variable<String>(
-        batchNumberSnapshot.value,
-      );
-    }
-    if (quantity.present) {
-      map['quantity'] = Variable<int>(quantity.value);
-    }
-    if (unitPrice.present) {
-      map['unit_price'] = Variable<double>(unitPrice.value);
-    }
-    if (unitCostSnapshot.present) {
-      map['unit_cost_snapshot'] = Variable<double>(unitCostSnapshot.value);
-    }
-    if (lineTotal.present) {
-      map['line_total'] = Variable<double>(lineTotal.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('InvoiceProductLinesCompanion(')
-          ..write('id: $id, ')
-          ..write('invoiceId: $invoiceId, ')
-          ..write('inventoryItemId: $inventoryItemId, ')
-          ..write('animalId: $animalId, ')
-          ..write('productNameSnapshot: $productNameSnapshot, ')
-          ..write('categoryNameSnapshot: $categoryNameSnapshot, ')
-          ..write('batchNumberSnapshot: $batchNumberSnapshot, ')
-          ..write('quantity: $quantity, ')
-          ..write('unitPrice: $unitPrice, ')
-          ..write('unitCostSnapshot: $unitCostSnapshot, ')
-          ..write('lineTotal: $lineTotal')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $FarmUnitsTable extends FarmUnits
     with TableInfo<$FarmUnitsTable, FarmUnit> {
   @override
@@ -23191,6 +22488,766 @@ class FarmUnitsCompanion extends UpdateCompanion<FarmUnit> {
           ..write('createdAt: $createdAt, ')
           ..write('createdByUserId: $createdByUserId, ')
           ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $InvoiceProductLinesTable extends InvoiceProductLines
+    with TableInfo<$InvoiceProductLinesTable, InvoiceProductLine> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $InvoiceProductLinesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _invoiceIdMeta = const VerificationMeta(
+    'invoiceId',
+  );
+  @override
+  late final GeneratedColumn<int> invoiceId = GeneratedColumn<int>(
+    'invoice_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES invoices (id)',
+    ),
+  );
+  static const VerificationMeta _inventoryItemIdMeta = const VerificationMeta(
+    'inventoryItemId',
+  );
+  @override
+  late final GeneratedColumn<int> inventoryItemId = GeneratedColumn<int>(
+    'inventory_item_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES inventory_items (id)',
+    ),
+  );
+  static const VerificationMeta _animalIdMeta = const VerificationMeta(
+    'animalId',
+  );
+  @override
+  late final GeneratedColumn<int> animalId = GeneratedColumn<int>(
+    'animal_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES animals (id)',
+    ),
+  );
+  static const VerificationMeta _farmUnitIdMeta = const VerificationMeta(
+    'farmUnitId',
+  );
+  @override
+  late final GeneratedColumn<int> farmUnitId = GeneratedColumn<int>(
+    'farm_unit_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES farm_units (id)',
+    ),
+  );
+  static const VerificationMeta _productNameSnapshotMeta =
+      const VerificationMeta('productNameSnapshot');
+  @override
+  late final GeneratedColumn<String> productNameSnapshot =
+      GeneratedColumn<String>(
+        'product_name_snapshot',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _categoryNameSnapshotMeta =
+      const VerificationMeta('categoryNameSnapshot');
+  @override
+  late final GeneratedColumn<String> categoryNameSnapshot =
+      GeneratedColumn<String>(
+        'category_name_snapshot',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _batchNumberSnapshotMeta =
+      const VerificationMeta('batchNumberSnapshot');
+  @override
+  late final GeneratedColumn<String> batchNumberSnapshot =
+      GeneratedColumn<String>(
+        'batch_number_snapshot',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _quantityMeta = const VerificationMeta(
+    'quantity',
+  );
+  @override
+  late final GeneratedColumn<int> quantity = GeneratedColumn<int>(
+    'quantity',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitPriceMeta = const VerificationMeta(
+    'unitPrice',
+  );
+  @override
+  late final GeneratedColumn<double> unitPrice = GeneratedColumn<double>(
+    'unit_price',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitCostSnapshotMeta = const VerificationMeta(
+    'unitCostSnapshot',
+  );
+  @override
+  late final GeneratedColumn<double> unitCostSnapshot = GeneratedColumn<double>(
+    'unit_cost_snapshot',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lineTotalMeta = const VerificationMeta(
+    'lineTotal',
+  );
+  @override
+  late final GeneratedColumn<double> lineTotal = GeneratedColumn<double>(
+    'line_total',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    invoiceId,
+    inventoryItemId,
+    animalId,
+    farmUnitId,
+    productNameSnapshot,
+    categoryNameSnapshot,
+    batchNumberSnapshot,
+    quantity,
+    unitPrice,
+    unitCostSnapshot,
+    lineTotal,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'invoice_product_lines';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<InvoiceProductLine> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('invoice_id')) {
+      context.handle(
+        _invoiceIdMeta,
+        invoiceId.isAcceptableOrUnknown(data['invoice_id']!, _invoiceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_invoiceIdMeta);
+    }
+    if (data.containsKey('inventory_item_id')) {
+      context.handle(
+        _inventoryItemIdMeta,
+        inventoryItemId.isAcceptableOrUnknown(
+          data['inventory_item_id']!,
+          _inventoryItemIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_inventoryItemIdMeta);
+    }
+    if (data.containsKey('animal_id')) {
+      context.handle(
+        _animalIdMeta,
+        animalId.isAcceptableOrUnknown(data['animal_id']!, _animalIdMeta),
+      );
+    }
+    if (data.containsKey('farm_unit_id')) {
+      context.handle(
+        _farmUnitIdMeta,
+        farmUnitId.isAcceptableOrUnknown(
+          data['farm_unit_id']!,
+          _farmUnitIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('product_name_snapshot')) {
+      context.handle(
+        _productNameSnapshotMeta,
+        productNameSnapshot.isAcceptableOrUnknown(
+          data['product_name_snapshot']!,
+          _productNameSnapshotMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_productNameSnapshotMeta);
+    }
+    if (data.containsKey('category_name_snapshot')) {
+      context.handle(
+        _categoryNameSnapshotMeta,
+        categoryNameSnapshot.isAcceptableOrUnknown(
+          data['category_name_snapshot']!,
+          _categoryNameSnapshotMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryNameSnapshotMeta);
+    }
+    if (data.containsKey('batch_number_snapshot')) {
+      context.handle(
+        _batchNumberSnapshotMeta,
+        batchNumberSnapshot.isAcceptableOrUnknown(
+          data['batch_number_snapshot']!,
+          _batchNumberSnapshotMeta,
+        ),
+      );
+    }
+    if (data.containsKey('quantity')) {
+      context.handle(
+        _quantityMeta,
+        quantity.isAcceptableOrUnknown(data['quantity']!, _quantityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_quantityMeta);
+    }
+    if (data.containsKey('unit_price')) {
+      context.handle(
+        _unitPriceMeta,
+        unitPrice.isAcceptableOrUnknown(data['unit_price']!, _unitPriceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_unitPriceMeta);
+    }
+    if (data.containsKey('unit_cost_snapshot')) {
+      context.handle(
+        _unitCostSnapshotMeta,
+        unitCostSnapshot.isAcceptableOrUnknown(
+          data['unit_cost_snapshot']!,
+          _unitCostSnapshotMeta,
+        ),
+      );
+    }
+    if (data.containsKey('line_total')) {
+      context.handle(
+        _lineTotalMeta,
+        lineTotal.isAcceptableOrUnknown(data['line_total']!, _lineTotalMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_lineTotalMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  InvoiceProductLine map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return InvoiceProductLine(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      invoiceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}invoice_id'],
+      )!,
+      inventoryItemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}inventory_item_id'],
+      )!,
+      animalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}animal_id'],
+      ),
+      farmUnitId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}farm_unit_id'],
+      ),
+      productNameSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}product_name_snapshot'],
+      )!,
+      categoryNameSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_name_snapshot'],
+      )!,
+      batchNumberSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}batch_number_snapshot'],
+      ),
+      quantity: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}quantity'],
+      )!,
+      unitPrice: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}unit_price'],
+      )!,
+      unitCostSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}unit_cost_snapshot'],
+      ),
+      lineTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}line_total'],
+      )!,
+    );
+  }
+
+  @override
+  $InvoiceProductLinesTable createAlias(String alias) {
+    return $InvoiceProductLinesTable(attachedDatabase, alias);
+  }
+}
+
+class InvoiceProductLine extends DataClass
+    implements Insertable<InvoiceProductLine> {
+  final int id;
+  final int invoiceId;
+  final int inventoryItemId;
+  final int? animalId;
+  final int? farmUnitId;
+  final String productNameSnapshot;
+  final String categoryNameSnapshot;
+  final String? batchNumberSnapshot;
+  final int quantity;
+  final double unitPrice;
+  final double? unitCostSnapshot;
+  final double lineTotal;
+  const InvoiceProductLine({
+    required this.id,
+    required this.invoiceId,
+    required this.inventoryItemId,
+    this.animalId,
+    this.farmUnitId,
+    required this.productNameSnapshot,
+    required this.categoryNameSnapshot,
+    this.batchNumberSnapshot,
+    required this.quantity,
+    required this.unitPrice,
+    this.unitCostSnapshot,
+    required this.lineTotal,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['invoice_id'] = Variable<int>(invoiceId);
+    map['inventory_item_id'] = Variable<int>(inventoryItemId);
+    if (!nullToAbsent || animalId != null) {
+      map['animal_id'] = Variable<int>(animalId);
+    }
+    if (!nullToAbsent || farmUnitId != null) {
+      map['farm_unit_id'] = Variable<int>(farmUnitId);
+    }
+    map['product_name_snapshot'] = Variable<String>(productNameSnapshot);
+    map['category_name_snapshot'] = Variable<String>(categoryNameSnapshot);
+    if (!nullToAbsent || batchNumberSnapshot != null) {
+      map['batch_number_snapshot'] = Variable<String>(batchNumberSnapshot);
+    }
+    map['quantity'] = Variable<int>(quantity);
+    map['unit_price'] = Variable<double>(unitPrice);
+    if (!nullToAbsent || unitCostSnapshot != null) {
+      map['unit_cost_snapshot'] = Variable<double>(unitCostSnapshot);
+    }
+    map['line_total'] = Variable<double>(lineTotal);
+    return map;
+  }
+
+  InvoiceProductLinesCompanion toCompanion(bool nullToAbsent) {
+    return InvoiceProductLinesCompanion(
+      id: Value(id),
+      invoiceId: Value(invoiceId),
+      inventoryItemId: Value(inventoryItemId),
+      animalId: animalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(animalId),
+      farmUnitId: farmUnitId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(farmUnitId),
+      productNameSnapshot: Value(productNameSnapshot),
+      categoryNameSnapshot: Value(categoryNameSnapshot),
+      batchNumberSnapshot: batchNumberSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(batchNumberSnapshot),
+      quantity: Value(quantity),
+      unitPrice: Value(unitPrice),
+      unitCostSnapshot: unitCostSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unitCostSnapshot),
+      lineTotal: Value(lineTotal),
+    );
+  }
+
+  factory InvoiceProductLine.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return InvoiceProductLine(
+      id: serializer.fromJson<int>(json['id']),
+      invoiceId: serializer.fromJson<int>(json['invoiceId']),
+      inventoryItemId: serializer.fromJson<int>(json['inventoryItemId']),
+      animalId: serializer.fromJson<int?>(json['animalId']),
+      farmUnitId: serializer.fromJson<int?>(json['farmUnitId']),
+      productNameSnapshot: serializer.fromJson<String>(
+        json['productNameSnapshot'],
+      ),
+      categoryNameSnapshot: serializer.fromJson<String>(
+        json['categoryNameSnapshot'],
+      ),
+      batchNumberSnapshot: serializer.fromJson<String?>(
+        json['batchNumberSnapshot'],
+      ),
+      quantity: serializer.fromJson<int>(json['quantity']),
+      unitPrice: serializer.fromJson<double>(json['unitPrice']),
+      unitCostSnapshot: serializer.fromJson<double?>(json['unitCostSnapshot']),
+      lineTotal: serializer.fromJson<double>(json['lineTotal']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'invoiceId': serializer.toJson<int>(invoiceId),
+      'inventoryItemId': serializer.toJson<int>(inventoryItemId),
+      'animalId': serializer.toJson<int?>(animalId),
+      'farmUnitId': serializer.toJson<int?>(farmUnitId),
+      'productNameSnapshot': serializer.toJson<String>(productNameSnapshot),
+      'categoryNameSnapshot': serializer.toJson<String>(categoryNameSnapshot),
+      'batchNumberSnapshot': serializer.toJson<String?>(batchNumberSnapshot),
+      'quantity': serializer.toJson<int>(quantity),
+      'unitPrice': serializer.toJson<double>(unitPrice),
+      'unitCostSnapshot': serializer.toJson<double?>(unitCostSnapshot),
+      'lineTotal': serializer.toJson<double>(lineTotal),
+    };
+  }
+
+  InvoiceProductLine copyWith({
+    int? id,
+    int? invoiceId,
+    int? inventoryItemId,
+    Value<int?> animalId = const Value.absent(),
+    Value<int?> farmUnitId = const Value.absent(),
+    String? productNameSnapshot,
+    String? categoryNameSnapshot,
+    Value<String?> batchNumberSnapshot = const Value.absent(),
+    int? quantity,
+    double? unitPrice,
+    Value<double?> unitCostSnapshot = const Value.absent(),
+    double? lineTotal,
+  }) => InvoiceProductLine(
+    id: id ?? this.id,
+    invoiceId: invoiceId ?? this.invoiceId,
+    inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+    animalId: animalId.present ? animalId.value : this.animalId,
+    farmUnitId: farmUnitId.present ? farmUnitId.value : this.farmUnitId,
+    productNameSnapshot: productNameSnapshot ?? this.productNameSnapshot,
+    categoryNameSnapshot: categoryNameSnapshot ?? this.categoryNameSnapshot,
+    batchNumberSnapshot: batchNumberSnapshot.present
+        ? batchNumberSnapshot.value
+        : this.batchNumberSnapshot,
+    quantity: quantity ?? this.quantity,
+    unitPrice: unitPrice ?? this.unitPrice,
+    unitCostSnapshot: unitCostSnapshot.present
+        ? unitCostSnapshot.value
+        : this.unitCostSnapshot,
+    lineTotal: lineTotal ?? this.lineTotal,
+  );
+  InvoiceProductLine copyWithCompanion(InvoiceProductLinesCompanion data) {
+    return InvoiceProductLine(
+      id: data.id.present ? data.id.value : this.id,
+      invoiceId: data.invoiceId.present ? data.invoiceId.value : this.invoiceId,
+      inventoryItemId: data.inventoryItemId.present
+          ? data.inventoryItemId.value
+          : this.inventoryItemId,
+      animalId: data.animalId.present ? data.animalId.value : this.animalId,
+      farmUnitId: data.farmUnitId.present
+          ? data.farmUnitId.value
+          : this.farmUnitId,
+      productNameSnapshot: data.productNameSnapshot.present
+          ? data.productNameSnapshot.value
+          : this.productNameSnapshot,
+      categoryNameSnapshot: data.categoryNameSnapshot.present
+          ? data.categoryNameSnapshot.value
+          : this.categoryNameSnapshot,
+      batchNumberSnapshot: data.batchNumberSnapshot.present
+          ? data.batchNumberSnapshot.value
+          : this.batchNumberSnapshot,
+      quantity: data.quantity.present ? data.quantity.value : this.quantity,
+      unitPrice: data.unitPrice.present ? data.unitPrice.value : this.unitPrice,
+      unitCostSnapshot: data.unitCostSnapshot.present
+          ? data.unitCostSnapshot.value
+          : this.unitCostSnapshot,
+      lineTotal: data.lineTotal.present ? data.lineTotal.value : this.lineTotal,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InvoiceProductLine(')
+          ..write('id: $id, ')
+          ..write('invoiceId: $invoiceId, ')
+          ..write('inventoryItemId: $inventoryItemId, ')
+          ..write('animalId: $animalId, ')
+          ..write('farmUnitId: $farmUnitId, ')
+          ..write('productNameSnapshot: $productNameSnapshot, ')
+          ..write('categoryNameSnapshot: $categoryNameSnapshot, ')
+          ..write('batchNumberSnapshot: $batchNumberSnapshot, ')
+          ..write('quantity: $quantity, ')
+          ..write('unitPrice: $unitPrice, ')
+          ..write('unitCostSnapshot: $unitCostSnapshot, ')
+          ..write('lineTotal: $lineTotal')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    invoiceId,
+    inventoryItemId,
+    animalId,
+    farmUnitId,
+    productNameSnapshot,
+    categoryNameSnapshot,
+    batchNumberSnapshot,
+    quantity,
+    unitPrice,
+    unitCostSnapshot,
+    lineTotal,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is InvoiceProductLine &&
+          other.id == this.id &&
+          other.invoiceId == this.invoiceId &&
+          other.inventoryItemId == this.inventoryItemId &&
+          other.animalId == this.animalId &&
+          other.farmUnitId == this.farmUnitId &&
+          other.productNameSnapshot == this.productNameSnapshot &&
+          other.categoryNameSnapshot == this.categoryNameSnapshot &&
+          other.batchNumberSnapshot == this.batchNumberSnapshot &&
+          other.quantity == this.quantity &&
+          other.unitPrice == this.unitPrice &&
+          other.unitCostSnapshot == this.unitCostSnapshot &&
+          other.lineTotal == this.lineTotal);
+}
+
+class InvoiceProductLinesCompanion extends UpdateCompanion<InvoiceProductLine> {
+  final Value<int> id;
+  final Value<int> invoiceId;
+  final Value<int> inventoryItemId;
+  final Value<int?> animalId;
+  final Value<int?> farmUnitId;
+  final Value<String> productNameSnapshot;
+  final Value<String> categoryNameSnapshot;
+  final Value<String?> batchNumberSnapshot;
+  final Value<int> quantity;
+  final Value<double> unitPrice;
+  final Value<double?> unitCostSnapshot;
+  final Value<double> lineTotal;
+  const InvoiceProductLinesCompanion({
+    this.id = const Value.absent(),
+    this.invoiceId = const Value.absent(),
+    this.inventoryItemId = const Value.absent(),
+    this.animalId = const Value.absent(),
+    this.farmUnitId = const Value.absent(),
+    this.productNameSnapshot = const Value.absent(),
+    this.categoryNameSnapshot = const Value.absent(),
+    this.batchNumberSnapshot = const Value.absent(),
+    this.quantity = const Value.absent(),
+    this.unitPrice = const Value.absent(),
+    this.unitCostSnapshot = const Value.absent(),
+    this.lineTotal = const Value.absent(),
+  });
+  InvoiceProductLinesCompanion.insert({
+    this.id = const Value.absent(),
+    required int invoiceId,
+    required int inventoryItemId,
+    this.animalId = const Value.absent(),
+    this.farmUnitId = const Value.absent(),
+    required String productNameSnapshot,
+    required String categoryNameSnapshot,
+    this.batchNumberSnapshot = const Value.absent(),
+    required int quantity,
+    required double unitPrice,
+    this.unitCostSnapshot = const Value.absent(),
+    required double lineTotal,
+  }) : invoiceId = Value(invoiceId),
+       inventoryItemId = Value(inventoryItemId),
+       productNameSnapshot = Value(productNameSnapshot),
+       categoryNameSnapshot = Value(categoryNameSnapshot),
+       quantity = Value(quantity),
+       unitPrice = Value(unitPrice),
+       lineTotal = Value(lineTotal);
+  static Insertable<InvoiceProductLine> custom({
+    Expression<int>? id,
+    Expression<int>? invoiceId,
+    Expression<int>? inventoryItemId,
+    Expression<int>? animalId,
+    Expression<int>? farmUnitId,
+    Expression<String>? productNameSnapshot,
+    Expression<String>? categoryNameSnapshot,
+    Expression<String>? batchNumberSnapshot,
+    Expression<int>? quantity,
+    Expression<double>? unitPrice,
+    Expression<double>? unitCostSnapshot,
+    Expression<double>? lineTotal,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (invoiceId != null) 'invoice_id': invoiceId,
+      if (inventoryItemId != null) 'inventory_item_id': inventoryItemId,
+      if (animalId != null) 'animal_id': animalId,
+      if (farmUnitId != null) 'farm_unit_id': farmUnitId,
+      if (productNameSnapshot != null)
+        'product_name_snapshot': productNameSnapshot,
+      if (categoryNameSnapshot != null)
+        'category_name_snapshot': categoryNameSnapshot,
+      if (batchNumberSnapshot != null)
+        'batch_number_snapshot': batchNumberSnapshot,
+      if (quantity != null) 'quantity': quantity,
+      if (unitPrice != null) 'unit_price': unitPrice,
+      if (unitCostSnapshot != null) 'unit_cost_snapshot': unitCostSnapshot,
+      if (lineTotal != null) 'line_total': lineTotal,
+    });
+  }
+
+  InvoiceProductLinesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? invoiceId,
+    Value<int>? inventoryItemId,
+    Value<int?>? animalId,
+    Value<int?>? farmUnitId,
+    Value<String>? productNameSnapshot,
+    Value<String>? categoryNameSnapshot,
+    Value<String?>? batchNumberSnapshot,
+    Value<int>? quantity,
+    Value<double>? unitPrice,
+    Value<double?>? unitCostSnapshot,
+    Value<double>? lineTotal,
+  }) {
+    return InvoiceProductLinesCompanion(
+      id: id ?? this.id,
+      invoiceId: invoiceId ?? this.invoiceId,
+      inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+      animalId: animalId ?? this.animalId,
+      farmUnitId: farmUnitId ?? this.farmUnitId,
+      productNameSnapshot: productNameSnapshot ?? this.productNameSnapshot,
+      categoryNameSnapshot: categoryNameSnapshot ?? this.categoryNameSnapshot,
+      batchNumberSnapshot: batchNumberSnapshot ?? this.batchNumberSnapshot,
+      quantity: quantity ?? this.quantity,
+      unitPrice: unitPrice ?? this.unitPrice,
+      unitCostSnapshot: unitCostSnapshot ?? this.unitCostSnapshot,
+      lineTotal: lineTotal ?? this.lineTotal,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (invoiceId.present) {
+      map['invoice_id'] = Variable<int>(invoiceId.value);
+    }
+    if (inventoryItemId.present) {
+      map['inventory_item_id'] = Variable<int>(inventoryItemId.value);
+    }
+    if (animalId.present) {
+      map['animal_id'] = Variable<int>(animalId.value);
+    }
+    if (farmUnitId.present) {
+      map['farm_unit_id'] = Variable<int>(farmUnitId.value);
+    }
+    if (productNameSnapshot.present) {
+      map['product_name_snapshot'] = Variable<String>(
+        productNameSnapshot.value,
+      );
+    }
+    if (categoryNameSnapshot.present) {
+      map['category_name_snapshot'] = Variable<String>(
+        categoryNameSnapshot.value,
+      );
+    }
+    if (batchNumberSnapshot.present) {
+      map['batch_number_snapshot'] = Variable<String>(
+        batchNumberSnapshot.value,
+      );
+    }
+    if (quantity.present) {
+      map['quantity'] = Variable<int>(quantity.value);
+    }
+    if (unitPrice.present) {
+      map['unit_price'] = Variable<double>(unitPrice.value);
+    }
+    if (unitCostSnapshot.present) {
+      map['unit_cost_snapshot'] = Variable<double>(unitCostSnapshot.value);
+    }
+    if (lineTotal.present) {
+      map['line_total'] = Variable<double>(lineTotal.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InvoiceProductLinesCompanion(')
+          ..write('id: $id, ')
+          ..write('invoiceId: $invoiceId, ')
+          ..write('inventoryItemId: $inventoryItemId, ')
+          ..write('animalId: $animalId, ')
+          ..write('farmUnitId: $farmUnitId, ')
+          ..write('productNameSnapshot: $productNameSnapshot, ')
+          ..write('categoryNameSnapshot: $categoryNameSnapshot, ')
+          ..write('batchNumberSnapshot: $batchNumberSnapshot, ')
+          ..write('quantity: $quantity, ')
+          ..write('unitPrice: $unitPrice, ')
+          ..write('unitCostSnapshot: $unitCostSnapshot, ')
+          ..write('lineTotal: $lineTotal')
           ..write(')'))
         .toString();
   }
@@ -43510,9 +43567,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $InvoicePaymentsTable invoicePayments = $InvoicePaymentsTable(
     this,
   );
+  late final $FarmUnitsTable farmUnits = $FarmUnitsTable(this);
   late final $InvoiceProductLinesTable invoiceProductLines =
       $InvoiceProductLinesTable(this);
-  late final $FarmUnitsTable farmUnits = $FarmUnitsTable(this);
   late final $FarmDailyRecordsTable farmDailyRecords = $FarmDailyRecordsTable(
     this,
   );
@@ -43597,8 +43654,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     appointments,
     invoices,
     invoicePayments,
-    invoiceProductLines,
     farmUnits,
+    invoiceProductLines,
     farmDailyRecords,
     farmHealthRecords,
     invoiceServiceLines,
@@ -68729,652 +68786,6 @@ typedef $$InvoicePaymentsTableProcessedTableManager =
         bool originalPaymentId,
       })
     >;
-typedef $$InvoiceProductLinesTableCreateCompanionBuilder =
-    InvoiceProductLinesCompanion Function({
-      Value<int> id,
-      required int invoiceId,
-      required int inventoryItemId,
-      Value<int?> animalId,
-      required String productNameSnapshot,
-      required String categoryNameSnapshot,
-      Value<String?> batchNumberSnapshot,
-      required int quantity,
-      required double unitPrice,
-      Value<double?> unitCostSnapshot,
-      required double lineTotal,
-    });
-typedef $$InvoiceProductLinesTableUpdateCompanionBuilder =
-    InvoiceProductLinesCompanion Function({
-      Value<int> id,
-      Value<int> invoiceId,
-      Value<int> inventoryItemId,
-      Value<int?> animalId,
-      Value<String> productNameSnapshot,
-      Value<String> categoryNameSnapshot,
-      Value<String?> batchNumberSnapshot,
-      Value<int> quantity,
-      Value<double> unitPrice,
-      Value<double?> unitCostSnapshot,
-      Value<double> lineTotal,
-    });
-
-final class $$InvoiceProductLinesTableReferences
-    extends
-        BaseReferences<
-          _$AppDatabase,
-          $InvoiceProductLinesTable,
-          InvoiceProductLine
-        > {
-  $$InvoiceProductLinesTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
-
-  static $InvoicesTable _invoiceIdTable(_$AppDatabase db) =>
-      db.invoices.createAlias(
-        $_aliasNameGenerator(db.invoiceProductLines.invoiceId, db.invoices.id),
-      );
-
-  $$InvoicesTableProcessedTableManager get invoiceId {
-    final $_column = $_itemColumn<int>('invoice_id')!;
-
-    final manager = $$InvoicesTableTableManager(
-      $_db,
-      $_db.invoices,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_invoiceIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $InventoryItemsTable _inventoryItemIdTable(_$AppDatabase db) =>
-      db.inventoryItems.createAlias(
-        $_aliasNameGenerator(
-          db.invoiceProductLines.inventoryItemId,
-          db.inventoryItems.id,
-        ),
-      );
-
-  $$InventoryItemsTableProcessedTableManager get inventoryItemId {
-    final $_column = $_itemColumn<int>('inventory_item_id')!;
-
-    final manager = $$InventoryItemsTableTableManager(
-      $_db,
-      $_db.inventoryItems,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_inventoryItemIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $AnimalsTable _animalIdTable(_$AppDatabase db) =>
-      db.animals.createAlias(
-        $_aliasNameGenerator(db.invoiceProductLines.animalId, db.animals.id),
-      );
-
-  $$AnimalsTableProcessedTableManager? get animalId {
-    final $_column = $_itemColumn<int>('animal_id');
-    if ($_column == null) return null;
-    final manager = $$AnimalsTableTableManager(
-      $_db,
-      $_db.animals,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_animalIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-}
-
-class $$InvoiceProductLinesTableFilterComposer
-    extends Composer<_$AppDatabase, $InvoiceProductLinesTable> {
-  $$InvoiceProductLinesTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get productNameSnapshot => $composableBuilder(
-    column: $table.productNameSnapshot,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get categoryNameSnapshot => $composableBuilder(
-    column: $table.categoryNameSnapshot,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get batchNumberSnapshot => $composableBuilder(
-    column: $table.batchNumberSnapshot,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get quantity => $composableBuilder(
-    column: $table.quantity,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get unitPrice => $composableBuilder(
-    column: $table.unitPrice,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get unitCostSnapshot => $composableBuilder(
-    column: $table.unitCostSnapshot,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get lineTotal => $composableBuilder(
-    column: $table.lineTotal,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  $$InvoicesTableFilterComposer get invoiceId {
-    final $$InvoicesTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.invoiceId,
-      referencedTable: $db.invoices,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$InvoicesTableFilterComposer(
-            $db: $db,
-            $table: $db.invoices,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$InventoryItemsTableFilterComposer get inventoryItemId {
-    final $$InventoryItemsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.inventoryItemId,
-      referencedTable: $db.inventoryItems,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$InventoryItemsTableFilterComposer(
-            $db: $db,
-            $table: $db.inventoryItems,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AnimalsTableFilterComposer get animalId {
-    final $$AnimalsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.animalId,
-      referencedTable: $db.animals,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AnimalsTableFilterComposer(
-            $db: $db,
-            $table: $db.animals,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$InvoiceProductLinesTableOrderingComposer
-    extends Composer<_$AppDatabase, $InvoiceProductLinesTable> {
-  $$InvoiceProductLinesTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get productNameSnapshot => $composableBuilder(
-    column: $table.productNameSnapshot,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get categoryNameSnapshot => $composableBuilder(
-    column: $table.categoryNameSnapshot,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get batchNumberSnapshot => $composableBuilder(
-    column: $table.batchNumberSnapshot,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get quantity => $composableBuilder(
-    column: $table.quantity,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get unitPrice => $composableBuilder(
-    column: $table.unitPrice,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get unitCostSnapshot => $composableBuilder(
-    column: $table.unitCostSnapshot,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get lineTotal => $composableBuilder(
-    column: $table.lineTotal,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  $$InvoicesTableOrderingComposer get invoiceId {
-    final $$InvoicesTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.invoiceId,
-      referencedTable: $db.invoices,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$InvoicesTableOrderingComposer(
-            $db: $db,
-            $table: $db.invoices,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$InventoryItemsTableOrderingComposer get inventoryItemId {
-    final $$InventoryItemsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.inventoryItemId,
-      referencedTable: $db.inventoryItems,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$InventoryItemsTableOrderingComposer(
-            $db: $db,
-            $table: $db.inventoryItems,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AnimalsTableOrderingComposer get animalId {
-    final $$AnimalsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.animalId,
-      referencedTable: $db.animals,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AnimalsTableOrderingComposer(
-            $db: $db,
-            $table: $db.animals,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$InvoiceProductLinesTableAnnotationComposer
-    extends Composer<_$AppDatabase, $InvoiceProductLinesTable> {
-  $$InvoiceProductLinesTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get productNameSnapshot => $composableBuilder(
-    column: $table.productNameSnapshot,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get categoryNameSnapshot => $composableBuilder(
-    column: $table.categoryNameSnapshot,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get batchNumberSnapshot => $composableBuilder(
-    column: $table.batchNumberSnapshot,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get quantity =>
-      $composableBuilder(column: $table.quantity, builder: (column) => column);
-
-  GeneratedColumn<double> get unitPrice =>
-      $composableBuilder(column: $table.unitPrice, builder: (column) => column);
-
-  GeneratedColumn<double> get unitCostSnapshot => $composableBuilder(
-    column: $table.unitCostSnapshot,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<double> get lineTotal =>
-      $composableBuilder(column: $table.lineTotal, builder: (column) => column);
-
-  $$InvoicesTableAnnotationComposer get invoiceId {
-    final $$InvoicesTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.invoiceId,
-      referencedTable: $db.invoices,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$InvoicesTableAnnotationComposer(
-            $db: $db,
-            $table: $db.invoices,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$InventoryItemsTableAnnotationComposer get inventoryItemId {
-    final $$InventoryItemsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.inventoryItemId,
-      referencedTable: $db.inventoryItems,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$InventoryItemsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.inventoryItems,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$AnimalsTableAnnotationComposer get animalId {
-    final $$AnimalsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.animalId,
-      referencedTable: $db.animals,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$AnimalsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.animals,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$InvoiceProductLinesTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $InvoiceProductLinesTable,
-          InvoiceProductLine,
-          $$InvoiceProductLinesTableFilterComposer,
-          $$InvoiceProductLinesTableOrderingComposer,
-          $$InvoiceProductLinesTableAnnotationComposer,
-          $$InvoiceProductLinesTableCreateCompanionBuilder,
-          $$InvoiceProductLinesTableUpdateCompanionBuilder,
-          (InvoiceProductLine, $$InvoiceProductLinesTableReferences),
-          InvoiceProductLine,
-          PrefetchHooks Function({
-            bool invoiceId,
-            bool inventoryItemId,
-            bool animalId,
-          })
-        > {
-  $$InvoiceProductLinesTableTableManager(
-    _$AppDatabase db,
-    $InvoiceProductLinesTable table,
-  ) : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$InvoiceProductLinesTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$InvoiceProductLinesTableOrderingComposer(
-                $db: db,
-                $table: table,
-              ),
-          createComputedFieldComposer: () =>
-              $$InvoiceProductLinesTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<int> invoiceId = const Value.absent(),
-                Value<int> inventoryItemId = const Value.absent(),
-                Value<int?> animalId = const Value.absent(),
-                Value<String> productNameSnapshot = const Value.absent(),
-                Value<String> categoryNameSnapshot = const Value.absent(),
-                Value<String?> batchNumberSnapshot = const Value.absent(),
-                Value<int> quantity = const Value.absent(),
-                Value<double> unitPrice = const Value.absent(),
-                Value<double?> unitCostSnapshot = const Value.absent(),
-                Value<double> lineTotal = const Value.absent(),
-              }) => InvoiceProductLinesCompanion(
-                id: id,
-                invoiceId: invoiceId,
-                inventoryItemId: inventoryItemId,
-                animalId: animalId,
-                productNameSnapshot: productNameSnapshot,
-                categoryNameSnapshot: categoryNameSnapshot,
-                batchNumberSnapshot: batchNumberSnapshot,
-                quantity: quantity,
-                unitPrice: unitPrice,
-                unitCostSnapshot: unitCostSnapshot,
-                lineTotal: lineTotal,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required int invoiceId,
-                required int inventoryItemId,
-                Value<int?> animalId = const Value.absent(),
-                required String productNameSnapshot,
-                required String categoryNameSnapshot,
-                Value<String?> batchNumberSnapshot = const Value.absent(),
-                required int quantity,
-                required double unitPrice,
-                Value<double?> unitCostSnapshot = const Value.absent(),
-                required double lineTotal,
-              }) => InvoiceProductLinesCompanion.insert(
-                id: id,
-                invoiceId: invoiceId,
-                inventoryItemId: inventoryItemId,
-                animalId: animalId,
-                productNameSnapshot: productNameSnapshot,
-                categoryNameSnapshot: categoryNameSnapshot,
-                batchNumberSnapshot: batchNumberSnapshot,
-                quantity: quantity,
-                unitPrice: unitPrice,
-                unitCostSnapshot: unitCostSnapshot,
-                lineTotal: lineTotal,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$InvoiceProductLinesTableReferences(db, table, e),
-                ),
-              )
-              .toList(),
-          prefetchHooksCallback:
-              ({invoiceId = false, inventoryItemId = false, animalId = false}) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (invoiceId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.invoiceId,
-                                    referencedTable:
-                                        $$InvoiceProductLinesTableReferences
-                                            ._invoiceIdTable(db),
-                                    referencedColumn:
-                                        $$InvoiceProductLinesTableReferences
-                                            ._invoiceIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
-                        }
-                        if (inventoryItemId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.inventoryItemId,
-                                    referencedTable:
-                                        $$InvoiceProductLinesTableReferences
-                                            ._inventoryItemIdTable(db),
-                                    referencedColumn:
-                                        $$InvoiceProductLinesTableReferences
-                                            ._inventoryItemIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
-                        }
-                        if (animalId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.animalId,
-                                    referencedTable:
-                                        $$InvoiceProductLinesTableReferences
-                                            ._animalIdTable(db),
-                                    referencedColumn:
-                                        $$InvoiceProductLinesTableReferences
-                                            ._animalIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
-                        }
-
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [];
-                  },
-                );
-              },
-        ),
-      );
-}
-
-typedef $$InvoiceProductLinesTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $InvoiceProductLinesTable,
-      InvoiceProductLine,
-      $$InvoiceProductLinesTableFilterComposer,
-      $$InvoiceProductLinesTableOrderingComposer,
-      $$InvoiceProductLinesTableAnnotationComposer,
-      $$InvoiceProductLinesTableCreateCompanionBuilder,
-      $$InvoiceProductLinesTableUpdateCompanionBuilder,
-      (InvoiceProductLine, $$InvoiceProductLinesTableReferences),
-      InvoiceProductLine,
-      PrefetchHooks Function({
-        bool invoiceId,
-        bool inventoryItemId,
-        bool animalId,
-      })
-    >;
 typedef $$FarmUnitsTableCreateCompanionBuilder =
     FarmUnitsCompanion Function({
       Value<int> id,
@@ -69471,6 +68882,33 @@ final class $$FarmUnitsTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $InvoiceProductLinesTable,
+    List<InvoiceProductLine>
+  >
+  _invoiceProductLinesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.invoiceProductLines,
+        aliasName: $_aliasNameGenerator(
+          db.farmUnits.id,
+          db.invoiceProductLines.farmUnitId,
+        ),
+      );
+
+  $$InvoiceProductLinesTableProcessedTableManager get invoiceProductLinesRefs {
+    final manager = $$InvoiceProductLinesTableTableManager(
+      $_db,
+      $_db.invoiceProductLines,
+    ).filter((f) => f.farmUnitId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _invoiceProductLinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 
@@ -69791,6 +69229,31 @@ class $$FarmUnitsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> invoiceProductLinesRefs(
+    Expression<bool> Function($$InvoiceProductLinesTableFilterComposer f) f,
+  ) {
+    final $$InvoiceProductLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.invoiceProductLines,
+      getReferencedColumn: (t) => t.farmUnitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoiceProductLinesTableFilterComposer(
+            $db: $db,
+            $table: $db.invoiceProductLines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 
   Expression<bool> farmHealthRecordsRefs(
@@ -70235,6 +69698,32 @@ class $$FarmUnitsTableAnnotationComposer
     return composer;
   }
 
+  Expression<T> invoiceProductLinesRefs<T extends Object>(
+    Expression<T> Function($$InvoiceProductLinesTableAnnotationComposer a) f,
+  ) {
+    final $$InvoiceProductLinesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.invoiceProductLines,
+          getReferencedColumn: (t) => t.farmUnitId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$InvoiceProductLinesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.invoiceProductLines,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> farmHealthRecordsRefs<T extends Object>(
     Expression<T> Function($$FarmHealthRecordsTableAnnotationComposer a) f,
   ) {
@@ -70434,6 +69923,7 @@ class $$FarmUnitsTableTableManager
             bool clinicId,
             bool farmId,
             bool createdByUserId,
+            bool invoiceProductLinesRefs,
             bool farmHealthRecordsRefs,
             bool invoiceServiceLinesRefs,
             bool farmUnitPopulationsRefs,
@@ -70539,6 +70029,7 @@ class $$FarmUnitsTableTableManager
                 clinicId = false,
                 farmId = false,
                 createdByUserId = false,
+                invoiceProductLinesRefs = false,
                 farmHealthRecordsRefs = false,
                 invoiceServiceLinesRefs = false,
                 farmUnitPopulationsRefs = false,
@@ -70550,6 +70041,7 @@ class $$FarmUnitsTableTableManager
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (invoiceProductLinesRefs) db.invoiceProductLines,
                     if (farmHealthRecordsRefs) db.farmHealthRecords,
                     if (invoiceServiceLinesRefs) db.invoiceServiceLines,
                     if (farmUnitPopulationsRefs) db.farmUnitPopulations,
@@ -70618,6 +70110,27 @@ class $$FarmUnitsTableTableManager
                       },
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (invoiceProductLinesRefs)
+                        await $_getPrefetchedData<
+                          FarmUnit,
+                          $FarmUnitsTable,
+                          InvoiceProductLine
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FarmUnitsTableReferences
+                              ._invoiceProductLinesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FarmUnitsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).invoiceProductLinesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.farmUnitId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (farmHealthRecordsRefs)
                         await $_getPrefetchedData<
                           FarmUnit,
@@ -70789,6 +70302,7 @@ typedef $$FarmUnitsTableProcessedTableManager =
         bool clinicId,
         bool farmId,
         bool createdByUserId,
+        bool invoiceProductLinesRefs,
         bool farmHealthRecordsRefs,
         bool invoiceServiceLinesRefs,
         bool farmUnitPopulationsRefs,
@@ -70796,6 +70310,771 @@ typedef $$FarmUnitsTableProcessedTableManager =
         bool farmFeedRecordsRefs,
         bool farmEventsRefs,
         bool farmReproductionRecordsRefs,
+      })
+    >;
+typedef $$InvoiceProductLinesTableCreateCompanionBuilder =
+    InvoiceProductLinesCompanion Function({
+      Value<int> id,
+      required int invoiceId,
+      required int inventoryItemId,
+      Value<int?> animalId,
+      Value<int?> farmUnitId,
+      required String productNameSnapshot,
+      required String categoryNameSnapshot,
+      Value<String?> batchNumberSnapshot,
+      required int quantity,
+      required double unitPrice,
+      Value<double?> unitCostSnapshot,
+      required double lineTotal,
+    });
+typedef $$InvoiceProductLinesTableUpdateCompanionBuilder =
+    InvoiceProductLinesCompanion Function({
+      Value<int> id,
+      Value<int> invoiceId,
+      Value<int> inventoryItemId,
+      Value<int?> animalId,
+      Value<int?> farmUnitId,
+      Value<String> productNameSnapshot,
+      Value<String> categoryNameSnapshot,
+      Value<String?> batchNumberSnapshot,
+      Value<int> quantity,
+      Value<double> unitPrice,
+      Value<double?> unitCostSnapshot,
+      Value<double> lineTotal,
+    });
+
+final class $$InvoiceProductLinesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $InvoiceProductLinesTable,
+          InvoiceProductLine
+        > {
+  $$InvoiceProductLinesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $InvoicesTable _invoiceIdTable(_$AppDatabase db) =>
+      db.invoices.createAlias(
+        $_aliasNameGenerator(db.invoiceProductLines.invoiceId, db.invoices.id),
+      );
+
+  $$InvoicesTableProcessedTableManager get invoiceId {
+    final $_column = $_itemColumn<int>('invoice_id')!;
+
+    final manager = $$InvoicesTableTableManager(
+      $_db,
+      $_db.invoices,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_invoiceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $InventoryItemsTable _inventoryItemIdTable(_$AppDatabase db) =>
+      db.inventoryItems.createAlias(
+        $_aliasNameGenerator(
+          db.invoiceProductLines.inventoryItemId,
+          db.inventoryItems.id,
+        ),
+      );
+
+  $$InventoryItemsTableProcessedTableManager get inventoryItemId {
+    final $_column = $_itemColumn<int>('inventory_item_id')!;
+
+    final manager = $$InventoryItemsTableTableManager(
+      $_db,
+      $_db.inventoryItems,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_inventoryItemIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AnimalsTable _animalIdTable(_$AppDatabase db) =>
+      db.animals.createAlias(
+        $_aliasNameGenerator(db.invoiceProductLines.animalId, db.animals.id),
+      );
+
+  $$AnimalsTableProcessedTableManager? get animalId {
+    final $_column = $_itemColumn<int>('animal_id');
+    if ($_column == null) return null;
+    final manager = $$AnimalsTableTableManager(
+      $_db,
+      $_db.animals,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_animalIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FarmUnitsTable _farmUnitIdTable(_$AppDatabase db) =>
+      db.farmUnits.createAlias(
+        $_aliasNameGenerator(
+          db.invoiceProductLines.farmUnitId,
+          db.farmUnits.id,
+        ),
+      );
+
+  $$FarmUnitsTableProcessedTableManager? get farmUnitId {
+    final $_column = $_itemColumn<int>('farm_unit_id');
+    if ($_column == null) return null;
+    final manager = $$FarmUnitsTableTableManager(
+      $_db,
+      $_db.farmUnits,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_farmUnitIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$InvoiceProductLinesTableFilterComposer
+    extends Composer<_$AppDatabase, $InvoiceProductLinesTable> {
+  $$InvoiceProductLinesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get productNameSnapshot => $composableBuilder(
+    column: $table.productNameSnapshot,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryNameSnapshot => $composableBuilder(
+    column: $table.categoryNameSnapshot,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get batchNumberSnapshot => $composableBuilder(
+    column: $table.batchNumberSnapshot,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get quantity => $composableBuilder(
+    column: $table.quantity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get unitPrice => $composableBuilder(
+    column: $table.unitPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get unitCostSnapshot => $composableBuilder(
+    column: $table.unitCostSnapshot,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get lineTotal => $composableBuilder(
+    column: $table.lineTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$InvoicesTableFilterComposer get invoiceId {
+    final $$InvoicesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.invoiceId,
+      referencedTable: $db.invoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoicesTableFilterComposer(
+            $db: $db,
+            $table: $db.invoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$InventoryItemsTableFilterComposer get inventoryItemId {
+    final $$InventoryItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.inventoryItemId,
+      referencedTable: $db.inventoryItems,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InventoryItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.inventoryItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AnimalsTableFilterComposer get animalId {
+    final $$AnimalsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableFilterComposer(
+            $db: $db,
+            $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmUnitsTableFilterComposer get farmUnitId {
+    final $$FarmUnitsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableFilterComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$InvoiceProductLinesTableOrderingComposer
+    extends Composer<_$AppDatabase, $InvoiceProductLinesTable> {
+  $$InvoiceProductLinesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get productNameSnapshot => $composableBuilder(
+    column: $table.productNameSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categoryNameSnapshot => $composableBuilder(
+    column: $table.categoryNameSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get batchNumberSnapshot => $composableBuilder(
+    column: $table.batchNumberSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get quantity => $composableBuilder(
+    column: $table.quantity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get unitPrice => $composableBuilder(
+    column: $table.unitPrice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get unitCostSnapshot => $composableBuilder(
+    column: $table.unitCostSnapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get lineTotal => $composableBuilder(
+    column: $table.lineTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$InvoicesTableOrderingComposer get invoiceId {
+    final $$InvoicesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.invoiceId,
+      referencedTable: $db.invoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoicesTableOrderingComposer(
+            $db: $db,
+            $table: $db.invoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$InventoryItemsTableOrderingComposer get inventoryItemId {
+    final $$InventoryItemsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.inventoryItemId,
+      referencedTable: $db.inventoryItems,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InventoryItemsTableOrderingComposer(
+            $db: $db,
+            $table: $db.inventoryItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AnimalsTableOrderingComposer get animalId {
+    final $$AnimalsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableOrderingComposer(
+            $db: $db,
+            $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmUnitsTableOrderingComposer get farmUnitId {
+    final $$FarmUnitsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableOrderingComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$InvoiceProductLinesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $InvoiceProductLinesTable> {
+  $$InvoiceProductLinesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get productNameSnapshot => $composableBuilder(
+    column: $table.productNameSnapshot,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get categoryNameSnapshot => $composableBuilder(
+    column: $table.categoryNameSnapshot,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get batchNumberSnapshot => $composableBuilder(
+    column: $table.batchNumberSnapshot,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get quantity =>
+      $composableBuilder(column: $table.quantity, builder: (column) => column);
+
+  GeneratedColumn<double> get unitPrice =>
+      $composableBuilder(column: $table.unitPrice, builder: (column) => column);
+
+  GeneratedColumn<double> get unitCostSnapshot => $composableBuilder(
+    column: $table.unitCostSnapshot,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get lineTotal =>
+      $composableBuilder(column: $table.lineTotal, builder: (column) => column);
+
+  $$InvoicesTableAnnotationComposer get invoiceId {
+    final $$InvoicesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.invoiceId,
+      referencedTable: $db.invoices,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InvoicesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.invoices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$InventoryItemsTableAnnotationComposer get inventoryItemId {
+    final $$InventoryItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.inventoryItemId,
+      referencedTable: $db.inventoryItems,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$InventoryItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.inventoryItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AnimalsTableAnnotationComposer get animalId {
+    final $$AnimalsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.animalId,
+      referencedTable: $db.animals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnimalsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.animals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FarmUnitsTableAnnotationComposer get farmUnitId {
+    final $$FarmUnitsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.farmUnitId,
+      referencedTable: $db.farmUnits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FarmUnitsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.farmUnits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$InvoiceProductLinesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $InvoiceProductLinesTable,
+          InvoiceProductLine,
+          $$InvoiceProductLinesTableFilterComposer,
+          $$InvoiceProductLinesTableOrderingComposer,
+          $$InvoiceProductLinesTableAnnotationComposer,
+          $$InvoiceProductLinesTableCreateCompanionBuilder,
+          $$InvoiceProductLinesTableUpdateCompanionBuilder,
+          (InvoiceProductLine, $$InvoiceProductLinesTableReferences),
+          InvoiceProductLine,
+          PrefetchHooks Function({
+            bool invoiceId,
+            bool inventoryItemId,
+            bool animalId,
+            bool farmUnitId,
+          })
+        > {
+  $$InvoiceProductLinesTableTableManager(
+    _$AppDatabase db,
+    $InvoiceProductLinesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$InvoiceProductLinesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$InvoiceProductLinesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$InvoiceProductLinesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> invoiceId = const Value.absent(),
+                Value<int> inventoryItemId = const Value.absent(),
+                Value<int?> animalId = const Value.absent(),
+                Value<int?> farmUnitId = const Value.absent(),
+                Value<String> productNameSnapshot = const Value.absent(),
+                Value<String> categoryNameSnapshot = const Value.absent(),
+                Value<String?> batchNumberSnapshot = const Value.absent(),
+                Value<int> quantity = const Value.absent(),
+                Value<double> unitPrice = const Value.absent(),
+                Value<double?> unitCostSnapshot = const Value.absent(),
+                Value<double> lineTotal = const Value.absent(),
+              }) => InvoiceProductLinesCompanion(
+                id: id,
+                invoiceId: invoiceId,
+                inventoryItemId: inventoryItemId,
+                animalId: animalId,
+                farmUnitId: farmUnitId,
+                productNameSnapshot: productNameSnapshot,
+                categoryNameSnapshot: categoryNameSnapshot,
+                batchNumberSnapshot: batchNumberSnapshot,
+                quantity: quantity,
+                unitPrice: unitPrice,
+                unitCostSnapshot: unitCostSnapshot,
+                lineTotal: lineTotal,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int invoiceId,
+                required int inventoryItemId,
+                Value<int?> animalId = const Value.absent(),
+                Value<int?> farmUnitId = const Value.absent(),
+                required String productNameSnapshot,
+                required String categoryNameSnapshot,
+                Value<String?> batchNumberSnapshot = const Value.absent(),
+                required int quantity,
+                required double unitPrice,
+                Value<double?> unitCostSnapshot = const Value.absent(),
+                required double lineTotal,
+              }) => InvoiceProductLinesCompanion.insert(
+                id: id,
+                invoiceId: invoiceId,
+                inventoryItemId: inventoryItemId,
+                animalId: animalId,
+                farmUnitId: farmUnitId,
+                productNameSnapshot: productNameSnapshot,
+                categoryNameSnapshot: categoryNameSnapshot,
+                batchNumberSnapshot: batchNumberSnapshot,
+                quantity: quantity,
+                unitPrice: unitPrice,
+                unitCostSnapshot: unitCostSnapshot,
+                lineTotal: lineTotal,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$InvoiceProductLinesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                invoiceId = false,
+                inventoryItemId = false,
+                animalId = false,
+                farmUnitId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (invoiceId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.invoiceId,
+                                    referencedTable:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._invoiceIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._invoiceIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (inventoryItemId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.inventoryItemId,
+                                    referencedTable:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._inventoryItemIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._inventoryItemIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (animalId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.animalId,
+                                    referencedTable:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._animalIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._animalIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (farmUnitId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.farmUnitId,
+                                    referencedTable:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._farmUnitIdTable(db),
+                                    referencedColumn:
+                                        $$InvoiceProductLinesTableReferences
+                                            ._farmUnitIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$InvoiceProductLinesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $InvoiceProductLinesTable,
+      InvoiceProductLine,
+      $$InvoiceProductLinesTableFilterComposer,
+      $$InvoiceProductLinesTableOrderingComposer,
+      $$InvoiceProductLinesTableAnnotationComposer,
+      $$InvoiceProductLinesTableCreateCompanionBuilder,
+      $$InvoiceProductLinesTableUpdateCompanionBuilder,
+      (InvoiceProductLine, $$InvoiceProductLinesTableReferences),
+      InvoiceProductLine,
+      PrefetchHooks Function({
+        bool invoiceId,
+        bool inventoryItemId,
+        bool animalId,
+        bool farmUnitId,
       })
     >;
 typedef $$FarmDailyRecordsTableCreateCompanionBuilder =
@@ -88829,10 +89108,10 @@ class $AppDatabaseManager {
       $$InvoicesTableTableManager(_db, _db.invoices);
   $$InvoicePaymentsTableTableManager get invoicePayments =>
       $$InvoicePaymentsTableTableManager(_db, _db.invoicePayments);
-  $$InvoiceProductLinesTableTableManager get invoiceProductLines =>
-      $$InvoiceProductLinesTableTableManager(_db, _db.invoiceProductLines);
   $$FarmUnitsTableTableManager get farmUnits =>
       $$FarmUnitsTableTableManager(_db, _db.farmUnits);
+  $$InvoiceProductLinesTableTableManager get invoiceProductLines =>
+      $$InvoiceProductLinesTableTableManager(_db, _db.invoiceProductLines);
   $$FarmDailyRecordsTableTableManager get farmDailyRecords =>
       $$FarmDailyRecordsTableTableManager(_db, _db.farmDailyRecords);
   $$FarmHealthRecordsTableTableManager get farmHealthRecords =>

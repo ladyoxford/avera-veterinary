@@ -17,9 +17,16 @@ import '../widgets/payment_capture_dialog.dart';
 import 'remote_billing_history_screen.dart';
 
 class BillingHistoryScreen extends ConsumerStatefulWidget {
-  const BillingHistoryScreen({super.key, this.initialInvoiceId});
+  const BillingHistoryScreen({
+    super.key,
+    this.initialInvoiceId,
+    this.initialContext,
+    this.initialFarmId,
+  });
 
-  final int? initialInvoiceId;
+  final String? initialInvoiceId;
+  final String? initialContext;
+  final String? initialFarmId;
 
   @override
   ConsumerState<BillingHistoryScreen> createState() =>
@@ -30,8 +37,19 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
   String _query = '';
   String _status = 'All';
   String _period = 'All time';
+  late String _invoiceContext;
   bool _newestFirst = true;
   bool _openedInitialInvoice = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _invoiceContext = switch (widget.initialContext?.toLowerCase()) {
+      'farm' => 'Farm',
+      'patient' || 'clinic' => 'Patient / Clinic',
+      _ => 'All',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +67,12 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
       );
     }
     if (BackendConfiguration.isConfigured) {
-      return RemoteBillingHistoryScreen(session: session);
+      return RemoteBillingHistoryScreen(
+        session: session,
+        initialInvoiceId: widget.initialInvoiceId,
+        initialContext: widget.initialContext,
+        initialFarmId: widget.initialFarmId,
+      );
     }
     final repository = ref.read(clinicRepositoryProvider);
     return Scaffold(
@@ -138,6 +161,20 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
               const SizedBox(height: AveraSpacing.compactRowGap),
               SegmentedButton<String>(
                 segments: const [
+                  ButtonSegment(value: 'All', label: Text('All')),
+                  ButtonSegment(
+                    value: 'Patient / Clinic',
+                    label: Text('Patient / Clinic'),
+                  ),
+                  ButtonSegment(value: 'Farm', label: Text('Farm')),
+                ],
+                selected: {_invoiceContext},
+                onSelectionChanged: (value) =>
+                    setState(() => _invoiceContext = value.first),
+              ),
+              const SizedBox(height: AveraSpacing.compactRowGap),
+              SegmentedButton<String>(
+                segments: const [
                   ButtonSegment(value: '30 days', label: Text('30 days')),
                   ButtonSegment(value: 'This year', label: Text('This year')),
                   ButtonSegment(value: 'All time', label: Text('All time')),
@@ -169,6 +206,13 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
   }
 
   bool _matches(BillingHistoryEntry entry) {
+    final isFarm = entry.invoice.contextType == 'farm_visit';
+    if (_invoiceContext == 'Farm' && !isFarm) return false;
+    if (_invoiceContext == 'Patient / Clinic' && isFarm) return false;
+    if (widget.initialFarmId != null &&
+        entry.invoice.farmId != widget.initialFarmId) {
+      return false;
+    }
     final state = _stateFor(entry);
     if (_status != 'All' && state.label != _status.toUpperCase()) return false;
     final now = DateTime.now();
@@ -201,9 +245,11 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
   ) {
     if (_openedInitialInvoice || widget.initialInvoiceId == null) return;
     _openedInitialInvoice = true;
-    if (entries.any((entry) => entry.invoice.id == widget.initialInvoiceId)) {
+    final invoiceId = int.tryParse(widget.initialInvoiceId ?? '');
+    if (invoiceId == null) return;
+    if (entries.any((entry) => entry.invoice.id == invoiceId)) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _openInvoice(widget.initialInvoiceId!, session),
+        (_) => _openInvoice(invoiceId, session),
       );
     }
   }

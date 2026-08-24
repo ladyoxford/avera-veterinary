@@ -536,14 +536,15 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/billing',
-          builder: (context, state) => const BillingScreen(),
+          builder: (context, state) =>
+              BillingScreen(initialFarmId: state.uri.queryParameters['farmId']),
         ),
         GoRoute(
           path: '/billing/history',
           builder: (context, state) => BillingHistoryScreen(
-            initialInvoiceId: int.tryParse(
-              state.uri.queryParameters['invoiceId'] ?? '',
-            ),
+            initialInvoiceId: state.uri.queryParameters['invoiceId'],
+            initialContext: state.uri.queryParameters['context'],
+            initialFarmId: state.uri.queryParameters['farmId'],
           ),
         ),
         GoRoute(
@@ -646,8 +647,8 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/farm-records/:farmId/invoice',
-      builder: (context, state) =>
-          FarmInvoiceScreen(farmId: state.pathParameters['farmId']!),
+      redirect: (context, state) =>
+          '/billing?farmId=${state.pathParameters['farmId']!}',
     ),
     GoRoute(
       path: '/farm-records/:farmId/units/:unitId',

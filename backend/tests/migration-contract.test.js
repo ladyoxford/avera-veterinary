@@ -731,6 +731,9 @@ test('farm invoice and package stock routes lock, scope, snapshot, and reject ex
   assert.match(routes, /unit_cost_snapshot/);
   assert.match(routes, /request\.auth\.clinicId/);
   assert.match(routes, /duplicate_invoice_source/);
+  assert.match(routes, /farm_unit_mismatch/);
+  assert.match(routes, /input\.contextType === 'farm_visit'/);
+  assert.match(routes, /farm_unit_id = ANY\(\$3::uuid\[\]\)/);
   assert.match(routes, /permissions\.inventoryAdjust/);
   assert.match(routes, /\/api\/v1\/inventory\/products\/:inventoryProductId\/units/);
   assert.match(routes, /\/api\/v1\/inventory\/products\/:inventoryProductId\/reorder-requests/);

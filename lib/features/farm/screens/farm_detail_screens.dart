@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/config/backend_configuration.dart';
@@ -30,12 +29,6 @@ class FarmOverviewScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Farm Overview'),
         actions: [
-          if (session?.can(Permissions.billingCreate) == true)
-            IconButton(
-              tooltip: 'Generate farm invoice',
-              onPressed: () => context.push('/farm-records/$farmId/invoice'),
-              icon: const Icon(Icons.receipt_long_outlined),
-            ),
           if (session?.can(Permissions.farmsCreate) == true)
             IconButton(
               tooltip: 'Edit farm',
@@ -128,6 +121,17 @@ class FarmOverviewScreen extends ConsumerWidget {
                     '/farm-records/$farmId/daily/${data.dailyRecords.first.id}',
                   ),
                 ),
+              if (session != null &&
+                  (session.can(Permissions.billingHistory) ||
+                      session.can(Permissions.billingCreate))) ...[
+                const SizedBox(height: AveraSpacing.sectionGap),
+                _FarmBillingSection(
+                  farmId: farmId,
+                  currency: session.clinic.currency,
+                  canViewHistory: session.can(Permissions.billingHistory),
+                  canCreate: session.can(Permissions.billingCreate),
+                ),
+              ],
             ],
           );
         },
@@ -136,397 +140,293 @@ class FarmOverviewScreen extends ConsumerWidget {
   }
 }
 
-class FarmInvoiceScreen extends ConsumerStatefulWidget {
-  const FarmInvoiceScreen({super.key, required this.farmId});
+class _FarmBillingSection extends ConsumerStatefulWidget {
+  const _FarmBillingSection({
+    required this.farmId,
+    required this.currency,
+    required this.canViewHistory,
+    required this.canCreate,
+  });
 
   final String farmId;
+  final String currency;
+  final bool canViewHistory;
+  final bool canCreate;
 
   @override
-  ConsumerState<FarmInvoiceScreen> createState() => _FarmInvoiceScreenState();
+  ConsumerState<_FarmBillingSection> createState() =>
+      _FarmBillingSectionState();
 }
 
-class _FarmInvoiceScreenState extends ConsumerState<FarmInvoiceScreen> {
-  static const _uuid = Uuid();
-  final _sharedFee = TextEditingController();
-  DateTime _visitDate = DateTime.now();
-  Set<int> _selected = {};
-  bool _saving = false;
-  late String _submissionId = _uuid.v4();
+class _FarmBillingSectionState extends ConsumerState<_FarmBillingSection> {
+  late Future<_FarmBillingSnapshot> _summary;
 
   @override
-  void dispose() {
-    _sharedFee.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _summary = _load();
   }
+
+  Future<_FarmBillingSnapshot> _load() async {
+    final session = ref.read(userSessionProvider).valueOrNull;
+    if (session == null || !widget.canViewHistory) {
+      return const _FarmBillingSnapshot();
+    }
+    if (!BackendConfiguration.isConfigured) {
+      final entries = await ref
+          .read(clinicRepositoryProvider)
+          .watchBillingHistory(session)
+          .first;
+      final invoices = entries
+          .where((entry) => entry.invoice.farmId == widget.farmId)
+          .map(
+            (entry) => _FarmInvoiceSummary(
+              id: '${entry.invoice.id}',
+              reference: entry.invoice.reference,
+              date: entry.invoice.createdAt,
+              total: entry.invoice.total,
+              paid: entry.invoice.amountPaid - entry.invoice.refundTotal,
+              balance: entry.invoice.balance,
+              status: entry.invoice.status,
+            ),
+          )
+          .toList();
+      return _FarmBillingSnapshot.fromInvoices(invoices);
+    }
+
+    final source = ref.read(clinicalRemoteDataSourceProvider);
+    final invoices = <_FarmInvoiceSummary>[];
+    var page = 1;
+    var hasNext = true;
+    while (hasNext) {
+      final response = await source.invoices(page: page, pageSize: 100);
+      for (final json in response.items) {
+        if (json['context_type']?.toString() != 'farm_visit' ||
+            json['farm_id']?.toString() != widget.farmId) {
+          continue;
+        }
+        invoices.add(_FarmInvoiceSummary.fromJson(json));
+      }
+      hasNext = response.hasNextPage;
+      page++;
+    }
+    return _FarmBillingSnapshot.fromInvoices(invoices);
+  }
+
+  void _reload() => setState(() => _summary = _load());
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(userSessionProvider).valueOrNull;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Generate Farm Invoice')),
-      body: session == null
-          ? const _DetailMessage(
-              title: 'Sign in required',
-              message: 'Sign in again to create this invoice.',
-            )
-          : FutureBuilder<List<FarmInvoiceCandidate>>(
-              key: ValueKey(_visitDate.toIso8601String()),
-              future: ref
-                  .read(clinicRepositoryProvider)
-                  .getFarmInvoiceCandidates(
-                    session: session,
-                    farmId: widget.farmId,
-                    visitDate: _visitDate,
-                  ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return _DetailMessage(
-                    title: 'Invoice data unavailable',
-                    message: snapshot.error.toString().replaceFirst(
-                      'Bad state: ',
-                      '',
-                    ),
-                  );
-                }
-                final candidates = snapshot.data ?? const [];
-                final availableIds = candidates
-                    .map((candidate) => candidate.record.id)
-                    .toSet();
-                _selected = _selected.intersection(availableIds);
-                final total =
-                    candidates
-                        .where(
-                          (candidate) =>
-                              _selected.contains(candidate.record.id),
-                        )
-                        .fold<double>(
-                          0,
-                          (sum, candidate) =>
-                              sum + (candidate.record.billableAmount ?? 0),
-                        ) +
-                    (double.tryParse(_sharedFee.text.trim()) ?? 0);
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(
-                    AveraSpacing.pageHorizontalPadding,
-                    AveraSpacing.pageTopPadding,
-                    AveraSpacing.pageHorizontalPadding,
-                    AveraSpacing.bottomContentClearance,
-                  ),
-                  children: [
-                    const AveraPageHeader(
-                      title: 'Farm Visit Invoice',
-                      subtitle:
-                          'Select unbilled treatments from one visit date.',
-                    ),
-                    const SizedBox(height: AveraSpacing.sectionGap),
-                    AveraSurfaceCard(
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.calendar_today_outlined),
-                        title: const Text('Visit date'),
-                        subtitle: Text(DateFormat.yMMMMd().format(_visitDate)),
-                        trailing: const Icon(Icons.chevron_right_rounded),
-                        onTap: _pickVisitDate,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const AveraSectionHeader(
+          title: 'Billing',
+          subtitle: 'Invoices, payments and outstanding farm balances.',
+        ),
+        const SizedBox(height: AveraSpacing.cardGap),
+        if (widget.canViewHistory)
+          FutureBuilder<_FarmBillingSnapshot>(
+            future: _summary,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const AveraSurfaceCard(
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return AveraSurfaceCard(
+                  child: Column(
+                    children: [
+                      const Text('Farm billing summary is unavailable.'),
+                      TextButton.icon(
+                        onPressed: _reload,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Retry'),
                       ),
-                    ),
-                    const SizedBox(height: AveraSpacing.sectionGap),
-                    AveraSectionHeader(
-                      title: 'Billable Treatments',
-                      subtitle: candidates.isEmpty
-                          ? 'No unbilled treatments with charges exist on this date.'
-                          : '${candidates.length} treatment${candidates.length == 1 ? '' : 's'} available',
-                    ),
-                    const SizedBox(height: AveraSpacing.cardGap),
-                    for (final candidate in candidates) ...[
-                      Card(
-                        margin: EdgeInsets.zero,
-                        child: CheckboxListTile(
-                          value: _selected.contains(candidate.record.id),
-                          onChanged: (checked) => setState(() {
-                            if (checked == true) {
-                              _selected.add(candidate.record.id);
-                            } else {
-                              _selected.remove(candidate.record.id);
-                            }
-                          }),
-                          title: Text(
-                            '${candidate.unit?.name ?? 'Farm unit'} - ${candidate.record.eventType}',
-                          ),
-                          subtitle: Text(
-                            '${candidate.record.product ?? 'Product not recorded'} • '
-                            '${session.clinic.currency} '
-                            '${candidate.record.billableAmount!.toStringAsFixed(2)}',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AveraSpacing.cardGap),
                     ],
-                    AveraLabeledFieldCard(
-                      label: 'Shared Farm Fee',
-                      child: TextField(
-                        controller: _sharedFee,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+                  ),
+                );
+              }
+              final summary = snapshot.data ?? const _FarmBillingSnapshot();
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _BillingMetric(
+                          label: 'Outstanding',
+                          value: _money(summary.outstanding),
                         ),
-                        decoration: const InputDecoration(
-                          hintText: 'Optional farm visit fee',
-                          border: InputBorder.none,
-                        ),
-                        onChanged: (_) => setState(() {}),
                       ),
-                    ),
-                    const SizedBox(height: AveraSpacing.sectionGap),
+                      const SizedBox(width: AveraSpacing.cardGap),
+                      Expanded(
+                        child: _BillingMetric(
+                          label: 'Total paid',
+                          value: _money(summary.totalPaid),
+                        ),
+                      ),
+                      const SizedBox(width: AveraSpacing.cardGap),
+                      Expanded(
+                        child: _BillingMetric(
+                          label: 'Invoices',
+                          value: '${summary.invoiceCount}',
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (summary.recent.isNotEmpty) ...[
+                    const SizedBox(height: AveraSpacing.cardGap),
                     AveraSurfaceCard(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      padding: EdgeInsets.zero,
+                      child: Column(
                         children: [
-                          Text(
-                            'Invoice total',
-                            style: averaText(context).fieldValue,
-                          ),
-                          Text(
-                            '${session.clinic.currency} ${total.toStringAsFixed(2)}',
-                            style: averaText(context).pageTitle,
-                          ),
+                          for (
+                            var index = 0;
+                            index < summary.recent.length;
+                            index++
+                          ) ...[
+                            ListTile(
+                              title: Text(summary.recent[index].reference),
+                              subtitle: Text(
+                                '${DateFormat.yMMMd().format(summary.recent[index].date)} • '
+                                '${_money(summary.recent[index].total)}',
+                              ),
+                              trailing: Text(summary.recent[index].status),
+                              onTap: () => context.push(
+                                '/billing/history?context=farm&farmId=${widget.farmId}'
+                                '&invoiceId=${summary.recent[index].id}',
+                              ),
+                            ),
+                            if (index < summary.recent.length - 1)
+                              const Divider(height: 1),
+                          ],
                         ],
                       ),
                     ),
-                    const SizedBox(height: AveraSpacing.cardGap),
-                    FilledButton.icon(
-                      onPressed: _saving || _selected.isEmpty
-                          ? null
-                          : () => _save(session),
-                      icon: _saving
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.receipt_long_outlined),
-                      label: const Text('Create Invoice'),
-                    ),
                   ],
-                );
-              },
+                ],
+              );
+            },
+          ),
+        const SizedBox(height: AveraSpacing.cardGap),
+        if (widget.canCreate)
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push('/billing?farmId=${widget.farmId}'),
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('Bill Farm Visit'),
             ),
+          ),
+        if (widget.canViewHistory)
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: () => context.push(
+                '/billing/history?context=farm&farmId=${widget.farmId}',
+              ),
+              icon: const Icon(Icons.history_rounded),
+              label: const Text('View All Invoices'),
+            ),
+          ),
+      ],
     );
   }
 
-  Future<void> _pickVisitDate() async {
-    final value = await showDatePicker(
-      context: context,
-      initialDate: _visitDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
-    if (value == null) return;
-    setState(() {
-      _visitDate = value;
-      _selected = {};
-    });
-  }
+  String _money(double value) =>
+      '${widget.currency} ${NumberFormat('#,##0.00').format(value)}';
+}
 
-  Future<void> _save(UserSession session) async {
-    setState(() => _saving = true);
-    try {
-      final repository = ref.read(clinicRepositoryProvider);
-      if (BackendConfiguration.isConfigured) {
-        await _saveRemote(session, repository);
-        return;
-      }
-      final detail = await repository.saveFarmInvoiceDraft(
-        session: session,
-        farmId: widget.farmId,
-        visitDate: _visitDate,
-        treatmentRecordIds: _selected,
-        sharedFarmFee: double.tryParse(_sharedFee.text.trim()) ?? 0,
-      );
-      await repository.issueInvoice(
-        session: session,
-        invoiceId: detail.invoice.id,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${detail.invoice.reference} created.')),
-      );
-      context.go('/billing/history?invoiceId=${detail.invoice.id}');
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Bad state: ', '')),
+class _BillingMetric extends StatelessWidget {
+  const _BillingMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => AveraSurfaceCard(
+    padding: const EdgeInsets.all(12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, maxLines: 1, style: averaText(context).listItemSubtitle),
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(value, style: averaText(context).fieldValue),
         ),
-      );
-    }
+      ],
+    ),
+  );
+}
+
+class _FarmBillingSnapshot {
+  const _FarmBillingSnapshot({
+    this.outstanding = 0,
+    this.totalPaid = 0,
+    this.invoiceCount = 0,
+    this.recent = const [],
+  });
+
+  factory _FarmBillingSnapshot.fromInvoices(
+    List<_FarmInvoiceSummary> invoices,
+  ) {
+    final active = invoices.where((invoice) => !invoice.isVoid).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    return _FarmBillingSnapshot(
+      outstanding: active.fold(0, (sum, invoice) => sum + invoice.balance),
+      totalPaid: active.fold(0, (sum, invoice) => sum + invoice.paid),
+      invoiceCount: active.length,
+      recent: active.take(3).toList(),
+    );
   }
 
-  Future<void> _saveRemote(
-    UserSession session,
-    ClinicRepository repository,
-  ) async {
-    final dashboard = await repository.getFarmDashboard(widget.farmId);
-    if (dashboard == null ||
-        dashboard.farm.clinicId != session.clinic.clinicId) {
-      throw StateError('This farm is not available in the active clinic.');
-    }
-    final candidates = await repository.getFarmInvoiceCandidates(
-      session: session,
-      farmId: widget.farmId,
-      visitDate: _visitDate,
-    );
-    final selected = candidates
-        .where((candidate) => _selected.contains(candidate.record.id))
-        .toList();
-    if (selected.length != _selected.length) {
-      throw StateError(
-        'One or more treatments were already billed or are no longer available.',
-      );
-    }
+  final double outstanding;
+  final double totalPaid;
+  final int invoiceCount;
+  final List<_FarmInvoiceSummary> recent;
+}
 
-    final sharedFee = double.tryParse(_sharedFee.text.trim()) ?? 0;
-    final treatmentTotal = selected.fold<double>(
-      0,
-      (sum, candidate) => sum + (candidate.record.billableAmount ?? 0),
-    );
-    final total = treatmentTotal + sharedFee;
-    final units = <String, Map<String, dynamic>>{};
-    final populationsByUnit = <int, List<FarmUnitPopulation>>{};
-    final treatments = <Map<String, dynamic>>[];
-    final services = <Map<String, dynamic>>[];
-    for (final candidate in selected) {
-      final record = candidate.record;
-      final unit = candidate.unit;
-      final remoteUnitId = unit == null ? null : _remoteUnitId(unit.id);
-      if (unit != null) {
-        final populations = populationsByUnit[unit.id] ??= await repository
-            .getFarmUnitPopulations(farmId: widget.farmId, unitId: unit.id);
-        units[remoteUnitId!] = {
-          'farmUnitId': remoteUnitId,
-          'name': unit.name,
-          'unitType': unit.unitType,
-          'species': unit.speciesId,
-          'breed': unit.breedId,
-          'populations': populations
-              .map(
-                (population) => {
-                  'farmUnitPopulationId': _remotePopulationId(population.id),
-                  'speciesId': population.speciesId,
-                  'breedId': population.breedId,
-                  'maleCount': population.maleCount,
-                  'femaleCount': population.femaleCount,
-                  'unknownCount': population.unknownCount,
-                },
-              )
-              .toList(),
-        };
-      }
-      final targetPopulationIds = unit == null
-          ? const <String>[]
-          : _localTargetPopulationIds(record.targetPopulationIdsJson)
-                .where(
-                  (id) => populationsByUnit[unit.id]!.any(
-                    (population) => population.id == id,
-                  ),
-                )
-                .map(_remotePopulationId)
-                .toList();
-      final remoteTreatmentId = _remoteTreatmentId(record.id);
-      final amount = record.billableAmount ?? 0;
-      treatments.add({
-        'treatmentRecordId': remoteTreatmentId,
-        'farmUnitId': remoteUnitId,
-        'treatmentType': record.eventType,
-        'productName': record.product,
-        'occurredAt': record.occurredAt.toUtc().toIso8601String(),
-        'animalsCovered': record.animalsCovered,
-        'billableAmount': amount,
-        'notes': record.notes,
-        'targetScope': record.targetScope,
-        'targetPopulationIds': targetPopulationIds,
-      });
-      services.add({
-        'description':
-            '${unit?.name ?? 'Farm unit'} - ${record.eventType}${record.product?.trim().isNotEmpty == true ? ' (${record.product})' : ''}',
-        'amount': amount,
-        'quantity': 1,
-        'unitPrice': amount,
-        'farmUnitId': remoteUnitId,
-        'sourceTreatmentRecordId': remoteTreatmentId,
-      });
-    }
-    if (sharedFee > 0) {
-      services.add({
-        'description': 'Farm visit fee',
-        'amount': sharedFee,
-        'quantity': 1,
-        'unitPrice': sharedFee,
-      });
-    }
+class _FarmInvoiceSummary {
+  const _FarmInvoiceSummary({
+    required this.id,
+    required this.reference,
+    required this.date,
+    required this.total,
+    required this.paid,
+    required this.balance,
+    required this.status,
+  });
 
-    final created = await ref
-        .read(clinicalRemoteDataSourceProvider)
-        .createInvoice({
-          'submissionId': _submissionId,
-          'contextType': 'farm_visit',
-          'status': 'Unpaid',
-          'subtotal': total,
-          'total': total,
-          'services': services,
-          'products': const <Map<String, dynamic>>[],
-          'farm': {
-            'farmId': dashboard.farm.id,
-            'name': dashboard.farm.name,
-            'clientName':
-                dashboard.farm.ownerOrganization ?? dashboard.farm.name,
-            'clientPhone': dashboard.farm.contactNumber,
-            'visitDate': DateFormat('yyyy-MM-dd').format(_visitDate),
-            'units': units.values.toList(),
-            'treatments': treatments,
-          },
-        });
-    final invoiceId = created['invoice_id']?.toString();
-    final reference = created['invoice_number']?.toString();
-    if (invoiceId == null || invoiceId.isEmpty) {
-      throw StateError('The invoice was saved without a valid reference.');
-    }
-    _submissionId = _uuid.v4();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${reference ?? 'Farm invoice'} created.')),
+  factory _FarmInvoiceSummary.fromJson(Map<String, dynamic> json) {
+    double number(String key) =>
+        double.tryParse(json[key]?.toString() ?? '') ?? 0;
+    return _FarmInvoiceSummary(
+      id: json['invoice_id']?.toString() ?? '',
+      reference: json['invoice_number']?.toString() ?? 'Invoice',
+      date:
+          DateTime.tryParse(json['issued_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      total: number('total'),
+      paid: number('amount_paid') - number('refund_total'),
+      balance: number('balance'),
+      status: json['status']?.toString() ?? 'Pending',
     );
-    context.go('/billing/history?invoiceId=$invoiceId');
   }
 
-  String _remoteUnitId(int localId) => _uuid.v5(
-    Namespace.url.value,
-    'avera:${widget.farmId}:farm-unit:$localId',
-  );
+  final String id;
+  final String reference;
+  final DateTime date;
+  final double total;
+  final double paid;
+  final double balance;
+  final String status;
 
-  String _remoteTreatmentId(int localId) => _uuid.v5(
-    Namespace.url.value,
-    'avera:${widget.farmId}:farm-treatment:$localId',
-  );
-
-  String _remotePopulationId(int localId) => _uuid.v5(
-    Namespace.url.value,
-    'avera:${widget.farmId}:farm-population:$localId',
-  );
-
-  List<int> _localTargetPopulationIds(String? encoded) {
-    if (encoded == null || encoded.trim().isEmpty) return const [];
-    try {
-      final value = jsonDecode(encoded);
-      if (value is! List) return const [];
-      return value
-          .map((item) => item is int ? item : int.tryParse('$item'))
-          .whereType<int>()
-          .toList();
-    } on FormatException {
-      return const [];
-    }
+  bool get isVoid {
+    final normalized = status.toLowerCase();
+    return normalized == 'void' || normalized == 'voided';
   }
 }
 

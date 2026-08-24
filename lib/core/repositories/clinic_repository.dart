@@ -319,12 +319,14 @@ class InvoiceProductDraft {
     required this.inventoryItemId,
     required this.quantity,
     this.animalId,
+    this.farmUnitId,
     this.isGeneral = false,
   });
 
   final int inventoryItemId;
   final int quantity;
   final int? animalId;
+  final int? farmUnitId;
   final bool isGeneral;
 }
 
@@ -340,6 +342,18 @@ class InvoiceServiceDraft {
   final double amount;
   final int? animalId;
   final bool isGeneral;
+}
+
+class FarmInvoiceServiceDraft {
+  const FarmInvoiceServiceDraft({
+    required this.description,
+    required this.amount,
+    this.farmUnitId,
+  });
+
+  final String description;
+  final double amount;
+  final int? farmUnitId;
 }
 
 class FarmInvoiceCandidate {
@@ -696,6 +710,12 @@ class ClinicRepository {
   final AppClock _clock;
   final ApiClient? _apiClient;
   final _uuid = const Uuid();
+
+  String _newActivityEventId({
+    required String source,
+    required Object relatedEntityId,
+  }) => '$source:$relatedEntityId:${_uuid.v4()}';
+
   String _activeClinicId = defaultClinicId;
   String get activeClinicId => _activeClinicId;
 
@@ -4672,7 +4692,10 @@ class ClinicRepository {
       .into(db.clinicActivityEvents)
       .insert(
         ClinicActivityEventsCompanion.insert(
-          id: '$operationType:$action:$operationId:${occurredAt.microsecondsSinceEpoch}',
+          id: _newActivityEventId(
+            source: '$operationType:$action',
+            relatedEntityId: operationId,
+          ),
           clinicId: activeClinicId,
           type: '$operationType.$action',
           title: title,
@@ -5016,7 +5039,10 @@ class ClinicRepository {
           .into(db.clinicActivityEvents)
           .insert(
             ClinicActivityEventsCompanion.insert(
-              id: 'appointment-rescheduled:$appointmentId:${now.microsecondsSinceEpoch}',
+              id: _newActivityEventId(
+                source: 'appointment-rescheduled',
+                relatedEntityId: appointmentId,
+              ),
               clinicId: session.clinic.clinicId,
               type: 'appointmentRescheduled',
               title:
@@ -5121,7 +5147,10 @@ class ClinicRepository {
           .into(db.clinicActivityEvents)
           .insert(
             ClinicActivityEventsCompanion.insert(
-              id: 'appointment-cancelled:$appointmentId:${now.microsecondsSinceEpoch}',
+              id: _newActivityEventId(
+                source: 'appointment-cancelled',
+                relatedEntityId: appointmentId,
+              ),
               clinicId: session.clinic.clinicId,
               type: 'appointmentCancelled',
               title:
@@ -5656,16 +5685,24 @@ class ClinicRepository {
     required String farmId,
     required DateTime visitDate,
     required Set<int> treatmentRecordIds,
+    List<InvoiceProductDraft> products = const [],
+    List<FarmInvoiceServiceDraft> services = const [],
     double sharedFarmFee = 0,
     String sharedFeeDescription = 'Farm visit fee',
   }) async {
     _requireBillingPermission(session, Permissions.billingCreate);
     await _requireActiveFeature(AveraFeature.billing);
     final farm = await _farmForSession(farmId, session);
-    if (treatmentRecordIds.isEmpty) {
-      throw StateError('Select at least one unbilled treatment.');
+    if (treatmentRecordIds.isEmpty &&
+        products.isEmpty &&
+        services.isEmpty &&
+        sharedFarmFee == 0) {
+      throw StateError('Add at least one billable item.');
     }
     if (sharedFarmFee < 0) throw StateError('Farm fee cannot be negative.');
+    if (services.any((service) => service.amount < 0)) {
+      throw StateError('Service amounts cannot be negative.');
+    }
     final now = _clock.nowForClinic(session.clinic);
     return db.transaction(() async {
       final candidates = await getFarmInvoiceCandidates(
@@ -5712,6 +5749,7 @@ class ClinicRepository {
         ),
       );
       var servicesTotal = 0.0;
+      var productsTotal = 0.0;
       for (final candidate in selected) {
         final record = candidate.record;
         final amount = record.billableAmount!;
@@ -5743,12 +5781,93 @@ class ClinicRepository {
               ),
             );
       }
+      for (final service in services) {
+        final description = service.description.trim();
+        if (description.isEmpty) {
+          throw StateError('Every service needs a description.');
+        }
+        if (service.farmUnitId != null) {
+          final unit =
+              await (db.select(db.farmUnits)..where(
+                    (row) =>
+                        row.id.equals(service.farmUnitId!) &
+                        row.farmId.equals(farmId) &
+                        row.clinicId.equals(session.clinic.clinicId),
+                  ))
+                  .getSingleOrNull();
+          if (unit == null) {
+            throw StateError('A service references an unavailable farm unit.');
+          }
+        }
+        servicesTotal += service.amount;
+        await db
+            .into(db.invoiceServiceLines)
+            .insert(
+              InvoiceServiceLinesCompanion.insert(
+                invoiceId: id,
+                farmUnitId: Value(service.farmUnitId),
+                description: description,
+                amount: service.amount,
+              ),
+            );
+      }
+      for (final product in products) {
+        if (product.quantity <= 0) {
+          throw StateError('Product quantities must be greater than zero.');
+        }
+        final item =
+            await (db.select(db.inventoryItems)..where(
+                  (row) =>
+                      row.id.equals(product.inventoryItemId) &
+                      row.clinicId.equals(session.clinic.clinicId),
+                ))
+                .getSingleOrNull();
+        if (item == null || item.isArchived || !item.isSellable) {
+          throw StateError('A selected inventory item is unavailable.');
+        }
+        if (product.quantity > item.quantity) {
+          throw StateError('Insufficient stock for ${item.drugName}.');
+        }
+        if (product.farmUnitId != null) {
+          final unit =
+              await (db.select(db.farmUnits)..where(
+                    (row) =>
+                        row.id.equals(product.farmUnitId!) &
+                        row.farmId.equals(farmId) &
+                        row.clinicId.equals(session.clinic.clinicId),
+                  ))
+                  .getSingleOrNull();
+          if (unit == null) {
+            throw StateError('A product references an unavailable farm unit.');
+          }
+        }
+        final lineTotal = item.sellingPrice * product.quantity;
+        productsTotal += lineTotal;
+        await db
+            .into(db.invoiceProductLines)
+            .insert(
+              InvoiceProductLinesCompanion.insert(
+                invoiceId: id,
+                inventoryItemId: item.id,
+                farmUnitId: Value(product.farmUnitId),
+                productNameSnapshot: item.drugName,
+                categoryNameSnapshot: item.category,
+                batchNumberSnapshot: Value(item.batchNumber),
+                quantity: product.quantity,
+                unitPrice: item.sellingPrice,
+                unitCostSnapshot: Value(item.buyingPrice),
+                lineTotal: lineTotal,
+              ),
+            );
+      }
+      final total = servicesTotal + productsTotal;
       await (db.update(db.invoices)..where((row) => row.id.equals(id))).write(
         InvoicesCompanion(
           status: const Value('Draft'),
+          productsSubtotal: Value(productsTotal),
           servicesSubtotal: Value(servicesTotal),
-          total: Value(servicesTotal),
-          balance: Value(servicesTotal),
+          total: Value(total),
+          balance: Value(total),
           updatedAt: Value(now),
         ),
       );
@@ -5761,7 +5880,9 @@ class ClinicRepository {
           'visitDate': visitDate.toIso8601String(),
           'treatmentRecordIds': treatmentRecordIds.toList(),
           'sharedFarmFee': sharedFarmFee,
-          'total': servicesTotal,
+          'manualServiceCount': services.length,
+          'productCount': products.length,
+          'total': total,
         },
       );
       return _invoiceDetailForSession(id, session);
@@ -6429,7 +6550,10 @@ class ClinicRepository {
       .into(db.clinicActivityEvents)
       .insert(
         ClinicActivityEventsCompanion.insert(
-          id: 'farm:$type:$farmId:${occurredAt.microsecondsSinceEpoch}',
+          id: _newActivityEventId(
+            source: 'farm:$type',
+            relatedEntityId: farmId,
+          ),
           clinicId: session.clinic.clinicId,
           type: type,
           title: title,
@@ -8828,10 +8952,10 @@ class ClinicRepository {
                   animal.id.isIn(animalIds),
             ))
             .get();
-    final farmUnitIds = services
-        .map((line) => line.farmUnitId)
-        .whereType<int>()
-        .toSet();
+    final farmUnitIds = {
+      ...products.map((line) => line.farmUnitId).whereType<int>(),
+      ...services.map((line) => line.farmUnitId).whereType<int>(),
+    };
     final farmUnits = farmUnitIds.isEmpty
         ? const <FarmUnit>[]
         : await (db.select(db.farmUnits)..where(
@@ -8980,7 +9104,10 @@ class ClinicRepository {
       .into(db.clinicActivityEvents)
       .insert(
         ClinicActivityEventsCompanion.insert(
-          id: 'billing:$action:${invoice.id}:${now.microsecondsSinceEpoch}',
+          id: _newActivityEventId(
+            source: 'billing:$action',
+            relatedEntityId: invoice.id,
+          ),
           clinicId: session.clinic.clinicId,
           type: 'billing.$action',
           title: title,

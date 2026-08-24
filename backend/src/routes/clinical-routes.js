@@ -248,6 +248,7 @@ export const createInvoiceSchema = z.object({
     inventoryProductId: z.string().uuid(),
     productUnitId: z.string().uuid().nullable().optional(),
     patientId: z.string().uuid().nullable().optional(),
+    farmUnitId: z.string().uuid().nullable().optional(),
     quantity: z.number().int().positive().max(1000000),
   })).max(100).default([]),
   farm: farmContextSchema.extend({
@@ -1084,6 +1085,7 @@ async function prepareProductLines(client, clinicId, products) {
     const unitPrice = Number(row.unit_selling_price);
     lines.push({
       patientId: requested.patientId ?? null,
+      farmUnitId: requested.farmUnitId ?? null,
       inventoryProductId: row.inventory_product_id,
       productUnitId: row.product_unit_id,
       description: row.name,
@@ -2523,6 +2525,27 @@ export async function clinicalRoutes(app) {
         const error = new Error('A selected inventory product is unavailable for billing.');
         error.code = preparedProducts.error;
         throw error;
+      }
+      if (input.contextType === 'farm_visit') {
+        const referencedFarmUnitIds = [...new Set([
+          ...serviceLines.map((line) => line.farmUnitId).filter(Boolean),
+          ...preparedProducts.lines.map((line) => line.farmUnitId).filter(Boolean),
+        ])];
+        if (referencedFarmUnitIds.length > 0) {
+          const matchingUnits = await client.query(
+            `SELECT farm_unit_id
+               FROM farm_units
+              WHERE clinic_id=$1 AND farm_id=$2
+                AND farm_unit_id = ANY($3::uuid[])`,
+            [request.auth.clinicId, input.farm.farmId, referencedFarmUnitIds],
+          );
+          if (matchingUnits.rows.length !== referencedFarmUnitIds.length) {
+            return reply.code(409).send({
+              error: 'farm_unit_mismatch',
+              message: 'An invoice item references a unit outside the selected farm.',
+            });
+          }
+        }
       }
       const lines = [
         ...serviceLines,

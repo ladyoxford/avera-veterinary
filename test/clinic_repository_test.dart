@@ -557,6 +557,20 @@ void main() {
         billableAmount: 16000,
       );
 
+      final treatmentActivities =
+          await (database.select(database.clinicActivityEvents)..where(
+                (event) =>
+                    event.clinicId.equals(session.clinic.clinicId) &
+                    event.type.equals('farmTreatmentRecorded') &
+                    event.relatedEntityId.equals(farm.id),
+              ))
+              .get();
+      expect(treatmentActivities, hasLength(2));
+      expect(
+        treatmentActivities.map((activity) => activity.id).toSet(),
+        hasLength(2),
+      );
+
       expect(
         await repository.getFarmInvoiceCandidates(
           session: session,
@@ -637,6 +651,102 @@ void main() {
         session: session,
       );
       expect(revenue.farmRevenue, 31000);
+      expect(revenue.clinicRevenue, 0);
+    },
+  );
+
+  test(
+    'farm invoice supports unlimited manual services and unit-targeted products',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final farm = await repository.createFarm(
+        session: session,
+        name: 'Manual Services Farm',
+        ownerOrganization: 'Manual Services Client',
+        speciesIds: const ['species_cattle'],
+      );
+      final unit = await repository.createFarmUnit(
+        session: session,
+        farmId: farm.id,
+        name: 'Cattle Pen',
+        unitType: 'Pen',
+        speciesId: 'species_cattle',
+        capacity: 12,
+        femaleCount: 12,
+      );
+      final item = (await database.select(database.inventoryItems).get()).first;
+      await (database.update(
+        database.inventoryItems,
+      )..where((row) => row.id.equals(item.id))).write(
+        const InventoryItemsCompanion(
+          quantity: Value(20),
+          sellingPrice: Value(4000),
+          isSellable: Value(true),
+          isArchived: Value(false),
+        ),
+      );
+
+      final invoice = await repository.saveFarmInvoiceDraft(
+        session: session,
+        farmId: farm.id,
+        visitDate: DateTime(2026, 8, 24),
+        treatmentRecordIds: const {},
+        products: [
+          InvoiceProductDraft(
+            inventoryItemId: item.id,
+            quantity: 2,
+            farmUnitId: unit.id,
+          ),
+        ],
+        services: [
+          for (var index = 1; index <= 5; index++)
+            FarmInvoiceServiceDraft(
+              description: 'Professional service $index',
+              amount: index * 1000,
+              farmUnitId: index.isEven ? unit.id : null,
+            ),
+        ],
+      );
+
+      expect(invoice.invoice.contextType, 'farm_visit');
+      expect(invoice.invoice.farmId, farm.id);
+      expect(invoice.services, hasLength(5));
+      expect(invoice.products, hasLength(1));
+      expect(invoice.products.single.farmUnitId, unit.id);
+      expect(invoice.farmUnits.map((value) => value.id), contains(unit.id));
+      expect(invoice.invoice.servicesSubtotal, 15000);
+      expect(invoice.invoice.productsSubtotal, 8000);
+      expect(invoice.invoice.total, 23000);
+
+      await repository.issueInvoice(
+        session: session,
+        invoiceId: invoice.invoice.id,
+      );
+      await repository.recordInvoicePayment(
+        session: session,
+        invoiceId: invoice.invoice.id,
+        amount: 5000,
+        paymentMethod: 'Transfer',
+        paidAt: DateTime(2026, 8, 24),
+      );
+      final history = await repository.watchBillingHistory(session).first;
+      final entry = history.singleWhere(
+        (value) => value.invoice.id == invoice.invoice.id,
+      );
+      expect(entry.farm?.id, farm.id);
+      expect(entry.invoice.status, 'Partially paid');
+      expect(entry.invoice.balance, 18000);
+      final revenue = await repository.getRevenueProfitSummary(
+        session: session,
+      );
+      expect(revenue.farmRevenue, 5000);
       expect(revenue.clinicRevenue, 0);
     },
   );

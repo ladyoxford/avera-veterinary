@@ -804,8 +804,15 @@ class _TreatmentSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final due = treatment?.nextDueDate;
     final overdue = due != null && due.isBefore(DateTime.now());
+    final dueSoon =
+        due != null && !overdue && due.difference(DateTime.now()).inDays <= 30;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     final color = overdue
-        ? Theme.of(context).extension<AppSemanticColors>()!.warning
+        ? semantic.danger
+        : dueSoon
+        ? semantic.warning
+        : treatment == null
+        ? Theme.of(context).colorScheme.onSurfaceVariant
         : Theme.of(context).colorScheme.primary;
     return AveraSurfaceCard(
       padding: const EdgeInsets.all(12),
@@ -820,27 +827,29 @@ class _TreatmentSummaryCard extends StatelessWidget {
             softWrap: true,
             style: averaText(context).listItemTitle.copyWith(fontSize: 14),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                'Last: ${treatment == null ? 'Not recorded' : DateFormat.yMMMd().format(treatment!.occurredAt)}',
-                maxLines: 1,
-                style: averaText(
-                  context,
-                ).listItemSubtitle.copyWith(color: color, fontSize: 11),
+              Expanded(
+                child: _TreatmentDateValue(
+                  label: 'LAST',
+                  value: treatment == null
+                      ? 'Not recorded'
+                      : DateFormat.yMMMd().format(treatment!.occurredAt),
+                  color: color,
+                ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                'Next: ${treatment == null
-                    ? 'Not recorded'
-                    : due == null
-                    ? 'Not scheduled'
-                    : DateFormat.yMMMd().format(due)}',
-                maxLines: 1,
-                style: averaText(
-                  context,
-                ).listItemSubtitle.copyWith(color: color, fontSize: 11),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _TreatmentDateValue(
+                  label: 'NEXT',
+                  value: treatment == null
+                      ? 'Not recorded'
+                      : due == null
+                      ? 'Not scheduled'
+                      : DateFormat.yMMMd().format(due),
+                  color: color,
+                ),
               ),
             ],
           ),
@@ -850,20 +859,76 @@ class _TreatmentSummaryCard extends StatelessWidget {
   }
 }
 
+class _TreatmentDateValue extends StatelessWidget {
+  const _TreatmentDateValue({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: averaText(context).caption.copyWith(fontSize: 9)),
+      const SizedBox(height: 2),
+      Text(
+        value,
+        maxLines: 2,
+        softWrap: true,
+        style: averaText(
+          context,
+        ).listItemSubtitle.copyWith(color: color, fontSize: 10.5),
+      ),
+    ],
+  );
+}
+
 class _TreatmentListTile extends StatelessWidget {
   const _TreatmentListTile({required this.treatment, required this.onTap});
   final FarmHealthRecord treatment;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => AveraAdministrationCard(
-    icon: treatment.eventType == 'Vaccination'
-        ? Icons.vaccines_outlined
-        : Icons.medication_outlined,
-    title: '${treatment.eventType} — ${treatment.product ?? 'Not recorded'}',
-    subtitle:
-        '${DateFormat.yMMMd().format(treatment.occurredAt)} • ${treatment.animalsCovered ?? 0} animals • ${treatment.administeredBy ?? 'Not recorded'}',
-    onTap: onTap,
+  Widget build(BuildContext context) => AveraSurfaceCard(
+    padding: EdgeInsets.zero,
+    child: ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      leading: Container(
+        width: 46,
+        height: 46,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: .14),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          treatment.eventType == 'Vaccination'
+              ? Icons.vaccines_outlined
+              : Icons.medication_outlined,
+        ),
+      ),
+      title: Text(
+        '${treatment.eventType} — ${treatment.product ?? 'Not recorded'}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: averaText(context).listItemTitle,
+      ),
+      subtitle: Text(
+        [
+          '${DateFormat.yMMMd().format(treatment.occurredAt)} • ${treatment.animalsCovered ?? 0} animals',
+          treatment.administeredBy ?? 'Administered by not recorded',
+          if (treatment.billableAmount != null)
+            '${NumberFormat.currency(name: 'NGN', symbol: 'NGN ', decimalDigits: 0).format(treatment.billableAmount!)} billable',
+        ].join('\n'),
+        style: averaText(context).listItemSubtitle,
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: onTap,
+    ),
   );
 }
 
@@ -898,14 +963,17 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
   DateTime? _nextDue;
   bool _saving = false;
 
+  int get _totalAnimals =>
+      widget.unit.maleCount +
+      widget.unit.femaleCount +
+      widget.unit.unknownCount;
+
+  int get _animalsTreated => int.tryParse(_animals.text) ?? 0;
+
   @override
   void initState() {
     super.initState();
-    final total =
-        widget.unit.maleCount +
-        widget.unit.femaleCount +
-        widget.unit.unknownCount;
-    _animals.text = '$total';
+    _animals.text = '$_totalAnimals';
   }
 
   @override
@@ -928,6 +996,13 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
   @override
   Widget build(BuildContext context) {
     final protocols = VaccineCatalogue.forSpecies(widget.unit.speciesId ?? '');
+    const treatmentTypes = [
+      'Deworming',
+      'Pour-On (Ticks)',
+      'Antitrypanocide',
+      'Vaccination',
+      'Other',
+    ];
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AveraSpacing.pageHorizontalPadding,
@@ -942,141 +1017,213 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Record Treatment', style: averaText(context).pageTitle),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _type,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Treatment type'),
-                items:
-                    const [
-                          'Deworming',
-                          'Pour-On (Ticks)',
-                          'Antitrypanocide',
-                          'Vaccination',
-                          'Other',
-                        ]
+              const SizedBox(height: 4),
+              Text(
+                '${widget.unit.name.toUpperCase()} • $_totalAnimals animals',
+                style: averaText(context).listItemSubtitle,
+              ),
+              const SizedBox(height: 20),
+              const _TreatmentSectionLabel('TREATMENT TYPE'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: treatmentTypes
+                    .map(
+                      (value) => ChoiceChip(
+                        label: Text(value),
+                        selected: _type == value,
+                        onSelected: (_) => setState(() {
+                          _type = value;
+                          _protocol = null;
+                          if (value != 'Vaccination') _nextDue = null;
+                        }),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 20),
+              if (_type == 'Vaccination')
+                _TreatmentField(
+                  label: 'VACCINE',
+                  child: DropdownButtonFormField<VaccineProtocolDefinition>(
+                    value: _protocol,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      hintText: protocols.isEmpty
+                          ? 'No compatible vaccine protocols'
+                          : 'Select vaccine',
+                    ),
+                    items: protocols
                         .map(
-                          (value) => DropdownMenuItem(
-                            value: value,
-                            child: Text(value),
+                          (protocol) => DropdownMenuItem(
+                            value: protocol,
+                            child: Text(protocol.name),
                           ),
                         )
                         .toList(),
-                onChanged: (value) => setState(() {
-                  _type = value ?? _type;
-                  _protocol = null;
-                }),
-              ),
-              const SizedBox(height: 12),
-              if (_type == 'Vaccination')
-                DropdownButtonFormField<VaccineProtocolDefinition>(
-                  value: _protocol,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: protocols.isEmpty
-                        ? 'No compatible vaccine protocols'
-                        : 'Vaccine',
+                    onChanged: protocols.isEmpty
+                        ? null
+                        : (value) => setState(() {
+                            _protocol = value;
+                            if (value != null) {
+                              _product.text = value.name;
+                              _route.text = value.defaultRoute.label;
+                              _nextDue = value.suggestedDueDate(_date);
+                            }
+                          }),
+                    validator: (_) =>
+                        _type == 'Vaccination' && _protocol == null
+                        ? 'Select a vaccine.'
+                        : null,
                   ),
-                  items: protocols
-                      .map(
-                        (protocol) => DropdownMenuItem(
-                          value: protocol,
-                          child: Text(protocol.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: protocols.isEmpty
-                      ? null
-                      : (value) => setState(() {
-                          _protocol = value;
-                          if (value != null) {
-                            _product.text = value.name;
-                            _route.text = value.defaultRoute.label;
-                            _nextDue = value.suggestedDueDate(_date);
-                          }
-                        }),
-                  validator: (_) => _type == 'Vaccination' && _protocol == null
-                      ? 'Select a vaccine.'
-                      : null,
                 )
               else
-                TextFormField(
-                  controller: _product,
-                  decoration: const InputDecoration(labelText: 'Product used'),
-                  validator: (value) => value?.trim().isEmpty == true
-                      ? 'Enter the product used.'
-                      : null,
+                _TreatmentField(
+                  label: 'PRODUCT USED',
+                  child: TextFormField(
+                    controller: _product,
+                    decoration: const InputDecoration(
+                      hintText: 'Enter product name',
+                    ),
+                    validator: (value) => value?.trim().isEmpty == true
+                        ? 'Enter the product used.'
+                        : null,
+                  ),
                 ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _animals,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Animals treated'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _charge,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+              const SizedBox(height: 16),
+              _TreatmentFieldPair(
+                left: _TreatmentField(
+                  label: 'DOSE',
+                  child: TextFormField(
+                    controller: _dose,
+                    decoration: const InputDecoration(hintText: 'e.g. 1 ml'),
+                  ),
                 ),
-                decoration: InputDecoration(
-                  labelText:
-                      'Billable amount (${widget.session.clinic.currency}, optional)',
-                  helperText: 'Used when generating a farm visit invoice.',
+                right: _TreatmentField(
+                  label: 'ROUTE',
+                  child: TextFormField(
+                    controller: _route,
+                    decoration: const InputDecoration(hintText: 'e.g. Oral'),
+                  ),
                 ),
-                validator: (value) {
-                  if (value?.trim().isEmpty == true) return null;
-                  final parsed = double.tryParse(value!.trim());
-                  return parsed == null || parsed < 0
-                      ? 'Enter a valid amount.'
-                      : null;
-                },
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _dose,
-                decoration: const InputDecoration(labelText: 'Dose'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _route,
-                decoration: const InputDecoration(labelText: 'Route'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _manufacturer,
-                decoration: const InputDecoration(labelText: 'Manufacturer'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _batch,
-                decoration: const InputDecoration(labelText: 'Batch number'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Date administered'),
-                subtitle: Text(DateFormat.yMMMd().format(_date)),
-                trailing: const Icon(Icons.calendar_today_outlined),
-                onTap: _pickDate,
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Next due'),
-                subtitle: Text(
-                  _nextDue == null
-                      ? 'Not scheduled'
-                      : DateFormat.yMMMd().format(_nextDue!),
+              const SizedBox(height: 16),
+              _TreatmentFieldPair(
+                left: _TreatmentField(
+                  label: 'MANUFACTURER',
+                  child: TextFormField(
+                    controller: _manufacturer,
+                    decoration: const InputDecoration(hintText: 'Optional'),
+                  ),
                 ),
-                trailing: const Icon(Icons.event_repeat_outlined),
-                onTap: _pickNextDue,
+                right: _TreatmentField(
+                  label: 'BATCH NUMBER',
+                  child: TextFormField(
+                    controller: _batch,
+                    decoration: const InputDecoration(hintText: 'Optional'),
+                  ),
+                ),
               ),
-              TextFormField(
-                controller: _notes,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Notes (optional)',
+              const SizedBox(height: 20),
+              const _TreatmentSectionLabel('ANIMALS TREATED'),
+              const SizedBox(height: 8),
+              AveraSurfaceCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Decrease animals treated',
+                      onPressed: _animalsTreated <= 1
+                          ? null
+                          : () => _setAnimalsTreated(_animalsTreated - 1),
+                      icon: const Icon(Icons.remove_rounded),
+                    ),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _animals,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          helperText: 'of $_totalAnimals in this unit',
+                        ),
+                        validator: _validateAnimalCount,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Increase animals treated',
+                      onPressed: _animalsTreated >= _totalAnimals
+                          ? null
+                          : () => _setAnimalsTreated(_animalsTreated + 1),
+                      icon: const Icon(Icons.add_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              const _TreatmentSectionLabel('BILLING'),
+              const SizedBox(height: 8),
+              AveraSurfaceCard(
+                child: TextFormField(
+                  controller: _charge,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    prefixText: '${widget.session.clinic.currency} ',
+                    hintText: '0.00',
+                    helperText: 'Optional amount for the farm visit invoice.',
+                  ),
+                  validator: (value) {
+                    if (value?.trim().isEmpty == true) return null;
+                    final parsed = double.tryParse(value!.trim());
+                    return parsed == null || parsed < 0
+                        ? 'Enter a valid amount.'
+                        : null;
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              const _TreatmentSectionLabel('SCHEDULE'),
+              const SizedBox(height: 8),
+              AveraSurfaceCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    _TreatmentDateRow(
+                      icon: Icons.calendar_today_outlined,
+                      label: 'Date administered',
+                      value: DateFormat.yMMMd().format(_date),
+                      onTap: _pickDate,
+                    ),
+                    const Divider(height: 1),
+                    _TreatmentDateRow(
+                      icon: Icons.event_repeat_outlined,
+                      label: 'Next due',
+                      value: _nextDue == null
+                          ? 'Not scheduled'
+                          : DateFormat.yMMMd().format(_nextDue!),
+                      onTap: _pickNextDue,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              _TreatmentField(
+                label: 'NOTES',
+                child: TextFormField(
+                  controller: _notes,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    hintText: 'Add observations or follow-up instructions',
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -1098,6 +1245,19 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
         ),
       ),
     );
+  }
+
+  void _setAnimalsTreated(int value) {
+    setState(() => _animals.text = value.clamp(1, _totalAnimals).toString());
+  }
+
+  String? _validateAnimalCount(String? value) {
+    final parsed = int.tryParse(value?.trim() ?? '');
+    if (parsed == null || parsed < 1) return 'Enter at least one animal.';
+    if (parsed > _totalAnimals) {
+      return 'Cannot exceed the unit population ($_totalAnimals).';
+    }
+    return null;
   }
 
   Future<void> _pickDate() async {
@@ -1158,6 +1318,72 @@ class _RecordTreatmentSheetState extends ConsumerState<_RecordTreatmentSheet> {
       }
     }
   }
+}
+
+class _TreatmentSectionLabel extends StatelessWidget {
+  const _TreatmentSectionLabel(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(label, style: averaText(context).sectionLabel);
+}
+
+class _TreatmentField extends StatelessWidget {
+  const _TreatmentField({required this.label, required this.child});
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [_TreatmentSectionLabel(label), const SizedBox(height: 7), child],
+  );
+}
+
+class _TreatmentFieldPair extends StatelessWidget {
+  const _TreatmentFieldPair({required this.left, required this.right});
+  final Widget left;
+  final Widget right;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < 350) {
+        return Column(children: [left, const SizedBox(height: 16), right]);
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: left),
+          const SizedBox(width: 12),
+          Expanded(child: right),
+        ],
+      );
+    },
+  );
+}
+
+class _TreatmentDateRow extends StatelessWidget {
+  const _TreatmentDateRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    leading: Icon(icon),
+    title: Text(label),
+    subtitle: Text(value),
+    trailing: const Icon(Icons.chevron_right_rounded),
+    onTap: onTap,
+  );
 }
 
 class FarmDailyRecordDetailScreen extends ConsumerStatefulWidget {

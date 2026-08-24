@@ -12,6 +12,7 @@ import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/identity_avatar_image.dart';
 import '../widgets/inventory_item_dialog.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
@@ -147,6 +148,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final expired = categoryItems
         .where((item) => item.expiryDate?.isBefore(today) ?? false)
         .length;
+    final expiring = categoryItems
+        .where(
+          (item) => InventoryStatusFilter.expiring.matches(
+            quantity: item.quantity,
+            minimumQuantity: item.minimumQuantity,
+            expiryDate: item.expiryDate,
+            now: today,
+          ),
+        )
+        .length;
     final normalizedQuery = _query.trim().toLowerCase();
     final visibleItems = categoryItems
         .where(
@@ -160,7 +171,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         .where(
           (item) =>
               normalizedQuery.isEmpty ||
-              '${item.name} ${item.categoryName} ${item.batchNumber ?? ''}'
+              '${item.name} ${item.categoryName} ${item.manufacturer ?? ''} '
+                      '${item.activeIngredient ?? ''} ${item.batchNumber ?? ''}'
                   .toLowerCase()
                   .contains(normalizedQuery),
         )
@@ -194,35 +206,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           TextField(
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search_rounded),
-              hintText: 'Search inventory',
+              hintText: 'Search medicines, brands, active ingredients...',
             ),
             onChanged: (value) => setState(() => _query = value),
           ),
           const SizedBox(height: 16),
-          AveraLabeledFieldCard(
-            label: 'Category',
-            child: InkWell(
-              onTap: () => _selectCategory(context, allowed),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _categoryId == null
-                          ? 'All Categories'
-                          : InventoryCategories.byId(_categoryId)?.name ??
-                                'Category',
-                      style: averaText(context).fieldValue,
-                    ),
-                  ),
-                  const Icon(Icons.keyboard_arrow_down_rounded),
-                ],
-              ),
-            ),
+          _InventoryCategorySelector(
+            allowed: allowed,
+            selected: _categoryId,
+            onSelected: (value) => setState(() => _categoryId = value),
+            onMore: () => _selectCategory(context, allowed),
           ),
           const SizedBox(height: 16),
           _SummaryStrip(
             total: categoryItems.length,
             low: low,
+            expiring: expiring,
             expired: expired,
             selected: _statusFilter,
             onSelected: _selectStatusFilter,
@@ -253,6 +252,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     MaterialPageRoute<void>(
                       builder: (_) => _InventoryProductDetailsScreen(
                         item: item,
+                        catalogItems: categoryItems,
                         session: session,
                         onEdit: session.can(Permissions.inventoryEdit)
                             ? () => _showItemDialog(
@@ -412,16 +412,89 @@ class _CategorySheetState extends State<_CategorySheet> {
   }
 }
 
+class _InventoryCategorySelector extends StatelessWidget {
+  const _InventoryCategorySelector({
+    required this.allowed,
+    required this.selected,
+    required this.onSelected,
+    required this.onMore,
+  });
+
+  final Set<String> allowed;
+  final String? selected;
+  final ValueChanged<String?> onSelected;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = InventoryCategories.all
+        .where((category) => allowed.contains(category.id))
+        .take(7)
+        .toList(growable: false);
+    return SizedBox(
+      height: 42,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _CategoryChip(
+            label: 'All',
+            selected: selected == null,
+            onTap: () => onSelected(null),
+          ),
+          for (final category in categories)
+            _CategoryChip(
+              label: category.name,
+              selected: selected == category.id,
+              onTap: () => onSelected(category.id),
+            ),
+          if (allowed.length > categories.length)
+            _CategoryChip(
+              label: 'More',
+              selected:
+                  selected != null &&
+                  !categories.any((category) => category.id == selected),
+              onTap: onMore,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+    ),
+  );
+}
+
 class _SummaryStrip extends StatelessWidget {
   const _SummaryStrip({
     required this.total,
     required this.low,
+    required this.expiring,
     required this.expired,
     required this.selected,
     required this.onSelected,
   });
   final int total;
   final int low;
+  final int expiring;
   final int expired;
   final InventoryStatusFilter selected;
   final ValueChanged<InventoryStatusFilter> onSelected;
@@ -435,6 +508,14 @@ class _SummaryStrip extends StatelessWidget {
             label: 'Items',
             selected: selected == InventoryStatusFilter.all,
             onTap: () => onSelected(InventoryStatusFilter.all),
+          ),
+        ),
+        Expanded(
+          child: _SummaryValue(
+            value: '$expiring',
+            label: 'Expiring',
+            selected: selected == InventoryStatusFilter.expiring,
+            onTap: () => onSelected(InventoryStatusFilter.expiring),
           ),
         ),
         Expanded(
@@ -519,12 +600,15 @@ class _FilterHeading extends StatelessWidget {
     final title = switch (filter) {
       InventoryStatusFilter.all => 'All Inventory',
       InventoryStatusFilter.lowStock => 'Low Stock',
+      InventoryStatusFilter.expiring => 'Expiring Soon',
       InventoryStatusFilter.expired => 'Expired Inventory',
     };
     final subtitle = switch (filter) {
       InventoryStatusFilter.all => '$visibleCount visible items',
       InventoryStatusFilter.lowStock =>
         '$visibleCount items require restocking',
+      InventoryStatusFilter.expiring =>
+        '$visibleCount items expire within 90 days',
       InventoryStatusFilter.expired => '$visibleCount expired items',
     };
     return Row(
@@ -667,6 +751,7 @@ class _InventoryCard extends StatelessWidget {
         : low
         ? 'Low stock'
         : null;
+    final brand = item.manufacturer?.trim();
     return AveraSurfaceCard(
       padding: EdgeInsets.zero,
       child: InkWell(
@@ -676,39 +761,54 @@ class _InventoryCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  expired
-                      ? Icons.timer_off_outlined
-                      : Icons.inventory_2_outlined,
-                ),
+              InventoryProductImage(
+                name: item.name,
+                imageReference: item.imagePath,
+                width: 76,
+                height: 92,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.name, style: averaText(context).listItemTitle),
-                    Text(
-                      '${item.categoryName} / Qty ${item.quantity} / Min ${item.minimumQuantity}',
-                      style: averaText(context).listItemSubtitle,
-                    ),
-                    Text(
-                      'Batch ${item.batchNumber ?? '-'} / Exp ${item.expiryDate == null ? '-' : DateFormat.yMMMd().format(item.expiryDate!)}',
-                      style: averaText(context).caption,
-                    ),
-                    if (item.isSellable)
+                    if (brand?.isNotEmpty == true)
                       Text(
-                        formatNaira(item.sellingPrice),
+                        brand!.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: averaText(context).sectionLabel,
+                      ),
+                    Text(
+                      item.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: averaText(context).listItemTitle,
+                    ),
+                    if (item.activeIngredient?.trim().isNotEmpty == true)
+                      Text(
+                        item.activeIngredient!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: averaText(context).caption,
                       ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${formatNaira(item.sellingPrice)} / ${item.baseUnitLabel}',
+                      style: averaText(context).listItemTitle,
+                    ),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _InventoryBadge(label: status ?? 'In stock'),
+                        _InventoryBadge(label: item.categoryName),
+                      ],
+                    ),
+                    Text(
+                      '${item.quantity} ${item.baseUnitLabel}${item.quantity == 1 ? '' : 's'} available',
+                      style: averaText(context).caption,
+                    ),
                     if (canSeeCost)
                       Text(
                         'Cost: ${formatNaira(item.buyingPrice)}',
@@ -717,12 +817,7 @@ class _InventoryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (status != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Chip(label: Text(status)),
-                ),
-              if (onTap != null && status == null)
+              if (onTap != null)
                 const Padding(
                   padding: EdgeInsets.only(left: 8),
                   child: Icon(Icons.chevron_right_rounded),
@@ -735,14 +830,87 @@ class _InventoryCard extends StatelessWidget {
   }
 }
 
+class _InventoryBadge extends StatelessWidget {
+  const _InventoryBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Text(
+      label.toUpperCase(),
+      style: averaText(context).caption.copyWith(fontSize: 10),
+    ),
+  );
+}
+
+class InventoryProductImage extends StatelessWidget {
+  const InventoryProductImage({
+    super.key,
+    required this.name,
+    this.imageReference,
+    required this.width,
+    required this.height,
+  });
+
+  final String name;
+  final String? imageReference;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final reference = imageReference?.trim();
+    final provider = reference == null || reference.isEmpty
+        ? null
+        : reference.startsWith('http')
+        ? NetworkImage(reference) as ImageProvider<Object>
+        : localIdentityImage(reference);
+    final placeholder = ColoredBox(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: Center(
+        child: Icon(
+          Icons.medication_liquid_outlined,
+          size: height * .32,
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
+        ),
+      ),
+    );
+    return Semantics(
+      image: true,
+      label: '$name product image',
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: provider == null
+              ? placeholder
+              : Image(
+                  image: provider,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => placeholder,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
 class _InventoryProductDetailsScreen extends ConsumerWidget {
   const _InventoryProductDetailsScreen({
     required this.item,
+    required this.catalogItems,
     required this.session,
     this.onEdit,
   });
 
   final _InventoryDisplayItem item;
+  final List<_InventoryDisplayItem> catalogItems;
   final UserSession session;
   final Future<void> Function()? onEdit;
 
@@ -760,6 +928,23 @@ class _InventoryProductDetailsScreen extends ConsumerWidget {
         ? item
         : _InventoryDisplayItem.fromRemote(refreshedRemote);
     final localId = displayItem.localId;
+    final sameManufacturer = catalogItems
+        .where(
+          (candidate) =>
+              candidate.name != displayItem.name &&
+              displayItem.manufacturer?.trim().isNotEmpty == true &&
+              candidate.manufacturer?.trim().toLowerCase() ==
+                  displayItem.manufacturer?.trim().toLowerCase(),
+        )
+        .toList(growable: false);
+    final similar = catalogItems
+        .where(
+          (candidate) =>
+              candidate.name != displayItem.name &&
+              candidate.categoryId == displayItem.categoryId &&
+              !sameManufacturer.contains(candidate),
+        )
+        .toList(growable: false);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Product Details'),
@@ -850,7 +1035,7 @@ class _InventoryProductDetailsScreen extends ConsumerWidget {
               },
             ),
           const SizedBox(height: 24),
-          const _ProductSectionTitle(title: 'Stock Information'),
+          const _ProductSectionTitle(title: 'Important Stock Information'),
           _StockFacts(item: displayItem),
           const SizedBox(height: 24),
           const _ProductSectionTitle(title: 'Product Information'),
@@ -899,40 +1084,37 @@ class _InventoryProductDetailsScreen extends ConsumerWidget {
             icon: const Icon(Icons.local_shipping_outlined),
             label: const Text('Request Reorder from Supplier'),
           ),
-          if (remoteId != null) ...[
+          if (sameManufacturer.isNotEmpty) ...[
             const SizedBox(height: 24),
-            const _ProductSectionTitle(title: 'Related Products'),
-            FutureBuilder<List<RemoteInventoryItem>>(
-              future: ref
-                  .read(remoteInventoryListProvider.notifier)
-                  .relatedProducts(remoteId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final related = snapshot.data ?? const <RemoteInventoryItem>[];
-                if (related.isEmpty) {
-                  return const AveraSurfaceCard(
-                    child: Text('No related products found.'),
-                  );
-                }
-                return Column(
-                  children: [
-                    for (final product in related)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          title: Text(product.name),
-                          subtitle: Text(product.categoryName),
-                          trailing: Text(formatNaira(product.sellingPrice)),
-                        ),
-                      ),
-                  ],
-                );
-              },
+            _ProductSectionTitle(
+              title: 'More from ${displayItem.manufacturer}',
+            ),
+            _ProductRecommendationRail(
+              products: sameManufacturer,
+              onTap: (product) => _openProduct(context, product),
+            ),
+          ],
+          if (similar.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            const _ProductSectionTitle(title: 'Similar Products'),
+            _ProductRecommendationGrid(
+              products: similar,
+              onTap: (product) => _openProduct(context, product),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _openProduct(BuildContext context, _InventoryDisplayItem product) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _InventoryProductDetailsScreen(
+          item: product,
+          catalogItems: catalogItems,
+          session: session,
+        ),
       ),
     );
   }
@@ -1048,60 +1230,47 @@ class _ProductHero extends StatelessWidget {
     final expired = item.expiryDate?.isBefore(DateTime.now()) ?? false;
     final low = !expired && item.quantity <= item.minimumQuantity;
     return AveraSurfaceCard(
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 84,
-            height: 84,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.inventory_2_outlined, size: 40),
+          Text(item.name, style: averaText(context).pageTitle),
+          const SizedBox(height: 4),
+          Text(
+            'Brand: ${item.manufacturer?.trim().isNotEmpty == true ? item.manufacturer : 'Not recorded'}',
+            style: averaText(context).listItemSubtitle,
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.name, style: averaText(context).sectionTitle),
-                Text(
-                  [item.categoryName, item.manufacturer]
-                      .whereType<String>()
-                      .where((value) => value.trim().isNotEmpty)
-                      .join(' / '),
-                  style: averaText(context).listItemSubtitle,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    Chip(
-                      label: Text(
-                        expired
-                            ? 'EXPIRED'
-                            : low
-                            ? 'LOW STOCK'
-                            : 'IN STOCK',
-                      ),
-                    ),
-                    Chip(label: Text(item.categoryName.toUpperCase())),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  formatNaira(item.sellingPrice),
-                  style: averaText(context).sectionTitle,
-                ),
-                Text(
-                  'per ${item.baseUnitLabel}',
-                  style: averaText(context).caption,
-                ),
-              ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _InventoryBadge(
+                label: expired
+                    ? 'Expired'
+                    : low
+                    ? 'Low stock'
+                    : 'In stock',
+              ),
+              _InventoryBadge(label: item.categoryName),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Center(
+            child: InventoryProductImage(
+              name: item.name,
+              imageReference: item.imagePath,
+              width: double.infinity,
+              height: 220,
             ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            formatNaira(item.sellingPrice),
+            style: averaText(context).pageTitle,
+          ),
+          Text(
+            '${formatNaira(item.sellingPrice)} per ${item.baseUnitLabel}',
+            style: averaText(context).caption,
           ),
         ],
       ),
@@ -1254,41 +1423,184 @@ class _ProductInformation extends StatelessWidget {
         'Eggs: ${item.withdrawalEggs}',
     ];
     return AveraSurfaceCard(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
-          _InformationRow('ACTIVE INGREDIENT', item.activeIngredient),
-          const Divider(),
-          _InformationRow('DOSAGE & ROUTE', item.dosageAndRoute),
-          if (withdrawals.isNotEmpty) ...[
-            const Divider(),
-            _InformationRow('WITHDRAWAL PERIOD', withdrawals.join('\n')),
-          ],
-          const Divider(),
-          _InformationRow('WARNINGS', item.warnings),
+          _ProductInfoTile(
+            title: 'General Information',
+            icon: Icons.info_outline_rounded,
+            initiallyExpanded: true,
+            value:
+                '${item.name} is listed under ${item.categoryName}. '
+                'Stock and selling units are managed from this clinic inventory record.',
+          ),
+          const Divider(height: 1),
+          _ProductInfoTile(
+            title: 'Active Ingredients',
+            icon: Icons.science_outlined,
+            value: item.activeIngredient,
+          ),
+          const Divider(height: 1),
+          _ProductInfoTile(
+            title: 'Dosage & Directions',
+            icon: Icons.medication_outlined,
+            value: item.dosageAndRoute,
+          ),
+          const Divider(height: 1),
+          _ProductInfoTile(
+            title: 'Withdrawal Period',
+            icon: Icons.schedule_outlined,
+            value: withdrawals.isEmpty ? null : withdrawals.join('\n'),
+          ),
+          const Divider(height: 1),
+          _ProductInfoTile(
+            title: 'Warnings',
+            icon: Icons.warning_amber_rounded,
+            value: item.warnings,
+          ),
+          const Divider(height: 1),
+          const _ProductInfoTile(
+            title: 'Storage',
+            icon: Icons.inventory_2_outlined,
+          ),
         ],
       ),
     );
   }
 }
 
-class _InformationRow extends StatelessWidget {
-  const _InformationRow(this.label, this.value);
-  final String label;
+class _ProductInfoTile extends StatelessWidget {
+  const _ProductInfoTile({
+    required this.title,
+    required this.icon,
+    this.value,
+    this.initiallyExpanded = false,
+  });
+  final String title;
+  final IconData icon;
   final String? value;
+  final bool initiallyExpanded;
 
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.centerLeft,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: averaText(context).caption),
-        const SizedBox(height: 6),
-        Text(
-          value?.trim().isNotEmpty ?? false ? value! : 'Not set',
+  Widget build(BuildContext context) => ExpansionTile(
+    initiallyExpanded: initiallyExpanded,
+    leading: Icon(icon),
+    title: Text(title, style: averaText(context).listItemTitle),
+    childrenPadding: const EdgeInsets.fromLTRB(56, 0, 20, 18),
+    expandedCrossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          value?.trim().isNotEmpty == true ? value! : 'Not recorded',
           style: averaText(context).listItemSubtitle,
         ),
-      ],
+      ),
+    ],
+  );
+}
+
+class _ProductRecommendationRail extends StatelessWidget {
+  const _ProductRecommendationRail({
+    required this.products,
+    required this.onTap,
+  });
+  final List<_InventoryDisplayItem> products;
+  final ValueChanged<_InventoryDisplayItem> onTap;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 238,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: products.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 12),
+      itemBuilder: (context, index) => SizedBox(
+        width: 174,
+        child: _ProductRecommendationCard(
+          product: products[index],
+          onTap: () => onTap(products[index]),
+        ),
+      ),
+    ),
+  );
+}
+
+class _ProductRecommendationGrid extends StatelessWidget {
+  const _ProductRecommendationGrid({
+    required this.products,
+    required this.onTap,
+  });
+  final List<_InventoryDisplayItem> products;
+  final ValueChanged<_InventoryDisplayItem> onTap;
+
+  @override
+  Widget build(BuildContext context) => GridView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    itemCount: products.length,
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      mainAxisExtent: 238,
+    ),
+    itemBuilder: (context, index) => _ProductRecommendationCard(
+      product: products[index],
+      onTap: () => onTap(products[index]),
+    ),
+  );
+}
+
+class _ProductRecommendationCard extends StatelessWidget {
+  const _ProductRecommendationCard({
+    required this.product,
+    required this.onTap,
+  });
+  final _InventoryDisplayItem product;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => AveraSurfaceCard(
+    padding: EdgeInsets.zero,
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InventoryProductImage(
+              name: product.name,
+              imageReference: product.imagePath,
+              width: double.infinity,
+              height: 90,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              product.manufacturer?.toUpperCase() ?? product.categoryName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: averaText(context).caption,
+            ),
+            Text(
+              product.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: averaText(context).listItemTitle.copyWith(fontSize: 14),
+            ),
+            const Spacer(),
+            Text(
+              formatNaira(product.sellingPrice),
+              style: averaText(context).listItemTitle.copyWith(fontSize: 14),
+            ),
+            Text(
+              product.quantity > 0 ? 'IN STOCK' : 'OUT OF STOCK',
+              style: averaText(context).caption,
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -1441,6 +1753,10 @@ class _InventoryMessage extends StatelessWidget {
             InventoryStatusFilter.lowStock => (
               'No low-stock items',
               'All visible Inventory items are currently above their minimum quantities.',
+            ),
+            InventoryStatusFilter.expiring => (
+              'No items expiring soon',
+              'There are no Inventory items expiring within the next 90 days.',
             ),
             InventoryStatusFilter.expired => (
               'No expired items',

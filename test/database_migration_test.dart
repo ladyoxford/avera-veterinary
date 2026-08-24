@@ -135,4 +135,74 @@ void main() {
     expect(line.read<String>('description'), 'Consultation');
     expect(line.read<int>('animal_id'), 42);
   });
+
+  test('version 27 preserves existing invoices and dependent lines', () async {
+    final database = AppDatabase.forTesting(
+      NativeDatabase.memory(
+        setup: (sqlite) {
+          sqlite.execute(
+            'CREATE TABLE invoices ('
+            'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
+            'clinic_id TEXT NOT NULL, animal_id INTEGER NOT NULL, '
+            'appointment_id INTEGER, consultation_id INTEGER, '
+            'reference TEXT NOT NULL, '
+            "status TEXT NOT NULL DEFAULT 'Pending', "
+            "context_type TEXT NOT NULL DEFAULT 'clinic_visit', "
+            'products_subtotal REAL NOT NULL DEFAULT 0, '
+            'services_subtotal REAL NOT NULL DEFAULT 0, '
+            'consultation_fee REAL NOT NULL DEFAULT 0, '
+            'home_service_fee REAL NOT NULL DEFAULT 0, '
+            'total REAL NOT NULL DEFAULT 0, '
+            'amount_paid REAL NOT NULL DEFAULT 0, '
+            'refund_total REAL NOT NULL DEFAULT 0, '
+            'balance REAL NOT NULL DEFAULT 0, payment_method TEXT, '
+            'linked_clinical_operation_id INTEGER, paid_at INTEGER, '
+            'paid_by_user_id TEXT, voided_at INTEGER, '
+            'voided_by_user_id TEXT, void_reason TEXT, '
+            'clinic_name_snapshot TEXT NOT NULL, '
+            'clinic_address_snapshot TEXT, clinic_phone_snapshot TEXT, '
+            'clinic_email_snapshot TEXT, created_by_user_id TEXT NOT NULL, '
+            'created_at INTEGER NOT NULL, updated_at INTEGER)',
+          );
+          sqlite.execute(
+            'CREATE TABLE invoice_service_lines ('
+            'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
+            'invoice_id INTEGER NOT NULL REFERENCES invoices(id), '
+            'animal_id INTEGER, description TEXT NOT NULL, '
+            'amount REAL NOT NULL, cost_snapshot REAL)',
+          );
+          sqlite.execute(
+            "INSERT INTO invoices (id, clinic_id, animal_id, reference, "
+            "total, balance, clinic_name_snapshot, created_by_user_id, "
+            "created_at) VALUES (1, 'clinic-a', 42, 'INV-1', 5000, 5000, "
+            "'Clinic A', 'user-a', 1)",
+          );
+          sqlite.execute(
+            "INSERT INTO invoice_service_lines "
+            "(id, invoice_id, animal_id, description, amount) "
+            "VALUES (1, 1, 42, 'Consultation', 5000)",
+          );
+          sqlite.execute('PRAGMA user_version = 26');
+        },
+      ),
+    );
+    addTearDown(database.close);
+
+    final invoice = await database
+        .customSelect(
+          'SELECT reference, animal_id, farm_id FROM invoices WHERE id = 1',
+        )
+        .getSingle();
+    final line = await database
+        .customSelect(
+          'SELECT invoice_id, description FROM invoice_service_lines WHERE id = 1',
+        )
+        .getSingle();
+
+    expect(invoice.read<String>('reference'), 'INV-1');
+    expect(invoice.read<int>('animal_id'), 42);
+    expect(invoice.readNullable<String>('farm_id'), isNull);
+    expect(line.read<int>('invoice_id'), 1);
+    expect(line.read<String>('description'), 'Consultation');
+  });
 }

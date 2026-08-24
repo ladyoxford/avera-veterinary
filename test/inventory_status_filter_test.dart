@@ -64,4 +64,34 @@ void main() {
       isFalse,
     );
   });
+
+  test('expiring filter includes only current dates within 90 days', () {
+    expect(
+      matches(
+        InventoryStatusFilter.expiring,
+        quantity: 10,
+        minimumQuantity: 5,
+        expiryDate: now.add(const Duration(days: 45)),
+      ),
+      isTrue,
+    );
+    expect(
+      matches(
+        InventoryStatusFilter.expiring,
+        quantity: 10,
+        minimumQuantity: 5,
+        expiryDate: now.add(const Duration(days: 91)),
+      ),
+      isFalse,
+    );
+    expect(
+      matches(
+        InventoryStatusFilter.expiring,
+        quantity: 10,
+        minimumQuantity: 5,
+        expiryDate: now.subtract(const Duration(days: 1)),
+      ),
+      isFalse,
+    );
+  });
 }

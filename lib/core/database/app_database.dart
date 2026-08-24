@@ -1177,7 +1177,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 27;
+  static const currentSchemaVersion = 28;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1773,7 +1773,17 @@ class AppDatabase extends _$AppDatabase {
         // Farm invoices have no patient. Rebuild this one table so the legacy
         // animal foreign key becomes nullable while every existing row and
         // relationship remains intact.
-        await m.alterTable(TableMigration(invoices));
+        await m.alterTable(
+          TableMigration(
+            invoices,
+            newColumns: [
+              invoices.farmId,
+              invoices.farmVisitDate,
+              invoices.clientNameSnapshot,
+              invoices.clientPhoneSnapshot,
+            ],
+          ),
+        );
         if (!await _hasColumn('invoice_service_lines', 'farm_unit_id')) {
           await m.addColumn(
             invoiceServiceLines,
@@ -1808,6 +1818,25 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE INDEX IF NOT EXISTS product_units_item_index '
           'ON product_units (clinic_id, inventory_item_id)',
+        );
+      }
+      if (from < 28) {
+        // Repair clients that already ran v27 before the invoice columns were
+        // declared as new columns in the Drift table migration.
+        await customStatement(
+          "UPDATE invoices SET farm_id = NULL WHERE farm_id = 'farm_id'",
+        );
+        await customStatement(
+          "UPDATE invoices SET farm_visit_date = NULL "
+          "WHERE farm_visit_date = 'farm_visit_date'",
+        );
+        await customStatement(
+          "UPDATE invoices SET client_name_snapshot = NULL "
+          "WHERE client_name_snapshot = 'client_name_snapshot'",
+        );
+        await customStatement(
+          "UPDATE invoices SET client_phone_snapshot = NULL "
+          "WHERE client_phone_snapshot = 'client_phone_snapshot'",
         );
       }
     },

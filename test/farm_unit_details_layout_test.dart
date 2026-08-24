@@ -78,11 +78,12 @@ void main() {
         ),
       );
 
-      expect(find.text('Last: Aug 22, 2026'), findsNWidgets(2));
-      expect(find.text('Next: Sep 22, 2026'), findsOneWidget);
-      expect(find.text('Next: Not scheduled'), findsOneWidget);
-      expect(find.text('Last: Not recorded'), findsNWidgets(2));
-      expect(find.text('Next: Not recorded'), findsNWidgets(2));
+      expect(find.text('LAST'), findsNWidgets(4));
+      expect(find.text('NEXT'), findsNWidgets(4));
+      expect(find.text('Aug 22, 2026'), findsNWidgets(2));
+      expect(find.text('Sep 22, 2026'), findsOneWidget);
+      expect(find.text('Not scheduled'), findsOneWidget);
+      expect(find.text('Not recorded'), findsNWidgets(4));
       expect(find.textContaining('...'), findsNothing);
       expect(tester.takeException(), isNull);
     });

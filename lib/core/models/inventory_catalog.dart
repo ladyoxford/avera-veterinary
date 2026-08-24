@@ -19,6 +19,7 @@ class InventoryCategoryDefinition {
 enum InventoryStatusFilter {
   all,
   lowStock,
+  expiring,
   expired;
 
   bool matches({
@@ -29,6 +30,10 @@ enum InventoryStatusFilter {
   }) => switch (this) {
     InventoryStatusFilter.all => true,
     InventoryStatusFilter.lowStock => quantity <= minimumQuantity,
+    InventoryStatusFilter.expiring =>
+      expiryDate != null &&
+          !expiryDate.isBefore(now) &&
+          !expiryDate.isAfter(now.add(const Duration(days: 90))),
     InventoryStatusFilter.expired =>
       expiryDate != null && expiryDate.isBefore(now),
   };
@@ -36,6 +41,7 @@ enum InventoryStatusFilter {
   String get label => switch (this) {
     InventoryStatusFilter.all => 'Items',
     InventoryStatusFilter.lowStock => 'Low stock',
+    InventoryStatusFilter.expiring => 'Expiring',
     InventoryStatusFilter.expired => 'Expired',
   };
 }

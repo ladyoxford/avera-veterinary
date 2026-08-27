@@ -263,7 +263,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 ref,
                                 session,
                                 initial: item.remote == null
-                                    ? null
+                                    ? InventoryItemDraft.fromLocal(item.local!)
                                     : InventoryItemDraft.fromRemote(
                                         item.remote!,
                                       ),
@@ -334,22 +334,87 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ref.invalidate(remoteDashboardProvider);
           return;
         }
-        await ref
-            .read(clinicRepositoryProvider)
-            .saveInventoryItem(
-              session: session,
-              name: draft.name,
-              categoryId: draft.categoryId,
-              quantity: draft.quantity,
-              minimumQuantity: draft.minimumQuantity,
-              batchNumber: draft.batchNumber,
-              expiryDate: draft.expiryDate,
-              sellingPrice: draft.sellingPrice,
-              buyingPrice: session.can(Permissions.inventoryCostView)
-                  ? draft.buyingPrice
-                  : null,
-              imagePath: draft.pendingImagePath ?? draft.imageReference,
-            );
+        final repository = ref.read(clinicRepositoryProvider);
+        final arguments = (
+          imagePath: draft.pendingImagePath ?? draft.imageReference,
+          buyingPrice: session.can(Permissions.inventoryCostView)
+              ? draft.buyingPrice
+              : null,
+        );
+        if (draft.localId == null) {
+          await repository.saveInventoryItem(
+            session: session,
+            name: draft.name,
+            categoryId: draft.categoryId,
+            quantity: draft.quantity,
+            minimumQuantity: draft.minimumQuantity,
+            batchNumber: draft.batchNumber,
+            expiryDate: draft.expiryDate,
+            sellingPrice: draft.sellingPrice,
+            buyingPrice: arguments.buyingPrice,
+            imagePath: arguments.imagePath,
+            genericName: draft.genericName,
+            brandName: draft.brandName,
+            manufacturer: draft.manufacturer,
+            supplier: draft.supplier,
+            sku: draft.sku,
+            barcode: draft.barcode,
+            shortDescription: draft.shortDescription,
+            detailedDescription: draft.detailedDescription,
+            dosageForm: draft.dosageForm,
+            packSize: draft.packSize,
+            baseUnitLabel: draft.baseUnitLabel,
+            activeIngredient: draft.activeIngredient,
+            dosageAndRoute: draft.dosageAndRoute,
+            withdrawalMeat: draft.withdrawalMeat,
+            withdrawalMilk: draft.withdrawalMilk,
+            withdrawalEggs: draft.withdrawalEggs,
+            withdrawalOther: draft.withdrawalOther,
+            warnings: draft.warnings,
+            contraindications: draft.contraindications,
+            adverseEffects: draft.adverseEffects,
+            storageConditions: draft.storageConditions,
+            publicDisplayName: draft.publicDisplayName,
+            availableToPublic: draft.availableToPublic,
+          );
+        } else {
+          await repository.updateInventoryItem(
+            session: session,
+            itemId: draft.localId!,
+            name: draft.name,
+            categoryId: draft.categoryId,
+            quantity: draft.quantity,
+            minimumQuantity: draft.minimumQuantity,
+            batchNumber: draft.batchNumber,
+            expiryDate: draft.expiryDate,
+            sellingPrice: draft.sellingPrice,
+            buyingPrice: arguments.buyingPrice,
+            imagePath: arguments.imagePath,
+            genericName: draft.genericName,
+            brandName: draft.brandName,
+            manufacturer: draft.manufacturer,
+            supplier: draft.supplier,
+            sku: draft.sku,
+            barcode: draft.barcode,
+            shortDescription: draft.shortDescription,
+            detailedDescription: draft.detailedDescription,
+            dosageForm: draft.dosageForm,
+            packSize: draft.packSize,
+            baseUnitLabel: draft.baseUnitLabel,
+            activeIngredient: draft.activeIngredient,
+            dosageAndRoute: draft.dosageAndRoute,
+            withdrawalMeat: draft.withdrawalMeat,
+            withdrawalMilk: draft.withdrawalMilk,
+            withdrawalEggs: draft.withdrawalEggs,
+            withdrawalOther: draft.withdrawalOther,
+            warnings: draft.warnings,
+            contraindications: draft.contraindications,
+            adverseEffects: draft.adverseEffects,
+            storageConditions: draft.storageConditions,
+            publicDisplayName: draft.publicDisplayName,
+            availableToPublic: draft.availableToPublic,
+          );
+        }
       },
     );
     if (saved && context.mounted) {
@@ -660,15 +725,30 @@ class _InventoryDisplayItem {
     this.remote,
     this.localId,
     this.manufacturer,
+    this.genericName,
+    this.brandName,
     this.supplier,
+    this.sku,
+    this.barcode,
+    this.shortDescription,
+    this.detailedDescription,
+    this.dosageForm,
+    this.packSize,
     this.baseUnitLabel = 'unit',
     this.activeIngredient,
     this.dosageAndRoute,
     this.withdrawalMeat,
     this.withdrawalMilk,
     this.withdrawalEggs,
+    this.withdrawalOther,
     this.warnings,
+    this.contraindications,
+    this.adverseEffects,
+    this.storageConditions,
+    this.publicDisplayName,
+    this.availableToPublic = false,
     this.imagePath,
+    this.local,
   });
 
   final String name;
@@ -684,15 +764,30 @@ class _InventoryDisplayItem {
   final RemoteInventoryItem? remote;
   final int? localId;
   final String? manufacturer;
+  final String? genericName;
+  final String? brandName;
   final String? supplier;
+  final String? sku;
+  final String? barcode;
+  final String? shortDescription;
+  final String? detailedDescription;
+  final String? dosageForm;
+  final String? packSize;
   final String baseUnitLabel;
   final String? activeIngredient;
   final String? dosageAndRoute;
   final String? withdrawalMeat;
   final String? withdrawalMilk;
   final String? withdrawalEggs;
+  final String? withdrawalOther;
   final String? warnings;
+  final String? contraindications;
+  final String? adverseEffects;
+  final String? storageConditions;
+  final String? publicDisplayName;
+  final bool availableToPublic;
   final String? imagePath;
+  final InventoryItem? local;
 
   factory _InventoryDisplayItem.fromLocal(InventoryItem item) =>
       _InventoryDisplayItem(
@@ -708,15 +803,30 @@ class _InventoryDisplayItem {
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
         localId: item.id,
+        local: item,
+        genericName: item.genericName,
+        brandName: item.brandName,
         manufacturer: item.manufacturer,
         supplier: item.supplier,
+        sku: item.sku,
+        barcode: item.barcode,
+        shortDescription: item.shortDescription,
+        detailedDescription: item.detailedDescription,
+        dosageForm: item.dosageForm,
+        packSize: item.packSize,
         baseUnitLabel: item.baseUnitLabel,
         activeIngredient: item.activeIngredient,
         dosageAndRoute: item.dosageAndRoute,
         withdrawalMeat: item.withdrawalMeat,
         withdrawalMilk: item.withdrawalMilk,
         withdrawalEggs: item.withdrawalEggs,
+        withdrawalOther: item.withdrawalOther,
         warnings: item.warnings,
+        contraindications: item.contraindications,
+        adverseEffects: item.adverseEffects,
+        storageConditions: item.storageConditions,
+        publicDisplayName: item.publicDisplayName,
+        availableToPublic: item.availableToPublic,
         imagePath: item.imagePath,
       );
 
@@ -734,15 +844,29 @@ class _InventoryDisplayItem {
         isSellable: item.isSellable,
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
+        genericName: item.genericName,
+        brandName: item.brandName,
         manufacturer: item.manufacturer,
         supplier: item.supplier,
+        sku: item.sku,
+        barcode: item.barcode,
+        shortDescription: item.shortDescription,
+        detailedDescription: item.detailedDescription,
+        dosageForm: item.dosageForm,
+        packSize: item.packSize,
         baseUnitLabel: item.baseUnitLabel,
         activeIngredient: item.activeIngredient ?? item.genericName,
         dosageAndRoute: item.dosageAndRoute,
         withdrawalMeat: item.withdrawalMeat,
         withdrawalMilk: item.withdrawalMilk,
         withdrawalEggs: item.withdrawalEggs,
+        withdrawalOther: item.withdrawalOther,
         warnings: item.warnings,
+        contraindications: item.contraindications,
+        adverseEffects: item.adverseEffects,
+        storageConditions: item.storageConditions,
+        publicDisplayName: item.publicDisplayName,
+        availableToPublic: item.availableToPublic,
         imagePath: item.imageUrl,
         remote: item,
       );
@@ -970,7 +1094,9 @@ class _InventoryProductDetailsScreen extends ConsumerWidget {
             TextButton.icon(
               onPressed: () async {
                 await onEdit!();
-                if (context.mounted) Navigator.of(context).pop();
+                if (context.mounted && localId != null) {
+                  Navigator.of(context).pop();
+                }
               },
               icon: const Icon(Icons.edit_outlined),
               label: const Text('Edit'),
@@ -986,16 +1112,17 @@ class _InventoryProductDetailsScreen extends ConsumerWidget {
             title: 'Unit & Stock',
             action:
                 (localId != null || remoteId != null) &&
-                    session.can(Permissions.inventoryEdit)
+                    session.can(Permissions.inventoryAdjust)
                 ? TextButton.icon(
-                    onPressed: () => _configureUnits(
+                    onPressed: () => _addStock(
                       context,
                       ref,
+                      displayItem,
                       localId: localId,
-                      remote: refreshedRemote ?? displayItem.remote,
+                      remoteId: remoteId,
                     ),
-                    icon: const Icon(Icons.tune_rounded),
-                    label: const Text('Configure'),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add Stock'),
                   )
                 : null,
           ),
@@ -1050,6 +1177,21 @@ class _InventoryProductDetailsScreen extends ConsumerWidget {
                       .toList(growable: false),
                 );
               },
+            ),
+          if ((localId != null || remoteId != null) &&
+              session.can(Permissions.inventoryEdit))
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _configureUnits(
+                  context,
+                  ref,
+                  localId: localId,
+                  remote: refreshedRemote ?? displayItem.remote,
+                ),
+                icon: const Icon(Icons.tune_rounded),
+                label: const Text('Configure Units'),
+              ),
             ),
           const SizedBox(height: 24),
           const _ProductSectionTitle(title: 'Important Stock Information'),
@@ -1236,6 +1378,251 @@ class _InventoryProductDetailsScreen extends ConsumerWidget {
       );
     }
   }
+
+  Future<void> _addStock(
+    BuildContext context,
+    WidgetRef ref,
+    _InventoryDisplayItem item, {
+    required int? localId,
+    required String? remoteId,
+  }) async {
+    final result = await showDialog<_AddStockResult>(
+      context: context,
+      builder: (_) => _AddStockDialog(
+        item: item,
+        canSeeCost: session.can(Permissions.inventoryCostView),
+      ),
+    );
+    if (result == null || !context.mounted) return;
+    try {
+      if (remoteId != null) {
+        await ref
+            .read(remoteInventoryListProvider.notifier)
+            .addStock(
+              itemId: remoteId,
+              quantityToAdd: result.quantity,
+              batchNumber: result.batchNumber,
+              expiryDate: result.expiryDate,
+              purchasePrice: result.costPrice,
+            );
+      } else if (localId != null) {
+        await ref
+            .read(clinicRepositoryProvider)
+            .addInventoryStock(
+              session: session,
+              itemId: localId,
+              quantityToAdd: result.quantity,
+              batchNumber: result.batchNumber,
+              expiryDate: result.expiryDate,
+              buyingPrice: result.costPrice,
+            );
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.quantity} ${item.baseUnitLabel} added. New stock: ${item.quantity + result.quantity}.',
+          ),
+        ),
+      );
+      if (remoteId == null) Navigator.of(context).pop();
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stock could not be added. Try again.')),
+      );
+    }
+  }
+}
+
+class _AddStockResult {
+  const _AddStockResult({
+    required this.quantity,
+    this.batchNumber,
+    this.expiryDate,
+    this.costPrice,
+  });
+
+  final int quantity;
+  final String? batchNumber;
+  final DateTime? expiryDate;
+  final double? costPrice;
+}
+
+class _AddStockDialog extends StatefulWidget {
+  const _AddStockDialog({required this.item, required this.canSeeCost});
+
+  final _InventoryDisplayItem item;
+  final bool canSeeCost;
+
+  @override
+  State<_AddStockDialog> createState() => _AddStockDialogState();
+}
+
+class _AddStockDialogState extends State<_AddStockDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _quantity = TextEditingController();
+  final _batch = TextEditingController();
+  final _cost = TextEditingController();
+  DateTime? _expiry;
+
+  @override
+  void dispose() {
+    _quantity.dispose();
+    _batch.dispose();
+    _cost.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final quantity = int.tryParse(_quantity.text.trim()) ?? 0;
+    return AlertDialog(
+      title: const Text('Add Stock'),
+      content: SizedBox(
+        width: 440,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _StockPreviewRow(
+                  label: 'Current Stock',
+                  value: '${widget.item.quantity} ${widget.item.baseUnitLabel}',
+                ),
+                const SizedBox(height: 16),
+                AveraLabeledTextField(
+                  label: 'Quantity to Add',
+                  controller: _quantity,
+                  hintText: '0',
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.next,
+                  onChanged: (_) => setState(() {}),
+                  validator: (value) {
+                    final parsed = int.tryParse(value?.trim() ?? '');
+                    return parsed == null || parsed <= 0
+                        ? 'Enter a whole number greater than zero.'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                AveraLabeledTextField(
+                  label: 'Batch Number',
+                  controller: _batch,
+                  hintText: 'Optional new batch number',
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                AveraLabeledFieldCard(
+                  label: 'Expiry Date',
+                  child: InkWell(
+                    onTap: _pickExpiry,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _expiry == null
+                                ? 'Optional expiry date'
+                                : DateFormat.yMMMd().format(_expiry!),
+                          ),
+                        ),
+                        const Icon(Icons.calendar_today_outlined),
+                      ],
+                    ),
+                  ),
+                ),
+                if (widget.canSeeCost) ...[
+                  const SizedBox(height: 12),
+                  AveraLabeledTextField(
+                    label: 'Cost Price (NGN)',
+                    controller: _cost,
+                    hintText: 'Optional',
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    textInputAction: TextInputAction.done,
+                    validator: (value) {
+                      if (value?.trim().isEmpty ?? true) return null;
+                      final parsed = double.tryParse(value!.trim());
+                      return parsed == null || parsed < 0
+                          ? 'Enter a valid amount.'
+                          : null;
+                    },
+                  ),
+                ],
+                const SizedBox(height: 18),
+                _StockPreviewRow(
+                  label: 'New Stock',
+                  value:
+                      '${widget.item.quantity + quantity} ${widget.item.baseUnitLabel}',
+                  emphasized: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Add Stock')),
+      ],
+    );
+  }
+
+  Future<void> _pickExpiry() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 30),
+      initialDate: _expiry ?? now,
+    );
+    if (mounted && picked != null) setState(() => _expiry = picked);
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.of(context).pop(
+      _AddStockResult(
+        quantity: int.parse(_quantity.text.trim()),
+        batchNumber: _batch.text.trim().isEmpty ? null : _batch.text.trim(),
+        expiryDate: _expiry,
+        costPrice: _cost.text.trim().isEmpty
+            ? null
+            : double.parse(_cost.text.trim()),
+      ),
+    );
+  }
+}
+
+class _StockPreviewRow extends StatelessWidget {
+  const _StockPreviewRow({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(child: Text(label, style: averaText(context).listItemSubtitle)),
+      Text(
+        value,
+        style: emphasized
+            ? averaText(context).sectionTitle
+            : averaText(context).listItemTitle,
+      ),
+    ],
+  );
 }
 
 class _ProductHero extends StatelessWidget {
@@ -1250,12 +1637,31 @@ class _ProductHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(item.name, style: averaText(context).pageTitle),
-          const SizedBox(height: 4),
           Text(
-            'Brand: ${item.manufacturer?.trim().isNotEmpty == true ? item.manufacturer : 'Not recorded'}',
-            style: averaText(context).listItemSubtitle,
+            item.publicDisplayName?.trim().isNotEmpty == true
+                ? item.publicDisplayName!
+                : item.name,
+            style: averaText(context).pageTitle,
           ),
+          if (item.publicDisplayName?.trim().isNotEmpty == true &&
+              item.publicDisplayName!.trim() != item.name.trim()) ...[
+            const SizedBox(height: 4),
+            Text(item.name, style: averaText(context).listItemSubtitle),
+          ],
+          if (item.brandName?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Brand: ${item.brandName}',
+              style: averaText(context).listItemSubtitle,
+            ),
+          ],
+          if (item.manufacturer?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Manufacturer: ${item.manufacturer}',
+              style: averaText(context).caption,
+            ),
+          ],
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -1269,6 +1675,8 @@ class _ProductHero extends StatelessWidget {
                     : 'In stock',
               ),
               _InventoryBadge(label: item.categoryName),
+              if (item.availableToPublic)
+                const _InventoryBadge(label: 'Client catalogue'),
             ],
           ),
           const SizedBox(height: 18),
@@ -1438,48 +1846,101 @@ class _ProductInformation extends StatelessWidget {
         'Milk: ${item.withdrawalMilk}',
       if (item.withdrawalEggs?.trim().isNotEmpty ?? false)
         'Eggs: ${item.withdrawalEggs}',
+      if (item.withdrawalOther?.trim().isNotEmpty ?? false)
+        'Other: ${item.withdrawalOther}',
     ];
+    final identity = <String>[
+      if (item.genericName?.trim().isNotEmpty ?? false)
+        'Generic name: ${item.genericName}',
+      if (item.brandName?.trim().isNotEmpty ?? false)
+        'Brand: ${item.brandName}',
+      if (item.manufacturer?.trim().isNotEmpty ?? false)
+        'Manufacturer: ${item.manufacturer}',
+      if (item.sku?.trim().isNotEmpty ?? false) 'SKU: ${item.sku}',
+      if (item.barcode?.trim().isNotEmpty ?? false) 'Barcode: ${item.barcode}',
+      if (item.dosageForm?.trim().isNotEmpty ?? false)
+        'Dosage form: ${item.dosageForm}',
+      if (item.packSize?.trim().isNotEmpty ?? false)
+        'Pack size: ${item.packSize}',
+    ];
+    final description = [
+      item.shortDescription,
+      item.detailedDescription,
+    ].where((value) => value?.trim().isNotEmpty ?? false).join('\n\n');
+    final entries = <({String title, IconData icon, String value})>[
+      if (description.isNotEmpty)
+        (
+          title: 'General Information',
+          icon: Icons.info_outline_rounded,
+          value: description,
+        ),
+      if (identity.isNotEmpty)
+        (
+          title: 'Product Identity & Presentation',
+          icon: Icons.sell_outlined,
+          value: identity.join('\n'),
+        ),
+      if (item.activeIngredient?.trim().isNotEmpty ?? false)
+        (
+          title: 'Active Ingredients',
+          icon: Icons.science_outlined,
+          value: item.activeIngredient!,
+        ),
+      if (item.dosageAndRoute?.trim().isNotEmpty ?? false)
+        (
+          title: 'Dosage & Directions',
+          icon: Icons.medication_outlined,
+          value: item.dosageAndRoute!,
+        ),
+      if (withdrawals.isNotEmpty)
+        (
+          title: 'Withdrawal Period',
+          icon: Icons.schedule_outlined,
+          value: withdrawals.join('\n'),
+        ),
+      if (item.warnings?.trim().isNotEmpty ?? false)
+        (
+          title: 'Warnings',
+          icon: Icons.warning_amber_rounded,
+          value: item.warnings!,
+        ),
+      if (item.contraindications?.trim().isNotEmpty ?? false)
+        (
+          title: 'Contraindications',
+          icon: Icons.block_outlined,
+          value: item.contraindications!,
+        ),
+      if (item.adverseEffects?.trim().isNotEmpty ?? false)
+        (
+          title: 'Adverse Effects',
+          icon: Icons.health_and_safety_outlined,
+          value: item.adverseEffects!,
+        ),
+      if (item.storageConditions?.trim().isNotEmpty ?? false)
+        (
+          title: 'Storage',
+          icon: Icons.inventory_2_outlined,
+          value: item.storageConditions!,
+        ),
+    ];
+    if (entries.isEmpty) {
+      return const AveraSurfaceCard(
+        child: Text('No additional product information recorded.'),
+      );
+    }
     return AveraSurfaceCard(
       padding: EdgeInsets.zero,
       child: Column(
         children: [
-          _ProductInfoTile(
-            title: 'General Information',
-            icon: Icons.info_outline_rounded,
-            initiallyExpanded: true,
-            value:
-                '${item.name} is listed under ${item.categoryName}. '
-                'Stock and selling units are managed from this clinic inventory record.',
-          ),
-          const Divider(height: 1),
-          _ProductInfoTile(
-            title: 'Active Ingredients',
-            icon: Icons.science_outlined,
-            value: item.activeIngredient,
-          ),
-          const Divider(height: 1),
-          _ProductInfoTile(
-            title: 'Dosage & Directions',
-            icon: Icons.medication_outlined,
-            value: item.dosageAndRoute,
-          ),
-          const Divider(height: 1),
-          _ProductInfoTile(
-            title: 'Withdrawal Period',
-            icon: Icons.schedule_outlined,
-            value: withdrawals.isEmpty ? null : withdrawals.join('\n'),
-          ),
-          const Divider(height: 1),
-          _ProductInfoTile(
-            title: 'Warnings',
-            icon: Icons.warning_amber_rounded,
-            value: item.warnings,
-          ),
-          const Divider(height: 1),
-          const _ProductInfoTile(
-            title: 'Storage',
-            icon: Icons.inventory_2_outlined,
-          ),
+          for (var index = 0; index < entries.length; index++) ...[
+            if (index > 0) const Divider(height: 1),
+            _ProductInfoTile(
+              title: entries[index].title,
+              icon: entries[index].icon,
+              value: entries[index].value,
+              initiallyExpanded: index == 0,
+            ),
+          ],
         ],
       ),
     );

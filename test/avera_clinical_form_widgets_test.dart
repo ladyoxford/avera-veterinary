@@ -99,6 +99,18 @@ void main() {
                     sellingPrice: 1800,
                     buyingPrice: 1200,
                     revision: 1,
+                    brandName: 'AveraVet',
+                    manufacturer: 'Avera Veterinary Pharmaceuticals',
+                    dosageForm: 'Injection',
+                    packSize: '100 mL',
+                    shortDescription: 'Long-acting antibiotic injection',
+                    activeIngredient: 'Oxytetracycline 200 mg/mL',
+                    dosageAndRoute: '1 mL per 10 kg body weight',
+                    withdrawalMeat: '21 days',
+                    withdrawalMilk: '7 days',
+                    warnings: 'Do not use in hypersensitive animals',
+                    storageConditions: 'Store below 30 C',
+                    supplier: 'Avera Medical Supply',
                   ),
                   onSubmit: (draft) async => submitted = draft,
                 ),
@@ -118,8 +130,22 @@ void main() {
     expect(find.text('Add product image'), findsOneWidget);
     expect(find.text('ITEM NAME'), findsOneWidget);
     expect(find.text('CATEGORY'), findsOneWidget);
-    expect(find.text('QUANTITY'), findsOneWidget);
+    expect(find.text('CURRENT STOCK'), findsOneWidget);
     expect(find.text('MINIMUM QUANTITY'), findsOneWidget);
+    expect(find.text('Catalogue Information'), findsOneWidget);
+    expect(find.text('Veterinary Information'), findsOneWidget);
+    await tester.ensureVisible(find.text('Catalogue Information'));
+    await tester.tap(find.text('Catalogue Information'));
+    await tester.pumpAndSettle();
+    expect(find.text('SHORT DESCRIPTION'), findsOneWidget);
+    expect(find.text('PRODUCT FORM / PRESENTATION'), findsOneWidget);
+    expect(find.text('Long-acting antibiotic injection'), findsOneWidget);
+    await tester.ensureVisible(find.text('Veterinary Information'));
+    await tester.tap(find.text('Veterinary Information'));
+    await tester.pumpAndSettle();
+    expect(find.text('ACTIVE INGREDIENTS'), findsOneWidget);
+    expect(find.text('Oxytetracycline 200 mg/mL'), findsOneWidget);
+    expect(find.text('MEAT WITHDRAWAL'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     final itemNameField = find.widgetWithText(
@@ -135,6 +161,10 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(submitted?.name, 'Amoxicillin 250 mg');
+    expect(submitted?.brandName, 'AveraVet');
+    expect(submitted?.activeIngredient, 'Oxytetracycline 200 mg/mL');
+    expect(submitted?.withdrawalMeat, '21 days');
+    expect(submitted?.storageConditions, 'Store below 30 C');
     expect(find.text('Edit Inventory Item'), findsNothing);
     expect(tester.takeException(), isNull);
   });

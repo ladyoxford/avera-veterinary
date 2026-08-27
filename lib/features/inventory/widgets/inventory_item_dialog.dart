@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/database/app_database.dart';
 import '../../../core/models/inventory_catalog.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/remote/clinical_remote_data_source.dart';
@@ -20,15 +21,40 @@ class InventoryItemDraft {
     required this.sellingPrice,
     required this.buyingPrice,
     this.remoteId,
+    this.localId,
     this.batchNumber,
     this.expiryDate,
     this.revision,
     this.imageReference,
     this.pendingImagePath,
+    this.genericName,
+    this.brandName,
+    this.manufacturer,
+    this.supplier,
+    this.sku,
+    this.barcode,
+    this.shortDescription,
+    this.detailedDescription,
+    this.dosageForm,
+    this.packSize,
+    this.baseUnitLabel = 'unit',
+    this.activeIngredient,
+    this.dosageAndRoute,
+    this.withdrawalMeat,
+    this.withdrawalMilk,
+    this.withdrawalEggs,
+    this.withdrawalOther,
+    this.warnings,
+    this.contraindications,
+    this.adverseEffects,
+    this.storageConditions,
+    this.publicDisplayName,
+    this.availableToPublic = false,
   });
 
   final String submissionId;
   final String? remoteId;
+  final int? localId;
   final String name;
   final String categoryId;
   final int quantity;
@@ -40,6 +66,29 @@ class InventoryItemDraft {
   final int? revision;
   final String? imageReference;
   final String? pendingImagePath;
+  final String? genericName;
+  final String? brandName;
+  final String? manufacturer;
+  final String? supplier;
+  final String? sku;
+  final String? barcode;
+  final String? shortDescription;
+  final String? detailedDescription;
+  final String? dosageForm;
+  final String? packSize;
+  final String baseUnitLabel;
+  final String? activeIngredient;
+  final String? dosageAndRoute;
+  final String? withdrawalMeat;
+  final String? withdrawalMilk;
+  final String? withdrawalEggs;
+  final String? withdrawalOther;
+  final String? warnings;
+  final String? contraindications;
+  final String? adverseEffects;
+  final String? storageConditions;
+  final String? publicDisplayName;
+  final bool availableToPublic;
 
   factory InventoryItemDraft.fromRemote(RemoteInventoryItem item) =>
       InventoryItemDraft(
@@ -55,6 +104,68 @@ class InventoryItemDraft {
         buyingPrice: item.purchasePrice.toDouble(),
         revision: item.revision,
         imageReference: item.imageUrl,
+        genericName: item.genericName,
+        brandName: item.brandName,
+        manufacturer: item.manufacturer,
+        supplier: item.supplier,
+        sku: item.sku,
+        barcode: item.barcode,
+        shortDescription: item.shortDescription,
+        detailedDescription: item.detailedDescription,
+        dosageForm: item.dosageForm,
+        packSize: item.packSize,
+        baseUnitLabel: item.baseUnitLabel,
+        activeIngredient: item.activeIngredient,
+        dosageAndRoute: item.dosageAndRoute,
+        withdrawalMeat: item.withdrawalMeat,
+        withdrawalMilk: item.withdrawalMilk,
+        withdrawalEggs: item.withdrawalEggs,
+        withdrawalOther: item.withdrawalOther,
+        warnings: item.warnings,
+        contraindications: item.contraindications,
+        adverseEffects: item.adverseEffects,
+        storageConditions: item.storageConditions,
+        publicDisplayName: item.publicDisplayName,
+        availableToPublic: item.availableToPublic,
+      );
+
+  factory InventoryItemDraft.fromLocal(InventoryItem item) =>
+      InventoryItemDraft(
+        submissionId: const Uuid().v4(),
+        localId: item.id,
+        name: item.drugName,
+        categoryId:
+            item.categoryId ?? InventoryCategories.canonicalId(item.category),
+        quantity: item.quantity,
+        minimumQuantity: item.minimumQuantity,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+        sellingPrice: item.sellingPrice,
+        buyingPrice: item.buyingPrice,
+        imageReference: item.imagePath,
+        genericName: item.genericName,
+        brandName: item.brandName,
+        manufacturer: item.manufacturer,
+        supplier: item.supplier,
+        sku: item.sku,
+        barcode: item.barcode,
+        shortDescription: item.shortDescription,
+        detailedDescription: item.detailedDescription,
+        dosageForm: item.dosageForm,
+        packSize: item.packSize,
+        baseUnitLabel: item.baseUnitLabel,
+        activeIngredient: item.activeIngredient,
+        dosageAndRoute: item.dosageAndRoute,
+        withdrawalMeat: item.withdrawalMeat,
+        withdrawalMilk: item.withdrawalMilk,
+        withdrawalEggs: item.withdrawalEggs,
+        withdrawalOther: item.withdrawalOther,
+        warnings: item.warnings,
+        contraindications: item.contraindications,
+        adverseEffects: item.adverseEffects,
+        storageConditions: item.storageConditions,
+        publicDisplayName: item.publicDisplayName,
+        availableToPublic: item.availableToPublic,
       );
 
   Map<String, dynamic> toRemotePayload() {
@@ -64,6 +175,16 @@ class InventoryItemDraft {
       'name': name,
       'categoryId': categoryId,
       'categoryName': category?.name ?? 'Other',
+      'genericName': genericName,
+      'brandName': brandName,
+      'manufacturer': manufacturer,
+      'supplier': supplier,
+      'sku': sku,
+      'barcode': barcode,
+      'shortDescription': shortDescription,
+      'detailedDescription': detailedDescription,
+      'dosageForm': dosageForm,
+      'packSize': packSize,
       'quantity': quantity,
       'reorderLevel': minimumQuantity,
       'batchNumber': batchNumber,
@@ -72,6 +193,20 @@ class InventoryItemDraft {
           : DateFormat('yyyy-MM-dd').format(expiryDate!),
       'purchasePrice': buyingPrice,
       'sellingPrice': sellingPrice,
+      'baseUnitLabel': baseUnitLabel,
+      'activeIngredient': activeIngredient,
+      'dosageAndRoute': dosageAndRoute,
+      'withdrawalMeat': withdrawalMeat,
+      'withdrawalMilk': withdrawalMilk,
+      'withdrawalEggs': withdrawalEggs,
+      'withdrawalOther': withdrawalOther,
+      'warnings': warnings,
+      'contraindications': contraindications,
+      'adverseEffects': adverseEffects,
+      'storageConditions': storageConditions,
+      'publicDisplayName': publicDisplayName,
+      'availableToPublic': availableToPublic,
+      'isSellable': category?.isSellable ?? false,
       if (revision != null) 'revision': revision,
     };
   }
@@ -122,6 +257,28 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
   late final TextEditingController _batch;
   late final TextEditingController _selling;
   late final TextEditingController _cost;
+  late final TextEditingController _genericName;
+  late final TextEditingController _brandName;
+  late final TextEditingController _manufacturer;
+  late final TextEditingController _supplier;
+  late final TextEditingController _sku;
+  late final TextEditingController _barcode;
+  late final TextEditingController _shortDescription;
+  late final TextEditingController _detailedDescription;
+  late final TextEditingController _dosageForm;
+  late final TextEditingController _packSize;
+  late final TextEditingController _baseUnitLabel;
+  late final TextEditingController _activeIngredient;
+  late final TextEditingController _dosageAndRoute;
+  late final TextEditingController _withdrawalMeat;
+  late final TextEditingController _withdrawalMilk;
+  late final TextEditingController _withdrawalEggs;
+  late final TextEditingController _withdrawalOther;
+  late final TextEditingController _warnings;
+  late final TextEditingController _contraindications;
+  late final TextEditingController _adverseEffects;
+  late final TextEditingController _storageConditions;
+  late final TextEditingController _publicDisplayName;
   late final String _submissionId;
   String? _categoryId;
   DateTime? _expiry;
@@ -129,6 +286,13 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
   String? _submissionError;
   String? _imageReference;
   String? _pendingImagePath;
+  bool _availableToPublic = false;
+  bool _basicExpanded = true;
+  bool _catalogueExpanded = false;
+  bool _veterinaryExpanded = false;
+  bool _supplierExpanded = false;
+  bool _stockExpanded = true;
+  bool _publicExpanded = false;
 
   @override
   void initState() {
@@ -143,6 +307,29 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
       text: _numberText(initial?.sellingPrice ?? 0),
     );
     _cost = TextEditingController(text: _numberText(initial?.buyingPrice ?? 0));
+    _genericName = _controller(initial?.genericName);
+    _brandName = _controller(initial?.brandName);
+    _manufacturer = _controller(initial?.manufacturer);
+    _supplier = _controller(initial?.supplier);
+    _sku = _controller(initial?.sku);
+    _barcode = _controller(initial?.barcode);
+    _shortDescription = _controller(initial?.shortDescription);
+    _detailedDescription = _controller(initial?.detailedDescription);
+    _dosageForm = _controller(initial?.dosageForm);
+    _packSize = _controller(initial?.packSize);
+    _baseUnitLabel = _controller(initial?.baseUnitLabel ?? 'unit');
+    _activeIngredient = _controller(initial?.activeIngredient);
+    _dosageAndRoute = _controller(initial?.dosageAndRoute);
+    _withdrawalMeat = _controller(initial?.withdrawalMeat);
+    _withdrawalMilk = _controller(initial?.withdrawalMilk);
+    _withdrawalEggs = _controller(initial?.withdrawalEggs);
+    _withdrawalOther = _controller(initial?.withdrawalOther);
+    _warnings = _controller(initial?.warnings);
+    _contraindications = _controller(initial?.contraindications);
+    _adverseEffects = _controller(initial?.adverseEffects);
+    _storageConditions = _controller(initial?.storageConditions);
+    _publicDisplayName = _controller(initial?.publicDisplayName);
+    _availableToPublic = initial?.availableToPublic ?? false;
     _expiry = initial?.expiryDate;
     _imageReference = initial?.imageReference;
     _categoryId = widget.allowedCategoryIds.contains(initial?.categoryId)
@@ -160,6 +347,32 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
     _batch.dispose();
     _selling.dispose();
     _cost.dispose();
+    for (final controller in [
+      _genericName,
+      _brandName,
+      _manufacturer,
+      _supplier,
+      _sku,
+      _barcode,
+      _shortDescription,
+      _detailedDescription,
+      _dosageForm,
+      _packSize,
+      _baseUnitLabel,
+      _activeIngredient,
+      _dosageAndRoute,
+      _withdrawalMeat,
+      _withdrawalMilk,
+      _withdrawalEggs,
+      _withdrawalOther,
+      _warnings,
+      _contraindications,
+      _adverseEffects,
+      _storageConditions,
+      _publicDisplayName,
+    ]) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -268,119 +481,371 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
     BuildContext context,
     List<InventoryCategoryDefinition> categories,
   ) => [
+    _sectionHeader(context, 'Product Image'),
     _InventoryImageField(
       name: _name.text.trim().isEmpty ? 'Inventory item' : _name.text.trim(),
       imageReference: _pendingImagePath ?? _imageReference,
       onPressed: _saving ? null : _manageImage,
     ),
-    const SizedBox(height: AveraSpacing.cardGap),
-    AveraLabeledTextField(
-      label: 'Item Name',
-      controller: _name,
-      hintText: 'Enter item name',
-      textInputAction: TextInputAction.next,
-      validator: _required,
+    const SizedBox(height: AveraSpacing.sectionGap),
+    _sectionHeader(
+      context,
+      'Basic Information',
+      expanded: _basicExpanded,
+      onTap: () => setState(() => _basicExpanded = !_basicExpanded),
     ),
-    const SizedBox(height: AveraSpacing.cardGap),
-    AveraLabeledDropdownField<String>(
-      label: 'Category',
-      hintText: 'Select category',
-      value: _categoryId,
-      items: [
-        for (final category in categories)
-          DropdownMenuItem(
-            value: category.id,
-            child: Text(category.name, overflow: TextOverflow.ellipsis),
-          ),
-      ],
-      onChanged: _saving
-          ? null
-          : (value) => setState(() => _categoryId = value),
-      validator: (value) => value == null ? 'Please select a category.' : null,
-    ),
-    const SizedBox(height: AveraSpacing.cardGap),
-    _ResponsiveNumberFields(
-      first: AveraLabeledTextField(
-        label: 'Quantity',
-        controller: _quantity,
-        hintText: '0',
-        keyboardType: TextInputType.number,
+    if (_basicExpanded) ...[
+      AveraLabeledTextField(
+        label: 'Item Name',
+        controller: _name,
+        hintText: 'Enter item name',
         textInputAction: TextInputAction.next,
-        validator: _wholeNumber,
+        validator: _required,
       ),
-      second: AveraLabeledTextField(
-        label: 'Minimum Quantity',
-        controller: _minimum,
-        hintText: '5',
-        keyboardType: TextInputType.number,
-        textInputAction: TextInputAction.next,
-        validator: _wholeNumber,
-      ),
-    ),
-    const SizedBox(height: AveraSpacing.cardGap),
-    AveraLabeledTextField(
-      label: 'Batch Number',
-      controller: _batch,
-      hintText: _requiresBatchAndExpiry
-          ? 'Enter batch number'
-          : 'Optional batch number',
-      textInputAction: TextInputAction.next,
-      validator: (value) =>
-          _requiresBatchAndExpiry && (value?.trim().isEmpty ?? true)
-          ? 'Enter the manufacturer batch number.'
-          : null,
-    ),
-    const SizedBox(height: AveraSpacing.cardGap),
-    AveraLabeledFieldCard(
-      label: 'Expiry Date',
-      child: InkWell(
-        onTap: _saving ? null : _pickExpiry,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                _expiry == null
-                    ? 'No expiry date'
-                    : DateFormat.yMMMd().format(_expiry!),
-                style: _expiry == null
-                    ? averaText(context).fieldPlaceholder
-                    : averaText(context).fieldValue,
-              ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledDropdownField<String>(
+        label: 'Category',
+        hintText: 'Select category',
+        value: _categoryId,
+        items: [
+          for (final category in categories)
+            DropdownMenuItem(
+              value: category.id,
+              child: Text(category.name, overflow: TextOverflow.ellipsis),
             ),
-            if (_expiry != null)
-              IconButton(
-                tooltip: 'Clear expiry date',
-                onPressed: _saving
-                    ? null
-                    : () => setState(() => _expiry = null),
-                icon: const Icon(Icons.clear_rounded),
-              )
-            else
-              const Icon(Icons.calendar_today_outlined),
-          ],
-        ),
+        ],
+        onChanged: _saving
+            ? null
+            : (value) => setState(() => _categoryId = value),
+        validator: (value) =>
+            value == null ? 'Please select a category.' : null,
       ),
-    ),
-    const SizedBox(height: AveraSpacing.cardGap),
-    AveraLabeledTextField(
-      label: 'Selling Price (NGN)',
-      controller: _selling,
-      hintText: '0.00',
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      textInputAction: widget.canSeeCost
-          ? TextInputAction.next
-          : TextInputAction.done,
-      validator: _money,
-    ),
-    if (widget.canSeeCost) ...[
       const SizedBox(height: AveraSpacing.cardGap),
       AveraLabeledTextField(
-        label: 'Cost Price (NGN)',
-        controller: _cost,
+        label: 'Brand Name',
+        controller: _brandName,
+        hintText: 'Optional brand or trade name',
+        textInputAction: TextInputAction.next,
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Generic Name',
+        controller: _genericName,
+        hintText: 'Optional generic product name',
+        textInputAction: TextInputAction.next,
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Manufacturer',
+        controller: _manufacturer,
+        hintText: 'Optional manufacturer',
+        textInputAction: TextInputAction.next,
+      ),
+    ],
+    const SizedBox(height: AveraSpacing.sectionGap),
+    _sectionHeader(
+      context,
+      'Catalogue Information',
+      expanded: _catalogueExpanded,
+      onTap: () => setState(() => _catalogueExpanded = !_catalogueExpanded),
+    ),
+    if (_catalogueExpanded) ...[
+      _ResponsiveNumberFields(
+        first: AveraLabeledTextField(
+          label: 'SKU',
+          controller: _sku,
+          hintText: 'Optional stock code',
+          textInputAction: TextInputAction.next,
+        ),
+        second: AveraLabeledTextField(
+          label: 'Barcode',
+          controller: _barcode,
+          hintText: 'Optional barcode',
+          textInputAction: TextInputAction.next,
+        ),
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Short Description',
+        controller: _shortDescription,
+        hintText: 'A concise description for staff and customers',
+        minLines: 2,
+        maxLines: 3,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Detailed Description',
+        controller: _detailedDescription,
+        hintText: 'Optional product details',
+        minLines: 3,
+        maxLines: 6,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      _ResponsiveNumberFields(
+        first: AveraLabeledTextField(
+          label: 'Product Form / Presentation',
+          controller: _dosageForm,
+          hintText: 'Tablet, liquid, spray',
+          textInputAction: TextInputAction.next,
+        ),
+        second: AveraLabeledTextField(
+          label: 'Pack Size',
+          controller: _packSize,
+          hintText: '10 tablets, 100 ml',
+          textInputAction: TextInputAction.next,
+        ),
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Base Unit',
+        controller: _baseUnitLabel,
+        hintText: 'unit',
+        textInputAction: TextInputAction.next,
+        validator: (value) => value?.trim().isEmpty ?? true
+            ? 'Enter the base stock and selling unit.'
+            : null,
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Storage Conditions',
+        controller: _storageConditions,
+        hintText: 'Optional storage instructions',
+        minLines: 2,
+        maxLines: 4,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+      ),
+    ],
+    if (_showsVeterinaryFields) ...[
+      const SizedBox(height: AveraSpacing.sectionGap),
+      _sectionHeader(
+        context,
+        'Veterinary Information',
+        expanded: _veterinaryExpanded,
+        onTap: () => setState(() => _veterinaryExpanded = !_veterinaryExpanded),
+      ),
+      if (_veterinaryExpanded) ...[
+        AveraLabeledTextField(
+          label: 'Active Ingredients',
+          controller: _activeIngredient,
+          hintText: 'Optional active ingredients and strengths',
+          minLines: 2,
+          maxLines: 4,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
+        ),
+        const SizedBox(height: AveraSpacing.cardGap),
+        AveraLabeledTextField(
+          label: 'Dosage & Directions',
+          controller: _dosageAndRoute,
+          hintText: 'Optional dosage, route and directions',
+          minLines: 2,
+          maxLines: 5,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
+        ),
+        const SizedBox(height: AveraSpacing.cardGap),
+        _ResponsiveNumberFields(
+          first: AveraLabeledTextField(
+            label: 'Meat Withdrawal',
+            controller: _withdrawalMeat,
+            hintText: 'Optional',
+            textInputAction: TextInputAction.next,
+          ),
+          second: AveraLabeledTextField(
+            label: 'Milk Withdrawal',
+            controller: _withdrawalMilk,
+            hintText: 'Optional',
+            textInputAction: TextInputAction.next,
+          ),
+        ),
+        const SizedBox(height: AveraSpacing.cardGap),
+        _ResponsiveNumberFields(
+          first: AveraLabeledTextField(
+            label: 'Egg Withdrawal',
+            controller: _withdrawalEggs,
+            hintText: 'Optional',
+            textInputAction: TextInputAction.next,
+          ),
+          second: AveraLabeledTextField(
+            label: 'Other Withdrawal',
+            controller: _withdrawalOther,
+            hintText: 'Optional',
+            textInputAction: TextInputAction.next,
+          ),
+        ),
+        const SizedBox(height: AveraSpacing.cardGap),
+        AveraLabeledTextField(
+          label: 'Warnings',
+          controller: _warnings,
+          hintText: 'Optional safety warnings',
+          minLines: 2,
+          maxLines: 5,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
+        ),
+        const SizedBox(height: AveraSpacing.cardGap),
+        AveraLabeledTextField(
+          label: 'Contraindications',
+          controller: _contraindications,
+          hintText: 'Optional contraindications',
+          minLines: 2,
+          maxLines: 5,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
+        ),
+        const SizedBox(height: AveraSpacing.cardGap),
+        AveraLabeledTextField(
+          label: 'Adverse Effects',
+          controller: _adverseEffects,
+          hintText: 'Optional adverse effects',
+          minLines: 2,
+          maxLines: 5,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
+        ),
+      ],
+    ],
+    const SizedBox(height: AveraSpacing.sectionGap),
+    _sectionHeader(
+      context,
+      'Supplier',
+      expanded: _supplierExpanded,
+      onTap: () => setState(() => _supplierExpanded = !_supplierExpanded),
+    ),
+    if (_supplierExpanded)
+      AveraLabeledTextField(
+        label: 'Supplier Name',
+        controller: _supplier,
+        hintText: 'Optional supplier',
+        textInputAction: TextInputAction.next,
+      ),
+    const SizedBox(height: AveraSpacing.sectionGap),
+    _sectionHeader(
+      context,
+      'Stock & Pricing',
+      expanded: _stockExpanded,
+      onTap: () => setState(() => _stockExpanded = !_stockExpanded),
+    ),
+    if (_stockExpanded) ...[
+      _ResponsiveNumberFields(
+        first: AveraLabeledTextField(
+          label: widget.initial == null ? 'Initial Quantity' : 'Current Stock',
+          controller: _quantity,
+          hintText: '0',
+          readOnly: widget.initial != null,
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.next,
+          validator: _wholeNumber,
+        ),
+        second: AveraLabeledTextField(
+          label: 'Minimum Quantity',
+          controller: _minimum,
+          hintText: '5',
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.next,
+          validator: _wholeNumber,
+        ),
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Batch Number',
+        controller: _batch,
+        hintText: _requiresBatchAndExpiry
+            ? 'Enter batch number'
+            : 'Optional batch number',
+        textInputAction: TextInputAction.next,
+        validator: (value) =>
+            _requiresBatchAndExpiry && (value?.trim().isEmpty ?? true)
+            ? 'Enter the manufacturer batch number.'
+            : null,
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledFieldCard(
+        label: 'Expiry Date',
+        child: InkWell(
+          onTap: _saving ? null : _pickExpiry,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _expiry == null
+                      ? 'No expiry date'
+                      : DateFormat.yMMMd().format(_expiry!),
+                  style: _expiry == null
+                      ? averaText(context).fieldPlaceholder
+                      : averaText(context).fieldValue,
+                ),
+              ),
+              if (_expiry != null)
+                IconButton(
+                  tooltip: 'Clear expiry date',
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() => _expiry = null),
+                  icon: const Icon(Icons.clear_rounded),
+                )
+              else
+                const Icon(Icons.calendar_today_outlined),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledTextField(
+        label: 'Selling Price (NGN)',
+        controller: _selling,
         hintText: '0.00',
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        textInputAction: TextInputAction.done,
+        textInputAction: widget.canSeeCost
+            ? TextInputAction.next
+            : TextInputAction.done,
         validator: _money,
+      ),
+      if (widget.canSeeCost) ...[
+        const SizedBox(height: AveraSpacing.cardGap),
+        AveraLabeledTextField(
+          label: 'Cost Price (NGN)',
+          controller: _cost,
+          hintText: '0.00',
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textInputAction: TextInputAction.done,
+          validator: _money,
+        ),
+      ],
+    ],
+    const SizedBox(height: AveraSpacing.sectionGap),
+    _sectionHeader(
+      context,
+      'Future Shop Information',
+      expanded: _publicExpanded,
+      onTap: () => setState(() => _publicExpanded = !_publicExpanded),
+    ),
+    if (_publicExpanded) ...[
+      AveraLabeledTextField(
+        label: 'Public Display Name',
+        controller: _publicDisplayName,
+        hintText: 'Defaults to the inventory item name',
+        textInputAction: TextInputAction.done,
+      ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      AveraLabeledFieldCard(
+        label: 'Customer Availability',
+        child: SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Available to associated clients'),
+          subtitle: const Text(
+            'Off by default. This only prepares the item for a future clinic catalogue.',
+          ),
+          value: _availableToPublic,
+          onChanged: _saving
+              ? null
+              : (value) => setState(() => _availableToPublic = value),
+        ),
       ),
     ],
     if (_submissionError != null) ...[
@@ -447,6 +912,7 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
     final draft = InventoryItemDraft(
       submissionId: _submissionId,
       remoteId: initial?.remoteId,
+      localId: initial?.localId,
       name: _name.text.trim(),
       categoryId: _categoryId!,
       quantity: int.parse(_quantity.text.trim()),
@@ -460,6 +926,29 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
       revision: initial?.revision,
       imageReference: _imageReference,
       pendingImagePath: _pendingImagePath,
+      genericName: _nullable(_genericName),
+      brandName: _nullable(_brandName),
+      manufacturer: _nullable(_manufacturer),
+      supplier: _nullable(_supplier),
+      sku: _nullable(_sku),
+      barcode: _nullable(_barcode),
+      shortDescription: _nullable(_shortDescription),
+      detailedDescription: _nullable(_detailedDescription),
+      dosageForm: _nullable(_dosageForm),
+      packSize: _nullable(_packSize),
+      baseUnitLabel: _baseUnitLabel.text.trim(),
+      activeIngredient: _nullable(_activeIngredient),
+      dosageAndRoute: _nullable(_dosageAndRoute),
+      withdrawalMeat: _nullable(_withdrawalMeat),
+      withdrawalMilk: _nullable(_withdrawalMilk),
+      withdrawalEggs: _nullable(_withdrawalEggs),
+      withdrawalOther: _nullable(_withdrawalOther),
+      warnings: _nullable(_warnings),
+      contraindications: _nullable(_contraindications),
+      adverseEffects: _nullable(_adverseEffects),
+      storageConditions: _nullable(_storageConditions),
+      publicDisplayName: _nullable(_publicDisplayName),
+      availableToPublic: _availableToPublic,
     );
     try {
       await widget.onSubmit(draft);
@@ -494,6 +983,48 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
 
   bool get _requiresBatchAndExpiry =>
       _categoryId == 'drugs' || _categoryId == 'vaccines';
+
+  bool get _showsVeterinaryFields =>
+      _categoryId == 'drugs' ||
+      _categoryId == 'vaccines' ||
+      _categoryId == 'supplements';
+
+  static TextEditingController _controller(String? value) =>
+      TextEditingController(text: value ?? '');
+
+  static String? _nullable(TextEditingController controller) {
+    final value = controller.text.trim();
+    return value.isEmpty ? null : value;
+  }
+
+  Widget _sectionHeader(
+    BuildContext context,
+    String label, {
+    bool expanded = true,
+    VoidCallback? onTap,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: AveraSpacing.cardGap),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label, style: averaText(context).sectionTitle),
+            ),
+            if (onTap != null)
+              Icon(
+                expanded
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   Future<void> _manageImage() async {
     final current = _pendingImagePath ?? _imageReference;

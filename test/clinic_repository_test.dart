@@ -842,6 +842,50 @@ void main() {
     },
   );
 
+  test(
+    'Add Stock increases the current total and records one ledger entry',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final item = (await database.select(database.inventoryItems).get()).first;
+      await (database.update(database.inventoryItems)
+            ..where((row) => row.id.equals(item.id)))
+          .write(const InventoryItemsCompanion(quantity: Value(2)));
+      final unitsBefore = await repository
+          .watchProductUnits(session: session, inventoryItemId: item.id)
+          .first;
+
+      final updated = await repository.addInventoryStock(
+        session: session,
+        itemId: item.id,
+        quantityToAdd: 10,
+        batchNumber: 'TOP-UP-10',
+        expiryDate: DateTime(2028, 8, 1),
+        buyingPrice: 1250,
+      );
+
+      expect(updated.quantity, 12);
+      expect(updated.batchNumber, 'TOP-UP-10');
+      expect(updated.buyingPrice, 1250);
+      final movement =
+          (await database.select(database.inventoryStockMovements).get())
+              .singleWhere((entry) => entry.movementType == 'Stock Added');
+      expect(movement.quantityBefore, 2);
+      expect(movement.quantityChange, 10);
+      expect(movement.quantityAfter, 12);
+      final unitsAfter = await repository
+          .watchProductUnits(session: session, inventoryItemId: item.id)
+          .first;
+      expect(unitsAfter.length, unitsBefore.length);
+    },
+  );
+
   test('paid invoice deducts stock once and void restores it once', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);

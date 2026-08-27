@@ -391,7 +391,15 @@ class InventoryItems extends Table {
   TextColumn get drugName => text()();
   TextColumn get category => text()();
   TextColumn get categoryId => text().nullable()();
+  TextColumn get genericName => text().nullable()();
+  TextColumn get brandName => text().nullable()();
   TextColumn get manufacturer => text().nullable()();
+  TextColumn get sku => text().nullable()();
+  TextColumn get barcode => text().nullable()();
+  TextColumn get shortDescription => text().nullable()();
+  TextColumn get detailedDescription => text().nullable()();
+  TextColumn get dosageForm => text().nullable()();
+  TextColumn get packSize => text().nullable()();
   TextColumn get batchNumber => text().nullable()();
   DateTimeColumn get expiryDate => dateTime().nullable()();
   IntColumn get quantity => integer().withDefault(const Constant(0))();
@@ -406,7 +414,14 @@ class InventoryItems extends Table {
   TextColumn get withdrawalMeat => text().nullable()();
   TextColumn get withdrawalMilk => text().nullable()();
   TextColumn get withdrawalEggs => text().nullable()();
+  TextColumn get withdrawalOther => text().nullable()();
   TextColumn get warnings => text().nullable()();
+  TextColumn get contraindications => text().nullable()();
+  TextColumn get adverseEffects => text().nullable()();
+  TextColumn get storageConditions => text().nullable()();
+  TextColumn get publicDisplayName => text().nullable()();
+  BoolColumn get availableToPublic =>
+      boolean().withDefault(const Constant(false))();
   TextColumn get imagePath => text().nullable()();
   BoolColumn get isSellable => boolean().withDefault(const Constant(true))();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
@@ -1201,7 +1216,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 30;
+  static const currentSchemaVersion = 31;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1907,6 +1922,29 @@ class AppDatabase extends _$AppDatabase {
           'CREATE INDEX IF NOT EXISTS invoice_product_lines_farm_unit_index '
           'ON invoice_product_lines (invoice_id, farm_unit_id)',
         );
+      }
+      if (from < 31) {
+        final inventoryProfileColumns = <String, GeneratedColumn>{
+          'generic_name': inventoryItems.genericName,
+          'brand_name': inventoryItems.brandName,
+          'sku': inventoryItems.sku,
+          'barcode': inventoryItems.barcode,
+          'short_description': inventoryItems.shortDescription,
+          'detailed_description': inventoryItems.detailedDescription,
+          'dosage_form': inventoryItems.dosageForm,
+          'pack_size': inventoryItems.packSize,
+          'withdrawal_other': inventoryItems.withdrawalOther,
+          'contraindications': inventoryItems.contraindications,
+          'adverse_effects': inventoryItems.adverseEffects,
+          'storage_conditions': inventoryItems.storageConditions,
+          'public_display_name': inventoryItems.publicDisplayName,
+          'available_to_public': inventoryItems.availableToPublic,
+        };
+        for (final entry in inventoryProfileColumns.entries) {
+          if (!await _hasColumn('inventory_items', entry.key)) {
+            await m.addColumn(inventoryItems, entry.value);
+          }
+        }
       }
     },
   );

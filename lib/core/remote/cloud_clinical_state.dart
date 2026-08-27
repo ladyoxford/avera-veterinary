@@ -474,6 +474,29 @@ class RemoteInventoryListController
     return item;
   }
 
+  Future<RemoteInventoryItem> addStock({
+    required String itemId,
+    required int quantityToAdd,
+    String? batchNumber,
+    DateTime? expiryDate,
+    double? purchasePrice,
+  }) async {
+    final session = await _session();
+    if (!session.can(Permissions.inventoryAdjust)) {
+      throw StateError('You do not have permission to add inventory stock.');
+    }
+    final item = await _source.addInventoryStock(
+      inventoryProductId: itemId,
+      quantityToAdd: quantityToAdd,
+      batchNumber: batchNumber,
+      expiryDate: expiryDate,
+      purchasePrice: purchasePrice,
+    );
+    await _upsertAndCache(session, item, [...state.items]);
+    if (mounted) unawaited(refresh());
+    return item;
+  }
+
   Future<RemoteInventoryItem> updatePhoto({
     required String itemId,
     required String contentType,

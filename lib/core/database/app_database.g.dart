@@ -10596,12 +10596,98 @@ class $InventoryItemsTable extends InventoryItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _genericNameMeta = const VerificationMeta(
+    'genericName',
+  );
+  @override
+  late final GeneratedColumn<String> genericName = GeneratedColumn<String>(
+    'generic_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _brandNameMeta = const VerificationMeta(
+    'brandName',
+  );
+  @override
+  late final GeneratedColumn<String> brandName = GeneratedColumn<String>(
+    'brand_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _manufacturerMeta = const VerificationMeta(
     'manufacturer',
   );
   @override
   late final GeneratedColumn<String> manufacturer = GeneratedColumn<String>(
     'manufacturer',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _skuMeta = const VerificationMeta('sku');
+  @override
+  late final GeneratedColumn<String> sku = GeneratedColumn<String>(
+    'sku',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _barcodeMeta = const VerificationMeta(
+    'barcode',
+  );
+  @override
+  late final GeneratedColumn<String> barcode = GeneratedColumn<String>(
+    'barcode',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _shortDescriptionMeta = const VerificationMeta(
+    'shortDescription',
+  );
+  @override
+  late final GeneratedColumn<String> shortDescription = GeneratedColumn<String>(
+    'short_description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _detailedDescriptionMeta =
+      const VerificationMeta('detailedDescription');
+  @override
+  late final GeneratedColumn<String> detailedDescription =
+      GeneratedColumn<String>(
+        'detailed_description',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _dosageFormMeta = const VerificationMeta(
+    'dosageForm',
+  );
+  @override
+  late final GeneratedColumn<String> dosageForm = GeneratedColumn<String>(
+    'dosage_form',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _packSizeMeta = const VerificationMeta(
+    'packSize',
+  );
+  @override
+  late final GeneratedColumn<String> packSize = GeneratedColumn<String>(
+    'pack_size',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -10766,6 +10852,17 @@ class $InventoryItemsTable extends InventoryItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _withdrawalOtherMeta = const VerificationMeta(
+    'withdrawalOther',
+  );
+  @override
+  late final GeneratedColumn<String> withdrawalOther = GeneratedColumn<String>(
+    'withdrawal_other',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _warningsMeta = const VerificationMeta(
     'warnings',
   );
@@ -10776,6 +10873,68 @@ class $InventoryItemsTable extends InventoryItems
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contraindicationsMeta = const VerificationMeta(
+    'contraindications',
+  );
+  @override
+  late final GeneratedColumn<String> contraindications =
+      GeneratedColumn<String>(
+        'contraindications',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _adverseEffectsMeta = const VerificationMeta(
+    'adverseEffects',
+  );
+  @override
+  late final GeneratedColumn<String> adverseEffects = GeneratedColumn<String>(
+    'adverse_effects',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _storageConditionsMeta = const VerificationMeta(
+    'storageConditions',
+  );
+  @override
+  late final GeneratedColumn<String> storageConditions =
+      GeneratedColumn<String>(
+        'storage_conditions',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _publicDisplayNameMeta = const VerificationMeta(
+    'publicDisplayName',
+  );
+  @override
+  late final GeneratedColumn<String> publicDisplayName =
+      GeneratedColumn<String>(
+        'public_display_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _availableToPublicMeta = const VerificationMeta(
+    'availableToPublic',
+  );
+  @override
+  late final GeneratedColumn<bool> availableToPublic = GeneratedColumn<bool>(
+    'available_to_public',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("available_to_public" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
   );
   static const VerificationMeta _imagePathMeta = const VerificationMeta(
     'imagePath',
@@ -10847,7 +11006,15 @@ class $InventoryItemsTable extends InventoryItems
     drugName,
     category,
     categoryId,
+    genericName,
+    brandName,
     manufacturer,
+    sku,
+    barcode,
+    shortDescription,
+    detailedDescription,
+    dosageForm,
+    packSize,
     batchNumber,
     expiryDate,
     quantity,
@@ -10862,7 +11029,13 @@ class $InventoryItemsTable extends InventoryItems
     withdrawalMeat,
     withdrawalMilk,
     withdrawalEggs,
+    withdrawalOther,
     warnings,
+    contraindications,
+    adverseEffects,
+    storageConditions,
+    publicDisplayName,
+    availableToPublic,
     imagePath,
     isSellable,
     isArchived,
@@ -10912,6 +11085,21 @@ class $InventoryItemsTable extends InventoryItems
         categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
       );
     }
+    if (data.containsKey('generic_name')) {
+      context.handle(
+        _genericNameMeta,
+        genericName.isAcceptableOrUnknown(
+          data['generic_name']!,
+          _genericNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('brand_name')) {
+      context.handle(
+        _brandNameMeta,
+        brandName.isAcceptableOrUnknown(data['brand_name']!, _brandNameMeta),
+      );
+    }
     if (data.containsKey('manufacturer')) {
       context.handle(
         _manufacturerMeta,
@@ -10919,6 +11107,48 @@ class $InventoryItemsTable extends InventoryItems
           data['manufacturer']!,
           _manufacturerMeta,
         ),
+      );
+    }
+    if (data.containsKey('sku')) {
+      context.handle(
+        _skuMeta,
+        sku.isAcceptableOrUnknown(data['sku']!, _skuMeta),
+      );
+    }
+    if (data.containsKey('barcode')) {
+      context.handle(
+        _barcodeMeta,
+        barcode.isAcceptableOrUnknown(data['barcode']!, _barcodeMeta),
+      );
+    }
+    if (data.containsKey('short_description')) {
+      context.handle(
+        _shortDescriptionMeta,
+        shortDescription.isAcceptableOrUnknown(
+          data['short_description']!,
+          _shortDescriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('detailed_description')) {
+      context.handle(
+        _detailedDescriptionMeta,
+        detailedDescription.isAcceptableOrUnknown(
+          data['detailed_description']!,
+          _detailedDescriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dosage_form')) {
+      context.handle(
+        _dosageFormMeta,
+        dosageForm.isAcceptableOrUnknown(data['dosage_form']!, _dosageFormMeta),
+      );
+    }
+    if (data.containsKey('pack_size')) {
+      context.handle(
+        _packSizeMeta,
+        packSize.isAcceptableOrUnknown(data['pack_size']!, _packSizeMeta),
       );
     }
     if (data.containsKey('batch_number')) {
@@ -11035,10 +11265,64 @@ class $InventoryItemsTable extends InventoryItems
         ),
       );
     }
+    if (data.containsKey('withdrawal_other')) {
+      context.handle(
+        _withdrawalOtherMeta,
+        withdrawalOther.isAcceptableOrUnknown(
+          data['withdrawal_other']!,
+          _withdrawalOtherMeta,
+        ),
+      );
+    }
     if (data.containsKey('warnings')) {
       context.handle(
         _warningsMeta,
         warnings.isAcceptableOrUnknown(data['warnings']!, _warningsMeta),
+      );
+    }
+    if (data.containsKey('contraindications')) {
+      context.handle(
+        _contraindicationsMeta,
+        contraindications.isAcceptableOrUnknown(
+          data['contraindications']!,
+          _contraindicationsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('adverse_effects')) {
+      context.handle(
+        _adverseEffectsMeta,
+        adverseEffects.isAcceptableOrUnknown(
+          data['adverse_effects']!,
+          _adverseEffectsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('storage_conditions')) {
+      context.handle(
+        _storageConditionsMeta,
+        storageConditions.isAcceptableOrUnknown(
+          data['storage_conditions']!,
+          _storageConditionsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('public_display_name')) {
+      context.handle(
+        _publicDisplayNameMeta,
+        publicDisplayName.isAcceptableOrUnknown(
+          data['public_display_name']!,
+          _publicDisplayNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('available_to_public')) {
+      context.handle(
+        _availableToPublicMeta,
+        availableToPublic.isAcceptableOrUnknown(
+          data['available_to_public']!,
+          _availableToPublicMeta,
+        ),
       );
     }
     if (data.containsKey('image_path')) {
@@ -11100,9 +11384,41 @@ class $InventoryItemsTable extends InventoryItems
         DriftSqlType.string,
         data['${effectivePrefix}category_id'],
       ),
+      genericName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}generic_name'],
+      ),
+      brandName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}brand_name'],
+      ),
       manufacturer: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}manufacturer'],
+      ),
+      sku: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sku'],
+      ),
+      barcode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}barcode'],
+      ),
+      shortDescription: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}short_description'],
+      ),
+      detailedDescription: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}detailed_description'],
+      ),
+      dosageForm: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dosage_form'],
+      ),
+      packSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pack_size'],
       ),
       batchNumber: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -11160,10 +11476,34 @@ class $InventoryItemsTable extends InventoryItems
         DriftSqlType.string,
         data['${effectivePrefix}withdrawal_eggs'],
       ),
+      withdrawalOther: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}withdrawal_other'],
+      ),
       warnings: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}warnings'],
       ),
+      contraindications: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contraindications'],
+      ),
+      adverseEffects: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}adverse_effects'],
+      ),
+      storageConditions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}storage_conditions'],
+      ),
+      publicDisplayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}public_display_name'],
+      ),
+      availableToPublic: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}available_to_public'],
+      )!,
       imagePath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}image_path'],
@@ -11199,7 +11539,15 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
   final String drugName;
   final String category;
   final String? categoryId;
+  final String? genericName;
+  final String? brandName;
   final String? manufacturer;
+  final String? sku;
+  final String? barcode;
+  final String? shortDescription;
+  final String? detailedDescription;
+  final String? dosageForm;
+  final String? packSize;
   final String? batchNumber;
   final DateTime? expiryDate;
   final int quantity;
@@ -11214,7 +11562,13 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
   final String? withdrawalMeat;
   final String? withdrawalMilk;
   final String? withdrawalEggs;
+  final String? withdrawalOther;
   final String? warnings;
+  final String? contraindications;
+  final String? adverseEffects;
+  final String? storageConditions;
+  final String? publicDisplayName;
+  final bool availableToPublic;
   final String? imagePath;
   final bool isSellable;
   final bool isArchived;
@@ -11226,7 +11580,15 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     required this.drugName,
     required this.category,
     this.categoryId,
+    this.genericName,
+    this.brandName,
     this.manufacturer,
+    this.sku,
+    this.barcode,
+    this.shortDescription,
+    this.detailedDescription,
+    this.dosageForm,
+    this.packSize,
     this.batchNumber,
     this.expiryDate,
     required this.quantity,
@@ -11241,7 +11603,13 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     this.withdrawalMeat,
     this.withdrawalMilk,
     this.withdrawalEggs,
+    this.withdrawalOther,
     this.warnings,
+    this.contraindications,
+    this.adverseEffects,
+    this.storageConditions,
+    this.publicDisplayName,
+    required this.availableToPublic,
     this.imagePath,
     required this.isSellable,
     required this.isArchived,
@@ -11258,8 +11626,32 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     if (!nullToAbsent || categoryId != null) {
       map['category_id'] = Variable<String>(categoryId);
     }
+    if (!nullToAbsent || genericName != null) {
+      map['generic_name'] = Variable<String>(genericName);
+    }
+    if (!nullToAbsent || brandName != null) {
+      map['brand_name'] = Variable<String>(brandName);
+    }
     if (!nullToAbsent || manufacturer != null) {
       map['manufacturer'] = Variable<String>(manufacturer);
+    }
+    if (!nullToAbsent || sku != null) {
+      map['sku'] = Variable<String>(sku);
+    }
+    if (!nullToAbsent || barcode != null) {
+      map['barcode'] = Variable<String>(barcode);
+    }
+    if (!nullToAbsent || shortDescription != null) {
+      map['short_description'] = Variable<String>(shortDescription);
+    }
+    if (!nullToAbsent || detailedDescription != null) {
+      map['detailed_description'] = Variable<String>(detailedDescription);
+    }
+    if (!nullToAbsent || dosageForm != null) {
+      map['dosage_form'] = Variable<String>(dosageForm);
+    }
+    if (!nullToAbsent || packSize != null) {
+      map['pack_size'] = Variable<String>(packSize);
     }
     if (!nullToAbsent || batchNumber != null) {
       map['batch_number'] = Variable<String>(batchNumber);
@@ -11293,9 +11685,25 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     if (!nullToAbsent || withdrawalEggs != null) {
       map['withdrawal_eggs'] = Variable<String>(withdrawalEggs);
     }
+    if (!nullToAbsent || withdrawalOther != null) {
+      map['withdrawal_other'] = Variable<String>(withdrawalOther);
+    }
     if (!nullToAbsent || warnings != null) {
       map['warnings'] = Variable<String>(warnings);
     }
+    if (!nullToAbsent || contraindications != null) {
+      map['contraindications'] = Variable<String>(contraindications);
+    }
+    if (!nullToAbsent || adverseEffects != null) {
+      map['adverse_effects'] = Variable<String>(adverseEffects);
+    }
+    if (!nullToAbsent || storageConditions != null) {
+      map['storage_conditions'] = Variable<String>(storageConditions);
+    }
+    if (!nullToAbsent || publicDisplayName != null) {
+      map['public_display_name'] = Variable<String>(publicDisplayName);
+    }
+    map['available_to_public'] = Variable<bool>(availableToPublic);
     if (!nullToAbsent || imagePath != null) {
       map['image_path'] = Variable<String>(imagePath);
     }
@@ -11319,9 +11727,31 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       categoryId: categoryId == null && nullToAbsent
           ? const Value.absent()
           : Value(categoryId),
+      genericName: genericName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(genericName),
+      brandName: brandName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(brandName),
       manufacturer: manufacturer == null && nullToAbsent
           ? const Value.absent()
           : Value(manufacturer),
+      sku: sku == null && nullToAbsent ? const Value.absent() : Value(sku),
+      barcode: barcode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(barcode),
+      shortDescription: shortDescription == null && nullToAbsent
+          ? const Value.absent()
+          : Value(shortDescription),
+      detailedDescription: detailedDescription == null && nullToAbsent
+          ? const Value.absent()
+          : Value(detailedDescription),
+      dosageForm: dosageForm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dosageForm),
+      packSize: packSize == null && nullToAbsent
+          ? const Value.absent()
+          : Value(packSize),
       batchNumber: batchNumber == null && nullToAbsent
           ? const Value.absent()
           : Value(batchNumber),
@@ -11354,9 +11784,25 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       withdrawalEggs: withdrawalEggs == null && nullToAbsent
           ? const Value.absent()
           : Value(withdrawalEggs),
+      withdrawalOther: withdrawalOther == null && nullToAbsent
+          ? const Value.absent()
+          : Value(withdrawalOther),
       warnings: warnings == null && nullToAbsent
           ? const Value.absent()
           : Value(warnings),
+      contraindications: contraindications == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contraindications),
+      adverseEffects: adverseEffects == null && nullToAbsent
+          ? const Value.absent()
+          : Value(adverseEffects),
+      storageConditions: storageConditions == null && nullToAbsent
+          ? const Value.absent()
+          : Value(storageConditions),
+      publicDisplayName: publicDisplayName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(publicDisplayName),
+      availableToPublic: Value(availableToPublic),
       imagePath: imagePath == null && nullToAbsent
           ? const Value.absent()
           : Value(imagePath),
@@ -11382,7 +11828,17 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       drugName: serializer.fromJson<String>(json['drugName']),
       category: serializer.fromJson<String>(json['category']),
       categoryId: serializer.fromJson<String?>(json['categoryId']),
+      genericName: serializer.fromJson<String?>(json['genericName']),
+      brandName: serializer.fromJson<String?>(json['brandName']),
       manufacturer: serializer.fromJson<String?>(json['manufacturer']),
+      sku: serializer.fromJson<String?>(json['sku']),
+      barcode: serializer.fromJson<String?>(json['barcode']),
+      shortDescription: serializer.fromJson<String?>(json['shortDescription']),
+      detailedDescription: serializer.fromJson<String?>(
+        json['detailedDescription'],
+      ),
+      dosageForm: serializer.fromJson<String?>(json['dosageForm']),
+      packSize: serializer.fromJson<String?>(json['packSize']),
       batchNumber: serializer.fromJson<String?>(json['batchNumber']),
       expiryDate: serializer.fromJson<DateTime?>(json['expiryDate']),
       quantity: serializer.fromJson<int>(json['quantity']),
@@ -11397,7 +11853,19 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       withdrawalMeat: serializer.fromJson<String?>(json['withdrawalMeat']),
       withdrawalMilk: serializer.fromJson<String?>(json['withdrawalMilk']),
       withdrawalEggs: serializer.fromJson<String?>(json['withdrawalEggs']),
+      withdrawalOther: serializer.fromJson<String?>(json['withdrawalOther']),
       warnings: serializer.fromJson<String?>(json['warnings']),
+      contraindications: serializer.fromJson<String?>(
+        json['contraindications'],
+      ),
+      adverseEffects: serializer.fromJson<String?>(json['adverseEffects']),
+      storageConditions: serializer.fromJson<String?>(
+        json['storageConditions'],
+      ),
+      publicDisplayName: serializer.fromJson<String?>(
+        json['publicDisplayName'],
+      ),
+      availableToPublic: serializer.fromJson<bool>(json['availableToPublic']),
       imagePath: serializer.fromJson<String?>(json['imagePath']),
       isSellable: serializer.fromJson<bool>(json['isSellable']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
@@ -11414,7 +11882,15 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       'drugName': serializer.toJson<String>(drugName),
       'category': serializer.toJson<String>(category),
       'categoryId': serializer.toJson<String?>(categoryId),
+      'genericName': serializer.toJson<String?>(genericName),
+      'brandName': serializer.toJson<String?>(brandName),
       'manufacturer': serializer.toJson<String?>(manufacturer),
+      'sku': serializer.toJson<String?>(sku),
+      'barcode': serializer.toJson<String?>(barcode),
+      'shortDescription': serializer.toJson<String?>(shortDescription),
+      'detailedDescription': serializer.toJson<String?>(detailedDescription),
+      'dosageForm': serializer.toJson<String?>(dosageForm),
+      'packSize': serializer.toJson<String?>(packSize),
       'batchNumber': serializer.toJson<String?>(batchNumber),
       'expiryDate': serializer.toJson<DateTime?>(expiryDate),
       'quantity': serializer.toJson<int>(quantity),
@@ -11429,7 +11905,13 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       'withdrawalMeat': serializer.toJson<String?>(withdrawalMeat),
       'withdrawalMilk': serializer.toJson<String?>(withdrawalMilk),
       'withdrawalEggs': serializer.toJson<String?>(withdrawalEggs),
+      'withdrawalOther': serializer.toJson<String?>(withdrawalOther),
       'warnings': serializer.toJson<String?>(warnings),
+      'contraindications': serializer.toJson<String?>(contraindications),
+      'adverseEffects': serializer.toJson<String?>(adverseEffects),
+      'storageConditions': serializer.toJson<String?>(storageConditions),
+      'publicDisplayName': serializer.toJson<String?>(publicDisplayName),
+      'availableToPublic': serializer.toJson<bool>(availableToPublic),
       'imagePath': serializer.toJson<String?>(imagePath),
       'isSellable': serializer.toJson<bool>(isSellable),
       'isArchived': serializer.toJson<bool>(isArchived),
@@ -11444,7 +11926,15 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     String? drugName,
     String? category,
     Value<String?> categoryId = const Value.absent(),
+    Value<String?> genericName = const Value.absent(),
+    Value<String?> brandName = const Value.absent(),
     Value<String?> manufacturer = const Value.absent(),
+    Value<String?> sku = const Value.absent(),
+    Value<String?> barcode = const Value.absent(),
+    Value<String?> shortDescription = const Value.absent(),
+    Value<String?> detailedDescription = const Value.absent(),
+    Value<String?> dosageForm = const Value.absent(),
+    Value<String?> packSize = const Value.absent(),
     Value<String?> batchNumber = const Value.absent(),
     Value<DateTime?> expiryDate = const Value.absent(),
     int? quantity,
@@ -11459,7 +11949,13 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     Value<String?> withdrawalMeat = const Value.absent(),
     Value<String?> withdrawalMilk = const Value.absent(),
     Value<String?> withdrawalEggs = const Value.absent(),
+    Value<String?> withdrawalOther = const Value.absent(),
     Value<String?> warnings = const Value.absent(),
+    Value<String?> contraindications = const Value.absent(),
+    Value<String?> adverseEffects = const Value.absent(),
+    Value<String?> storageConditions = const Value.absent(),
+    Value<String?> publicDisplayName = const Value.absent(),
+    bool? availableToPublic,
     Value<String?> imagePath = const Value.absent(),
     bool? isSellable,
     bool? isArchived,
@@ -11471,7 +11967,19 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     drugName: drugName ?? this.drugName,
     category: category ?? this.category,
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
+    genericName: genericName.present ? genericName.value : this.genericName,
+    brandName: brandName.present ? brandName.value : this.brandName,
     manufacturer: manufacturer.present ? manufacturer.value : this.manufacturer,
+    sku: sku.present ? sku.value : this.sku,
+    barcode: barcode.present ? barcode.value : this.barcode,
+    shortDescription: shortDescription.present
+        ? shortDescription.value
+        : this.shortDescription,
+    detailedDescription: detailedDescription.present
+        ? detailedDescription.value
+        : this.detailedDescription,
+    dosageForm: dosageForm.present ? dosageForm.value : this.dosageForm,
+    packSize: packSize.present ? packSize.value : this.packSize,
     batchNumber: batchNumber.present ? batchNumber.value : this.batchNumber,
     expiryDate: expiryDate.present ? expiryDate.value : this.expiryDate,
     quantity: quantity ?? this.quantity,
@@ -11496,7 +12004,23 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     withdrawalEggs: withdrawalEggs.present
         ? withdrawalEggs.value
         : this.withdrawalEggs,
+    withdrawalOther: withdrawalOther.present
+        ? withdrawalOther.value
+        : this.withdrawalOther,
     warnings: warnings.present ? warnings.value : this.warnings,
+    contraindications: contraindications.present
+        ? contraindications.value
+        : this.contraindications,
+    adverseEffects: adverseEffects.present
+        ? adverseEffects.value
+        : this.adverseEffects,
+    storageConditions: storageConditions.present
+        ? storageConditions.value
+        : this.storageConditions,
+    publicDisplayName: publicDisplayName.present
+        ? publicDisplayName.value
+        : this.publicDisplayName,
+    availableToPublic: availableToPublic ?? this.availableToPublic,
     imagePath: imagePath.present ? imagePath.value : this.imagePath,
     isSellable: isSellable ?? this.isSellable,
     isArchived: isArchived ?? this.isArchived,
@@ -11512,9 +12036,25 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       categoryId: data.categoryId.present
           ? data.categoryId.value
           : this.categoryId,
+      genericName: data.genericName.present
+          ? data.genericName.value
+          : this.genericName,
+      brandName: data.brandName.present ? data.brandName.value : this.brandName,
       manufacturer: data.manufacturer.present
           ? data.manufacturer.value
           : this.manufacturer,
+      sku: data.sku.present ? data.sku.value : this.sku,
+      barcode: data.barcode.present ? data.barcode.value : this.barcode,
+      shortDescription: data.shortDescription.present
+          ? data.shortDescription.value
+          : this.shortDescription,
+      detailedDescription: data.detailedDescription.present
+          ? data.detailedDescription.value
+          : this.detailedDescription,
+      dosageForm: data.dosageForm.present
+          ? data.dosageForm.value
+          : this.dosageForm,
+      packSize: data.packSize.present ? data.packSize.value : this.packSize,
       batchNumber: data.batchNumber.present
           ? data.batchNumber.value
           : this.batchNumber,
@@ -11551,7 +12091,25 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       withdrawalEggs: data.withdrawalEggs.present
           ? data.withdrawalEggs.value
           : this.withdrawalEggs,
+      withdrawalOther: data.withdrawalOther.present
+          ? data.withdrawalOther.value
+          : this.withdrawalOther,
       warnings: data.warnings.present ? data.warnings.value : this.warnings,
+      contraindications: data.contraindications.present
+          ? data.contraindications.value
+          : this.contraindications,
+      adverseEffects: data.adverseEffects.present
+          ? data.adverseEffects.value
+          : this.adverseEffects,
+      storageConditions: data.storageConditions.present
+          ? data.storageConditions.value
+          : this.storageConditions,
+      publicDisplayName: data.publicDisplayName.present
+          ? data.publicDisplayName.value
+          : this.publicDisplayName,
+      availableToPublic: data.availableToPublic.present
+          ? data.availableToPublic.value
+          : this.availableToPublic,
       imagePath: data.imagePath.present ? data.imagePath.value : this.imagePath,
       isSellable: data.isSellable.present
           ? data.isSellable.value
@@ -11572,7 +12130,15 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           ..write('drugName: $drugName, ')
           ..write('category: $category, ')
           ..write('categoryId: $categoryId, ')
+          ..write('genericName: $genericName, ')
+          ..write('brandName: $brandName, ')
           ..write('manufacturer: $manufacturer, ')
+          ..write('sku: $sku, ')
+          ..write('barcode: $barcode, ')
+          ..write('shortDescription: $shortDescription, ')
+          ..write('detailedDescription: $detailedDescription, ')
+          ..write('dosageForm: $dosageForm, ')
+          ..write('packSize: $packSize, ')
           ..write('batchNumber: $batchNumber, ')
           ..write('expiryDate: $expiryDate, ')
           ..write('quantity: $quantity, ')
@@ -11587,7 +12153,13 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           ..write('withdrawalMeat: $withdrawalMeat, ')
           ..write('withdrawalMilk: $withdrawalMilk, ')
           ..write('withdrawalEggs: $withdrawalEggs, ')
+          ..write('withdrawalOther: $withdrawalOther, ')
           ..write('warnings: $warnings, ')
+          ..write('contraindications: $contraindications, ')
+          ..write('adverseEffects: $adverseEffects, ')
+          ..write('storageConditions: $storageConditions, ')
+          ..write('publicDisplayName: $publicDisplayName, ')
+          ..write('availableToPublic: $availableToPublic, ')
           ..write('imagePath: $imagePath, ')
           ..write('isSellable: $isSellable, ')
           ..write('isArchived: $isArchived, ')
@@ -11604,7 +12176,15 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     drugName,
     category,
     categoryId,
+    genericName,
+    brandName,
     manufacturer,
+    sku,
+    barcode,
+    shortDescription,
+    detailedDescription,
+    dosageForm,
+    packSize,
     batchNumber,
     expiryDate,
     quantity,
@@ -11619,7 +12199,13 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     withdrawalMeat,
     withdrawalMilk,
     withdrawalEggs,
+    withdrawalOther,
     warnings,
+    contraindications,
+    adverseEffects,
+    storageConditions,
+    publicDisplayName,
+    availableToPublic,
     imagePath,
     isSellable,
     isArchived,
@@ -11635,7 +12221,15 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           other.drugName == this.drugName &&
           other.category == this.category &&
           other.categoryId == this.categoryId &&
+          other.genericName == this.genericName &&
+          other.brandName == this.brandName &&
           other.manufacturer == this.manufacturer &&
+          other.sku == this.sku &&
+          other.barcode == this.barcode &&
+          other.shortDescription == this.shortDescription &&
+          other.detailedDescription == this.detailedDescription &&
+          other.dosageForm == this.dosageForm &&
+          other.packSize == this.packSize &&
           other.batchNumber == this.batchNumber &&
           other.expiryDate == this.expiryDate &&
           other.quantity == this.quantity &&
@@ -11650,7 +12244,13 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           other.withdrawalMeat == this.withdrawalMeat &&
           other.withdrawalMilk == this.withdrawalMilk &&
           other.withdrawalEggs == this.withdrawalEggs &&
+          other.withdrawalOther == this.withdrawalOther &&
           other.warnings == this.warnings &&
+          other.contraindications == this.contraindications &&
+          other.adverseEffects == this.adverseEffects &&
+          other.storageConditions == this.storageConditions &&
+          other.publicDisplayName == this.publicDisplayName &&
+          other.availableToPublic == this.availableToPublic &&
           other.imagePath == this.imagePath &&
           other.isSellable == this.isSellable &&
           other.isArchived == this.isArchived &&
@@ -11664,7 +12264,15 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
   final Value<String> drugName;
   final Value<String> category;
   final Value<String?> categoryId;
+  final Value<String?> genericName;
+  final Value<String?> brandName;
   final Value<String?> manufacturer;
+  final Value<String?> sku;
+  final Value<String?> barcode;
+  final Value<String?> shortDescription;
+  final Value<String?> detailedDescription;
+  final Value<String?> dosageForm;
+  final Value<String?> packSize;
   final Value<String?> batchNumber;
   final Value<DateTime?> expiryDate;
   final Value<int> quantity;
@@ -11679,7 +12287,13 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
   final Value<String?> withdrawalMeat;
   final Value<String?> withdrawalMilk;
   final Value<String?> withdrawalEggs;
+  final Value<String?> withdrawalOther;
   final Value<String?> warnings;
+  final Value<String?> contraindications;
+  final Value<String?> adverseEffects;
+  final Value<String?> storageConditions;
+  final Value<String?> publicDisplayName;
+  final Value<bool> availableToPublic;
   final Value<String?> imagePath;
   final Value<bool> isSellable;
   final Value<bool> isArchived;
@@ -11691,7 +12305,15 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.drugName = const Value.absent(),
     this.category = const Value.absent(),
     this.categoryId = const Value.absent(),
+    this.genericName = const Value.absent(),
+    this.brandName = const Value.absent(),
     this.manufacturer = const Value.absent(),
+    this.sku = const Value.absent(),
+    this.barcode = const Value.absent(),
+    this.shortDescription = const Value.absent(),
+    this.detailedDescription = const Value.absent(),
+    this.dosageForm = const Value.absent(),
+    this.packSize = const Value.absent(),
     this.batchNumber = const Value.absent(),
     this.expiryDate = const Value.absent(),
     this.quantity = const Value.absent(),
@@ -11706,7 +12328,13 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.withdrawalMeat = const Value.absent(),
     this.withdrawalMilk = const Value.absent(),
     this.withdrawalEggs = const Value.absent(),
+    this.withdrawalOther = const Value.absent(),
     this.warnings = const Value.absent(),
+    this.contraindications = const Value.absent(),
+    this.adverseEffects = const Value.absent(),
+    this.storageConditions = const Value.absent(),
+    this.publicDisplayName = const Value.absent(),
+    this.availableToPublic = const Value.absent(),
     this.imagePath = const Value.absent(),
     this.isSellable = const Value.absent(),
     this.isArchived = const Value.absent(),
@@ -11719,7 +12347,15 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     required String drugName,
     required String category,
     this.categoryId = const Value.absent(),
+    this.genericName = const Value.absent(),
+    this.brandName = const Value.absent(),
     this.manufacturer = const Value.absent(),
+    this.sku = const Value.absent(),
+    this.barcode = const Value.absent(),
+    this.shortDescription = const Value.absent(),
+    this.detailedDescription = const Value.absent(),
+    this.dosageForm = const Value.absent(),
+    this.packSize = const Value.absent(),
     this.batchNumber = const Value.absent(),
     this.expiryDate = const Value.absent(),
     this.quantity = const Value.absent(),
@@ -11734,7 +12370,13 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.withdrawalMeat = const Value.absent(),
     this.withdrawalMilk = const Value.absent(),
     this.withdrawalEggs = const Value.absent(),
+    this.withdrawalOther = const Value.absent(),
     this.warnings = const Value.absent(),
+    this.contraindications = const Value.absent(),
+    this.adverseEffects = const Value.absent(),
+    this.storageConditions = const Value.absent(),
+    this.publicDisplayName = const Value.absent(),
+    this.availableToPublic = const Value.absent(),
     this.imagePath = const Value.absent(),
     this.isSellable = const Value.absent(),
     this.isArchived = const Value.absent(),
@@ -11748,7 +12390,15 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Expression<String>? drugName,
     Expression<String>? category,
     Expression<String>? categoryId,
+    Expression<String>? genericName,
+    Expression<String>? brandName,
     Expression<String>? manufacturer,
+    Expression<String>? sku,
+    Expression<String>? barcode,
+    Expression<String>? shortDescription,
+    Expression<String>? detailedDescription,
+    Expression<String>? dosageForm,
+    Expression<String>? packSize,
     Expression<String>? batchNumber,
     Expression<DateTime>? expiryDate,
     Expression<int>? quantity,
@@ -11763,7 +12413,13 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Expression<String>? withdrawalMeat,
     Expression<String>? withdrawalMilk,
     Expression<String>? withdrawalEggs,
+    Expression<String>? withdrawalOther,
     Expression<String>? warnings,
+    Expression<String>? contraindications,
+    Expression<String>? adverseEffects,
+    Expression<String>? storageConditions,
+    Expression<String>? publicDisplayName,
+    Expression<bool>? availableToPublic,
     Expression<String>? imagePath,
     Expression<bool>? isSellable,
     Expression<bool>? isArchived,
@@ -11776,7 +12432,16 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       if (drugName != null) 'drug_name': drugName,
       if (category != null) 'category': category,
       if (categoryId != null) 'category_id': categoryId,
+      if (genericName != null) 'generic_name': genericName,
+      if (brandName != null) 'brand_name': brandName,
       if (manufacturer != null) 'manufacturer': manufacturer,
+      if (sku != null) 'sku': sku,
+      if (barcode != null) 'barcode': barcode,
+      if (shortDescription != null) 'short_description': shortDescription,
+      if (detailedDescription != null)
+        'detailed_description': detailedDescription,
+      if (dosageForm != null) 'dosage_form': dosageForm,
+      if (packSize != null) 'pack_size': packSize,
       if (batchNumber != null) 'batch_number': batchNumber,
       if (expiryDate != null) 'expiry_date': expiryDate,
       if (quantity != null) 'quantity': quantity,
@@ -11791,7 +12456,13 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       if (withdrawalMeat != null) 'withdrawal_meat': withdrawalMeat,
       if (withdrawalMilk != null) 'withdrawal_milk': withdrawalMilk,
       if (withdrawalEggs != null) 'withdrawal_eggs': withdrawalEggs,
+      if (withdrawalOther != null) 'withdrawal_other': withdrawalOther,
       if (warnings != null) 'warnings': warnings,
+      if (contraindications != null) 'contraindications': contraindications,
+      if (adverseEffects != null) 'adverse_effects': adverseEffects,
+      if (storageConditions != null) 'storage_conditions': storageConditions,
+      if (publicDisplayName != null) 'public_display_name': publicDisplayName,
+      if (availableToPublic != null) 'available_to_public': availableToPublic,
       if (imagePath != null) 'image_path': imagePath,
       if (isSellable != null) 'is_sellable': isSellable,
       if (isArchived != null) 'is_archived': isArchived,
@@ -11806,7 +12477,15 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Value<String>? drugName,
     Value<String>? category,
     Value<String?>? categoryId,
+    Value<String?>? genericName,
+    Value<String?>? brandName,
     Value<String?>? manufacturer,
+    Value<String?>? sku,
+    Value<String?>? barcode,
+    Value<String?>? shortDescription,
+    Value<String?>? detailedDescription,
+    Value<String?>? dosageForm,
+    Value<String?>? packSize,
     Value<String?>? batchNumber,
     Value<DateTime?>? expiryDate,
     Value<int>? quantity,
@@ -11821,7 +12500,13 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Value<String?>? withdrawalMeat,
     Value<String?>? withdrawalMilk,
     Value<String?>? withdrawalEggs,
+    Value<String?>? withdrawalOther,
     Value<String?>? warnings,
+    Value<String?>? contraindications,
+    Value<String?>? adverseEffects,
+    Value<String?>? storageConditions,
+    Value<String?>? publicDisplayName,
+    Value<bool>? availableToPublic,
     Value<String?>? imagePath,
     Value<bool>? isSellable,
     Value<bool>? isArchived,
@@ -11834,7 +12519,15 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       drugName: drugName ?? this.drugName,
       category: category ?? this.category,
       categoryId: categoryId ?? this.categoryId,
+      genericName: genericName ?? this.genericName,
+      brandName: brandName ?? this.brandName,
       manufacturer: manufacturer ?? this.manufacturer,
+      sku: sku ?? this.sku,
+      barcode: barcode ?? this.barcode,
+      shortDescription: shortDescription ?? this.shortDescription,
+      detailedDescription: detailedDescription ?? this.detailedDescription,
+      dosageForm: dosageForm ?? this.dosageForm,
+      packSize: packSize ?? this.packSize,
       batchNumber: batchNumber ?? this.batchNumber,
       expiryDate: expiryDate ?? this.expiryDate,
       quantity: quantity ?? this.quantity,
@@ -11849,7 +12542,13 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       withdrawalMeat: withdrawalMeat ?? this.withdrawalMeat,
       withdrawalMilk: withdrawalMilk ?? this.withdrawalMilk,
       withdrawalEggs: withdrawalEggs ?? this.withdrawalEggs,
+      withdrawalOther: withdrawalOther ?? this.withdrawalOther,
       warnings: warnings ?? this.warnings,
+      contraindications: contraindications ?? this.contraindications,
+      adverseEffects: adverseEffects ?? this.adverseEffects,
+      storageConditions: storageConditions ?? this.storageConditions,
+      publicDisplayName: publicDisplayName ?? this.publicDisplayName,
+      availableToPublic: availableToPublic ?? this.availableToPublic,
       imagePath: imagePath ?? this.imagePath,
       isSellable: isSellable ?? this.isSellable,
       isArchived: isArchived ?? this.isArchived,
@@ -11876,8 +12575,32 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     if (categoryId.present) {
       map['category_id'] = Variable<String>(categoryId.value);
     }
+    if (genericName.present) {
+      map['generic_name'] = Variable<String>(genericName.value);
+    }
+    if (brandName.present) {
+      map['brand_name'] = Variable<String>(brandName.value);
+    }
     if (manufacturer.present) {
       map['manufacturer'] = Variable<String>(manufacturer.value);
+    }
+    if (sku.present) {
+      map['sku'] = Variable<String>(sku.value);
+    }
+    if (barcode.present) {
+      map['barcode'] = Variable<String>(barcode.value);
+    }
+    if (shortDescription.present) {
+      map['short_description'] = Variable<String>(shortDescription.value);
+    }
+    if (detailedDescription.present) {
+      map['detailed_description'] = Variable<String>(detailedDescription.value);
+    }
+    if (dosageForm.present) {
+      map['dosage_form'] = Variable<String>(dosageForm.value);
+    }
+    if (packSize.present) {
+      map['pack_size'] = Variable<String>(packSize.value);
     }
     if (batchNumber.present) {
       map['batch_number'] = Variable<String>(batchNumber.value);
@@ -11921,8 +12644,26 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     if (withdrawalEggs.present) {
       map['withdrawal_eggs'] = Variable<String>(withdrawalEggs.value);
     }
+    if (withdrawalOther.present) {
+      map['withdrawal_other'] = Variable<String>(withdrawalOther.value);
+    }
     if (warnings.present) {
       map['warnings'] = Variable<String>(warnings.value);
+    }
+    if (contraindications.present) {
+      map['contraindications'] = Variable<String>(contraindications.value);
+    }
+    if (adverseEffects.present) {
+      map['adverse_effects'] = Variable<String>(adverseEffects.value);
+    }
+    if (storageConditions.present) {
+      map['storage_conditions'] = Variable<String>(storageConditions.value);
+    }
+    if (publicDisplayName.present) {
+      map['public_display_name'] = Variable<String>(publicDisplayName.value);
+    }
+    if (availableToPublic.present) {
+      map['available_to_public'] = Variable<bool>(availableToPublic.value);
     }
     if (imagePath.present) {
       map['image_path'] = Variable<String>(imagePath.value);
@@ -11950,7 +12691,15 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
           ..write('drugName: $drugName, ')
           ..write('category: $category, ')
           ..write('categoryId: $categoryId, ')
+          ..write('genericName: $genericName, ')
+          ..write('brandName: $brandName, ')
           ..write('manufacturer: $manufacturer, ')
+          ..write('sku: $sku, ')
+          ..write('barcode: $barcode, ')
+          ..write('shortDescription: $shortDescription, ')
+          ..write('detailedDescription: $detailedDescription, ')
+          ..write('dosageForm: $dosageForm, ')
+          ..write('packSize: $packSize, ')
           ..write('batchNumber: $batchNumber, ')
           ..write('expiryDate: $expiryDate, ')
           ..write('quantity: $quantity, ')
@@ -11965,7 +12714,13 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
           ..write('withdrawalMeat: $withdrawalMeat, ')
           ..write('withdrawalMilk: $withdrawalMilk, ')
           ..write('withdrawalEggs: $withdrawalEggs, ')
+          ..write('withdrawalOther: $withdrawalOther, ')
           ..write('warnings: $warnings, ')
+          ..write('contraindications: $contraindications, ')
+          ..write('adverseEffects: $adverseEffects, ')
+          ..write('storageConditions: $storageConditions, ')
+          ..write('publicDisplayName: $publicDisplayName, ')
+          ..write('availableToPublic: $availableToPublic, ')
           ..write('imagePath: $imagePath, ')
           ..write('isSellable: $isSellable, ')
           ..write('isArchived: $isArchived, ')
@@ -57342,7 +58097,15 @@ typedef $$InventoryItemsTableCreateCompanionBuilder =
       required String drugName,
       required String category,
       Value<String?> categoryId,
+      Value<String?> genericName,
+      Value<String?> brandName,
       Value<String?> manufacturer,
+      Value<String?> sku,
+      Value<String?> barcode,
+      Value<String?> shortDescription,
+      Value<String?> detailedDescription,
+      Value<String?> dosageForm,
+      Value<String?> packSize,
       Value<String?> batchNumber,
       Value<DateTime?> expiryDate,
       Value<int> quantity,
@@ -57357,7 +58120,13 @@ typedef $$InventoryItemsTableCreateCompanionBuilder =
       Value<String?> withdrawalMeat,
       Value<String?> withdrawalMilk,
       Value<String?> withdrawalEggs,
+      Value<String?> withdrawalOther,
       Value<String?> warnings,
+      Value<String?> contraindications,
+      Value<String?> adverseEffects,
+      Value<String?> storageConditions,
+      Value<String?> publicDisplayName,
+      Value<bool> availableToPublic,
       Value<String?> imagePath,
       Value<bool> isSellable,
       Value<bool> isArchived,
@@ -57371,7 +58140,15 @@ typedef $$InventoryItemsTableUpdateCompanionBuilder =
       Value<String> drugName,
       Value<String> category,
       Value<String?> categoryId,
+      Value<String?> genericName,
+      Value<String?> brandName,
       Value<String?> manufacturer,
+      Value<String?> sku,
+      Value<String?> barcode,
+      Value<String?> shortDescription,
+      Value<String?> detailedDescription,
+      Value<String?> dosageForm,
+      Value<String?> packSize,
       Value<String?> batchNumber,
       Value<DateTime?> expiryDate,
       Value<int> quantity,
@@ -57386,7 +58163,13 @@ typedef $$InventoryItemsTableUpdateCompanionBuilder =
       Value<String?> withdrawalMeat,
       Value<String?> withdrawalMilk,
       Value<String?> withdrawalEggs,
+      Value<String?> withdrawalOther,
       Value<String?> warnings,
+      Value<String?> contraindications,
+      Value<String?> adverseEffects,
+      Value<String?> storageConditions,
+      Value<String?> publicDisplayName,
+      Value<bool> availableToPublic,
       Value<String?> imagePath,
       Value<bool> isSellable,
       Value<bool> isArchived,
@@ -57602,8 +58385,48 @@ class $$InventoryItemsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get genericName => $composableBuilder(
+    column: $table.genericName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get brandName => $composableBuilder(
+    column: $table.brandName,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get manufacturer => $composableBuilder(
     column: $table.manufacturer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sku => $composableBuilder(
+    column: $table.sku,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get shortDescription => $composableBuilder(
+    column: $table.shortDescription,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detailedDescription => $composableBuilder(
+    column: $table.detailedDescription,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dosageForm => $composableBuilder(
+    column: $table.dosageForm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get packSize => $composableBuilder(
+    column: $table.packSize,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -57677,8 +58500,38 @@ class $$InventoryItemsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get withdrawalOther => $composableBuilder(
+    column: $table.withdrawalOther,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get warnings => $composableBuilder(
     column: $table.warnings,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contraindications => $composableBuilder(
+    column: $table.contraindications,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get adverseEffects => $composableBuilder(
+    column: $table.adverseEffects,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get storageConditions => $composableBuilder(
+    column: $table.storageConditions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get publicDisplayName => $composableBuilder(
+    column: $table.publicDisplayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get availableToPublic => $composableBuilder(
+    column: $table.availableToPublic,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -57914,8 +58767,48 @@ class $$InventoryItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get genericName => $composableBuilder(
+    column: $table.genericName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get brandName => $composableBuilder(
+    column: $table.brandName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get manufacturer => $composableBuilder(
     column: $table.manufacturer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sku => $composableBuilder(
+    column: $table.sku,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get shortDescription => $composableBuilder(
+    column: $table.shortDescription,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detailedDescription => $composableBuilder(
+    column: $table.detailedDescription,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dosageForm => $composableBuilder(
+    column: $table.dosageForm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get packSize => $composableBuilder(
+    column: $table.packSize,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -57989,8 +58882,38 @@ class $$InventoryItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get withdrawalOther => $composableBuilder(
+    column: $table.withdrawalOther,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get warnings => $composableBuilder(
     column: $table.warnings,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contraindications => $composableBuilder(
+    column: $table.contraindications,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get adverseEffects => $composableBuilder(
+    column: $table.adverseEffects,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get storageConditions => $composableBuilder(
+    column: $table.storageConditions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get publicDisplayName => $composableBuilder(
+    column: $table.publicDisplayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get availableToPublic => $composableBuilder(
+    column: $table.availableToPublic,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -58066,10 +58989,42 @@ class $$InventoryItemsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get genericName => $composableBuilder(
+    column: $table.genericName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get brandName =>
+      $composableBuilder(column: $table.brandName, builder: (column) => column);
+
   GeneratedColumn<String> get manufacturer => $composableBuilder(
     column: $table.manufacturer,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get sku =>
+      $composableBuilder(column: $table.sku, builder: (column) => column);
+
+  GeneratedColumn<String> get barcode =>
+      $composableBuilder(column: $table.barcode, builder: (column) => column);
+
+  GeneratedColumn<String> get shortDescription => $composableBuilder(
+    column: $table.shortDescription,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get detailedDescription => $composableBuilder(
+    column: $table.detailedDescription,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get dosageForm => $composableBuilder(
+    column: $table.dosageForm,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get packSize =>
+      $composableBuilder(column: $table.packSize, builder: (column) => column);
 
   GeneratedColumn<String> get batchNumber => $composableBuilder(
     column: $table.batchNumber,
@@ -58135,8 +59090,38 @@ class $$InventoryItemsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get withdrawalOther => $composableBuilder(
+    column: $table.withdrawalOther,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get warnings =>
       $composableBuilder(column: $table.warnings, builder: (column) => column);
+
+  GeneratedColumn<String> get contraindications => $composableBuilder(
+    column: $table.contraindications,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get adverseEffects => $composableBuilder(
+    column: $table.adverseEffects,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get storageConditions => $composableBuilder(
+    column: $table.storageConditions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get publicDisplayName => $composableBuilder(
+    column: $table.publicDisplayName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get availableToPublic => $composableBuilder(
+    column: $table.availableToPublic,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get imagePath =>
       $composableBuilder(column: $table.imagePath, builder: (column) => column);
@@ -58380,7 +59365,15 @@ class $$InventoryItemsTableTableManager
                 Value<String> drugName = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String?> categoryId = const Value.absent(),
+                Value<String?> genericName = const Value.absent(),
+                Value<String?> brandName = const Value.absent(),
                 Value<String?> manufacturer = const Value.absent(),
+                Value<String?> sku = const Value.absent(),
+                Value<String?> barcode = const Value.absent(),
+                Value<String?> shortDescription = const Value.absent(),
+                Value<String?> detailedDescription = const Value.absent(),
+                Value<String?> dosageForm = const Value.absent(),
+                Value<String?> packSize = const Value.absent(),
                 Value<String?> batchNumber = const Value.absent(),
                 Value<DateTime?> expiryDate = const Value.absent(),
                 Value<int> quantity = const Value.absent(),
@@ -58395,7 +59388,13 @@ class $$InventoryItemsTableTableManager
                 Value<String?> withdrawalMeat = const Value.absent(),
                 Value<String?> withdrawalMilk = const Value.absent(),
                 Value<String?> withdrawalEggs = const Value.absent(),
+                Value<String?> withdrawalOther = const Value.absent(),
                 Value<String?> warnings = const Value.absent(),
+                Value<String?> contraindications = const Value.absent(),
+                Value<String?> adverseEffects = const Value.absent(),
+                Value<String?> storageConditions = const Value.absent(),
+                Value<String?> publicDisplayName = const Value.absent(),
+                Value<bool> availableToPublic = const Value.absent(),
                 Value<String?> imagePath = const Value.absent(),
                 Value<bool> isSellable = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
@@ -58407,7 +59406,15 @@ class $$InventoryItemsTableTableManager
                 drugName: drugName,
                 category: category,
                 categoryId: categoryId,
+                genericName: genericName,
+                brandName: brandName,
                 manufacturer: manufacturer,
+                sku: sku,
+                barcode: barcode,
+                shortDescription: shortDescription,
+                detailedDescription: detailedDescription,
+                dosageForm: dosageForm,
+                packSize: packSize,
                 batchNumber: batchNumber,
                 expiryDate: expiryDate,
                 quantity: quantity,
@@ -58422,7 +59429,13 @@ class $$InventoryItemsTableTableManager
                 withdrawalMeat: withdrawalMeat,
                 withdrawalMilk: withdrawalMilk,
                 withdrawalEggs: withdrawalEggs,
+                withdrawalOther: withdrawalOther,
                 warnings: warnings,
+                contraindications: contraindications,
+                adverseEffects: adverseEffects,
+                storageConditions: storageConditions,
+                publicDisplayName: publicDisplayName,
+                availableToPublic: availableToPublic,
                 imagePath: imagePath,
                 isSellable: isSellable,
                 isArchived: isArchived,
@@ -58436,7 +59449,15 @@ class $$InventoryItemsTableTableManager
                 required String drugName,
                 required String category,
                 Value<String?> categoryId = const Value.absent(),
+                Value<String?> genericName = const Value.absent(),
+                Value<String?> brandName = const Value.absent(),
                 Value<String?> manufacturer = const Value.absent(),
+                Value<String?> sku = const Value.absent(),
+                Value<String?> barcode = const Value.absent(),
+                Value<String?> shortDescription = const Value.absent(),
+                Value<String?> detailedDescription = const Value.absent(),
+                Value<String?> dosageForm = const Value.absent(),
+                Value<String?> packSize = const Value.absent(),
                 Value<String?> batchNumber = const Value.absent(),
                 Value<DateTime?> expiryDate = const Value.absent(),
                 Value<int> quantity = const Value.absent(),
@@ -58451,7 +59472,13 @@ class $$InventoryItemsTableTableManager
                 Value<String?> withdrawalMeat = const Value.absent(),
                 Value<String?> withdrawalMilk = const Value.absent(),
                 Value<String?> withdrawalEggs = const Value.absent(),
+                Value<String?> withdrawalOther = const Value.absent(),
                 Value<String?> warnings = const Value.absent(),
+                Value<String?> contraindications = const Value.absent(),
+                Value<String?> adverseEffects = const Value.absent(),
+                Value<String?> storageConditions = const Value.absent(),
+                Value<String?> publicDisplayName = const Value.absent(),
+                Value<bool> availableToPublic = const Value.absent(),
                 Value<String?> imagePath = const Value.absent(),
                 Value<bool> isSellable = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
@@ -58463,7 +59490,15 @@ class $$InventoryItemsTableTableManager
                 drugName: drugName,
                 category: category,
                 categoryId: categoryId,
+                genericName: genericName,
+                brandName: brandName,
                 manufacturer: manufacturer,
+                sku: sku,
+                barcode: barcode,
+                shortDescription: shortDescription,
+                detailedDescription: detailedDescription,
+                dosageForm: dosageForm,
+                packSize: packSize,
                 batchNumber: batchNumber,
                 expiryDate: expiryDate,
                 quantity: quantity,
@@ -58478,7 +59513,13 @@ class $$InventoryItemsTableTableManager
                 withdrawalMeat: withdrawalMeat,
                 withdrawalMilk: withdrawalMilk,
                 withdrawalEggs: withdrawalEggs,
+                withdrawalOther: withdrawalOther,
                 warnings: warnings,
+                contraindications: contraindications,
+                adverseEffects: adverseEffects,
+                storageConditions: storageConditions,
+                publicDisplayName: publicDisplayName,
+                availableToPublic: availableToPublic,
                 imagePath: imagePath,
                 isSellable: isSellable,
                 isArchived: isArchived,

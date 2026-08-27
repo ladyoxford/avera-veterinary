@@ -7971,7 +7971,9 @@ class ClinicRepository {
                 if (!allowed.contains(canonical)) return false;
                 if (categoryId != null && canonical != categoryId) return false;
                 if (normalizedQuery.isEmpty) return true;
-                return '${item.drugName} ${item.category} ${item.batchNumber ?? ''}'
+                return '${item.drugName} ${item.genericName ?? ''} ${item.brandName ?? ''} '
+                        '${item.manufacturer ?? ''} ${item.supplier ?? ''} ${item.sku ?? ''} '
+                        '${item.barcode ?? ''} ${item.category} ${item.batchNumber ?? ''}'
                     .toLowerCase()
                     .contains(normalizedQuery);
               })
@@ -7990,6 +7992,29 @@ class ClinicRepository {
     required double sellingPrice,
     double? buyingPrice,
     String? imagePath,
+    String? genericName,
+    String? brandName,
+    String? manufacturer,
+    String? supplier,
+    String? sku,
+    String? barcode,
+    String? shortDescription,
+    String? detailedDescription,
+    String? dosageForm,
+    String? packSize,
+    String baseUnitLabel = 'unit',
+    String? activeIngredient,
+    String? dosageAndRoute,
+    String? withdrawalMeat,
+    String? withdrawalMilk,
+    String? withdrawalEggs,
+    String? withdrawalOther,
+    String? warnings,
+    String? contraindications,
+    String? adverseEffects,
+    String? storageConditions,
+    String? publicDisplayName,
+    bool availableToPublic = false,
   }) async {
     _requireInventoryPermission(session, Permissions.inventoryCreate);
     await _requireActiveFeature(AveraFeature.inventory);
@@ -7999,6 +8024,7 @@ class ClinicRepository {
       throw StateError('You cannot add Inventory in this category.');
     }
     if (name.trim().isEmpty ||
+        baseUnitLabel.trim().isEmpty ||
         quantity < 0 ||
         minimumQuantity < 0 ||
         sellingPrice < 0) {
@@ -8026,6 +8052,29 @@ class ClinicRepository {
             sellingPrice: Value(sellingPrice),
             buyingPrice: Value(buyingPrice ?? 0),
             imagePath: Value(_nullIfBlank(imagePath)),
+            genericName: Value(_nullIfBlank(genericName)),
+            brandName: Value(_nullIfBlank(brandName)),
+            manufacturer: Value(_nullIfBlank(manufacturer)),
+            supplier: Value(_nullIfBlank(supplier)),
+            sku: Value(_nullIfBlank(sku)),
+            barcode: Value(_nullIfBlank(barcode)),
+            shortDescription: Value(_nullIfBlank(shortDescription)),
+            detailedDescription: Value(_nullIfBlank(detailedDescription)),
+            dosageForm: Value(_nullIfBlank(dosageForm)),
+            packSize: Value(_nullIfBlank(packSize)),
+            baseUnitLabel: Value(baseUnitLabel.trim()),
+            activeIngredient: Value(_nullIfBlank(activeIngredient)),
+            dosageAndRoute: Value(_nullIfBlank(dosageAndRoute)),
+            withdrawalMeat: Value(_nullIfBlank(withdrawalMeat)),
+            withdrawalMilk: Value(_nullIfBlank(withdrawalMilk)),
+            withdrawalEggs: Value(_nullIfBlank(withdrawalEggs)),
+            withdrawalOther: Value(_nullIfBlank(withdrawalOther)),
+            warnings: Value(_nullIfBlank(warnings)),
+            contraindications: Value(_nullIfBlank(contraindications)),
+            adverseEffects: Value(_nullIfBlank(adverseEffects)),
+            storageConditions: Value(_nullIfBlank(storageConditions)),
+            publicDisplayName: Value(_nullIfBlank(publicDisplayName)),
+            availableToPublic: Value(availableToPublic),
             isSellable: Value(category.isSellable),
             createdAt: Value(now),
             updatedAt: Value(now),
@@ -8038,6 +8087,187 @@ class ClinicRepository {
       details: {'categoryId': categoryId, 'quantity': quantity},
     );
     return id;
+  }
+
+  Future<void> updateInventoryItem({
+    required UserSession session,
+    required int itemId,
+    required String name,
+    required String categoryId,
+    required int quantity,
+    required int minimumQuantity,
+    String? batchNumber,
+    DateTime? expiryDate,
+    required double sellingPrice,
+    double? buyingPrice,
+    String? imagePath,
+    String? genericName,
+    String? brandName,
+    String? manufacturer,
+    String? supplier,
+    String? sku,
+    String? barcode,
+    String? shortDescription,
+    String? detailedDescription,
+    String? dosageForm,
+    String? packSize,
+    String baseUnitLabel = 'unit',
+    String? activeIngredient,
+    String? dosageAndRoute,
+    String? withdrawalMeat,
+    String? withdrawalMilk,
+    String? withdrawalEggs,
+    String? withdrawalOther,
+    String? warnings,
+    String? contraindications,
+    String? adverseEffects,
+    String? storageConditions,
+    String? publicDisplayName,
+    bool availableToPublic = false,
+  }) async {
+    _requireInventoryPermission(session, Permissions.inventoryEdit);
+    await _requireActiveFeature(AveraFeature.inventory);
+    final item = await _inventoryItemForSession(itemId, session);
+    final category = InventoryCategories.byId(categoryId);
+    if (category == null ||
+        !permittedInventoryCategoryIds(session).contains(categoryId)) {
+      throw StateError('You cannot edit Inventory in this category.');
+    }
+    if (name.trim().isEmpty ||
+        baseUnitLabel.trim().isEmpty ||
+        quantity < 0 ||
+        minimumQuantity < 0 ||
+        sellingPrice < 0 ||
+        (buyingPrice != null && buyingPrice < 0)) {
+      throw StateError('Enter valid Inventory details.');
+    }
+    if ((categoryId == 'drugs' || categoryId == 'vaccines') &&
+        ((batchNumber?.trim().isEmpty ?? true) || expiryDate == null)) {
+      throw StateError(
+        'Drugs and Vaccines require a batch number and expiry date.',
+      );
+    }
+    final now = _clock.nowForClinic(session.clinic);
+    await (db.update(db.inventoryItems)..where(
+          (row) =>
+              row.id.equals(item.id) &
+              row.clinicId.equals(session.clinic.clinicId),
+        ))
+        .write(
+          InventoryItemsCompanion(
+            drugName: Value(name.trim()),
+            category: Value(category.name),
+            categoryId: Value(categoryId),
+            quantity: Value(quantity),
+            minimumQuantity: Value(minimumQuantity),
+            batchNumber: Value(_nullIfBlank(batchNumber)),
+            expiryDate: Value(expiryDate),
+            sellingPrice: Value(sellingPrice),
+            buyingPrice: Value(buyingPrice ?? item.buyingPrice),
+            imagePath: Value(_nullIfBlank(imagePath)),
+            genericName: Value(_nullIfBlank(genericName)),
+            brandName: Value(_nullIfBlank(brandName)),
+            manufacturer: Value(_nullIfBlank(manufacturer)),
+            supplier: Value(_nullIfBlank(supplier)),
+            sku: Value(_nullIfBlank(sku)),
+            barcode: Value(_nullIfBlank(barcode)),
+            shortDescription: Value(_nullIfBlank(shortDescription)),
+            detailedDescription: Value(_nullIfBlank(detailedDescription)),
+            dosageForm: Value(_nullIfBlank(dosageForm)),
+            packSize: Value(_nullIfBlank(packSize)),
+            baseUnitLabel: Value(baseUnitLabel.trim()),
+            activeIngredient: Value(_nullIfBlank(activeIngredient)),
+            dosageAndRoute: Value(_nullIfBlank(dosageAndRoute)),
+            withdrawalMeat: Value(_nullIfBlank(withdrawalMeat)),
+            withdrawalMilk: Value(_nullIfBlank(withdrawalMilk)),
+            withdrawalEggs: Value(_nullIfBlank(withdrawalEggs)),
+            withdrawalOther: Value(_nullIfBlank(withdrawalOther)),
+            warnings: Value(_nullIfBlank(warnings)),
+            contraindications: Value(_nullIfBlank(contraindications)),
+            adverseEffects: Value(_nullIfBlank(adverseEffects)),
+            storageConditions: Value(_nullIfBlank(storageConditions)),
+            publicDisplayName: Value(_nullIfBlank(publicDisplayName)),
+            availableToPublic: Value(availableToPublic),
+            isSellable: Value(category.isSellable),
+            updatedAt: Value(now),
+          ),
+        );
+    await _writeInventoryAudit(
+      session: session,
+      action: 'inventory.item_updated',
+      itemId: item.id,
+      details: {
+        'categoryId': categoryId,
+        'quantityBefore': item.quantity,
+        'quantityAfter': quantity,
+      },
+    );
+  }
+
+  Future<InventoryItem> addInventoryStock({
+    required UserSession session,
+    required int itemId,
+    required int quantityToAdd,
+    String? batchNumber,
+    DateTime? expiryDate,
+    double? buyingPrice,
+  }) async {
+    _requireInventoryPermission(session, Permissions.inventoryAdjust);
+    await _requireActiveFeature(AveraFeature.inventory);
+    if (quantityToAdd <= 0 || (buyingPrice != null && buyingPrice < 0)) {
+      throw StateError('Enter a quantity greater than zero.');
+    }
+    return db.transaction(() async {
+      final item = await _inventoryItemForSession(itemId, session);
+      final after = item.quantity + quantityToAdd;
+      final now = _clock.nowForClinic(session.clinic);
+      await (db.update(db.inventoryItems)..where(
+            (row) =>
+                row.id.equals(item.id) &
+                row.clinicId.equals(session.clinic.clinicId),
+          ))
+          .write(
+            InventoryItemsCompanion(
+              quantity: Value(after),
+              batchNumber: batchNumber?.trim().isNotEmpty == true
+                  ? Value(batchNumber!.trim())
+                  : const Value.absent(),
+              expiryDate: expiryDate == null
+                  ? const Value.absent()
+                  : Value(expiryDate),
+              buyingPrice: buyingPrice == null
+                  ? const Value.absent()
+                  : Value(buyingPrice),
+              updatedAt: Value(now),
+            ),
+          );
+      await db
+          .into(db.inventoryStockMovements)
+          .insert(
+            InventoryStockMovementsCompanion.insert(
+              clinicId: session.clinic.clinicId,
+              inventoryItemId: item.id,
+              movementType: 'Stock Added',
+              quantityChange: quantityToAdd,
+              quantityBefore: item.quantity,
+              quantityAfter: after,
+              performedByUserId: session.user.userId,
+              reason: const Value('Add Stock'),
+              createdAt: now,
+            ),
+          );
+      await _writeInventoryAudit(
+        session: session,
+        action: 'inventory.stock_added',
+        itemId: item.id,
+        details: {
+          'quantityBefore': item.quantity,
+          'quantityAdded': quantityToAdd,
+          'quantityAfter': after,
+        },
+      );
+      return _inventoryItemForSession(item.id, session);
+    });
   }
 
   Stream<List<ProductUnit>> watchProductUnits({

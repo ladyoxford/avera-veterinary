@@ -285,8 +285,15 @@ class RemoteInventoryItem {
     required this.sellingPrice,
     required this.status,
     this.genericName,
+    this.brandName,
     this.manufacturer,
     this.supplier,
+    this.sku,
+    this.barcode,
+    this.shortDescription,
+    this.detailedDescription,
+    this.dosageForm,
+    this.packSize,
     this.batchNumber,
     this.expiryDate,
     this.createdAt,
@@ -298,7 +305,13 @@ class RemoteInventoryItem {
     this.withdrawalMeat,
     this.withdrawalMilk,
     this.withdrawalEggs,
+    this.withdrawalOther,
     this.warnings,
+    this.contraindications,
+    this.adverseEffects,
+    this.storageConditions,
+    this.publicDisplayName,
+    this.availableToPublic = false,
     this.isSellable = true,
     this.isArchived = false,
     this.productUnits = const [],
@@ -315,8 +328,15 @@ class RemoteInventoryItem {
   final num sellingPrice;
   final String status;
   final String? genericName;
+  final String? brandName;
   final String? manufacturer;
   final String? supplier;
+  final String? sku;
+  final String? barcode;
+  final String? shortDescription;
+  final String? detailedDescription;
+  final String? dosageForm;
+  final String? packSize;
   final String? batchNumber;
   final DateTime? expiryDate;
   final DateTime? createdAt;
@@ -328,7 +348,13 @@ class RemoteInventoryItem {
   final String? withdrawalMeat;
   final String? withdrawalMilk;
   final String? withdrawalEggs;
+  final String? withdrawalOther;
   final String? warnings;
+  final String? contraindications;
+  final String? adverseEffects;
+  final String? storageConditions;
+  final String? publicDisplayName;
+  final bool availableToPublic;
   final bool isSellable;
   final bool isArchived;
   final List<RemoteProductUnit> productUnits;
@@ -356,13 +382,26 @@ class RemoteInventoryItem {
       createdAt: _date(value['created_at']),
       updatedAt: _date(value['updated_at']),
       revision: _nullableInt(value['revision']),
+      brandName: value['brand_name'] as String?,
       baseUnitLabel: value['base_unit_label'] as String? ?? 'unit',
+      sku: value['sku'] as String?,
+      barcode: value['barcode'] as String?,
+      shortDescription: value['short_description'] as String?,
+      detailedDescription: value['detailed_description'] as String?,
+      dosageForm: value['dosage_form'] as String?,
+      packSize: value['pack_size'] as String?,
       activeIngredient: value['active_ingredient'] as String?,
       dosageAndRoute: value['dosage_and_route'] as String?,
       withdrawalMeat: value['withdrawal_meat'] as String?,
       withdrawalMilk: value['withdrawal_milk'] as String?,
       withdrawalEggs: value['withdrawal_eggs'] as String?,
+      withdrawalOther: value['withdrawal_other'] as String?,
       warnings: value['warnings'] as String?,
+      contraindications: value['contraindications'] as String?,
+      adverseEffects: value['adverse_effects'] as String?,
+      storageConditions: value['storage_conditions'] as String?,
+      publicDisplayName: value['public_display_name'] as String?,
+      availableToPublic: value['available_to_public'] as bool? ?? false,
       isSellable: value['is_sellable'] as bool? ?? true,
       isArchived: value['is_archived'] as bool? ?? false,
       imageUrl: value['image_url'] as String?,
@@ -387,8 +426,15 @@ class RemoteInventoryItem {
     'selling_price': sellingPrice,
     'status': status,
     'generic_name': genericName,
+    'brand_name': brandName,
     'manufacturer': manufacturer,
     'supplier': supplier,
+    'sku': sku,
+    'barcode': barcode,
+    'short_description': shortDescription,
+    'detailed_description': detailedDescription,
+    'dosage_form': dosageForm,
+    'pack_size': packSize,
     'batch_number': batchNumber,
     'expiry_date': expiryDate?.toIso8601String(),
     'created_at': createdAt?.toIso8601String(),
@@ -400,7 +446,13 @@ class RemoteInventoryItem {
     'withdrawal_meat': withdrawalMeat,
     'withdrawal_milk': withdrawalMilk,
     'withdrawal_eggs': withdrawalEggs,
+    'withdrawal_other': withdrawalOther,
     'warnings': warnings,
+    'contraindications': contraindications,
+    'adverse_effects': adverseEffects,
+    'storage_conditions': storageConditions,
+    'public_display_name': publicDisplayName,
+    'available_to_public': availableToPublic,
     'is_sellable': isSellable,
     'is_archived': isArchived,
     'image_url': imageUrl,
@@ -910,6 +962,30 @@ class ClinicalRemoteDataSource {
     final response = await _client.patch(
       '/api/v1/inventory/products/$inventoryProductId',
       body: payload,
+    );
+    return RemoteInventoryItem.fromJson(
+      Map<String, dynamic>.from(response['item'] as Map),
+    );
+  }
+
+  Future<RemoteInventoryItem> addInventoryStock({
+    required String inventoryProductId,
+    required int quantityToAdd,
+    String? batchNumber,
+    DateTime? expiryDate,
+    double? purchasePrice,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/inventory/products/$inventoryProductId/add-stock',
+      authenticated: true,
+      body: {
+        'quantityToAdd': quantityToAdd,
+        if (batchNumber?.trim().isNotEmpty == true)
+          'batchNumber': batchNumber!.trim(),
+        if (expiryDate != null)
+          'expiryDate': expiryDate.toIso8601String().split('T').first,
+        if (purchasePrice != null) 'purchasePrice': purchasePrice,
+      },
     );
     return RemoteInventoryItem.fromJson(
       Map<String, dynamic>.from(response['item'] as Map),

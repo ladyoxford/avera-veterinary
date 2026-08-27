@@ -486,8 +486,15 @@ function clinicalOperationStatusPermission(type, status, fromStatus) {
 const inventoryFields = {
   name: z.string().trim().min(1).max(200),
   genericName: z.string().trim().max(200).nullish(),
+  brandName: z.string().trim().max(200).nullish(),
   manufacturer: z.string().trim().max(200).nullish(),
   supplier: z.string().trim().max(200).nullish(),
+  sku: z.string().trim().max(120).nullish(),
+  barcode: z.string().trim().max(120).nullish(),
+  shortDescription: z.string().trim().max(500).nullish(),
+  detailedDescription: z.string().trim().max(6000).nullish(),
+  dosageForm: z.string().trim().max(120).nullish(),
+  packSize: z.string().trim().max(160).nullish(),
   categoryId: z.string().trim().regex(/^[a-z0-9_]{2,80}$/),
   categoryName: z.string().trim().min(1).max(160),
   quantity: z.number().int().min(0).max(100000000),
@@ -496,15 +503,21 @@ const inventoryFields = {
   expiryDate: z.string().date().nullish(),
   purchasePrice: z.number().min(0).max(1000000000000),
   sellingPrice: z.number().min(0).max(1000000000000),
-  baseUnitLabel: z.string().trim().min(1).max(80).default('unit'),
-  activeIngredient: z.string().trim().max(240).nullish(),
-  dosageAndRoute: z.string().trim().max(1000).nullish(),
+  baseUnitLabel: z.string().trim().min(1).max(80).optional(),
+  activeIngredient: z.string().trim().max(2000).nullish(),
+  dosageAndRoute: z.string().trim().max(4000).nullish(),
   withdrawalMeat: z.string().trim().max(240).nullish(),
   withdrawalMilk: z.string().trim().max(240).nullish(),
   withdrawalEggs: z.string().trim().max(240).nullish(),
+  withdrawalOther: z.string().trim().max(1000).nullish(),
   warnings: z.string().trim().max(4000).nullish(),
-  isSellable: z.boolean().default(true),
-  isArchived: z.boolean().default(false),
+  contraindications: z.string().trim().max(4000).nullish(),
+  adverseEffects: z.string().trim().max(4000).nullish(),
+  storageConditions: z.string().trim().max(2000).nullish(),
+  publicDisplayName: z.string().trim().max(200).nullish(),
+  availableToPublic: z.boolean().optional(),
+  isSellable: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
 };
 
 export const createInventoryItemSchema = z.object({
@@ -520,6 +533,13 @@ export const updateInventoryItemSchema = z.object({
 const inventoryPhotoSchema = z.object({
   contentType: z.enum(['image/jpeg', 'image/png']),
   data: z.string().min(4).max(1400000),
+}).strict();
+
+export const addInventoryStockSchema = z.object({
+  quantityToAdd: z.number().int().min(1).max(100000000),
+  batchNumber: z.string().trim().max(160).nullish(),
+  expiryDate: z.string().date().nullish(),
+  purchasePrice: z.number().min(0).max(1000000000000).nullish(),
 }).strict();
 
 const productUnitSchema = z.object({
@@ -632,15 +652,28 @@ function inventoryResponse(row) {
     category: row.category,
     category_key: row.category_key,
     generic_name: row.generic_name,
+    brand_name: row.brand_name,
     manufacturer: row.manufacturer,
     supplier: row.supplier,
+    sku: row.sku,
+    barcode: row.barcode,
+    short_description: row.short_description,
+    detailed_description: row.detailed_description,
+    dosage_form: row.dosage_form,
+    pack_size: row.pack_size,
     base_unit_label: row.base_unit_label,
     active_ingredient: row.active_ingredient,
     dosage_and_route: row.dosage_and_route,
     withdrawal_meat: row.withdrawal_meat,
     withdrawal_milk: row.withdrawal_milk,
     withdrawal_eggs: row.withdrawal_eggs,
+    withdrawal_other: row.withdrawal_other,
     warnings: row.warnings,
+    contraindications: row.contraindications,
+    adverse_effects: row.adverse_effects,
+    storage_conditions: row.storage_conditions,
+    public_display_name: row.public_display_name,
+    available_to_public: row.available_to_public,
     is_sellable: row.is_sellable,
     is_archived: row.is_archived,
     batch_number: row.batch_number,
@@ -805,13 +838,17 @@ const lists = {
 
 const inventoryList = {
   from: 'inventory_products i',
-  select: `i.inventory_product_id, i.name, i.generic_name, i.category,
-           i.category_key, i.manufacturer, i.supplier, i.batch_number,
+  select: `i.inventory_product_id, i.name, i.generic_name, i.brand_name,
+           i.category, i.category_key, i.manufacturer, i.supplier, i.sku,
+           i.barcode, i.short_description, i.detailed_description,
+           i.dosage_form, i.pack_size, i.batch_number,
            i.expiry_date, i.purchase_price, i.selling_price, i.quantity,
            i.reorder_level, i.status, i.created_at, i.updated_at, i.revision,
            i.base_unit_label, i.active_ingredient, i.dosage_and_route,
            i.withdrawal_meat, i.withdrawal_milk, i.withdrawal_eggs,
-           i.warnings, i.is_sellable, i.is_archived, i.image_path,
+           i.withdrawal_other, i.warnings, i.contraindications,
+           i.adverse_effects, i.storage_conditions, i.public_display_name,
+           i.available_to_public, i.is_sellable, i.is_archived, i.image_path,
            COALESCE((
              SELECT jsonb_agg(jsonb_build_object(
                'product_unit_id', u.product_unit_id,
@@ -825,7 +862,7 @@ const inventoryList = {
              WHERE u.clinic_id=i.clinic_id
                AND u.inventory_product_id=i.inventory_product_id
            ), '[]'::jsonb) AS product_units`,
-  where: `i.clinic_id = $1 AND i.deleted_at IS NULL AND i.is_archived = false AND ($2::text IS NULL OR i.name ILIKE $3 OR i.generic_name ILIKE $3 OR i.batch_number ILIKE $3 OR i.category ILIKE $3)
+  where: `i.clinic_id = $1 AND i.deleted_at IS NULL AND i.is_archived = false AND ($2::text IS NULL OR i.name ILIKE $3 OR i.generic_name ILIKE $3 OR i.brand_name ILIKE $3 OR i.sku ILIKE $3 OR i.barcode ILIKE $3 OR i.active_ingredient ILIKE $3 OR i.batch_number ILIKE $3 OR i.category ILIKE $3)
           AND ($4::text IS NULL OR i.status = $4)`,
   values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.status ?? null],
   order: (query) => orderBy(query.sort, query.direction, { name: 'i.name', expiry: 'i.expiry_date', quantity: 'i.quantity' }, 'i.name'),
@@ -2780,6 +2817,7 @@ export async function clinicalRoutes(app) {
     }
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const input = parsed.data;
+      const baseUnitLabel = input.baseUnitLabel ?? 'unit';
       const existing = await client.query(
         `SELECT ${inventoryList.select}
            FROM inventory_products i
@@ -2791,25 +2829,37 @@ export async function clinicalRoutes(app) {
       }
        const inserted = await client.query(
          `INSERT INTO inventory_products
-            (clinic_id, name, generic_name, manufacturer, supplier, category,
-             category_key, batch_number, expiry_date, purchase_price, selling_price,
-             quantity, reorder_level, status, submission_id, base_unit_label,
-             active_ingredient, dosage_and_route, withdrawal_meat, withdrawal_milk,
-             withdrawal_eggs, warnings, is_sellable, is_archived, created_at, updated_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Active',$14,$15,
-                  $16,$17,$18,$19,$20,$21,$22,$23,now(),now())
+            (clinic_id, name, generic_name, brand_name, manufacturer, supplier,
+             sku, barcode, short_description, detailed_description, dosage_form,
+             pack_size, category, category_key, batch_number, expiry_date,
+             purchase_price, selling_price, quantity, reorder_level, status,
+             submission_id, base_unit_label, active_ingredient, dosage_and_route,
+             withdrawal_meat, withdrawal_milk, withdrawal_eggs, withdrawal_other,
+             warnings, contraindications, adverse_effects, storage_conditions,
+             public_display_name, available_to_public, is_sellable, is_archived,
+             created_at, updated_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+                  $17,$18,$19,$20,'Active',$21,$22,$23,$24,$25,$26,$27,$28,
+                  $29,$30,$31,$32,$33,$34,$35,$36,now(),now())
          ON CONFLICT (clinic_id, submission_id)
            WHERE submission_id IS NOT NULL
          DO NOTHING
           RETURNING *`,
         [request.auth.clinicId, input.name, input.genericName ?? null,
-          input.manufacturer ?? null, input.supplier ?? null, input.categoryName,
+          input.brandName ?? null, input.manufacturer ?? null,
+          input.supplier ?? null, input.sku ?? null, input.barcode ?? null,
+          input.shortDescription ?? null, input.detailedDescription ?? null,
+          input.dosageForm ?? null, input.packSize ?? null, input.categoryName,
           input.categoryId, input.batchNumber ?? null, input.expiryDate ?? null,
-          input.purchasePrice, input.sellingPrice, input.quantity, input.reorderLevel,
-          input.submissionId, input.baseUnitLabel, input.activeIngredient ?? null,
-          input.dosageAndRoute ?? null, input.withdrawalMeat ?? null,
-          input.withdrawalMilk ?? null, input.withdrawalEggs ?? null,
-          input.warnings ?? null, input.isSellable, input.isArchived],
+          input.purchasePrice, input.sellingPrice, input.quantity,
+          input.reorderLevel, input.submissionId, baseUnitLabel,
+          input.activeIngredient ?? null, input.dosageAndRoute ?? null,
+          input.withdrawalMeat ?? null, input.withdrawalMilk ?? null,
+          input.withdrawalEggs ?? null, input.withdrawalOther ?? null,
+          input.warnings ?? null, input.contraindications ?? null,
+          input.adverseEffects ?? null, input.storageConditions ?? null,
+          input.publicDisplayName ?? null, input.availableToPublic ?? false,
+          input.isSellable ?? true, input.isArchived ?? false],
        );
       if (!inserted.rows[0]) {
         const duplicate = await client.query(
@@ -2839,7 +2889,7 @@ export async function clinicalRoutes(app) {
              conversion_to_base, selling_price)
           VALUES ($1,$2,$3,true,1,$4)`,
          [request.auth.clinicId, inserted.rows[0].inventory_product_id,
-           input.baseUnitLabel, input.sellingPrice],
+           baseUnitLabel, input.sellingPrice],
        );
       await writeAudit(client, {
         clinicId: request.auth.clinicId,
@@ -2869,8 +2919,7 @@ export async function clinicalRoutes(app) {
     }
     return withTenantTransaction(app.pool, request.auth, async (client) => {
       const current = await client.query(
-        `SELECT inventory_product_id, name, category_key, quantity, revision,
-                base_unit_label
+        `SELECT *
            FROM inventory_products
           WHERE clinic_id = $1 AND inventory_product_id = $2 AND deleted_at IS NULL
           FOR UPDATE`,
@@ -2884,33 +2933,67 @@ export async function clinicalRoutes(app) {
       if (input.revision != null && Number(previous.revision) !== input.revision) {
         return reply.code(409).send({ error: 'revision_conflict', message: 'This inventory item changed on another device. Refresh and try again.' });
       }
+      const keep = (inputKey, column) => Object.hasOwn(input, inputKey)
+        ? input[inputKey]
+        : previous[column];
+      const baseUnitLabel = input.baseUnitLabel ?? previous.base_unit_label ?? 'unit';
+      const updates = [
+        ['name', input.name],
+        ['generic_name', keep('genericName', 'generic_name')],
+        ['brand_name', keep('brandName', 'brand_name')],
+        ['manufacturer', keep('manufacturer', 'manufacturer')],
+        ['supplier', keep('supplier', 'supplier')],
+        ['sku', keep('sku', 'sku')],
+        ['barcode', keep('barcode', 'barcode')],
+        ['short_description', keep('shortDescription', 'short_description')],
+        ['detailed_description', keep('detailedDescription', 'detailed_description')],
+        ['dosage_form', keep('dosageForm', 'dosage_form')],
+        ['pack_size', keep('packSize', 'pack_size')],
+        ['category', input.categoryName],
+        ['category_key', input.categoryId],
+        ['batch_number', input.batchNumber ?? null],
+        ['expiry_date', input.expiryDate ?? null],
+        ['purchase_price', input.purchasePrice],
+        ['selling_price', input.sellingPrice],
+        ['quantity', input.quantity],
+        ['reorder_level', input.reorderLevel],
+        ['base_unit_label', baseUnitLabel],
+        ['active_ingredient', keep('activeIngredient', 'active_ingredient')],
+        ['dosage_and_route', keep('dosageAndRoute', 'dosage_and_route')],
+        ['withdrawal_meat', keep('withdrawalMeat', 'withdrawal_meat')],
+        ['withdrawal_milk', keep('withdrawalMilk', 'withdrawal_milk')],
+        ['withdrawal_eggs', keep('withdrawalEggs', 'withdrawal_eggs')],
+        ['withdrawal_other', keep('withdrawalOther', 'withdrawal_other')],
+        ['warnings', keep('warnings', 'warnings')],
+        ['contraindications', keep('contraindications', 'contraindications')],
+        ['adverse_effects', keep('adverseEffects', 'adverse_effects')],
+        ['storage_conditions', keep('storageConditions', 'storage_conditions')],
+        ['public_display_name', keep('publicDisplayName', 'public_display_name')],
+        ['available_to_public', keep('availableToPublic', 'available_to_public')],
+        ['is_sellable', keep('isSellable', 'is_sellable')],
+        ['is_archived', keep('isArchived', 'is_archived')],
+      ];
+      const updateAssignments = updates
+        .map(([column], index) => `${column} = $${index + 1}`)
+        .join(', ');
       const updated = await client.query(
         `UPDATE inventory_products
-            SET name = $1, generic_name = $2, manufacturer = $3, supplier = $4,
-                category = $5, category_key = $6, batch_number = $7,
-                expiry_date = $8, purchase_price = $9, selling_price = $10,
-                quantity = $11, reorder_level = $12, base_unit_label = $13,
-                active_ingredient = $14, dosage_and_route = $15,
-                withdrawal_meat = $16, withdrawal_milk = $17,
-                withdrawal_eggs = $18, warnings = $19, is_sellable = $20,
-                is_archived = $21, updated_at = now(),
+            SET ${updateAssignments}, updated_at = now(),
                 revision = revision + 1
-          WHERE clinic_id = $22 AND inventory_product_id = $23
+          WHERE clinic_id = $${updates.length + 1}
+            AND inventory_product_id = $${updates.length + 2}
           RETURNING *`,
-        [input.name, input.genericName ?? null, input.manufacturer ?? null,
-          input.supplier ?? null, input.categoryName, input.categoryId,
-          input.batchNumber ?? null, input.expiryDate ?? null, input.purchasePrice,
-          input.sellingPrice, input.quantity, input.reorderLevel, input.baseUnitLabel,
-          input.activeIngredient ?? null, input.dosageAndRoute ?? null,
-          input.withdrawalMeat ?? null, input.withdrawalMilk ?? null,
-          input.withdrawalEggs ?? null, input.warnings ?? null, input.isSellable,
-          input.isArchived, request.auth.clinicId, params.data.inventoryProductId],
+        [
+          ...updates.map(([, value]) => value),
+          request.auth.clinicId,
+          params.data.inventoryProductId,
+        ],
        );
        await client.query(
          `UPDATE inventory_product_units
              SET unit_label=$1, selling_price=$2, updated_at=now(), revision=revision+1
            WHERE clinic_id=$3 AND inventory_product_id=$4 AND is_base_unit=true`,
-         [input.baseUnitLabel, input.sellingPrice, request.auth.clinicId,
+         [baseUnitLabel, input.sellingPrice, request.auth.clinicId,
            params.data.inventoryProductId],
        );
       const quantityDelta = input.quantity - Number(previous.quantity);
@@ -2939,6 +3022,72 @@ export async function clinicalRoutes(app) {
         params.data.inventoryProductId,
       );
       return { item: await inventoryResponseWithPhoto(app, item) };
+    });
+  });
+
+  app.post('/api/v1/inventory/products/:inventoryProductId/add-stock', { preHandler: [authenticate, requirePermission(permissions.inventoryAdjust)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = inventoryUuidSchema.safeParse(request.params);
+    const parsed = addInventoryStockSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Enter a valid quantity to add.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT inventory_product_id, name, quantity, batch_number, expiry_date,
+                purchase_price
+           FROM inventory_products
+          WHERE clinic_id=$1 AND inventory_product_id=$2
+            AND deleted_at IS NULL AND is_archived=false
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.inventoryProductId],
+      );
+      if (!current.rows[0]) {
+        return reply.code(404).send({ error: 'not_found', message: 'The inventory item was not found in this clinic.' });
+      }
+      const input = parsed.data;
+      const before = Number(current.rows[0].quantity);
+      const after = before + input.quantityToAdd;
+      await client.query(
+        `UPDATE inventory_products
+            SET quantity=$3,
+                batch_number=COALESCE($4, batch_number),
+                expiry_date=COALESCE($5, expiry_date),
+                purchase_price=COALESCE($6, purchase_price),
+                updated_at=now(), revision=revision+1
+          WHERE clinic_id=$1 AND inventory_product_id=$2`,
+        [request.auth.clinicId, params.data.inventoryProductId, after,
+          input.batchNumber ?? null, input.expiryDate ?? null,
+          input.purchasePrice ?? null],
+      );
+      await client.query(
+        `INSERT INTO stock_movements
+           (clinic_id, inventory_product_id, occurred_at, movement_type,
+            quantity_delta, reference)
+         VALUES ($1,$2,now(),'Stock Added',$3,'Add Stock')`,
+        [request.auth.clinicId, params.data.inventoryProductId, input.quantityToAdd],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'InventoryProduct',
+        targetId: params.data.inventoryProductId,
+        action: 'inventory.stock_added',
+        previousSummary: { quantity: before },
+        newSummary: { quantity: after, quantityAdded: input.quantityToAdd },
+        sessionId: request.auth.sessionId,
+      });
+      const item = await inventoryProductWithUnits(
+        client,
+        request.auth.clinicId,
+        params.data.inventoryProductId,
+      );
+      return {
+        item: await inventoryResponseWithPhoto(app, item),
+        quantityBefore: before,
+        quantityAdded: input.quantityToAdd,
+        quantityAfter: after,
+      };
     });
   });
 

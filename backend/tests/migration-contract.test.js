@@ -6,6 +6,7 @@ import {
   createConsultationSchema,
   createAppointmentSchema,
   createInventoryItemSchema,
+  addInventoryStockSchema,
   createInvoiceSchema,
   createReorderRequestSchema,
   createPatientSchema,
@@ -259,6 +260,22 @@ test('clinic mutation payloads reject unsafe patient, consultation, and inventor
     expiryDate: '2027-06-30',
     purchasePrice: 1200,
     sellingPrice: 1800,
+    brandName: 'AveraVet',
+    manufacturer: 'Avera Veterinary Pharmaceuticals',
+    shortDescription: 'Long-acting antibiotic injection',
+    detailedDescription: 'For veterinary use under professional direction.',
+    dosageForm: 'Injection',
+    packSize: '100 mL',
+    sku: 'AV-OXY-100',
+    barcode: '1234567890123',
+    activeIngredient: 'Oxytetracycline 200 mg/mL',
+    dosageAndRoute: '1 mL per 10 kg body weight',
+    withdrawalMeat: '21 days',
+    withdrawalMilk: '7 days',
+    warnings: 'Do not use in hypersensitive animals',
+    storageConditions: 'Store below 30 C',
+    supplier: 'Avera Medical Supply',
+    availableToPublic: false,
   };
   assert.equal(createInventoryItemSchema.safeParse(inventory).success, true);
   assert.equal(
@@ -268,6 +285,8 @@ test('clinic mutation payloads reject unsafe patient, consultation, and inventor
   const { submissionId: _submissionId, ...update } = inventory;
   assert.equal(updateInventoryItemSchema.safeParse({ ...update, revision: 2 }).success, true);
   assert.equal(updateInventoryItemSchema.safeParse({ ...update, revision: 0 }).success, false);
+  assert.equal(addInventoryStockSchema.safeParse({ quantityToAdd: 10 }).success, true);
+  assert.equal(addInventoryStockSchema.safeParse({ quantityToAdd: 0 }).success, false);
 });
 
 test('clinical mutation routes remain permission guarded and clinic scoped', () => {
@@ -657,6 +676,42 @@ test('inventory image migration preserves products and adds only the private obj
   assert.match(migration, /ALTER TABLE inventory_products/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS image_path TEXT/);
   assert.doesNotMatch(migration, /DROP TABLE|DELETE FROM inventory_products|TRUNCATE/i);
+});
+
+test('inventory product profile migration is additive and public visibility is opt-in', () => {
+  const profile = fs.readFileSync(
+    new URL('../migrations/027_inventory_product_profiles.sql', import.meta.url),
+    'utf8',
+  );
+  for (const column of [
+    'brand_name',
+    'sku',
+    'barcode',
+    'short_description',
+    'detailed_description',
+    'dosage_form',
+    'pack_size',
+    'withdrawal_other',
+    'contraindications',
+    'adverse_effects',
+    'public_display_name',
+  ]) assert.match(profile, new RegExp(`ADD COLUMN IF NOT EXISTS ${column} TEXT`));
+  assert.match(profile, /available_to_public BOOLEAN NOT NULL DEFAULT false/);
+  assert.match(profile, /ON inventory_products \(clinic_id, available_to_public\)/);
+  assert.doesNotMatch(profile, /DROP TABLE|TRUNCATE|DELETE FROM inventory_products/i);
+});
+
+test('Add Stock is permission guarded, additive, tenant scoped, and ledger backed', () => {
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(routes, /inventoryProductId\/add-stock/);
+  assert.match(routes, /requirePermission\(permissions\.inventoryAdjust\)/);
+  assert.match(routes, /const after = before \+ input\.quantityToAdd/);
+  assert.match(routes, /WHERE clinic_id=\$1 AND inventory_product_id=\$2/);
+  assert.match(routes, /INSERT INTO stock_movements/);
+  assert.match(routes, /'inventory\.stock_added'/);
 });
 
 test('farm billing and product unit migration is additive, tenant scoped, and race safe', () => {

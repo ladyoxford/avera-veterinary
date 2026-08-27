@@ -73,11 +73,12 @@ class _FarmProfileEditorScreenState
           ..addAll(speciesIds);
         _breedIdsBySpecies.clear();
         for (final speciesId in speciesIds) {
-          final validIds = AnimalCatalogue.breedsFor(
-            speciesId,
-          ).map((item) => item.id).toSet();
           _breedIdsBySpecies[speciesId] = breedIds
-              .where(validIds.contains)
+              .where(
+                (id) =>
+                    AnimalCatalogue.breedBelongsToSpecies(id, speciesId) ||
+                    AnimalCatalogue.resolveLegacyBreed(speciesId, id) != null,
+              )
               .toSet();
         }
         _farmType = farm.farmType ?? 'Mixed';
@@ -241,16 +242,7 @@ class _FarmProfileEditorScreenState
       context: context,
       title: 'Select Farm Species',
       selectedIds: _speciesIds,
-      options: [
-        for (final species in AnimalCatalogue.orderedSpecies)
-          CataloguePickerOption(
-            id: species.id,
-            title: species.displayName,
-            subtitle: species.veterinaryName,
-            category: species.category.label,
-            searchAliases: species.searchAliases,
-          ),
-      ],
+      options: animalSpeciesPickerOptions(),
     );
     if (selected == null || !mounted || setEquals(selected, _speciesIds)) {
       return;
@@ -297,23 +289,52 @@ class _FarmProfileEditorScreenState
   Future<void> _selectBreeds(String speciesId) async {
     final species = AnimalCatalogue.speciesById(speciesId);
     if (species == null) return;
+    final current = _breedIdsBySpecies[speciesId] ?? const <String>{};
+    final canonicalIds = AnimalCatalogue.breedsForSpecies(
+      speciesId,
+    ).map((breed) => breed.id).toSet();
     final selected = await showMultiSearchableCatalogueSelector(
       context: context,
       title: _breedPickerTitle(species),
-      selectedIds: _breedIdsBySpecies[speciesId] ?? const {},
+      selectedIds: current,
       options: [
-        for (final breed in AnimalCatalogue.breedsFor(speciesId))
+        ...animalBreedPickerOptions(speciesId),
+        for (final id in current.where((id) => !canonicalIds.contains(id)))
           CataloguePickerOption(
-            id: breed.id,
-            title: breed.displayName,
-            category: species.displayName,
-            searchAliases: breed.aliases,
+            id: id,
+            title:
+                AnimalCatalogue.resolveLegacyBreed(
+                  speciesId,
+                  id,
+                )?.displayName ??
+                AnimalCatalogue.breedDisplayName(id),
+            subtitle: AnimalCatalogue.isCustomBreedId(id)
+                ? 'Custom breed'
+                : 'Saved legacy breed',
           ),
       ],
     );
-    if (selected != null && mounted) {
-      setState(() => _breedIdsBySpecies[speciesId] = selected);
+    if (selected == null || !mounted) return;
+    final resolved = {...selected};
+    final customPlaceholders = resolved.where(
+      (id) =>
+          AnimalCatalogue.breedById(id)?.allowsCustomBreed == true &&
+          !AnimalCatalogue.isCustomBreedId(id),
+    );
+    for (final placeholder in customPlaceholders.toList()) {
+      resolved.remove(placeholder);
+      final customName = await requestCustomBreedName(
+        context: context,
+        species: species,
+      );
+      if (!mounted) return;
+      if (customName != null) {
+        resolved.add(
+          AnimalCatalogue.customBreedId(speciesId: speciesId, name: customName),
+        );
+      }
     }
+    setState(() => _breedIdsBySpecies[speciesId] = resolved);
   }
 
   String _breedPickerTitle(AnimalSpeciesOption species) {
@@ -387,13 +408,13 @@ class _BreedSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final species = AnimalCatalogue.speciesById(speciesId);
-    final names = AnimalCatalogue.breedsFor(speciesId)
-        .where((item) => selectedIds.contains(item.id))
-        .map((item) => item.displayName);
+    final names = selectedIds.map(AnimalCatalogue.breedDisplayName).toList()
+      ..sort();
     return AveraLabeledFieldCard(
       label:
           '${species?.displayName ?? speciesId} ${AnimalCatalogue.breedFieldLabel(species)}s',
       child: InkWell(
+        key: Key('farm-breed-selector-$speciesId'),
         onTap: onTap,
         child: Row(
           children: [

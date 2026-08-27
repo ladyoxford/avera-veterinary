@@ -4,6 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('picker search is alias-aware and punctuation tolerant', () {
+    const option = CataloguePickerOption(
+      id: 'breed_cattle_holstein_friesian',
+      title: 'Holstein Friesian',
+      searchAliases: ['Holstein-Friesian', 'Friesian'],
+    );
+
+    expect(option.matches('HOLSTEIN-FRIESIAN'), isTrue);
+    expect(option.matches('friesian'), isTrue);
+    expect(option.matches('eskimo'), isFalse);
+  });
+
   testWidgets('multi catalogue picker is responsive and applies selections', (
     tester,
   ) async {

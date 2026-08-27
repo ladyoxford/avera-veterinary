@@ -112,6 +112,19 @@ void main() {
     expect(find.text('Select Dog Breed'), findsOneWidget);
     await tester.enterText(
       find.byKey(const Key('catalogue-search-field')),
+      'eski',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('catalogue-option-breed_dog_american_eskimo_dog')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('catalogue-option-breed_dog_canadian_eskimo_dog')),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('catalogue-search-field')),
       'Lhasa Apso',
     );
     await tester.pumpAndSettle();

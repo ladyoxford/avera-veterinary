@@ -101,11 +101,14 @@ class AnimalRegistrationSelectionController
     if (AnimalCatalogue.speciesById(speciesId) == null) {
       throw ArgumentError.value(speciesId, 'speciesId');
     }
-    state = AnimalRegistrationSelectionState(
+    final changed = state.selectedSpeciesId != speciesId;
+    state = state.copyWith(
       selectedSpeciesId: speciesId,
-      customSpeciesName: state.selectedSpeciesId == speciesId
-          ? state.customSpeciesName
-          : '',
+      clearBreed: changed,
+      customSpeciesName: changed ? '' : state.customSpeciesName,
+      customBreedName: changed ? '' : state.customBreedName,
+      clearSpeciesError: true,
+      clearBreedError: changed,
     );
   }
 

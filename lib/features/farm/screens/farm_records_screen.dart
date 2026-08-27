@@ -12,6 +12,7 @@ import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/catalogue_selector.dart';
 
 class FarmRecordsScreen extends ConsumerStatefulWidget {
   const FarmRecordsScreen({super.key});
@@ -114,202 +115,6 @@ class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
         ),
       ),
     );
-  }
-}
-
-class FarmCreateScreen extends ConsumerStatefulWidget {
-  const FarmCreateScreen({super.key});
-
-  @override
-  ConsumerState<FarmCreateScreen> createState() => _FarmCreateScreenState();
-}
-
-class _FarmCreateScreenState extends ConsumerState<FarmCreateScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _location = TextEditingController();
-  final _speciesIds = <String>{};
-  final _breedIds = <String>{};
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _location.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Add Farm')),
-    body: Form(
-      key: _formKey,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AveraSpacing.pageHorizontalPadding,
-          AveraSpacing.pageTopPadding,
-          AveraSpacing.pageHorizontalPadding,
-          AveraSpacing.bottomContentClearance,
-        ),
-        children: [
-          const AveraPageHeader(
-            title: 'Farm Profile',
-            subtitle: 'Create a clinic-scoped farm record.',
-          ),
-          const SizedBox(height: AveraSpacing.subtitleToContentGap),
-          AveraLabeledFieldCard(
-            label: 'Farm Name',
-            child: TextFormField(
-              controller: _name,
-              decoration: const InputDecoration(hintText: 'Enter farm name'),
-              validator: (value) => (value ?? '').trim().length < 2
-                  ? 'Enter the farm name.'
-                  : null,
-            ),
-          ),
-          const SizedBox(height: AveraSpacing.cardGap),
-          AveraLabeledFieldCard(
-            label: 'Location',
-            child: TextFormField(
-              controller: _location,
-              decoration: const InputDecoration(
-                hintText: 'Town, state or address',
-              ),
-            ),
-          ),
-          const SizedBox(height: AveraSpacing.sectionGap),
-          const AveraSectionHeader(
-            title: 'Livestock',
-            subtitle: 'Select the species and breeds kept on this farm.',
-          ),
-          const SizedBox(height: 12),
-          AveraSurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('SPECIES', style: averaText(context).sectionLabel),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: AnimalCatalogue.species
-                      .where(
-                        (item) =>
-                            item.category == AnimalCategory.farm ||
-                            item.category == AnimalCategory.equine ||
-                            item.category == AnimalCategory.birds,
-                      )
-                      .map(
-                        (species) => FilterChip(
-                          label: Text(species.displayName),
-                          selected: _speciesIds.contains(species.id),
-                          onSelected: (selected) => setState(() {
-                            if (selected) {
-                              _speciesIds.add(species.id);
-                            } else {
-                              _speciesIds.remove(species.id);
-                              _breedIds.removeWhere(
-                                (id) =>
-                                    AnimalCatalogue.breedById(id)?.speciesId ==
-                                    species.id,
-                              );
-                            }
-                          }),
-                        ),
-                      )
-                      .toList(),
-                ),
-                if (_speciesIds.isEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Select at least one species.',
-                    style: averaText(context).caption,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (_speciesIds.isNotEmpty) ...[
-            const SizedBox(height: AveraSpacing.cardGap),
-            AveraSurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('BREEDS', style: averaText(context).sectionLabel),
-                  const SizedBox(height: 8),
-                  for (final speciesId in _speciesIds) ...[
-                    Text(
-                      AnimalCatalogue.speciesById(speciesId)?.displayName ??
-                          speciesId,
-                      style: averaText(context).listItemTitle,
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: AnimalCatalogue.breedsFor(speciesId)
-                          .map(
-                            (breed) => FilterChip(
-                              label: Text(breed.displayName),
-                              selected: _breedIds.contains(breed.id),
-                              onSelected: (selected) => setState(() {
-                                selected
-                                    ? _breedIds.add(breed.id)
-                                    : _breedIds.remove(breed.id);
-                              }),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: AveraSpacing.sectionGap),
-          AveraPrimaryActionButton(
-            label: _saving ? 'Creating Farm...' : 'Create Farm',
-            icon: Icons.agriculture_rounded,
-            onPressed: _saving ? null : _save,
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_speciesIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select at least one species.')),
-      );
-      return;
-    }
-    setState(() => _saving = true);
-    try {
-      final session = await ref.read(userSessionProvider.future);
-      final farm = await ref
-          .read(clinicRepositoryProvider)
-          .createFarm(
-            session: session,
-            name: _name.text,
-            location: _location.text,
-            speciesIds: _speciesIds.toList(),
-            breedIds: _breedIds.toList(),
-          );
-      if (mounted) {
-        context.go('/farm-records/${farm.id}');
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
   }
 }
 
@@ -981,67 +786,31 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
                   ],
                 );
               }
-              final breedOptions = _speciesId == null
-                  ? const <AnimalBreedOption>[]
-                  : AnimalCatalogue.breedsFor(_speciesId!);
               return Column(
                 children: [
-                  AveraLabeledFieldCard(
+                  CatalogueSelectionField(
+                    key: const Key('farm-unit-species-selector'),
                     label: 'Species',
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: speciesOptions.contains(_speciesId)
-                          ? _speciesId
-                          : null,
-                      hint: Text(
+                    value: AnimalCatalogue.speciesById(_speciesId)?.displayName,
+                    hintText:
                         snapshot.connectionState == ConnectionState.waiting
-                            ? 'Loading species...'
-                            : 'Select species',
-                      ),
-                      items: speciesOptions
-                          .map(
-                            (id) => DropdownMenuItem(
-                              value: id,
-                              child: Text(
-                                AnimalCatalogue.speciesById(id)!.displayName,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) => setState(() {
-                        _speciesId = value;
-                        _breedId = null;
-                      }),
-                    ),
+                        ? 'Loading species...'
+                        : 'Search species',
+                    enabled: speciesOptions.isNotEmpty,
+                    onTap: () => _selectUnitSpecies(speciesOptions),
                   ),
                   const SizedBox(height: 12),
-                  AveraLabeledFieldCard(
+                  CatalogueSelectionField(
+                    key: const Key('farm-unit-breed-selector'),
                     label: 'Breed or Type',
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: breedOptions.any((item) => item.id == _breedId)
-                          ? _breedId
-                          : null,
-                      hint: Text(
-                        _speciesId == null
-                            ? 'Select a species first'
-                            : 'Select breed or type',
-                      ),
-                      items: breedOptions
-                          .map(
-                            (breed) => DropdownMenuItem(
-                              value: breed.id,
-                              child: Text(
-                                breed.displayName,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _speciesId == null
-                          ? null
-                          : (value) => setState(() => _breedId = value),
-                    ),
+                    value: _breedId == null
+                        ? null
+                        : AnimalCatalogue.breedDisplayName(_breedId),
+                    hintText: _speciesId == null
+                        ? 'Select a species first'
+                        : 'Search breed or type',
+                    enabled: _speciesId != null,
+                    onTap: _selectUnitBreed,
                   ),
                 ],
               );
@@ -1086,6 +855,63 @@ class _AddUnitSheetState extends ConsumerState<_AddUnitSheet> {
           decoration: const InputDecoration(hintText: '0'),
         ),
       );
+
+  Future<void> _selectUnitSpecies(List<String> speciesIds) async {
+    final options = speciesIds
+        .map(AnimalCatalogue.speciesById)
+        .whereType<AnimalSpeciesOption>();
+    final selected = await showSearchableCatalogueSelector(
+      context: context,
+      title: 'Select Unit Species',
+      selectedId: _speciesId,
+      options: animalSpeciesPickerOptions(species: options),
+    );
+    if (selected != null && mounted && selected != _speciesId) {
+      setState(() {
+        _speciesId = selected;
+        _breedId = null;
+      });
+    }
+  }
+
+  Future<void> _selectUnitBreed() async {
+    final speciesId = _speciesId;
+    final species = AnimalCatalogue.speciesById(speciesId);
+    if (speciesId == null || species == null) return;
+    final selected = await showSearchableCatalogueSelector(
+      context: context,
+      title: 'Select ${species.displayName} Breed',
+      selectedId: _breedId,
+      options: [
+        ...animalBreedPickerOptions(speciesId),
+        if (AnimalCatalogue.isCustomBreedId(_breedId))
+          CataloguePickerOption(
+            id: _breedId!,
+            title: AnimalCatalogue.breedDisplayName(_breedId),
+            subtitle: 'Custom breed',
+          ),
+      ],
+    );
+    if (selected == null || !mounted) return;
+    final breed = AnimalCatalogue.breedById(selected);
+    if (breed?.allowsCustomBreed == true &&
+        !AnimalCatalogue.isCustomBreedId(selected)) {
+      final customName = await requestCustomBreedName(
+        context: context,
+        species: species,
+      );
+      if (customName == null || !mounted) return;
+      setState(() {
+        _breedId = AnimalCatalogue.customBreedId(
+          speciesId: speciesId,
+          name: customName,
+        );
+      });
+      return;
+    }
+    setState(() => _breedId = selected);
+  }
+
   Future<void> _save() async {
     final values = [
       _male,
@@ -1201,9 +1027,6 @@ class _FarmPopulationDraftCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final breeds = draft.speciesId == null
-        ? const <AnimalBreedOption>[]
-        : AnimalCatalogue.breedsFor(draft.speciesId!);
     return AveraSurfaceCard(
       child: Column(
         children: [
@@ -1223,50 +1046,26 @@ class _FarmPopulationDraftCard extends StatelessWidget {
                 ),
             ],
           ),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            value: speciesOptions.contains(draft.speciesId)
-                ? draft.speciesId
-                : null,
-            decoration: const InputDecoration(labelText: 'Species'),
-            items: speciesOptions
-                .map(
-                  (id) => DropdownMenuItem(
-                    value: id,
-                    child: Text(AnimalCatalogue.speciesById(id)!.displayName),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              draft.speciesId = value;
-              draft.breedId = null;
-              onChanged();
-            },
+          CatalogueSelectionField(
+            key: const Key('mixed-population-species-selector'),
+            label: 'Species',
+            value: AnimalCatalogue.speciesById(draft.speciesId)?.displayName,
+            hintText: 'Search species',
+            enabled: speciesOptions.isNotEmpty,
+            onTap: () => _selectSpecies(context),
           ),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            value: breeds.any((breed) => breed.id == draft.breedId)
-                ? draft.breedId
-                : null,
-            decoration: const InputDecoration(labelText: 'Breed or type'),
-            items: breeds
-                .map(
-                  (breed) => DropdownMenuItem(
-                    value: breed.id,
-                    child: Text(
-                      breed.displayName,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: draft.speciesId == null
+          CatalogueSelectionField(
+            key: const Key('mixed-population-breed-selector'),
+            label: 'Breed or type',
+            value: draft.breedId == null
                 ? null
-                : (value) {
-                    draft.breedId = value;
-                    onChanged();
-                  },
+                : AnimalCatalogue.breedDisplayName(draft.breedId),
+            hintText: draft.speciesId == null
+                ? 'Select a species first'
+                : 'Search breed or type',
+            enabled: draft.speciesId != null,
+            onTap: () => _selectBreed(context),
           ),
           const SizedBox(height: 10),
           Row(
@@ -1291,6 +1090,60 @@ class _FarmPopulationDraftCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _selectSpecies(BuildContext context) async {
+    final options = speciesOptions
+        .map(AnimalCatalogue.speciesById)
+        .whereType<AnimalSpeciesOption>();
+    final selected = await showSearchableCatalogueSelector(
+      context: context,
+      title: 'Select Group Species',
+      selectedId: draft.speciesId,
+      options: animalSpeciesPickerOptions(species: options),
+    );
+    if (selected != null && selected != draft.speciesId) {
+      draft.speciesId = selected;
+      draft.breedId = null;
+      onChanged();
+    }
+  }
+
+  Future<void> _selectBreed(BuildContext context) async {
+    final speciesId = draft.speciesId;
+    final species = AnimalCatalogue.speciesById(speciesId);
+    if (speciesId == null || species == null) return;
+    final selected = await showSearchableCatalogueSelector(
+      context: context,
+      title: 'Select ${species.displayName} Breed',
+      selectedId: draft.breedId,
+      options: [
+        ...animalBreedPickerOptions(speciesId),
+        if (AnimalCatalogue.isCustomBreedId(draft.breedId))
+          CataloguePickerOption(
+            id: draft.breedId!,
+            title: AnimalCatalogue.breedDisplayName(draft.breedId),
+            subtitle: 'Custom breed',
+          ),
+      ],
+    );
+    if (selected == null || !context.mounted) return;
+    final breed = AnimalCatalogue.breedById(selected);
+    if (breed?.allowsCustomBreed == true &&
+        !AnimalCatalogue.isCustomBreedId(selected)) {
+      final customName = await requestCustomBreedName(
+        context: context,
+        species: species,
+      );
+      if (customName == null || !context.mounted) return;
+      draft.breedId = AnimalCatalogue.customBreedId(
+        speciesId: speciesId,
+        name: customName,
+      );
+    } else {
+      draft.breedId = selected;
+    }
+    onChanged();
   }
 }
 

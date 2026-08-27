@@ -360,9 +360,6 @@ class FarmReportService {
 
   static String _breedName(String? id) {
     if (id == null) return '-';
-    for (final breed in AnimalCatalogue.breeds) {
-      if (breed.id == id) return breed.displayName;
-    }
-    return id;
+    return AnimalCatalogue.breedDisplayName(id);
   }
 }

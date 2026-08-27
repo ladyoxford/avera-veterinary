@@ -2295,11 +2295,7 @@ String _speciesName(String? id) =>
     (id == null || id == 'unassigned' ? 'Unassigned legacy animals' : id);
 
 String _breedName(String? id) {
-  if (id == null) return 'Not recorded';
-  for (final item in AnimalCatalogue.breeds) {
-    if (item.id == id) return item.displayName;
-  }
-  return id;
+  return AnimalCatalogue.breedDisplayName(id);
 }
 
 String _speciesPopulationLabel(String id, int count) {

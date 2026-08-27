@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/models/animal_catalogue.dart';
 import '../../../core/theme/app_theme.dart';
 import 'avera_ui.dart';
 
@@ -19,13 +20,116 @@ class CataloguePickerOption {
   final List<String> searchAliases;
 
   bool matches(String query) {
-    final normalized = query.trim().toLowerCase();
-    return normalized.isEmpty ||
-        title.toLowerCase().contains(normalized) ||
-        (subtitle?.toLowerCase().contains(normalized) ?? false) ||
-        (category?.toLowerCase().contains(normalized) ?? false) ||
-        searchAliases.any((alias) => alias.toLowerCase().contains(normalized));
+    final normalized = normalizeAnimalCatalogueSearch(query);
+    if (normalized.isEmpty) return true;
+    final searchable = normalizeAnimalCatalogueSearch(
+      '$title ${subtitle ?? ''} ${category ?? ''} ${searchAliases.join(' ')}',
+    );
+    return searchable.contains(normalized);
   }
+}
+
+List<CataloguePickerOption> animalSpeciesPickerOptions({
+  Iterable<AnimalSpeciesOption>? species,
+}) => [
+  for (final option in species ?? AnimalCatalogue.orderedSpecies)
+    CataloguePickerOption(
+      id: option.id,
+      title: option.displayName,
+      subtitle: option.veterinaryName,
+      category: option.category.label,
+      searchAliases: option.searchAliases,
+    ),
+];
+
+List<CataloguePickerOption> animalBreedPickerOptions(String speciesId) => [
+  for (final option in AnimalCatalogue.breedsForSpecies(speciesId))
+    CataloguePickerOption(
+      id: option.id,
+      title: option.displayName,
+      searchAliases: option.aliases,
+    ),
+];
+
+Future<String?> requestCustomBreedName({
+  required BuildContext context,
+  required AnimalSpeciesOption species,
+}) async {
+  var customName = '';
+  return showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text('Enter ${species.displayName} breed'),
+      content: TextField(
+        key: const Key('custom-breed-name-field'),
+        autofocus: true,
+        maxLength: 80,
+        textCapitalization: TextCapitalization.words,
+        onChanged: (value) => customName = value,
+        decoration: const InputDecoration(
+          labelText: 'Custom breed name',
+          hintText: 'Enter breed or variety',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('save-custom-breed'),
+          onPressed: () {
+            final name = customName.trim();
+            if (name.isNotEmpty) Navigator.pop(dialogContext, name);
+          },
+          child: const Text('Add Breed'),
+        ),
+      ],
+    ),
+  );
+}
+
+class CatalogueSelectionField extends StatelessWidget {
+  const CatalogueSelectionField({
+    super.key,
+    required this.label,
+    required this.hintText,
+    required this.onTap,
+    this.value,
+    this.enabled = true,
+  });
+
+  final String label;
+  final String hintText;
+  final String? value;
+  final VoidCallback? onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) => AveraLabeledFieldCard(
+    label: label,
+    child: InkWell(
+      onTap: enabled ? onTap : null,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              value?.trim().isNotEmpty == true ? value! : hintText,
+              style: value?.trim().isNotEmpty == true
+                  ? averaText(context).fieldValue
+                  : averaText(context).fieldPlaceholder,
+            ),
+          ),
+          Icon(
+            Icons.search_rounded,
+            color: enabled
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).disabledColor,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 Future<String?> showSearchableCatalogueSelector({
@@ -223,6 +327,7 @@ class _AveraMultiSelectCatalogueSheetState
           ),
           const SizedBox(height: AveraSpacing.cardGap),
           TextField(
+            key: const Key('catalogue-search-field'),
             decoration: const InputDecoration(
               hintText: 'Search',
               prefixIcon: Icon(Icons.search_rounded),

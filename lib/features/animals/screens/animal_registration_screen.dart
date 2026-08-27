@@ -118,16 +118,7 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
         context: context,
         title: 'Select Species',
         selectedId: selection.selectedSpeciesId,
-        options: [
-          for (final option in AnimalCatalogue.orderedSpecies)
-            CataloguePickerOption(
-              id: option.id,
-              title: option.displayName,
-              subtitle: option.veterinaryName,
-              category: option.category.label,
-              searchAliases: option.searchAliases,
-            ),
-        ],
+        options: animalSpeciesPickerOptions(),
       );
       if (selected != null) selectionController.selectSpecies(selected);
     }
@@ -140,14 +131,7 @@ class AnimalRegistrationScreen extends HookConsumerWidget {
         title:
             'Select ${species.displayName} ${AnimalCatalogue.breedFieldLabel(species)}',
         selectedId: selection.selectedBreedId,
-        options: [
-          for (final option in selection.availableBreeds)
-            CataloguePickerOption(
-              id: option.id,
-              title: option.displayName,
-              searchAliases: option.aliases,
-            ),
-        ],
+        options: animalBreedPickerOptions(species.id),
       );
       if (selected != null) selectionController.selectBreed(selected);
     }

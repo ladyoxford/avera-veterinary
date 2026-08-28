@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../models/inventory_catalog.dart';
 import '../models/reminder_event.dart';
 import 'api_client.dart';
 
@@ -279,6 +280,8 @@ class RemoteInventoryItem {
     required this.name,
     required this.categoryId,
     required this.categoryName,
+    this.subcategoryId,
+    this.subcategoryName,
     required this.quantity,
     required this.reorderLevel,
     required this.purchasePrice,
@@ -322,6 +325,8 @@ class RemoteInventoryItem {
   final String name;
   final String categoryId;
   final String categoryName;
+  final String? subcategoryId;
+  final String? subcategoryName;
   final int quantity;
   final int reorderLevel;
   final num purchasePrice;
@@ -369,6 +374,8 @@ class RemoteInventoryItem {
           value['category_key'] as String? ??
           _canonicalInventoryCategory(categoryName),
       categoryName: categoryName,
+      subcategoryId: value['subcategory_key'] as String?,
+      subcategoryName: value['subcategory'] as String?,
       quantity: _int(value['quantity']),
       reorderLevel: _int(value['reorder_level']),
       purchasePrice: _num(value['purchase_price']),
@@ -420,6 +427,8 @@ class RemoteInventoryItem {
     'name': name,
     'category_key': categoryId,
     'category': categoryName,
+    'subcategory_key': subcategoryId,
+    'subcategory': subcategoryName,
     'quantity': quantity,
     'reorder_level': reorderLevel,
     'purchase_price': purchasePrice,
@@ -1273,23 +1282,7 @@ int? _nullableInt(Object? value) {
 num _num(Object? value) => value is num ? value : num.tryParse('$value') ?? 0;
 
 String _canonicalInventoryCategory(String value) {
-  final normalized = value.trim().toLowerCase();
-  if (normalized.contains('vaccine')) return 'vaccines';
-  if (normalized.contains('drug') || normalized.contains('pharmacy')) {
-    return 'drugs';
-  }
-  if (normalized.contains('supplement')) return 'supplements';
-  if (normalized.contains('food')) return 'pet_food';
-  if (normalized.contains('accessor')) return 'pet_accessories';
-  if (normalized.contains('groom')) return 'grooming_supplies';
-  if (normalized.contains('laboratory') && normalized.contains('equipment')) {
-    return 'laboratory_equipment';
-  }
-  if (normalized.contains('laboratory')) return 'laboratory_consumables';
-  if (normalized.contains('surg')) return 'surgical_supplies';
-  if (normalized.contains('consumable')) return 'clinical_consumables';
-  if (normalized.contains('equipment')) return 'general_equipment';
-  return normalized.replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+  return InventoryCategories.canonicalId(value);
 }
 
 String encodeCloudPayload(Object value) => jsonEncode(value);

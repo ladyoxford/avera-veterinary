@@ -391,6 +391,8 @@ class InventoryItems extends Table {
   TextColumn get drugName => text()();
   TextColumn get category => text()();
   TextColumn get categoryId => text().nullable()();
+  TextColumn get subcategory => text().nullable()();
+  TextColumn get subcategoryId => text().nullable()();
   TextColumn get genericName => text().nullable()();
   TextColumn get brandName => text().nullable()();
   TextColumn get manufacturer => text().nullable()();
@@ -1216,7 +1218,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 31;
+  static const currentSchemaVersion = 32;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1944,6 +1946,14 @@ class AppDatabase extends _$AppDatabase {
           if (!await _hasColumn('inventory_items', entry.key)) {
             await m.addColumn(inventoryItems, entry.value);
           }
+        }
+      }
+      if (from < 32) {
+        if (!await _hasColumn('inventory_items', 'subcategory')) {
+          await m.addColumn(inventoryItems, inventoryItems.subcategory);
+        }
+        if (!await _hasColumn('inventory_items', 'subcategory_id')) {
+          await m.addColumn(inventoryItems, inventoryItems.subcategoryId);
         }
       }
     },

@@ -701,6 +701,30 @@ test('inventory product profile migration is additive and public visibility is o
   assert.doesNotMatch(profile, /DROP TABLE|TRUNCATE|DELETE FROM inventory_products/i);
 });
 
+test('inventory subcategory migration is additive, nullable, and clinic scoped', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/028_inventory_product_subcategories.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS subcategory_key TEXT/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS subcategory TEXT/);
+  assert.match(
+    migration,
+    /inventory_products_subcategory_search_index[\s\S]*ON inventory_products \(clinic_id, subcategory_key\)/,
+  );
+  assert.match(migration, /WHERE deleted_at IS NULL AND is_archived = false/);
+  assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM inventory_products/i);
+
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(routes, /subcategoryId: z\.string\(\)\.trim\(\)/);
+  assert.match(routes, /subcategoryName: z\.string\(\)\.trim\(\)/);
+  assert.match(routes, /i\.subcategory ILIKE \$3/);
+  assert.match(routes, /category_key, subcategory, subcategory_key/);
+});
+
 test('Add Stock is permission guarded, additive, tenant scoped, and ledger backed', () => {
   const routes = fs.readFileSync(
     new URL('../src/routes/clinical-routes.js', import.meta.url),

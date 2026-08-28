@@ -886,6 +886,60 @@ void main() {
     },
   );
 
+  test(
+    'inventory category and subcategory round-trip through local Drift',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+
+      final itemId = await repository.saveInventoryItem(
+        session: session,
+        name: 'Albendazole',
+        categoryId: 'drugs',
+        categoryName: 'Medicines / Drugs',
+        subcategoryId: 'anthelmintics',
+        subcategoryName: 'Anthelmintics / Dewormers',
+        quantity: 4,
+        minimumQuantity: 1,
+        batchNumber: 'ALB-1',
+        expiryDate: DateTime(2027, 8, 28),
+        sellingPrice: 2000,
+        buyingPrice: 1000,
+      );
+      var item = await (database.select(
+        database.inventoryItems,
+      )..where((row) => row.id.equals(itemId))).getSingle();
+      expect(item.categoryId, 'drugs');
+      expect(item.subcategoryId, 'anthelmintics');
+      expect(item.subcategory, 'Anthelmintics / Dewormers');
+
+      await repository.updateInventoryItem(
+        session: session,
+        itemId: itemId,
+        name: item.drugName,
+        categoryId: 'laboratory_reagents',
+        subcategoryId: 'microscopy',
+        quantity: item.quantity,
+        minimumQuantity: item.minimumQuantity,
+        sellingPrice: item.sellingPrice,
+        buyingPrice: item.buyingPrice,
+      );
+      item = await (database.select(
+        database.inventoryItems,
+      )..where((row) => row.id.equals(itemId))).getSingle();
+      expect(item.categoryId, 'diagnostic_laboratory');
+      expect(item.category, 'Diagnostic & Laboratory');
+      expect(item.subcategoryId, 'microscopy');
+      expect(item.subcategory, 'Microscopy Supplies');
+    },
+  );
+
   test('paid invoice deducts stock once and void restores it once', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);

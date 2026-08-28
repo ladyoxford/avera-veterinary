@@ -10596,6 +10596,28 @@ class $InventoryItemsTable extends InventoryItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _subcategoryMeta = const VerificationMeta(
+    'subcategory',
+  );
+  @override
+  late final GeneratedColumn<String> subcategory = GeneratedColumn<String>(
+    'subcategory',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _subcategoryIdMeta = const VerificationMeta(
+    'subcategoryId',
+  );
+  @override
+  late final GeneratedColumn<String> subcategoryId = GeneratedColumn<String>(
+    'subcategory_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _genericNameMeta = const VerificationMeta(
     'genericName',
   );
@@ -11006,6 +11028,8 @@ class $InventoryItemsTable extends InventoryItems
     drugName,
     category,
     categoryId,
+    subcategory,
+    subcategoryId,
     genericName,
     brandName,
     manufacturer,
@@ -11083,6 +11107,24 @@ class $InventoryItemsTable extends InventoryItems
       context.handle(
         _categoryIdMeta,
         categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    }
+    if (data.containsKey('subcategory')) {
+      context.handle(
+        _subcategoryMeta,
+        subcategory.isAcceptableOrUnknown(
+          data['subcategory']!,
+          _subcategoryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('subcategory_id')) {
+      context.handle(
+        _subcategoryIdMeta,
+        subcategoryId.isAcceptableOrUnknown(
+          data['subcategory_id']!,
+          _subcategoryIdMeta,
+        ),
       );
     }
     if (data.containsKey('generic_name')) {
@@ -11384,6 +11426,14 @@ class $InventoryItemsTable extends InventoryItems
         DriftSqlType.string,
         data['${effectivePrefix}category_id'],
       ),
+      subcategory: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subcategory'],
+      ),
+      subcategoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subcategory_id'],
+      ),
       genericName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}generic_name'],
@@ -11539,6 +11589,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
   final String drugName;
   final String category;
   final String? categoryId;
+  final String? subcategory;
+  final String? subcategoryId;
   final String? genericName;
   final String? brandName;
   final String? manufacturer;
@@ -11580,6 +11632,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     required this.drugName,
     required this.category,
     this.categoryId,
+    this.subcategory,
+    this.subcategoryId,
     this.genericName,
     this.brandName,
     this.manufacturer,
@@ -11625,6 +11679,12 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     map['category'] = Variable<String>(category);
     if (!nullToAbsent || categoryId != null) {
       map['category_id'] = Variable<String>(categoryId);
+    }
+    if (!nullToAbsent || subcategory != null) {
+      map['subcategory'] = Variable<String>(subcategory);
+    }
+    if (!nullToAbsent || subcategoryId != null) {
+      map['subcategory_id'] = Variable<String>(subcategoryId);
     }
     if (!nullToAbsent || genericName != null) {
       map['generic_name'] = Variable<String>(genericName);
@@ -11727,6 +11787,12 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       categoryId: categoryId == null && nullToAbsent
           ? const Value.absent()
           : Value(categoryId),
+      subcategory: subcategory == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subcategory),
+      subcategoryId: subcategoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subcategoryId),
       genericName: genericName == null && nullToAbsent
           ? const Value.absent()
           : Value(genericName),
@@ -11828,6 +11894,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       drugName: serializer.fromJson<String>(json['drugName']),
       category: serializer.fromJson<String>(json['category']),
       categoryId: serializer.fromJson<String?>(json['categoryId']),
+      subcategory: serializer.fromJson<String?>(json['subcategory']),
+      subcategoryId: serializer.fromJson<String?>(json['subcategoryId']),
       genericName: serializer.fromJson<String?>(json['genericName']),
       brandName: serializer.fromJson<String?>(json['brandName']),
       manufacturer: serializer.fromJson<String?>(json['manufacturer']),
@@ -11882,6 +11950,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       'drugName': serializer.toJson<String>(drugName),
       'category': serializer.toJson<String>(category),
       'categoryId': serializer.toJson<String?>(categoryId),
+      'subcategory': serializer.toJson<String?>(subcategory),
+      'subcategoryId': serializer.toJson<String?>(subcategoryId),
       'genericName': serializer.toJson<String?>(genericName),
       'brandName': serializer.toJson<String?>(brandName),
       'manufacturer': serializer.toJson<String?>(manufacturer),
@@ -11926,6 +11996,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     String? drugName,
     String? category,
     Value<String?> categoryId = const Value.absent(),
+    Value<String?> subcategory = const Value.absent(),
+    Value<String?> subcategoryId = const Value.absent(),
     Value<String?> genericName = const Value.absent(),
     Value<String?> brandName = const Value.absent(),
     Value<String?> manufacturer = const Value.absent(),
@@ -11967,6 +12039,10 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     drugName: drugName ?? this.drugName,
     category: category ?? this.category,
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
+    subcategory: subcategory.present ? subcategory.value : this.subcategory,
+    subcategoryId: subcategoryId.present
+        ? subcategoryId.value
+        : this.subcategoryId,
     genericName: genericName.present ? genericName.value : this.genericName,
     brandName: brandName.present ? brandName.value : this.brandName,
     manufacturer: manufacturer.present ? manufacturer.value : this.manufacturer,
@@ -12036,6 +12112,12 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       categoryId: data.categoryId.present
           ? data.categoryId.value
           : this.categoryId,
+      subcategory: data.subcategory.present
+          ? data.subcategory.value
+          : this.subcategory,
+      subcategoryId: data.subcategoryId.present
+          ? data.subcategoryId.value
+          : this.subcategoryId,
       genericName: data.genericName.present
           ? data.genericName.value
           : this.genericName,
@@ -12130,6 +12212,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           ..write('drugName: $drugName, ')
           ..write('category: $category, ')
           ..write('categoryId: $categoryId, ')
+          ..write('subcategory: $subcategory, ')
+          ..write('subcategoryId: $subcategoryId, ')
           ..write('genericName: $genericName, ')
           ..write('brandName: $brandName, ')
           ..write('manufacturer: $manufacturer, ')
@@ -12176,6 +12260,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     drugName,
     category,
     categoryId,
+    subcategory,
+    subcategoryId,
     genericName,
     brandName,
     manufacturer,
@@ -12221,6 +12307,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           other.drugName == this.drugName &&
           other.category == this.category &&
           other.categoryId == this.categoryId &&
+          other.subcategory == this.subcategory &&
+          other.subcategoryId == this.subcategoryId &&
           other.genericName == this.genericName &&
           other.brandName == this.brandName &&
           other.manufacturer == this.manufacturer &&
@@ -12264,6 +12352,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
   final Value<String> drugName;
   final Value<String> category;
   final Value<String?> categoryId;
+  final Value<String?> subcategory;
+  final Value<String?> subcategoryId;
   final Value<String?> genericName;
   final Value<String?> brandName;
   final Value<String?> manufacturer;
@@ -12305,6 +12395,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.drugName = const Value.absent(),
     this.category = const Value.absent(),
     this.categoryId = const Value.absent(),
+    this.subcategory = const Value.absent(),
+    this.subcategoryId = const Value.absent(),
     this.genericName = const Value.absent(),
     this.brandName = const Value.absent(),
     this.manufacturer = const Value.absent(),
@@ -12347,6 +12439,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     required String drugName,
     required String category,
     this.categoryId = const Value.absent(),
+    this.subcategory = const Value.absent(),
+    this.subcategoryId = const Value.absent(),
     this.genericName = const Value.absent(),
     this.brandName = const Value.absent(),
     this.manufacturer = const Value.absent(),
@@ -12390,6 +12484,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Expression<String>? drugName,
     Expression<String>? category,
     Expression<String>? categoryId,
+    Expression<String>? subcategory,
+    Expression<String>? subcategoryId,
     Expression<String>? genericName,
     Expression<String>? brandName,
     Expression<String>? manufacturer,
@@ -12432,6 +12528,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       if (drugName != null) 'drug_name': drugName,
       if (category != null) 'category': category,
       if (categoryId != null) 'category_id': categoryId,
+      if (subcategory != null) 'subcategory': subcategory,
+      if (subcategoryId != null) 'subcategory_id': subcategoryId,
       if (genericName != null) 'generic_name': genericName,
       if (brandName != null) 'brand_name': brandName,
       if (manufacturer != null) 'manufacturer': manufacturer,
@@ -12477,6 +12575,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Value<String>? drugName,
     Value<String>? category,
     Value<String?>? categoryId,
+    Value<String?>? subcategory,
+    Value<String?>? subcategoryId,
     Value<String?>? genericName,
     Value<String?>? brandName,
     Value<String?>? manufacturer,
@@ -12519,6 +12619,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       drugName: drugName ?? this.drugName,
       category: category ?? this.category,
       categoryId: categoryId ?? this.categoryId,
+      subcategory: subcategory ?? this.subcategory,
+      subcategoryId: subcategoryId ?? this.subcategoryId,
       genericName: genericName ?? this.genericName,
       brandName: brandName ?? this.brandName,
       manufacturer: manufacturer ?? this.manufacturer,
@@ -12574,6 +12676,12 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     }
     if (categoryId.present) {
       map['category_id'] = Variable<String>(categoryId.value);
+    }
+    if (subcategory.present) {
+      map['subcategory'] = Variable<String>(subcategory.value);
+    }
+    if (subcategoryId.present) {
+      map['subcategory_id'] = Variable<String>(subcategoryId.value);
     }
     if (genericName.present) {
       map['generic_name'] = Variable<String>(genericName.value);
@@ -12691,6 +12799,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
           ..write('drugName: $drugName, ')
           ..write('category: $category, ')
           ..write('categoryId: $categoryId, ')
+          ..write('subcategory: $subcategory, ')
+          ..write('subcategoryId: $subcategoryId, ')
           ..write('genericName: $genericName, ')
           ..write('brandName: $brandName, ')
           ..write('manufacturer: $manufacturer, ')
@@ -58097,6 +58207,8 @@ typedef $$InventoryItemsTableCreateCompanionBuilder =
       required String drugName,
       required String category,
       Value<String?> categoryId,
+      Value<String?> subcategory,
+      Value<String?> subcategoryId,
       Value<String?> genericName,
       Value<String?> brandName,
       Value<String?> manufacturer,
@@ -58140,6 +58252,8 @@ typedef $$InventoryItemsTableUpdateCompanionBuilder =
       Value<String> drugName,
       Value<String> category,
       Value<String?> categoryId,
+      Value<String?> subcategory,
+      Value<String?> subcategoryId,
       Value<String?> genericName,
       Value<String?> brandName,
       Value<String?> manufacturer,
@@ -58382,6 +58496,16 @@ class $$InventoryItemsTableFilterComposer
 
   ColumnFilters<String> get categoryId => $composableBuilder(
     column: $table.categoryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subcategory => $composableBuilder(
+    column: $table.subcategory,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subcategoryId => $composableBuilder(
+    column: $table.subcategoryId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -58767,6 +58891,16 @@ class $$InventoryItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get subcategory => $composableBuilder(
+    column: $table.subcategory,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subcategoryId => $composableBuilder(
+    column: $table.subcategoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get genericName => $composableBuilder(
     column: $table.genericName,
     builder: (column) => ColumnOrderings(column),
@@ -58986,6 +59120,16 @@ class $$InventoryItemsTableAnnotationComposer
 
   GeneratedColumn<String> get categoryId => $composableBuilder(
     column: $table.categoryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get subcategory => $composableBuilder(
+    column: $table.subcategory,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get subcategoryId => $composableBuilder(
+    column: $table.subcategoryId,
     builder: (column) => column,
   );
 
@@ -59365,6 +59509,8 @@ class $$InventoryItemsTableTableManager
                 Value<String> drugName = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String?> categoryId = const Value.absent(),
+                Value<String?> subcategory = const Value.absent(),
+                Value<String?> subcategoryId = const Value.absent(),
                 Value<String?> genericName = const Value.absent(),
                 Value<String?> brandName = const Value.absent(),
                 Value<String?> manufacturer = const Value.absent(),
@@ -59406,6 +59552,8 @@ class $$InventoryItemsTableTableManager
                 drugName: drugName,
                 category: category,
                 categoryId: categoryId,
+                subcategory: subcategory,
+                subcategoryId: subcategoryId,
                 genericName: genericName,
                 brandName: brandName,
                 manufacturer: manufacturer,
@@ -59449,6 +59597,8 @@ class $$InventoryItemsTableTableManager
                 required String drugName,
                 required String category,
                 Value<String?> categoryId = const Value.absent(),
+                Value<String?> subcategory = const Value.absent(),
+                Value<String?> subcategoryId = const Value.absent(),
                 Value<String?> genericName = const Value.absent(),
                 Value<String?> brandName = const Value.absent(),
                 Value<String?> manufacturer = const Value.absent(),
@@ -59490,6 +59640,8 @@ class $$InventoryItemsTableTableManager
                 drugName: drugName,
                 category: category,
                 categoryId: categoryId,
+                subcategory: subcategory,
+                subcategoryId: subcategoryId,
                 genericName: genericName,
                 brandName: brandName,
                 manufacturer: manufacturer,

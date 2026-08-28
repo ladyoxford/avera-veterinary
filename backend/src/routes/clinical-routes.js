@@ -497,6 +497,8 @@ const inventoryFields = {
   packSize: z.string().trim().max(160).nullish(),
   categoryId: z.string().trim().regex(/^[a-z0-9_]{2,80}$/),
   categoryName: z.string().trim().min(1).max(160),
+  subcategoryId: z.string().trim().regex(/^[a-z0-9_]{2,80}$/).nullish(),
+  subcategoryName: z.string().trim().max(160).nullish(),
   quantity: z.number().int().min(0).max(100000000),
   reorderLevel: z.number().int().min(0).max(100000000),
   batchNumber: z.string().trim().max(160).nullish(),
@@ -651,6 +653,8 @@ function inventoryResponse(row) {
     name: row.name,
     category: row.category,
     category_key: row.category_key,
+    subcategory: row.subcategory,
+    subcategory_key: row.subcategory_key,
     generic_name: row.generic_name,
     brand_name: row.brand_name,
     manufacturer: row.manufacturer,
@@ -839,7 +843,8 @@ const lists = {
 const inventoryList = {
   from: 'inventory_products i',
   select: `i.inventory_product_id, i.name, i.generic_name, i.brand_name,
-           i.category, i.category_key, i.manufacturer, i.supplier, i.sku,
+           i.category, i.category_key, i.subcategory, i.subcategory_key,
+           i.manufacturer, i.supplier, i.sku,
            i.barcode, i.short_description, i.detailed_description,
            i.dosage_form, i.pack_size, i.batch_number,
            i.expiry_date, i.purchase_price, i.selling_price, i.quantity,
@@ -862,7 +867,7 @@ const inventoryList = {
              WHERE u.clinic_id=i.clinic_id
                AND u.inventory_product_id=i.inventory_product_id
            ), '[]'::jsonb) AS product_units`,
-  where: `i.clinic_id = $1 AND i.deleted_at IS NULL AND i.is_archived = false AND ($2::text IS NULL OR i.name ILIKE $3 OR i.generic_name ILIKE $3 OR i.brand_name ILIKE $3 OR i.sku ILIKE $3 OR i.barcode ILIKE $3 OR i.active_ingredient ILIKE $3 OR i.batch_number ILIKE $3 OR i.category ILIKE $3)
+  where: `i.clinic_id = $1 AND i.deleted_at IS NULL AND i.is_archived = false AND ($2::text IS NULL OR i.name ILIKE $3 OR i.generic_name ILIKE $3 OR i.brand_name ILIKE $3 OR i.sku ILIKE $3 OR i.barcode ILIKE $3 OR i.active_ingredient ILIKE $3 OR i.batch_number ILIKE $3 OR i.category ILIKE $3 OR i.subcategory ILIKE $3)
           AND ($4::text IS NULL OR i.status = $4)`,
   values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.status ?? null],
   order: (query) => orderBy(query.sort, query.direction, { name: 'i.name', expiry: 'i.expiry_date', quantity: 'i.quantity' }, 'i.name'),
@@ -2831,7 +2836,8 @@ export async function clinicalRoutes(app) {
          `INSERT INTO inventory_products
             (clinic_id, name, generic_name, brand_name, manufacturer, supplier,
              sku, barcode, short_description, detailed_description, dosage_form,
-             pack_size, category, category_key, batch_number, expiry_date,
+             pack_size, category, category_key, subcategory, subcategory_key,
+             batch_number, expiry_date,
              purchase_price, selling_price, quantity, reorder_level, status,
              submission_id, base_unit_label, active_ingredient, dosage_and_route,
              withdrawal_meat, withdrawal_milk, withdrawal_eggs, withdrawal_other,
@@ -2839,8 +2845,8 @@ export async function clinicalRoutes(app) {
              public_display_name, available_to_public, is_sellable, is_archived,
              created_at, updated_at)
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-                  $17,$18,$19,$20,'Active',$21,$22,$23,$24,$25,$26,$27,$28,
-                  $29,$30,$31,$32,$33,$34,$35,$36,now(),now())
+                  $17,$18,$19,$20,$21,$22,'Active',$23,$24,$25,$26,$27,$28,
+                  $29,$30,$31,$32,$33,$34,$35,$36,$37,$38,now(),now())
          ON CONFLICT (clinic_id, submission_id)
            WHERE submission_id IS NOT NULL
          DO NOTHING
@@ -2850,9 +2856,10 @@ export async function clinicalRoutes(app) {
           input.supplier ?? null, input.sku ?? null, input.barcode ?? null,
           input.shortDescription ?? null, input.detailedDescription ?? null,
           input.dosageForm ?? null, input.packSize ?? null, input.categoryName,
-          input.categoryId, input.batchNumber ?? null, input.expiryDate ?? null,
-          input.purchasePrice, input.sellingPrice, input.quantity,
-          input.reorderLevel, input.submissionId, baseUnitLabel,
+          input.categoryId, input.subcategoryName ?? null,
+          input.subcategoryId ?? null, input.batchNumber ?? null,
+          input.expiryDate ?? null, input.purchasePrice, input.sellingPrice,
+          input.quantity, input.reorderLevel, input.submissionId, baseUnitLabel,
           input.activeIngredient ?? null, input.dosageAndRoute ?? null,
           input.withdrawalMeat ?? null, input.withdrawalMilk ?? null,
           input.withdrawalEggs ?? null, input.withdrawalOther ?? null,
@@ -2951,6 +2958,8 @@ export async function clinicalRoutes(app) {
         ['pack_size', keep('packSize', 'pack_size')],
         ['category', input.categoryName],
         ['category_key', input.categoryId],
+        ['subcategory', keep('subcategoryName', 'subcategory')],
+        ['subcategory_key', keep('subcategoryId', 'subcategory_key')],
         ['batch_number', input.batchNumber ?? null],
         ['expiry_date', input.expiryDate ?? null],
         ['purchase_price', input.purchasePrice],

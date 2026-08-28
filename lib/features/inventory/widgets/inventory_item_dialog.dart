@@ -9,6 +9,7 @@ import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../../shared/widgets/avera_photo_actions.dart';
+import '../../shared/widgets/catalogue_selector.dart';
 import '../../shared/widgets/identity_avatar_image.dart';
 
 class InventoryItemDraft {
@@ -16,6 +17,9 @@ class InventoryItemDraft {
     required this.submissionId,
     required this.name,
     required this.categoryId,
+    this.categoryName,
+    this.subcategoryId,
+    this.subcategoryName,
     required this.quantity,
     required this.minimumQuantity,
     required this.sellingPrice,
@@ -57,6 +61,9 @@ class InventoryItemDraft {
   final int? localId;
   final String name;
   final String categoryId;
+  final String? categoryName;
+  final String? subcategoryId;
+  final String? subcategoryName;
   final int quantity;
   final int minimumQuantity;
   final String? batchNumber;
@@ -95,7 +102,10 @@ class InventoryItemDraft {
         submissionId: const Uuid().v4(),
         remoteId: item.id,
         name: item.name,
-        categoryId: item.categoryId,
+        categoryId: InventoryCategories.canonicalId(item.categoryId),
+        categoryName: item.categoryName,
+        subcategoryId: item.subcategoryId,
+        subcategoryName: item.subcategoryName,
         quantity: item.quantity,
         minimumQuantity: item.reorderLevel,
         batchNumber: item.batchNumber,
@@ -134,8 +144,12 @@ class InventoryItemDraft {
         submissionId: const Uuid().v4(),
         localId: item.id,
         name: item.drugName,
-        categoryId:
-            item.categoryId ?? InventoryCategories.canonicalId(item.category),
+        categoryId: InventoryCategories.canonicalId(
+          item.categoryId ?? item.category,
+        ),
+        categoryName: item.category,
+        subcategoryId: item.subcategoryId,
+        subcategoryName: item.subcategory,
         quantity: item.quantity,
         minimumQuantity: item.minimumQuantity,
         batchNumber: item.batchNumber,
@@ -169,12 +183,21 @@ class InventoryItemDraft {
       );
 
   Map<String, dynamic> toRemotePayload() {
-    final category = InventoryCategories.byId(categoryId);
+    final category = InventoryCategories.byId(
+      InventoryCategories.canonicalId(categoryId),
+    );
+    final categoryLabel = category?.id == InventoryCategories.customCategoryId
+        ? (categoryName?.trim().isNotEmpty == true
+              ? categoryName!.trim()
+              : category?.name ?? 'Other')
+        : category?.name ?? categoryName ?? 'Other';
     return {
       if (remoteId == null) 'submissionId': submissionId,
       'name': name,
-      'categoryId': categoryId,
-      'categoryName': category?.name ?? 'Other',
+      'categoryId': category?.id ?? categoryId,
+      'categoryName': categoryLabel,
+      'subcategoryId': subcategoryId,
+      'subcategoryName': subcategoryName,
       'genericName': genericName,
       'brandName': brandName,
       'manufacturer': manufacturer,
@@ -257,6 +280,8 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
   late final TextEditingController _batch;
   late final TextEditingController _selling;
   late final TextEditingController _cost;
+  late final TextEditingController _customCategoryName;
+  late final TextEditingController _customSubcategoryName;
   late final TextEditingController _genericName;
   late final TextEditingController _brandName;
   late final TextEditingController _manufacturer;
@@ -281,6 +306,9 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
   late final TextEditingController _publicDisplayName;
   late final String _submissionId;
   String? _categoryId;
+  String? _subcategoryId;
+  String? _subcategoryName;
+  String? _preservedIncompatibleSubcategory;
   DateTime? _expiry;
   bool _saving = false;
   String? _submissionError;
@@ -307,6 +335,8 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
       text: _numberText(initial?.sellingPrice ?? 0),
     );
     _cost = TextEditingController(text: _numberText(initial?.buyingPrice ?? 0));
+    _customCategoryName = _controller(initial?.categoryName);
+    _customSubcategoryName = _controller(initial?.subcategoryName);
     _genericName = _controller(initial?.genericName);
     _brandName = _controller(initial?.brandName);
     _manufacturer = _controller(initial?.manufacturer);
@@ -332,11 +362,47 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
     _availableToPublic = initial?.availableToPublic ?? false;
     _expiry = initial?.expiryDate;
     _imageReference = initial?.imageReference;
-    _categoryId = widget.allowedCategoryIds.contains(initial?.categoryId)
-        ? initial!.categoryId
-        : widget.allowedCategoryIds.isEmpty
+    final allowedCategoryIds = widget.allowedCategoryIds
+        .map(InventoryCategories.canonicalId)
+        .toSet();
+    final initialCategoryId = initial == null
         ? null
-        : widget.allowedCategoryIds.first;
+        : InventoryCategories.canonicalId(initial.categoryId);
+    _categoryId = allowedCategoryIds.contains(initialCategoryId)
+        ? initialCategoryId
+        : allowedCategoryIds.isEmpty
+        ? null
+        : InventoryCategories.all
+              .firstWhere(
+                (category) => allowedCategoryIds.contains(category.id),
+              )
+              .id;
+    final canonicalSubcategory = InventoryCategories.subcategoryById(
+      _categoryId,
+      initial?.subcategoryId,
+    );
+    if (canonicalSubcategory != null) {
+      _subcategoryId = canonicalSubcategory.id;
+      _subcategoryName = canonicalSubcategory.name;
+      _customSubcategoryName.clear();
+    } else if (initial?.subcategoryId ==
+        InventoryCategories.customSubcategoryId) {
+      _subcategoryId = InventoryCategories.customSubcategoryId;
+      _subcategoryName = initial?.subcategoryName;
+    } else {
+      final resolvedSubcategory = InventoryCategories.resolveSubcategory(
+        _categoryId,
+        initial?.subcategoryName,
+      );
+      if (resolvedSubcategory != null) {
+        _subcategoryId = resolvedSubcategory.id;
+        _subcategoryName = resolvedSubcategory.name;
+        _customSubcategoryName.clear();
+      } else if (initial?.subcategoryName?.trim().isNotEmpty == true) {
+        _subcategoryId = InventoryCategories.customSubcategoryId;
+        _subcategoryName = initial!.subcategoryName;
+      }
+    }
   }
 
   @override
@@ -347,6 +413,8 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
     _batch.dispose();
     _selling.dispose();
     _cost.dispose();
+    _customCategoryName.dispose();
+    _customSubcategoryName.dispose();
     for (final controller in [
       _genericName,
       _brandName,
@@ -378,8 +446,11 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final allowedCategoryIds = widget.allowedCategoryIds
+        .map(InventoryCategories.canonicalId)
+        .toSet();
     final categories = InventoryCategories.all
-        .where((item) => widget.allowedCategoryIds.contains(item.id))
+        .where((item) => allowedCategoryIds.contains(item.id))
         .toList();
     final compact = MediaQuery.sizeOf(context).width < 600;
 
@@ -503,23 +574,67 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
         validator: _required,
       ),
       const SizedBox(height: AveraSpacing.cardGap),
-      AveraLabeledDropdownField<String>(
+      CatalogueSelectionField(
         label: 'Category',
         hintText: 'Select category',
-        value: _categoryId,
-        items: [
-          for (final category in categories)
-            DropdownMenuItem(
-              value: category.id,
-              child: Text(category.name, overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        onChanged: _saving
-            ? null
-            : (value) => setState(() => _categoryId = value),
-        validator: (value) =>
-            value == null ? 'Please select a category.' : null,
+        value: _categoryId == InventoryCategories.customCategoryId
+            ? _customCategoryName.text
+            : InventoryCategories.byId(_categoryId)?.name,
+        onTap: _saving ? null : () => _selectCategory(context, categories),
       ),
+      const SizedBox(height: AveraSpacing.cardGap),
+      CatalogueSelectionField(
+        label: 'Subcategory',
+        hintText: 'Select subcategory or leave unspecified',
+        enabled: _categoryId != null,
+        value: _subcategoryId == InventoryCategories.customSubcategoryId
+            ? _customSubcategoryName.text
+            : InventoryCategories.subcategoryDisplayName(
+                _categoryId,
+                _subcategoryId,
+                _subcategoryName,
+              ),
+        onTap: _saving ? null : () => _selectSubcategory(context),
+      ),
+      if (_categoryId == InventoryCategories.customCategoryId) ...[
+        const SizedBox(height: AveraSpacing.cardGap),
+        AveraLabeledTextField(
+          label: 'Custom Category',
+          controller: _customCategoryName,
+          hintText: 'Enter category name',
+          textInputAction: TextInputAction.next,
+          onChanged: (_) => setState(() {}),
+          validator: (value) =>
+              _categoryId == InventoryCategories.customCategoryId &&
+                  (value?.trim().isEmpty ?? true)
+              ? 'Please enter a category name.'
+              : null,
+        ),
+      ],
+      if (_subcategoryId == InventoryCategories.customSubcategoryId) ...[
+        const SizedBox(height: AveraSpacing.cardGap),
+        AveraLabeledTextField(
+          label: 'Custom Subcategory',
+          controller: _customSubcategoryName,
+          hintText: 'Enter subcategory name',
+          textInputAction: TextInputAction.next,
+          onChanged: (value) => setState(() => _subcategoryName = value.trim()),
+          validator: (value) =>
+              _subcategoryId == InventoryCategories.customSubcategoryId &&
+                  (value?.trim().isEmpty ?? true)
+              ? 'Please enter a subcategory name.'
+              : null,
+        ),
+      ],
+      if (_preservedIncompatibleSubcategory != null) ...[
+        const SizedBox(height: AveraSpacing.compactRowGap),
+        Text(
+          'Choose a new subcategory. "$_preservedIncompatibleSubcategory" belongs to the previous category.',
+          style: averaText(
+            context,
+          ).caption.copyWith(color: Theme.of(context).colorScheme.error),
+        ),
+      ],
       const SizedBox(height: AveraSpacing.cardGap),
       AveraLabeledTextField(
         label: 'Brand Name',
@@ -894,9 +1009,112 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
     if (mounted && picked != null) setState(() => _expiry = picked);
   }
 
+  Future<void> _selectCategory(
+    BuildContext context,
+    List<InventoryCategoryDefinition> categories,
+  ) async {
+    final selected = await showSearchableCatalogueSelector(
+      context: context,
+      title: 'Select Category',
+      selectedId: _categoryId,
+      options: [
+        for (final category in categories)
+          CataloguePickerOption(
+            id: category.id,
+            title: category.name,
+            subtitle: 'Inventory category',
+            searchAliases: [...category.aliases, ...category.legacyIds],
+          ),
+      ],
+    );
+    if (!mounted || selected == null) return;
+    final categoryId = InventoryCategories.canonicalId(selected);
+    setState(() {
+      if (_categoryId != categoryId && _subcategoryId != null) {
+        final previous = InventoryCategories.subcategoryDisplayName(
+          _categoryId,
+          _subcategoryId,
+          _subcategoryName ?? _customSubcategoryName.text,
+        );
+        if (InventoryCategories.subcategoryById(categoryId, _subcategoryId) ==
+            null) {
+          _preservedIncompatibleSubcategory = previous == 'Not specified'
+              ? null
+              : previous;
+          _subcategoryId = null;
+          _subcategoryName = null;
+          _customSubcategoryName.clear();
+        }
+      }
+      _categoryId = categoryId;
+      _submissionError = null;
+    });
+  }
+
+  Future<void> _selectSubcategory(BuildContext context) async {
+    if (_categoryId == null) return;
+    final options = <CataloguePickerOption>[
+      const CataloguePickerOption(
+        id: InventoryCategories.unspecifiedSubcategoryId,
+        title: 'Not specified',
+        subtitle: 'No subcategory recorded',
+      ),
+      for (final subcategory in InventoryCategories.subcategoriesFor(
+        _categoryId,
+      ))
+        CataloguePickerOption(
+          id: subcategory.id,
+          title: subcategory.name,
+          subtitle: 'Subcategory',
+          searchAliases: subcategory.aliases,
+        ),
+      const CataloguePickerOption(
+        id: InventoryCategories.customSubcategoryId,
+        title: 'Other / Custom Subcategory',
+        subtitle: 'Enter a clinic-specific subcategory',
+      ),
+    ];
+    final selected = await showSearchableCatalogueSelector(
+      context: context,
+      title: 'Select Subcategory',
+      options: options,
+      selectedId:
+          _subcategoryId ?? InventoryCategories.unspecifiedSubcategoryId,
+    );
+    if (!mounted || selected == null) return;
+    setState(() {
+      _preservedIncompatibleSubcategory = null;
+      if (selected == InventoryCategories.unspecifiedSubcategoryId) {
+        _subcategoryId = null;
+        _subcategoryName = null;
+        _customSubcategoryName.clear();
+      } else if (selected == InventoryCategories.customSubcategoryId) {
+        _subcategoryId = selected;
+        _subcategoryName = _customSubcategoryName.text.trim().isEmpty
+            ? null
+            : _customSubcategoryName.text.trim();
+      } else {
+        _subcategoryId = selected;
+        _subcategoryName = InventoryCategories.subcategoryDisplayName(
+          _categoryId,
+          selected,
+          null,
+        );
+        _customSubcategoryName.clear();
+      }
+      _submissionError = null;
+    });
+  }
+
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate() || _categoryId == null) return;
+    if (_preservedIncompatibleSubcategory != null) {
+      setState(() {
+        _submissionError = 'Choose a subcategory that matches this category.';
+      });
+      return;
+    }
     if (_requiresBatchAndExpiry && _expiry == null) {
       setState(() {
         _submissionError =
@@ -909,12 +1127,25 @@ class _InventoryItemDialogState extends State<_InventoryItemDialog> {
       _submissionError = null;
     });
     final initial = widget.initial;
+    final category = InventoryCategories.byId(_categoryId);
+    final categoryName = _categoryId == InventoryCategories.customCategoryId
+        ? _customCategoryName.text.trim()
+        : category?.name;
+    final subcategoryName =
+        _subcategoryId == InventoryCategories.customSubcategoryId
+        ? _customSubcategoryName.text.trim()
+        : _subcategoryName;
     final draft = InventoryItemDraft(
       submissionId: _submissionId,
       remoteId: initial?.remoteId,
       localId: initial?.localId,
       name: _name.text.trim(),
       categoryId: _categoryId!,
+      categoryName: categoryName,
+      subcategoryId: _subcategoryId,
+      subcategoryName: subcategoryName?.isEmpty == true
+          ? null
+          : subcategoryName,
       quantity: int.parse(_quantity.text.trim()),
       minimumQuantity: int.parse(_minimum.text.trim()),
       batchNumber: _batch.text.trim().isEmpty ? null : _batch.text.trim(),

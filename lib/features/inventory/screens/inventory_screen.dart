@@ -15,6 +15,7 @@ import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/catalogue_selector.dart';
 import '../../shared/widgets/identity_avatar_image.dart';
 import '../widgets/inventory_item_dialog.dart';
 
@@ -29,6 +30,7 @@ class InventoryScreen extends ConsumerStatefulWidget {
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   String? _categoryId;
+  String? _subcategoryId;
   String _query = '';
   InventoryStatusFilter _statusFilter = InventoryStatusFilter.all;
   final _scrollController = ScrollController();
@@ -143,6 +145,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final categoryItems = items
         .where((item) => allowed.contains(item.categoryId))
         .where((item) => _categoryId == null || item.categoryId == _categoryId)
+        .where(
+          (item) =>
+              _subcategoryId == null || item.subcategoryId == _subcategoryId,
+        )
         .toList();
     final today = DateTime.now();
     final low = categoryItems
@@ -174,8 +180,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         .where(
           (item) =>
               normalizedQuery.isEmpty ||
-              '${item.name} ${item.categoryName} ${item.manufacturer ?? ''} '
-                      '${item.activeIngredient ?? ''} ${item.batchNumber ?? ''}'
+              '${item.name} ${item.categoryName} ${item.subcategoryName ?? ''} '
+                      '${item.subcategoryId ?? ''} ${item.manufacturer ?? ''} '
+                      '${item.activeIngredient ?? ''} ${item.batchNumber ?? ''} '
+                      '${item.sku ?? ''} ${item.barcode ?? ''}'
                   .toLowerCase()
                   .contains(normalizedQuery),
         )
@@ -217,9 +225,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           _InventoryCategorySelector(
             allowed: allowed,
             selected: _categoryId,
-            onSelected: (value) => setState(() => _categoryId = value),
+            onSelected: _setCategory,
             onMore: () => _selectCategory(context, allowed),
           ),
+          if (_categoryId != null) ...[
+            const SizedBox(height: 10),
+            _InventorySubcategorySelector(
+              categoryId: _categoryId!,
+              selected: _subcategoryId,
+              onSelected: (value) => setState(() => _subcategoryId = value),
+              onMore: () => _selectSubcategory(context),
+            ),
+          ],
           const SizedBox(height: 16),
           _SummaryStrip(
             total: categoryItems.length,
@@ -290,7 +307,44 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       builder: (context) =>
           _CategorySheet(allowed: allowed, selected: _categoryId),
     );
-    if (mounted) setState(() => _categoryId = selection);
+    if (mounted) _setCategory(selection);
+  }
+
+  void _setCategory(String? value) {
+    setState(() {
+      final categoryId = value == null
+          ? null
+          : InventoryCategories.canonicalId(value);
+      if (_categoryId != categoryId) _subcategoryId = null;
+      _categoryId = categoryId;
+    });
+  }
+
+  Future<void> _selectSubcategory(BuildContext context) async {
+    final categoryId = _categoryId;
+    if (categoryId == null) return;
+    final selected = await showSearchableCatalogueSelector(
+      context: context,
+      title: 'Filter Subcategories',
+      selectedId: _subcategoryId,
+      options: [
+        const CataloguePickerOption(
+          id: '',
+          title: 'All subcategories',
+          subtitle: 'Show every subcategory',
+        ),
+        for (final subcategory in InventoryCategories.subcategoriesFor(
+          categoryId,
+        ))
+          CataloguePickerOption(
+            id: subcategory.id,
+            title: subcategory.name,
+            searchAliases: subcategory.aliases,
+          ),
+      ],
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _subcategoryId = selected.isEmpty ? null : selected);
   }
 
   Future<void> _showItemDialog(
@@ -346,6 +400,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             session: session,
             name: draft.name,
             categoryId: draft.categoryId,
+            categoryName: draft.categoryName,
+            subcategoryId: draft.subcategoryId,
+            subcategoryName: draft.subcategoryName,
             quantity: draft.quantity,
             minimumQuantity: draft.minimumQuantity,
             batchNumber: draft.batchNumber,
@@ -383,6 +440,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             itemId: draft.localId!,
             name: draft.name,
             categoryId: draft.categoryId,
+            categoryName: draft.categoryName,
+            subcategoryId: draft.subcategoryId,
+            subcategoryName: draft.subcategoryName,
             quantity: draft.quantity,
             minimumQuantity: draft.minimumQuantity,
             batchNumber: draft.batchNumber,
@@ -443,10 +503,11 @@ class _CategorySheetState extends State<_CategorySheet> {
   String query = '';
   @override
   Widget build(BuildContext context) {
+    final allowed = widget.allowed.map(InventoryCategories.canonicalId).toSet();
     final categories = InventoryCategories.all
         .where(
           (item) =>
-              widget.allowed.contains(item.id) &&
+              allowed.contains(item.id) &&
               item.name.toLowerCase().contains(query.toLowerCase()),
         )
         .toList();
@@ -508,8 +569,11 @@ class _InventoryCategorySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final allowedCategoryIds = allowed
+        .map(InventoryCategories.canonicalId)
+        .toSet();
     final categories = InventoryCategories.all
-        .where((category) => allowed.contains(category.id))
+        .where((category) => allowedCategoryIds.contains(category.id))
         .take(7)
         .toList(growable: false);
     return SizedBox(
@@ -534,6 +598,55 @@ class _InventoryCategorySelector extends StatelessWidget {
               selected:
                   selected != null &&
                   !categories.any((category) => category.id == selected),
+              onTap: onMore,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InventorySubcategorySelector extends StatelessWidget {
+  const _InventorySubcategorySelector({
+    required this.categoryId,
+    required this.selected,
+    required this.onSelected,
+    required this.onMore,
+  });
+
+  final String categoryId;
+  final String? selected;
+  final ValueChanged<String?> onSelected;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final subcategories = InventoryCategories.subcategoriesFor(
+      categoryId,
+    ).take(5).toList(growable: false);
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _CategoryChip(
+            label: 'All subcategories',
+            selected: selected == null,
+            onTap: () => onSelected(null),
+          ),
+          for (final subcategory in subcategories)
+            _CategoryChip(
+              label: subcategory.name,
+              selected: selected == subcategory.id,
+              onTap: () => onSelected(subcategory.id),
+            ),
+          if (InventoryCategories.subcategoriesFor(categoryId).length >
+              subcategories.length)
+            _CategoryChip(
+              label: 'More',
+              selected:
+                  selected != null &&
+                  !subcategories.any((item) => item.id == selected),
               onTap: onMore,
             ),
         ],
@@ -715,6 +828,8 @@ class _InventoryDisplayItem {
     required this.name,
     required this.categoryId,
     required this.categoryName,
+    this.subcategoryId,
+    this.subcategoryName,
     required this.quantity,
     required this.minimumQuantity,
     required this.buyingPrice,
@@ -754,6 +869,8 @@ class _InventoryDisplayItem {
   final String name;
   final String categoryId;
   final String categoryName;
+  final String? subcategoryId;
+  final String? subcategoryName;
   final int quantity;
   final int minimumQuantity;
   final double buyingPrice;
@@ -792,9 +909,19 @@ class _InventoryDisplayItem {
   factory _InventoryDisplayItem.fromLocal(InventoryItem item) =>
       _InventoryDisplayItem(
         name: item.drugName,
-        categoryId:
-            item.categoryId ?? InventoryCategories.canonicalId(item.category),
-        categoryName: item.category,
+        categoryId: InventoryCategories.canonicalId(
+          item.categoryId ?? item.category,
+        ),
+        categoryName: InventoryCategories.displayNameFor(
+          item.categoryId ?? item.category,
+          item.category,
+        ),
+        subcategoryId: item.subcategoryId,
+        subcategoryName: InventoryCategories.subcategoryDisplayName(
+          item.categoryId ?? item.category,
+          item.subcategoryId,
+          item.subcategory,
+        ),
         quantity: item.quantity,
         minimumQuantity: item.minimumQuantity,
         buyingPrice: item.buyingPrice,
@@ -833,10 +960,17 @@ class _InventoryDisplayItem {
   factory _InventoryDisplayItem.fromRemote(RemoteInventoryItem item) =>
       _InventoryDisplayItem(
         name: item.name,
-        categoryId: item.categoryId,
-        categoryName:
-            InventoryCategories.byId(item.categoryId)?.name ??
-            item.categoryName,
+        categoryId: InventoryCategories.canonicalId(item.categoryId),
+        categoryName: InventoryCategories.displayNameFor(
+          item.categoryId,
+          item.categoryName,
+        ),
+        subcategoryId: item.subcategoryId,
+        subcategoryName: InventoryCategories.subcategoryDisplayName(
+          item.categoryId,
+          item.subcategoryId,
+          item.subcategoryName,
+        ),
         quantity: item.quantity,
         minimumQuantity: item.reorderLevel,
         buyingPrice: item.purchasePrice.toDouble(),
@@ -1850,6 +1984,8 @@ class _ProductInformation extends StatelessWidget {
         'Other: ${item.withdrawalOther}',
     ];
     final identity = <String>[
+      'Category: ${item.categoryName}',
+      'Subcategory: ${item.subcategoryName ?? 'Not specified'}',
       if (item.genericName?.trim().isNotEmpty ?? false)
         'Generic name: ${item.genericName}',
       if (item.brandName?.trim().isNotEmpty ?? false)

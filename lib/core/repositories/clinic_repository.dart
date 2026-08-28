@@ -6616,6 +6616,34 @@ class ClinicRepository {
     return normalized.isEmpty ? null : normalized;
   }
 
+  ({String? id, String? name}) _normalizeInventorySubcategory({
+    required String categoryId,
+    String? subcategoryId,
+    String? subcategoryName,
+  }) {
+    final id = _nullIfBlank(subcategoryId);
+    final name = _nullIfBlank(subcategoryName);
+    if (id == null || id == InventoryCategories.unspecifiedSubcategoryId) {
+      if (name == null) return (id: null, name: null);
+      final resolved = InventoryCategories.resolveSubcategory(categoryId, name);
+      return resolved == null
+          ? (id: InventoryCategories.customSubcategoryId, name: name)
+          : (id: resolved.id, name: resolved.name);
+    }
+    if (id == InventoryCategories.customSubcategoryId) {
+      if (name == null) {
+        throw StateError('Enter a custom inventory subcategory name.');
+      }
+      return (id: id, name: name);
+    }
+    final resolved = InventoryCategories.subcategoryById(categoryId, id);
+    if (resolved != null) return (id: resolved.id, name: resolved.name);
+    if (name != null) {
+      return (id: InventoryCategories.customSubcategoryId, name: name);
+    }
+    throw StateError('Choose a valid inventory subcategory.');
+  }
+
   Future<void> _writeAudit({
     required String clinicId,
     required String? userId,
@@ -7856,11 +7884,16 @@ class ClinicRepository {
 
   bool canSellInventoryCategory(UserSession session, String categoryId) {
     if (!session.can(Permissions.inventorySell)) return false;
-    final category = InventoryCategories.byId(categoryId);
+    final canonicalCategoryId = InventoryCategories.canonicalId(categoryId);
+    final category = InventoryCategories.byId(canonicalCategoryId);
     return category != null &&
         category.isSellable &&
-        inventoryCategoryIdsForUser(session.user).contains(categoryId) &&
-        inventorySellCategoryIdsForUser(session.user).contains(categoryId);
+        inventoryCategoryIdsForUser(
+          session.user,
+        ).contains(canonicalCategoryId) &&
+        inventorySellCategoryIdsForUser(
+          session.user,
+        ).contains(canonicalCategoryId);
   }
 
   Set<String> inventorySellCategoryIdsForUser(AppUser user) {
@@ -7965,15 +7998,19 @@ class ClinicRepository {
         .map(
           (items) => items
               .where((item) {
-                final canonical =
-                    item.categoryId ??
-                    InventoryCategories.canonicalId(item.category);
+                final canonical = InventoryCategories.canonicalId(
+                  item.categoryId ?? item.category,
+                );
                 if (!allowed.contains(canonical)) return false;
-                if (categoryId != null && canonical != categoryId) return false;
+                if (categoryId != null &&
+                    canonical != InventoryCategories.canonicalId(categoryId)) {
+                  return false;
+                }
                 if (normalizedQuery.isEmpty) return true;
                 return '${item.drugName} ${item.genericName ?? ''} ${item.brandName ?? ''} '
                         '${item.manufacturer ?? ''} ${item.supplier ?? ''} ${item.sku ?? ''} '
-                        '${item.barcode ?? ''} ${item.category} ${item.batchNumber ?? ''}'
+                        '${item.barcode ?? ''} ${item.category} ${item.subcategory ?? ''} '
+                        '${item.subcategoryId ?? ''} ${item.batchNumber ?? ''}'
                     .toLowerCase()
                     .contains(normalizedQuery);
               })
@@ -7985,6 +8022,9 @@ class ClinicRepository {
     required UserSession session,
     required String name,
     required String categoryId,
+    String? categoryName,
+    String? subcategoryId,
+    String? subcategoryName,
     required int quantity,
     required int minimumQuantity,
     String? batchNumber,
@@ -8018,11 +8058,22 @@ class ClinicRepository {
   }) async {
     _requireInventoryPermission(session, Permissions.inventoryCreate);
     await _requireActiveFeature(AveraFeature.inventory);
-    final category = InventoryCategories.byId(categoryId);
+    final canonicalCategoryId = InventoryCategories.canonicalId(categoryId);
+    final category = InventoryCategories.byId(canonicalCategoryId);
     if (category == null ||
-        !permittedInventoryCategoryIds(session).contains(categoryId)) {
+        !permittedInventoryCategoryIds(session).contains(canonicalCategoryId)) {
       throw StateError('You cannot add Inventory in this category.');
     }
+    final normalizedSubcategory = _normalizeInventorySubcategory(
+      categoryId: canonicalCategoryId,
+      subcategoryId: subcategoryId,
+      subcategoryName: subcategoryName,
+    );
+    final displayCategoryName =
+        category.id == InventoryCategories.customCategoryId &&
+            categoryName?.trim().isNotEmpty == true
+        ? categoryName!.trim()
+        : category.name;
     if (name.trim().isEmpty ||
         baseUnitLabel.trim().isEmpty ||
         quantity < 0 ||
@@ -8030,7 +8081,7 @@ class ClinicRepository {
         sellingPrice < 0) {
       throw StateError('Enter valid Inventory details.');
     }
-    if ((categoryId == 'drugs' || categoryId == 'vaccines') &&
+    if ((canonicalCategoryId == 'drugs' || canonicalCategoryId == 'vaccines') &&
         ((batchNumber?.trim().isEmpty ?? true) || expiryDate == null)) {
       throw StateError(
         'Drugs and Vaccines require a batch number and expiry date.',
@@ -8043,8 +8094,10 @@ class ClinicRepository {
           InventoryItemsCompanion.insert(
             clinicId: Value(session.clinic.clinicId),
             drugName: name.trim(),
-            category: category.name,
-            categoryId: Value(categoryId),
+            category: displayCategoryName,
+            categoryId: Value(canonicalCategoryId),
+            subcategory: Value(normalizedSubcategory.name),
+            subcategoryId: Value(normalizedSubcategory.id),
             quantity: Value(quantity),
             minimumQuantity: Value(minimumQuantity),
             batchNumber: Value(_nullIfBlank(batchNumber)),
@@ -8084,7 +8137,11 @@ class ClinicRepository {
       session: session,
       action: 'inventory.item_created',
       itemId: id,
-      details: {'categoryId': categoryId, 'quantity': quantity},
+      details: {
+        'categoryId': canonicalCategoryId,
+        'subcategoryId': normalizedSubcategory.id,
+        'quantity': quantity,
+      },
     );
     return id;
   }
@@ -8094,6 +8151,9 @@ class ClinicRepository {
     required int itemId,
     required String name,
     required String categoryId,
+    String? categoryName,
+    String? subcategoryId,
+    String? subcategoryName,
     required int quantity,
     required int minimumQuantity,
     String? batchNumber,
@@ -8128,11 +8188,22 @@ class ClinicRepository {
     _requireInventoryPermission(session, Permissions.inventoryEdit);
     await _requireActiveFeature(AveraFeature.inventory);
     final item = await _inventoryItemForSession(itemId, session);
-    final category = InventoryCategories.byId(categoryId);
+    final canonicalCategoryId = InventoryCategories.canonicalId(categoryId);
+    final category = InventoryCategories.byId(canonicalCategoryId);
     if (category == null ||
-        !permittedInventoryCategoryIds(session).contains(categoryId)) {
+        !permittedInventoryCategoryIds(session).contains(canonicalCategoryId)) {
       throw StateError('You cannot edit Inventory in this category.');
     }
+    final normalizedSubcategory = _normalizeInventorySubcategory(
+      categoryId: canonicalCategoryId,
+      subcategoryId: subcategoryId,
+      subcategoryName: subcategoryName,
+    );
+    final displayCategoryName =
+        category.id == InventoryCategories.customCategoryId &&
+            categoryName?.trim().isNotEmpty == true
+        ? categoryName!.trim()
+        : category.name;
     if (name.trim().isEmpty ||
         baseUnitLabel.trim().isEmpty ||
         quantity < 0 ||
@@ -8141,7 +8212,7 @@ class ClinicRepository {
         (buyingPrice != null && buyingPrice < 0)) {
       throw StateError('Enter valid Inventory details.');
     }
-    if ((categoryId == 'drugs' || categoryId == 'vaccines') &&
+    if ((canonicalCategoryId == 'drugs' || canonicalCategoryId == 'vaccines') &&
         ((batchNumber?.trim().isEmpty ?? true) || expiryDate == null)) {
       throw StateError(
         'Drugs and Vaccines require a batch number and expiry date.',
@@ -8156,8 +8227,10 @@ class ClinicRepository {
         .write(
           InventoryItemsCompanion(
             drugName: Value(name.trim()),
-            category: Value(category.name),
-            categoryId: Value(categoryId),
+            category: Value(displayCategoryName),
+            categoryId: Value(canonicalCategoryId),
+            subcategory: Value(normalizedSubcategory.name),
+            subcategoryId: Value(normalizedSubcategory.id),
             quantity: Value(quantity),
             minimumQuantity: Value(minimumQuantity),
             batchNumber: Value(_nullIfBlank(batchNumber)),
@@ -8197,7 +8270,8 @@ class ClinicRepository {
       action: 'inventory.item_updated',
       itemId: item.id,
       details: {
-        'categoryId': categoryId,
+        'categoryId': canonicalCategoryId,
+        'subcategoryId': normalizedSubcategory.id,
         'quantityBefore': item.quantity,
         'quantityAfter': quantity,
       },
@@ -8502,8 +8576,9 @@ class ClinicRepository {
           product.inventoryItemId,
           session,
         );
-        final categoryId =
-            item.categoryId ?? InventoryCategories.canonicalId(item.category);
+        final categoryId = InventoryCategories.canonicalId(
+          item.categoryId ?? item.category,
+        );
         if (!canSellInventoryCategory(session, categoryId) ||
             !item.isSellable ||
             item.isArchived) {
@@ -8632,8 +8707,9 @@ class ClinicRepository {
           line.inventoryItemId,
           session,
         );
-        final categoryId =
-            item.categoryId ?? InventoryCategories.canonicalId(item.category);
+        final categoryId = InventoryCategories.canonicalId(
+          item.categoryId ?? item.category,
+        );
         if (!canSellInventoryCategory(session, categoryId) ||
             !item.isSellable) {
           throw StateError('${item.drugName} is not permitted for sale.');

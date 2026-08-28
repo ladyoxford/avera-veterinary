@@ -95,6 +95,51 @@ class BackendAuthRemoteDataSource implements AuthRemoteDataSource {
   }
 
   @override
+  Future<RemoteProviderAuthOutcome> beginProviderAuth({
+    required String provider,
+    required String idToken,
+    required String deviceId,
+    String? nonce,
+    String? existingEmail,
+    String? platform,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/auth/provider/start',
+      body: {
+        'provider': provider,
+        'idToken': idToken,
+        'deviceName': deviceId.trim().isEmpty ? 'Flutter device' : deviceId,
+        if (nonce != null) 'nonce': nonce,
+        if (existingEmail != null && existingEmail.trim().isNotEmpty)
+          'existingEmail': existingEmail.trim().toLowerCase(),
+        if (platform != null && platform.trim().isNotEmpty)
+          'platform': platform.trim().toLowerCase(),
+      },
+    );
+    return _providerOutcome(response);
+  }
+
+  @override
+  Future<RemoteProviderAuthOutcome> verifyProviderLink({
+    required String challengeId,
+    required String code,
+    required String deviceId,
+    String? platform,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/auth/provider/link/verify',
+      body: {
+        'challengeId': challengeId,
+        'code': code,
+        'deviceName': deviceId.trim().isEmpty ? 'Flutter device' : deviceId,
+        if (platform != null && platform.trim().isNotEmpty)
+          'platform': platform.trim().toLowerCase(),
+      },
+    );
+    return _providerOutcome(response);
+  }
+
+  @override
   Future<RemoteClinicAdministratorActivation>
   inspectClinicAdministratorActivation(String token) async {
     final response = await _client.post(
@@ -315,6 +360,65 @@ class BackendAuthRemoteDataSource implements AuthRemoteDataSource {
     refreshToken: value['refreshToken'] as String,
     expiresIn: value['expiresIn'] as int,
     user: _user(value['user'] as Map<String, dynamic>),
+  );
+
+  RemoteProviderAuthOutcome _providerOutcome(Map<String, dynamic> value) {
+    if (value['action'] == 'mfa_required' || value['mfaRequired'] == true) {
+      throw MfaRequiredException(
+        challengeToken: value['challengeToken'] as String,
+        expiresIn: value['expiresIn'] as int? ?? 300,
+      );
+    }
+    final action = switch (value['action']) {
+      'signed_in' => RemoteProviderAction.signedIn,
+      'verification_required' => RemoteProviderAction.verificationRequired,
+      'resume_registration' => RemoteProviderAction.resumeRegistration,
+      'application_pending' => RemoteProviderAction.applicationPending,
+      'application_restricted' => RemoteProviderAction.applicationRestricted,
+      'activation_required' => RemoteProviderAction.activationRequired,
+      'staff_activation_required' =>
+        RemoteProviderAction.staffActivationRequired,
+      'account_email_required' => RemoteProviderAction.accountEmailRequired,
+      _ => RemoteProviderAction.registrationRequired,
+    };
+    final applicationValue = value['application'];
+    return RemoteProviderAuthOutcome(
+      action: action,
+      session: action == RemoteProviderAction.signedIn ? _session(value) : null,
+      provider: value['provider'] as String?,
+      challengeId: value['challengeId'] as String?,
+      maskedEmail: value['maskedEmail'] as String?,
+      email: value['email'] as String?,
+      message: value['message'] as String?,
+      application: applicationValue is Map
+          ? _registrationApplication(
+              Map<String, dynamic>.from(applicationValue),
+            )
+          : null,
+    );
+  }
+
+  RemoteRegistrationApplication _registrationApplication(
+    Map<String, dynamic> value,
+  ) => RemoteRegistrationApplication(
+    applicationId: value['applicationId'] as String,
+    clinicId: value['clinicId'] as String,
+    reference: value['reference'] as String? ?? '',
+    clinicName: value['clinicName'] as String? ?? '',
+    accountEmail: value['accountEmail'] as String? ?? '',
+    phoneNumber: value['clinicPhone'] as String? ?? '',
+    address: value['address'] as String? ?? '',
+    city: value['city'] as String? ?? '',
+    country: value['country'] as String? ?? '',
+    timeZone: value['timeZone'] as String? ?? 'Africa/Lagos',
+    administratorName: value['administratorName'] as String? ?? '',
+    administratorPhone: value['administratorPhone'] as String? ?? '',
+    professionalTitle: value['professionalTitle'] as String? ?? '',
+    selectedPlan: value['selectedPlan'] as String? ?? 'Starter',
+    status: value['status'] as String? ?? 'AwaitingPayment',
+    paymentStatus: value['paymentStatus'] as String? ?? 'Pending',
+    paymentAccessToken: value['paymentAccessToken'] as String?,
+    draftAccessToken: value['draftAccessToken'] as String?,
   );
 
   RemoteCurrentUser _user(Map<String, dynamic> value) {

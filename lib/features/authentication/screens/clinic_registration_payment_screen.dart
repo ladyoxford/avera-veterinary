@@ -197,6 +197,7 @@ class _ClinicRegistrationPaymentScreenState
         );
       }
       await ref.read(registrationPaymentSessionStoreProvider).clear();
+      await ref.read(clinicRegistrationDraftStoreProvider).clear();
       if (mounted) setState(() => _verification = verification);
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = _paymentError(error));
@@ -213,220 +214,226 @@ class _ClinicRegistrationPaymentScreenState
     final amount = _billingPlan?.amountFor(_billingCycle);
     final checkoutConfigured =
         _billingPlan?.checkoutConfiguredFor(_billingCycle) == true;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Complete Payment')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AveraSpacing.pageHorizontalPadding,
-            AveraSpacing.pageTopPadding,
-            AveraSpacing.pageHorizontalPadding,
-            40,
-          ),
-          children: [
-            if (verified)
-              AveraPageHeader(
-                title: 'Payment confirmed',
-                subtitle: _verification!.applicationApproved
-                    ? 'Your clinic has been approved. Check the administrator email for the activation link.'
-                    : 'Your clinic application is awaiting approval.',
-              )
-            else
-              Text(
-                'Complete the payment step for your submitted clinic application.',
-                style: averaText(context).listItemSubtitle,
-              ),
-            const SizedBox(height: AveraSpacing.subtitleToContentGap),
-            AveraSurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SummaryLine(
-                    label: 'Application reference',
-                    value: widget.application.reference ?? 'Unavailable',
-                  ),
-                  const SizedBox(height: 12),
-                  _SummaryLine(
-                    label: 'Selected plan',
-                    value: widget.application.subscriptionPlan,
-                  ),
-                  const SizedBox(height: 12),
-                  _SummaryLine(
-                    label: 'Approval status',
-                    value: _verification?.applicationApproved == true
-                        ? 'Approved'
-                        : 'Pending approval',
-                  ),
-                ],
-              ),
+    return Theme(
+      data: AppTheme.dark(),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Complete Payment')),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+              AveraSpacing.pageHorizontalPadding,
+              AveraSpacing.pageTopPadding,
+              AveraSpacing.pageHorizontalPadding,
+              40,
             ),
-            const SizedBox(height: AveraSpacing.sectionGap),
-            if (!verified) ...[
-              const AveraSectionHeader(title: 'Billing cycle'),
-              const SizedBox(height: AveraSpacing.cardGap),
-              SegmentedButton<SubscriptionBillingCycle>(
-                segments: const [
-                  ButtonSegment(
-                    value: SubscriptionBillingCycle.monthly,
-                    label: Text('Monthly'),
-                  ),
-                  ButtonSegment(
-                    value: SubscriptionBillingCycle.annual,
-                    label: Text('Annual'),
-                  ),
-                ],
-                selected: {_billingCycle},
-                onSelectionChanged: _paymentReference == null && !_working
-                    ? (value) => setState(() {
-                        _billingCycle = value.single;
-                        _error = null;
-                      })
-                    : null,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              if (_loadingPlan)
-                const AveraSurfaceCard(
-                  child: Row(
-                    children: [
-                      SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(child: Text('Loading secure plan pricing…')),
-                    ],
-                  ),
+            children: [
+              if (verified)
+                AveraPageHeader(
+                  title: 'Payment confirmed',
+                  subtitle: _verification!.applicationApproved
+                      ? 'Your clinic has been approved. Check the administrator email for the activation link.'
+                      : 'Your clinic application is awaiting approval.',
                 )
-              else if (_planError != null)
-                AveraSurfaceCard(
-                  outlined: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _planError!,
-                        style: averaText(context).listItemSubtitle,
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: _loadPaymentPlan,
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Retry pricing'),
-                      ),
-                    ],
-                  ),
-                )
-              else if (amount != null)
-                AveraSurfaceCard(
-                  key: const Key('registration-selected-price'),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${_billingPlan!.name} ${_billingCycle == SubscriptionBillingCycle.monthly ? 'Monthly' : 'Annual'}',
-                              style: averaText(context).listItemTitle,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _billingCycle == SubscriptionBillingCycle.monthly
-                                  ? 'Billed monthly'
-                                  : 'Billed annually',
-                              style: averaText(context).caption,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        formatSubscriptionAmount(
-                          amountMinor: amount,
-                          currency: _billingPlan!.currency,
-                        ),
-                        style: averaText(context).sectionTitle,
-                      ),
-                    ],
-                  ),
-                ),
-              if (!_loadingPlan &&
-                  _planError == null &&
-                  !checkoutConfigured) ...[
-                const SizedBox(height: 8),
+              else
                 Text(
-                  '${_billingPlan?.name ?? widget.application.subscriptionPlan} ${_billingCycle.apiValue} billing is not available for online payment.',
-                  textAlign: TextAlign.center,
-                  style: averaText(context).caption,
-                ),
-              ],
-              const SizedBox(height: AveraSpacing.sectionGap),
-            ],
-            if (_verification != null)
-              AveraSurfaceCard(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primaryContainer.withValues(alpha: 0.45),
-                child: Text(
-                  subscriptionPaymentVerificationMessage(_verification!),
-                  style: averaText(context).sectionTitle,
-                ),
-              ),
-            if (_error != null) ...[
-              AveraSurfaceCard(
-                outlined: true,
-                child: Text(
-                  _error!,
+                  'Complete the payment step for your submitted clinic application.',
                   style: averaText(context).listItemSubtitle,
                 ),
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-            ],
-            if (!verified && _paymentReference == null)
-              AveraPrimaryActionButton(
-                key: const Key('registration-continue-to-paystack'),
-                label: 'Continue to Paystack',
-                icon: Icons.lock_outline_rounded,
-                loading: _working,
-                onPressed: checkoutConfigured ? _startCheckout : null,
-              ),
-            if (!verified && _paymentReference != null) ...[
-              AveraPrimaryActionButton(
-                key: const Key('registration-check-payment'),
-                label: 'Check Payment Status',
-                icon: Icons.verified_outlined,
-                loading: _working,
-                onPressed: _verifyPayment,
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                key: const Key('registration-retry-payment'),
-                onPressed: _working ? null : () => _startCheckout(retry: true),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry Payment'),
-              ),
-            ],
-            if (verified) ...[
-              const SizedBox(height: AveraSpacing.cardGap),
-              FilledButton(
-                onPressed: () => context.go(
-                  Uri(
-                    path: '/login',
-                    queryParameters: {
-                      'clinicName': widget.application.clinicName.trim(),
-                    },
-                  ).toString(),
+              const SizedBox(height: AveraSpacing.subtitleToContentGap),
+              AveraSurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SummaryLine(
+                      label: 'Application reference',
+                      value: widget.application.reference ?? 'Unavailable',
+                    ),
+                    const SizedBox(height: 12),
+                    _SummaryLine(
+                      label: 'Selected plan',
+                      value: widget.application.subscriptionPlan,
+                    ),
+                    const SizedBox(height: 12),
+                    _SummaryLine(
+                      label: 'Approval status',
+                      value: _verification?.applicationApproved == true
+                          ? 'Approved'
+                          : 'Pending approval',
+                    ),
+                  ],
                 ),
-                child: const Text('Go to Sign In'),
               ),
+              const SizedBox(height: AveraSpacing.sectionGap),
+              if (!verified) ...[
+                const AveraSectionHeader(title: 'Billing cycle'),
+                const SizedBox(height: AveraSpacing.cardGap),
+                SegmentedButton<SubscriptionBillingCycle>(
+                  segments: const [
+                    ButtonSegment(
+                      value: SubscriptionBillingCycle.monthly,
+                      label: Text('Monthly'),
+                    ),
+                    ButtonSegment(
+                      value: SubscriptionBillingCycle.annual,
+                      label: Text('Annual'),
+                    ),
+                  ],
+                  selected: {_billingCycle},
+                  onSelectionChanged: _paymentReference == null && !_working
+                      ? (value) => setState(() {
+                          _billingCycle = value.single;
+                          _error = null;
+                        })
+                      : null,
+                ),
+                const SizedBox(height: AveraSpacing.cardGap),
+                if (_loadingPlan)
+                  const AveraSurfaceCard(
+                    child: Row(
+                      children: [
+                        SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(child: Text('Loading secure plan pricing…')),
+                      ],
+                    ),
+                  )
+                else if (_planError != null)
+                  AveraSurfaceCard(
+                    outlined: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _planError!,
+                          style: averaText(context).listItemSubtitle,
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: _loadPaymentPlan,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Retry pricing'),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (amount != null)
+                  AveraSurfaceCard(
+                    key: const Key('registration-selected-price'),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_billingPlan!.name} ${_billingCycle == SubscriptionBillingCycle.monthly ? 'Monthly' : 'Annual'}',
+                                style: averaText(context).listItemTitle,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _billingCycle ==
+                                        SubscriptionBillingCycle.monthly
+                                    ? 'Billed monthly'
+                                    : 'Billed annually',
+                                style: averaText(context).caption,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          formatSubscriptionAmount(
+                            amountMinor: amount,
+                            currency: _billingPlan!.currency,
+                          ),
+                          style: averaText(context).sectionTitle,
+                        ),
+                      ],
+                    ),
+                  ),
+                if (!_loadingPlan &&
+                    _planError == null &&
+                    !checkoutConfigured) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_billingPlan?.name ?? widget.application.subscriptionPlan} ${_billingCycle.apiValue} billing is not available for online payment.',
+                    textAlign: TextAlign.center,
+                    style: averaText(context).caption,
+                  ),
+                ],
+                const SizedBox(height: AveraSpacing.sectionGap),
+              ],
+              if (_verification != null)
+                AveraSurfaceCard(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.45),
+                  child: Text(
+                    subscriptionPaymentVerificationMessage(_verification!),
+                    style: averaText(context).sectionTitle,
+                  ),
+                ),
+              if (_error != null) ...[
+                AveraSurfaceCard(
+                  outlined: true,
+                  child: Text(
+                    _error!,
+                    style: averaText(context).listItemSubtitle,
+                  ),
+                ),
+                const SizedBox(height: AveraSpacing.cardGap),
+              ],
+              if (!verified && _paymentReference == null)
+                AveraPrimaryActionButton(
+                  key: const Key('registration-continue-to-paystack'),
+                  label: 'Continue to Paystack',
+                  icon: Icons.lock_outline_rounded,
+                  loading: _working,
+                  onPressed: checkoutConfigured ? _startCheckout : null,
+                ),
+              if (!verified && _paymentReference != null) ...[
+                AveraPrimaryActionButton(
+                  key: const Key('registration-check-payment'),
+                  label: 'Check Payment Status',
+                  icon: Icons.verified_outlined,
+                  loading: _working,
+                  onPressed: _verifyPayment,
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  key: const Key('registration-retry-payment'),
+                  onPressed: _working
+                      ? null
+                      : () => _startCheckout(retry: true),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry Payment'),
+                ),
+              ],
+              if (verified) ...[
+                const SizedBox(height: AveraSpacing.cardGap),
+                FilledButton(
+                  onPressed: () => context.go(
+                    Uri(
+                      path: '/login',
+                      queryParameters: {
+                        'clinicName': widget.application.clinicName.trim(),
+                      },
+                    ).toString(),
+                  ),
+                  child: const Text('Go to Sign In'),
+                ),
+              ],
+              const SizedBox(height: 14),
+              if (!verified)
+                Text(
+                  'A verified payment automatically approves the clinic and sends the administrator activation email.',
+                  style: averaText(context).caption,
+                  textAlign: TextAlign.center,
+                ),
             ],
-            const SizedBox(height: 14),
-            if (!verified)
-              Text(
-                'A verified payment automatically approves the clinic and sends the administrator activation email.',
-                style: averaText(context).caption,
-                textAlign: TextAlign.center,
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -530,45 +537,48 @@ class _ClinicRegistrationPaymentCallbackScreenState
   @override
   Widget build(BuildContext context) {
     final confirmed = _verification?.verified ?? false;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Confirming Payment')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                confirmed
-                    ? Icons.check_circle_rounded
-                    : _error != null
-                    ? Icons.error_outline_rounded
-                    : Icons.sync_rounded,
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                confirmed
-                    ? subscriptionPaymentVerificationMessage(_verification!)
-                    : _error ?? 'Confirming payment securely...',
-                textAlign: TextAlign.center,
-                style: averaText(context).sectionTitle,
-              ),
-              const SizedBox(height: 20),
-              if (_error != null)
-                FilledButton.icon(
-                  onPressed: _verify,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Try Again'),
-                )
-              else if (confirmed)
-                FilledButton(
-                  onPressed: () => context.go('/login'),
-                  child: const Text('Go to Sign In'),
-                )
-              else
-                const CircularProgressIndicator(),
-            ],
+    return Theme(
+      data: AppTheme.dark(),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Confirming Payment')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  confirmed
+                      ? Icons.check_circle_rounded
+                      : _error != null
+                      ? Icons.error_outline_rounded
+                      : Icons.sync_rounded,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  confirmed
+                      ? subscriptionPaymentVerificationMessage(_verification!)
+                      : _error ?? 'Confirming payment securely...',
+                  textAlign: TextAlign.center,
+                  style: averaText(context).sectionTitle,
+                ),
+                const SizedBox(height: 20),
+                if (_error != null)
+                  FilledButton.icon(
+                    onPressed: _verify,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Try Again'),
+                  )
+                else if (confirmed)
+                  FilledButton(
+                    onPressed: () => context.go('/login'),
+                    child: const Text('Go to Sign In'),
+                  )
+                else
+                  const CircularProgressIndicator(),
+              ],
+            ),
           ),
         ),
       ),

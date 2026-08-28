@@ -559,13 +559,14 @@ class StaffInvitationResult {
 class ClinicApplication {
   const ClinicApplication({
     required this.clinicName,
-    required this.clinicEmail,
+    String? accountEmail,
+    String? clinicEmail,
     required this.phoneNumber,
     required this.address,
     required this.city,
     required this.country,
     required this.administratorName,
-    required this.administratorEmail,
+    String? administratorEmail,
     required this.administratorPhone,
     required this.professionalTitle,
     required this.subscriptionPlan,
@@ -575,16 +576,17 @@ class ClinicApplication {
     this.clinicId,
     this.paymentStatus,
     this.paymentAccessToken,
-  });
+    this.draftAccessToken,
+    this.status,
+  }) : accountEmail = accountEmail ?? administratorEmail ?? clinicEmail ?? '';
 
   final String clinicName;
-  final String clinicEmail;
+  final String accountEmail;
   final String phoneNumber;
   final String address;
   final String city;
   final String country;
   final String administratorName;
-  final String administratorEmail;
   final String administratorPhone;
   final String professionalTitle;
   final String subscriptionPlan;
@@ -594,11 +596,56 @@ class ClinicApplication {
   final String? clinicId;
   final String? paymentStatus;
   final String? paymentAccessToken;
+  final String? draftAccessToken;
+  final String? status;
+
+  String get clinicEmail => accountEmail;
+  String get administratorEmail => accountEmail;
 
   bool get canContinueToPayment =>
       applicationId?.isNotEmpty == true &&
       clinicId?.isNotEmpty == true &&
       paymentAccessToken?.isNotEmpty == true;
+
+  ClinicApplication copyWith({
+    String? clinicName,
+    String? accountEmail,
+    String? phoneNumber,
+    String? address,
+    String? city,
+    String? country,
+    String? administratorName,
+    String? administratorPhone,
+    String? professionalTitle,
+    String? subscriptionPlan,
+    String? timeZone,
+    String? reference,
+    String? applicationId,
+    String? clinicId,
+    String? paymentStatus,
+    String? paymentAccessToken,
+    String? draftAccessToken,
+    String? status,
+  }) => ClinicApplication(
+    clinicName: clinicName ?? this.clinicName,
+    accountEmail: accountEmail ?? this.accountEmail,
+    phoneNumber: phoneNumber ?? this.phoneNumber,
+    address: address ?? this.address,
+    city: city ?? this.city,
+    country: country ?? this.country,
+    administratorName: administratorName ?? this.administratorName,
+    administratorPhone: administratorPhone ?? this.administratorPhone,
+    professionalTitle: professionalTitle ?? this.professionalTitle,
+    subscriptionPlan: subscriptionPlan ?? this.subscriptionPlan,
+    timeZone: timeZone ?? this.timeZone,
+    reference: reference ?? this.reference,
+    applicationId: applicationId ?? this.applicationId,
+    clinicId: clinicId ?? this.clinicId,
+    paymentStatus: paymentStatus ?? this.paymentStatus,
+    paymentAccessToken: paymentAccessToken ?? this.paymentAccessToken,
+    draftAccessToken: draftAccessToken ?? this.draftAccessToken,
+    status: status ?? this.status,
+  );
 }
 
 class ClinicAdministratorActivation {
@@ -764,17 +811,20 @@ class ClinicRepository {
         '/api/v1/clinic-applications',
         body: {
           'clinicName': application.clinicName,
-          'clinicEmail': application.clinicEmail,
+          'accountEmail': application.accountEmail,
           'phoneNumber': application.phoneNumber,
           'address': application.address,
           'city': application.city,
           'country': application.country,
           'administratorName': application.administratorName,
-          'administratorEmail': application.administratorEmail,
           'administratorPhone': application.administratorPhone,
           'professionalTitle': application.professionalTitle,
           'subscriptionPlan': application.subscriptionPlan,
           'timeZone': application.timeZone,
+          if (application.applicationId != null)
+            'applicationId': application.applicationId,
+          if (application.draftAccessToken != null)
+            'draftAccessToken': application.draftAccessToken,
         },
       );
       final remote = response['application'] as Map<String, dynamic>;
@@ -797,6 +847,8 @@ class ClinicRepository {
         clinicId: clinicId,
         paymentStatus: remote['paymentStatus'] as String? ?? 'Pending',
         paymentAccessToken: remote['paymentAccessToken'] as String?,
+        draftAccessToken: remote['draftAccessToken'] as String?,
+        status: remote['status'] as String? ?? 'AwaitingPayment',
       );
       try {
         await db
@@ -828,24 +880,22 @@ class ClinicRepository {
       }
       return submitted;
     }
-    final normalizedEmail = application.administratorEmail.trim().toLowerCase();
-    final duplicate =
-        await (db.select(db.appUsers)
-              ..where((user) => user.email.lower().equals(normalizedEmail)))
+    final normalizedEmail = application.accountEmail.trim().toLowerCase();
+    final existingDraft =
+        await (db.select(db.clinics)
+              ..where((clinic) => clinic.email.lower().equals(normalizedEmail))
+              ..where(
+                (clinic) => clinic.clinicStatus.equals('RegistrationDraft'),
+              ))
             .getSingleOrNull();
-    if (duplicate != null) {
-      throw StateError(
-        'An account already exists for this administrator email.',
-      );
-    }
-    final clinicId = _uuid.v4();
+    final clinicId = existingDraft?.clinicId ?? _uuid.v4();
     final reference =
         'AVR-${DateFormat('yyyyMMdd').format(DateTime.now())}-${clinicId.substring(0, 6).toUpperCase()}';
     final now = DateTime.now();
     await db.transaction(() async {
       await db
           .into(db.clinics)
-          .insert(
+          .insertOnConflictUpdate(
             ClinicsCompanion.insert(
               clinicId: clinicId,
               clinicName: application.clinicName.trim(),
@@ -857,31 +907,8 @@ class ClinicRepository {
               clinicOwner: Value(application.administratorName.trim()),
               timeZone: Value(application.timeZone),
               subscriptionPlan: Value(application.subscriptionPlan),
-              clinicStatus: const Value('PendingApproval'),
+              clinicStatus: const Value('RegistrationDraft'),
               dateRegistered: now,
-            ),
-          );
-      await db
-          .into(db.appUsers)
-          .insert(
-            AppUsersCompanion.insert(
-              userId: _uuid.v4(),
-              clinicId: clinicId,
-              fullName: application.administratorName.trim(),
-              username: normalizedEmail,
-              email: normalizedEmail,
-              phoneNumber: Value(application.administratorPhone.trim()),
-              passwordHash: _hashPassword(_uuid.v4()),
-              role: 'Clinic Administrator',
-              accountType: const Value(AccountTypes.clinicAdministrator),
-              accountStatus: const Value('PendingApproval'),
-              invitationStatus: const Value('PendingApproval'),
-              professionalTitle: Value(
-                application.professionalTitle.trim().isEmpty
-                    ? null
-                    : application.professionalTitle.trim(),
-              ),
-              createdAt: now,
             ),
           );
       await db
@@ -900,12 +927,6 @@ class ClinicRepository {
           );
       await _ensureClinicWorkHours(clinicId, timeZone: application.timeZone);
     });
-    final createdClinic = await (db.select(
-      db.clinics,
-    )..where((clinic) => clinic.clinicId.equals(clinicId))).getSingle();
-    await LocalSubscriptionRepository(
-      db,
-    ).ensureClinicSubscription(createdClinic);
     return ClinicApplication(
       clinicName: application.clinicName,
       clinicEmail: application.clinicEmail,
@@ -920,6 +941,9 @@ class ClinicRepository {
       subscriptionPlan: application.subscriptionPlan,
       timeZone: application.timeZone,
       reference: reference,
+      clinicId: clinicId,
+      status: 'AwaitingPayment',
+      paymentStatus: 'Pending',
     );
   }
 

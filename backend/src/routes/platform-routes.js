@@ -12,18 +12,36 @@ const userStatusSchema = z.object({
 
 const clinicApplicationSchema = z.object({
   clinicName: z.string().trim().min(2).max(160),
-  clinicEmail: z.string().trim().email(),
+  accountEmail: z.string().trim().email().optional(),
+  clinicEmail: z.string().trim().email().optional(),
   phoneNumber: z.string().trim().min(5).max(40),
   address: z.string().trim().min(2).max(500),
   city: z.string().trim().min(2).max(120),
   country: z.string().trim().min(2).max(120),
   administratorName: z.string().trim().min(2).max(160),
-  administratorEmail: z.string().trim().email(),
+  administratorEmail: z.string().trim().email().optional(),
   administratorPhone: z.string().trim().min(5).max(40),
   professionalTitle: z.string().trim().max(160).optional().default(''),
   subscriptionPlan: z.enum(['Starter', 'Professional', 'Enterprise']),
   timeZone: z.string().trim().min(1).max(120).default('Africa/Lagos'),
-});
+  applicationId: z.string().uuid().optional(),
+  draftAccessToken: z.string().trim().min(20).optional(),
+}).superRefine((input, context) => {
+  const emails = [input.accountEmail, input.administratorEmail, input.clinicEmail]
+    .filter(Boolean)
+    .map((email) => email.toLowerCase());
+  if (emails.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['accountEmail'], message: 'Account email is required.' });
+  }
+  if (new Set(emails).size > 1) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['accountEmail'], message: 'Registration uses one account email.' });
+  }
+}).transform((input) => ({
+  ...input,
+  accountEmail: String(
+    input.accountEmail ?? input.administratorEmail ?? input.clinicEmail ?? '',
+  ).toLowerCase(),
+}));
 
 const registrationPaymentInitializeSchema = z.object({
   accessToken: z.string().trim().min(20),
@@ -41,6 +59,7 @@ const registrationPaymentVerifySchema = z.object({
 });
 
 const clinicApplicationPaymentScope = 'clinic-application-payment';
+const clinicApplicationDraftScope = 'clinic-application-draft';
 
 const clinicStatusSchema = z.object({
   status: z.enum([
@@ -81,17 +100,119 @@ export async function platformRoutes(app) {
         async (client) => {
           await client.query(
             'SELECT pg_advisory_xact_lock(hashtext($1))',
-            [`clinic-application:${input.administratorEmail.toLowerCase()}`],
+            [`clinic-application:${input.applicationId ?? input.accountEmail}`],
           );
-          const duplicate = await client.query(
-            `SELECT application_id
-               FROM clinic_applications
-              WHERE lower(administrator_email::text) = lower($1)
-                AND status IN ('Pending', 'PendingApproval', 'Approved')
-              LIMIT 1`,
-            [input.administratorEmail],
-          );
-          if (duplicate.rows.length > 0) return null;
+          const existing = (
+            await client.query(
+              input.applicationId
+                ? `SELECT *
+                     FROM clinic_applications
+                    WHERE application_id = $1
+                      AND status IN ('Draft', 'AwaitingPayment', 'Pending', 'PendingApproval', 'Approved')
+                    FOR UPDATE`
+                : `SELECT *
+                     FROM clinic_applications
+                    WHERE lower(administrator_email::text) = lower($1)
+                      AND status IN ('Draft', 'AwaitingPayment', 'Pending', 'PendingApproval', 'Approved')
+                    ORDER BY updated_at DESC, submitted_at DESC
+                    LIMIT 1
+                    FOR UPDATE`,
+              [input.applicationId ?? input.accountEmail],
+          )).rows[0];
+
+          if (input.applicationId && !existing) {
+            return { draftNotFound: true };
+          }
+
+          if (existing) {
+            if (
+              ['Paid', 'TestVerified'].includes(existing.payment_status) ||
+              ['PendingApproval', 'Approved'].includes(existing.status)
+            ) {
+              return { blocked: true, application: existing };
+            }
+            const draftAccess = input.draftAccessToken
+              ? verifyClinicApplicationDraftToken(app, input.draftAccessToken, existing.application_id)
+              : null;
+            if (
+              !draftAccess ||
+              input.applicationId !== existing.application_id ||
+              draftAccess.clinicId !== existing.clinic_id ||
+              draftAccess.accountEmail !== String(existing.administrator_email).toLowerCase()
+            ) {
+              return { resumeRequired: true, application: existing };
+            }
+            if (existing.payment_reference && existing.selected_plan !== input.subscriptionPlan) {
+              await client.query(
+                `UPDATE subscription_payment_transactions
+                    SET status = CASE WHEN status = 'Pending' THEN 'Abandoned' ELSE status END,
+                        updated_at = now(),
+                        gateway_response_summary =
+                          COALESCE(gateway_response_summary, '{}'::jsonb) ||
+                          jsonb_build_object('reason', 'registration_plan_changed')
+                  WHERE reference = $1 AND clinic_id = $2`,
+                [existing.payment_reference, existing.clinic_id],
+              );
+            }
+            await client.query(
+              `UPDATE clinics
+                  SET name = $2, subscription_plan = $3, email = $4, phone = $5,
+                      address = $6, city = $7, country = $8, time_zone = $9,
+                      status = 'RegistrationDraft', updated_at = now(),
+                      revision = revision + 1
+                WHERE clinic_id = $1`,
+              [
+                existing.clinic_id,
+                input.clinicName,
+                input.subscriptionPlan,
+                input.accountEmail,
+                input.phoneNumber,
+                input.address,
+                input.city,
+                input.country,
+                input.timeZone,
+              ],
+            );
+            const updated = (
+              await client.query(
+                `UPDATE clinic_applications
+                    SET status = 'AwaitingPayment', selected_plan = $2,
+                        clinic_name = $3, clinic_email = $4, clinic_phone = $5,
+                        address = $6, city = $7, country = $8, time_zone = $9,
+                        administrator_name = $10, administrator_email = $4,
+                        administrator_phone = $11, professional_title = $12,
+                        payment_reference = CASE
+                          WHEN selected_plan = $2 THEN payment_reference ELSE NULL END,
+                        updated_at = now()
+                  WHERE application_id = $1
+                  RETURNING *`,
+                [
+                  existing.application_id,
+                  input.subscriptionPlan,
+                  input.clinicName,
+                  input.accountEmail,
+                  input.phoneNumber,
+                  input.address,
+                  input.city,
+                  input.country,
+                  input.timeZone,
+                  input.administratorName,
+                  input.administratorPhone,
+                  input.professionalTitle || null,
+                ],
+              )
+            ).rows[0];
+            await writeAudit(client, {
+              clinicId: existing.clinic_id,
+              actingUserId: null,
+              targetType: 'ClinicApplication',
+              targetId: existing.application_id,
+              action: 'clinic.application_draft_updated',
+              newSummary: { selectedPlan: input.subscriptionPlan, status: 'AwaitingPayment' },
+              ipAddress: request.ip,
+            });
+            return { ...updated, created: false };
+          }
 
           const clinicId = randomUUID();
           const reference = `AVR-${new Date()
@@ -102,12 +223,12 @@ export async function platformRoutes(app) {
             `INSERT INTO clinics
                (clinic_id, name, status, subscription_plan, email, phone,
                 address, city, country, time_zone)
-             VALUES ($1, $2, 'PendingApproval', $3, $4, $5, $6, $7, $8, $9)`,
+             VALUES ($1, $2, 'RegistrationDraft', $3, $4, $5, $6, $7, $8, $9)`,
             [
               clinicId,
               input.clinicName,
               input.subscriptionPlan,
-              input.clinicEmail.toLowerCase(),
+              input.accountEmail,
               input.phoneNumber,
               input.address,
               input.city,
@@ -122,7 +243,7 @@ export async function platformRoutes(app) {
                 address, city, country, time_zone, administrator_name,
                 administrator_email, administrator_phone, professional_title)
              VALUES
-               ($1, 'Pending', $2, 'Pending', $3, $4, $5, $6, $7, $8,
+               ($1, 'AwaitingPayment', $2, 'Pending', $3, $4, $5, $6, $7, $8,
                 $9, $10, $11, $12, $13, $14)
              RETURNING application_id, application_reference, status, submitted_at`,
             [
@@ -130,14 +251,14 @@ export async function platformRoutes(app) {
               input.subscriptionPlan,
               reference,
               input.clinicName,
-              input.clinicEmail.toLowerCase(),
+              input.accountEmail,
               input.phoneNumber,
               input.address,
               input.city,
               input.country,
               input.timeZone,
               input.administratorName,
-              input.administratorEmail.toLowerCase(),
+              input.accountEmail,
               input.administratorPhone,
               input.professionalTitle || null,
             ],
@@ -155,27 +276,47 @@ export async function platformRoutes(app) {
             },
             ipAddress: request.ip,
           });
-          return { ...inserted.rows[0], clinic_id: clinicId };
+          return { ...inserted.rows[0], clinic_id: clinicId, created: true };
         },
       );
-      if (!application) {
-        return reply.code(409).send({
-          error: 'application_exists',
-          message: 'An active clinic application already exists for this administrator.',
+      if (application.draftNotFound) {
+        return reply.code(404).send({
+          error: 'application_draft_not_found',
+          message: 'This registration draft is no longer available.',
         });
       }
-      return reply.code(201).send({
+      if (application.resumeRequired) {
+        return reply.code(409).send({
+          error: 'application_resume_required',
+          message: 'You already started registering this clinic. Continue from the device or verified provider that created it.',
+        });
+      }
+      if (application.blocked) {
+        const paid = ['Paid', 'TestVerified'].includes(application.application.payment_status);
+        return reply.code(409).send({
+          error: paid ? 'application_payment_verified' : 'application_pending_approval',
+          message: paid
+            ? 'Payment was received. Your clinic application is awaiting approval or activation.'
+            : 'Your clinic application is already in the approval workflow.',
+        });
+      }
+      return reply.code(application.created ? 201 : 200).send({
         application: {
           applicationId: application.application_id,
           clinicId: application.clinic_id,
           reference: application.application_reference,
           selectedPlan: input.subscriptionPlan,
-          status: 'Pending',
-          paymentStatus: 'Pending',
+          status: 'AwaitingPayment',
+          paymentStatus: application.payment_status ?? 'Pending',
           paymentAccessToken: createClinicApplicationPaymentToken(app, {
             applicationId: application.application_id,
             clinicId: application.clinic_id,
             selectedPlan: input.subscriptionPlan,
+          }),
+          draftAccessToken: createClinicApplicationDraftToken(app, {
+            applicationId: application.application_id,
+            clinicId: application.clinic_id,
+            accountEmail: input.accountEmail,
           }),
           submittedAt: application.submitted_at,
         },
@@ -651,6 +792,38 @@ export function createClinicApplicationPaymentToken(app, application) {
   );
 }
 
+export function createClinicApplicationDraftToken(app, application) {
+  const ttlMinutes =
+    Number(app.environment.REGISTRATION_DRAFT_TOKEN_TTL_MINUTES) || 10080;
+  return app.jwt.sign(
+    {
+      scope: clinicApplicationDraftScope,
+      applicationId: application.applicationId,
+      clinicId: application.clinicId,
+      accountEmail: String(application.accountEmail).trim().toLowerCase(),
+      nonce: randomUUID(),
+    },
+    { expiresIn: ttlMinutes * 60 },
+  );
+}
+
+function verifyClinicApplicationDraftToken(app, token, applicationId) {
+  try {
+    const access = app.jwt.verify(token);
+    if (
+      access.scope !== clinicApplicationDraftScope ||
+      access.applicationId !== applicationId ||
+      typeof access.clinicId !== 'string' ||
+      typeof access.accountEmail !== 'string'
+    ) {
+      return null;
+    }
+    return access;
+  } catch (_) {
+    return null;
+  }
+}
+
 function verifyClinicApplicationPaymentToken(app, token, applicationId) {
   try {
     const access = app.jwt.verify(token);
@@ -727,14 +900,16 @@ async function queryPlatformClinics(
     await client.query(
       `SELECT count(*)::int AS count
          FROM clinics c
-        WHERE c.deleted_at IS NULL${statusClause}`,
+        WHERE c.deleted_at IS NULL
+          AND c.status <> 'RegistrationDraft'${statusClause}`,
       parameters,
     )
   ).rows[0].count;
   parameters.push(pageSize, Math.max(0, Number(offset) || 0));
   const rows = await client.query(
     `${platformClinicSelect()}
-      WHERE c.deleted_at IS NULL${statusClause}
+      WHERE c.deleted_at IS NULL
+        AND c.status <> 'RegistrationDraft'${statusClause}
       ORDER BY c.created_at DESC
       LIMIT $${parameters.length - 1} OFFSET $${parameters.length}`,
     parameters,

@@ -10,6 +10,20 @@ abstract class AuthRemoteDataSource {
   });
 
   Future<RemoteAuthSession> refresh(String refreshToken);
+  Future<RemoteProviderAuthOutcome> beginProviderAuth({
+    required String provider,
+    required String idToken,
+    required String deviceId,
+    String? nonce,
+    String? existingEmail,
+    String? platform,
+  });
+  Future<RemoteProviderAuthOutcome> verifyProviderLink({
+    required String challengeId,
+    required String code,
+    required String deviceId,
+    String? platform,
+  });
   Future<RemoteClinicAdministratorActivation>
   inspectClinicAdministratorActivation(String token);
   Future<RemoteClinicAdministratorActivationResult>
@@ -53,6 +67,82 @@ abstract class AuthRemoteDataSource {
     required String currentPassword,
     required String newPassword,
   });
+}
+
+enum RemoteProviderAction {
+  signedIn,
+  verificationRequired,
+  registrationRequired,
+  resumeRegistration,
+  applicationPending,
+  applicationRestricted,
+  activationRequired,
+  staffActivationRequired,
+  accountEmailRequired,
+}
+
+class RemoteProviderAuthOutcome {
+  const RemoteProviderAuthOutcome({
+    required this.action,
+    this.session,
+    this.provider,
+    this.challengeId,
+    this.maskedEmail,
+    this.email,
+    this.message,
+    this.application,
+  });
+
+  final RemoteProviderAction action;
+  final RemoteAuthSession? session;
+  final String? provider;
+  final String? challengeId;
+  final String? maskedEmail;
+  final String? email;
+  final String? message;
+  final RemoteRegistrationApplication? application;
+}
+
+class RemoteRegistrationApplication {
+  const RemoteRegistrationApplication({
+    required this.applicationId,
+    required this.clinicId,
+    required this.reference,
+    required this.clinicName,
+    required this.accountEmail,
+    required this.phoneNumber,
+    required this.address,
+    required this.city,
+    required this.country,
+    required this.timeZone,
+    required this.administratorName,
+    required this.administratorPhone,
+    required this.professionalTitle,
+    required this.selectedPlan,
+    required this.status,
+    required this.paymentStatus,
+    this.paymentAccessToken,
+    this.draftAccessToken,
+  });
+
+  final String applicationId;
+  final String clinicId;
+  final String reference;
+  final String clinicName;
+  final String accountEmail;
+  final String phoneNumber;
+  final String address;
+  final String city;
+  final String country;
+  final String timeZone;
+  final String administratorName;
+  final String administratorPhone;
+  final String professionalTitle;
+  final String selectedPlan;
+  final String status;
+  final String paymentStatus;
+  final String? paymentAccessToken;
+  final String? draftAccessToken;
 }
 
 class RemoteClinicAdministratorActivation {

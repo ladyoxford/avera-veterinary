@@ -449,9 +449,16 @@ export class SubscriptionService {
         const paymentStatus = mode === 'test' ? 'TestVerified' : 'Paid';
         await client.query(
           `UPDATE clinic_applications
-              SET payment_status = $2, updated_at = now()
+              SET payment_status = $2, status = 'Pending', updated_at = now()
             WHERE application_id = $1`,
           [applicationId, paymentStatus],
+        );
+        await client.query(
+          `UPDATE clinics
+              SET status = 'PendingApproval', updated_at = now(),
+                  revision = revision + 1
+            WHERE clinic_id = $1 AND status = 'RegistrationDraft'`,
+          [clinicId],
         );
         await audit(client, {
           clinicId,
@@ -1045,7 +1052,7 @@ function validateApplicationPaymentTarget(
       404,
     );
   }
-  if (!['Pending', 'PendingApproval', 'Approved'].includes(application.status)) {
+  if (!['AwaitingPayment', 'Pending', 'PendingApproval', 'Approved'].includes(application.status)) {
     throw serviceError(
       'clinic_application_payment_unavailable',
       'Payment is not available for this clinic application.',

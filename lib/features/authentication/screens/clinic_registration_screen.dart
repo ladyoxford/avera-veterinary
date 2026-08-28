@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../core/config/app_providers.dart';
@@ -8,16 +9,23 @@ import '../../../core/config/clinic_registration_provider.dart';
 import '../../../core/location/country_catalog.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/repositories/clinic_repository.dart';
+import '../../../core/subscription/subscription_plan_config.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/avera_auth_ui.dart';
 import '../../shared/widgets/subscription_widgets.dart';
-import 'clinic_registration_payment_screen.dart';
+import 'clinic_registration_review_screen.dart';
 import 'subscription_comparison_screen.dart';
 
-enum _ClinicRegistrationNextStep { payment, done }
-
 class ClinicRegistrationScreen extends HookConsumerWidget {
-  const ClinicRegistrationScreen({super.key});
+  const ClinicRegistrationScreen({
+    super.key,
+    this.initialApplication,
+    this.initialAccountEmail,
+  });
+
+  final ClinicApplication? initialApplication;
+  final String? initialAccountEmail;
 
   static const _timeZones = <String>[
     'Africa/Accra',
@@ -34,21 +42,83 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final formKey = useMemoized(GlobalKey<FormState>.new);
-    final clinicName = useTextEditingController();
-    final clinicEmail = useTextEditingController();
-    final phone = useTextEditingController();
-    final address = useTextEditingController();
-    final city = useTextEditingController();
-    final countryCode = useState('NG');
+    final clinicName = useTextEditingController(
+      text: initialApplication?.clinicName,
+    );
+    final accountEmail = useTextEditingController(
+      text: initialApplication?.accountEmail ?? initialAccountEmail,
+    );
+    final phone = useTextEditingController(
+      text: initialApplication?.phoneNumber,
+    );
+    final address = useTextEditingController(text: initialApplication?.address);
+    final city = useTextEditingController(text: initialApplication?.city);
+    final initialCountry = CountryCatalog.all.where(
+      (item) => item.displayName == initialApplication?.country,
+    );
+    final countryCode = useState(
+      initialCountry.isNotEmpty ? initialCountry.first.isoAlpha2 : 'NG',
+    );
     final country = CountryCatalog.byAlpha2(countryCode.value)!;
-    final administrator = useTextEditingController();
-    final administratorEmail = useTextEditingController();
-    final administratorPhone = useTextEditingController();
-    final title = useTextEditingController();
-    final timeZone = useState('Africa/Lagos');
+    final administrator = useTextEditingController(
+      text: initialApplication?.administratorName,
+    );
+    final administratorPhone = useTextEditingController(
+      text: initialApplication?.administratorPhone,
+    );
+    final title = useTextEditingController(
+      text: initialApplication?.professionalTitle,
+    );
+    final timeZone = useState(initialApplication?.timeZone ?? 'Africa/Lagos');
     final accepted = useState(false);
     final submitting = useState(false);
+    final activeDraft = useState<ClinicApplication?>(initialApplication);
+    final restored = useState(initialApplication != null);
     final selectedPlan = ref.watch(clinicRegistrationPlanProvider);
+
+    useEffect(() {
+      final initialPlan = SubscriptionPlan.values.where(
+        (item) => item.label == initialApplication?.subscriptionPlan,
+      );
+      if (initialPlan.isNotEmpty) {
+        ref.read(clinicRegistrationPlanProvider.notifier).state =
+            initialPlan.first;
+      }
+      if (restored.value) return null;
+      unawaited(() async {
+        final draft = await ref
+            .read(clinicRegistrationDraftStoreProvider)
+            .load();
+        if (draft == null || !context.mounted) {
+          restored.value = true;
+          return;
+        }
+        activeDraft.value = draft;
+        clinicName.text = draft.clinicName;
+        accountEmail.text = draft.accountEmail;
+        phone.text = draft.phoneNumber;
+        address.text = draft.address;
+        city.text = draft.city;
+        administrator.text = draft.administratorName;
+        administratorPhone.text = draft.administratorPhone;
+        title.text = draft.professionalTitle;
+        timeZone.value = draft.timeZone;
+        final matchingCountry = CountryCatalog.all.where(
+          (item) => item.displayName == draft.country,
+        );
+        if (matchingCountry.isNotEmpty) {
+          countryCode.value = matchingCountry.first.isoAlpha2;
+        }
+        final plan = SubscriptionPlan.values.where(
+          (item) => item.label == draft.subscriptionPlan,
+        );
+        if (plan.isNotEmpty) {
+          ref.read(clinicRegistrationPlanProvider.notifier).state = plan.first;
+        }
+        restored.value = true;
+      }());
+      return null;
+    }, const []);
 
     Future<void> submit() async {
       if (submitting.value) return;
@@ -67,68 +137,38 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
       }
       submitting.value = true;
       try {
+        final pending = ClinicApplication(
+          clinicName: clinicName.text,
+          accountEmail: accountEmail.text,
+          phoneNumber: phone.text,
+          address: address.text,
+          city: city.text,
+          country: country.displayName,
+          administratorName: administrator.text,
+          administratorPhone: administratorPhone.text,
+          professionalTitle: title.text,
+          subscriptionPlan: selectedPlan.label,
+          timeZone: timeZone.value,
+          applicationId: activeDraft.value?.applicationId,
+          clinicId: activeDraft.value?.clinicId,
+          reference: activeDraft.value?.reference,
+          paymentStatus: activeDraft.value?.paymentStatus,
+          paymentAccessToken: activeDraft.value?.paymentAccessToken,
+          draftAccessToken: activeDraft.value?.draftAccessToken,
+          status: activeDraft.value?.status,
+        );
         final application = await ref
             .read(clinicRepositoryProvider)
-            .submitClinicApplication(
-              ClinicApplication(
-                clinicName: clinicName.text,
-                clinicEmail: clinicEmail.text,
-                phoneNumber: phone.text,
-                address: address.text,
-                city: city.text,
-                country: country.displayName,
-                administratorName: administrator.text,
-                administratorEmail: administratorEmail.text,
-                administratorPhone: administratorPhone.text,
-                professionalTitle: title.text,
-                subscriptionPlan: selectedPlan.label,
-                timeZone: timeZone.value,
-              ),
-            );
+            .submitClinicApplication(pending);
+        activeDraft.value = application;
+        await ref.read(clinicRegistrationDraftStoreProvider).save(application);
         if (context.mounted) {
-          final nextStep = await showDialog<_ClinicRegistrationNextStep>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text('Application submitted'),
-              content: Text(
-                'Your clinic application has been submitted successfully.\n\nReference: ${application.reference}\nPlan: ${application.subscriptionPlan}\nStatus: Pending approval\nPayment: ${application.paymentStatus ?? 'Pending'}\n\nContinue to payment to complete your registration request. Platform Owner approval and administrator activation remain separate required steps.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(
-                    dialogContext,
-                    _ClinicRegistrationNextStep.done,
-                  ),
-                  child: const Text('Done'),
-                ),
-                if (application.canContinueToPayment)
-                  FilledButton(
-                    key: const Key('continue-to-registration-payment'),
-                    onPressed: () => Navigator.pop(
-                      dialogContext,
-                      _ClinicRegistrationNextStep.payment,
-                    ),
-                    child: const Text('Continue to Payment'),
-                  ),
-              ],
+          await Navigator.of(context).push<ClinicRegistrationReviewAction>(
+            MaterialPageRoute(
+              builder: (_) =>
+                  ClinicRegistrationReviewScreen(application: application),
             ),
           );
-          if (!context.mounted) return;
-          if (nextStep == _ClinicRegistrationNextStep.payment) {
-            await Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) =>
-                    ClinicRegistrationPaymentScreen(application: application),
-              ),
-            );
-          } else if (nextStep == _ClinicRegistrationNextStep.done) {
-            context.go(
-              Uri(
-                path: '/login',
-                queryParameters: {'clinicName': application.clinicName.trim()},
-              ).toString(),
-            );
-          }
         }
       } on ApiException catch (error) {
         if (context.mounted) {
@@ -173,194 +213,251 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
       if (value != null) timeZone.value = value;
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Register Your Clinic')),
-      body: SafeArea(
-        child: Form(
-          key: formKey,
-          child: ListView(
-            key: const Key('clinic-registration-form'),
-            padding: const EdgeInsets.fromLTRB(
-              AveraSpacing.pageHorizontalPadding,
-              AveraSpacing.pageTopPadding,
-              AveraSpacing.pageHorizontalPadding,
-              48,
+    if (!restored.value) {
+      return const AveraAuthScaffold(
+        backTitle: 'Register Your Clinic',
+        showBrand: false,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return AveraAuthScaffold(
+      backTitle: 'Register Your Clinic',
+      showBrand: false,
+      child: Form(
+        key: formKey,
+        child: Column(
+          key: const Key('clinic-registration-form'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Create your AVERA clinic workspace.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
-            children: [
-              const AveraPageHeader(
-                title: 'Register Your Clinic',
-                subtitle: 'Create your AVERA clinic workspace.',
-              ),
-              const SizedBox(height: AveraSpacing.subtitleToContentGap),
-              const AveraSectionHeader(title: 'Clinic information'),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledTextField(
-                key: const Key('clinic-name-field'),
-                label: 'Clinic Name',
-                hint: 'Enter clinic name',
-                controller: clinicName,
-                validator: _required,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledTextField(
-                key: const Key('clinic-email-field'),
-                label: 'Clinic Email Address',
-                hint: 'clinic@example.com',
-                controller: clinicEmail,
-                keyboardType: TextInputType.emailAddress,
-                validator: _email,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledTextField(
-                key: const Key('clinic-phone-field'),
-                label: 'Phone Number',
-                hint: 'Enter clinic phone number',
-                controller: phone,
-                keyboardType: TextInputType.phone,
-                validator: _required,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledTextField(
-                key: const Key('clinic-address-field'),
-                label: 'Address',
-                hint: 'Enter clinic address',
-                controller: address,
-                validator: _required,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final stackFields = constraints.maxWidth < 680;
-                  final cityField = _LabeledTextField(
-                    key: const Key('clinic-city-field'),
-                    label: 'City',
-                    hint: 'Enter city',
-                    controller: city,
+            const SizedBox(height: 28),
+            const _AuthSectionTitle('Clinic Information'),
+            const SizedBox(height: 12),
+            AveraAuthCard(
+              child: Column(
+                children: [
+                  AveraAuthField(
+                    key: const Key('clinic-name-field'),
+                    label: 'Clinic Name',
+                    hintText: 'Enter clinic name',
+                    controller: clinicName,
+                    icon: Icons.local_hospital_outlined,
+                    textInputAction: TextInputAction.next,
                     validator: _required,
-                  );
-                  final countryField = _LabeledSelectionField(
-                    key: const Key('clinic-country-field'),
-                    label: 'Country',
-                    value: country.displayName,
-                    onTap: selectCountry,
-                  );
-                  if (stackFields) {
-                    return Column(
+                  ),
+                  const SizedBox(height: 20),
+                  AveraAuthField(
+                    key: const Key('clinic-phone-field'),
+                    label: 'Phone Number',
+                    hintText: 'Enter clinic phone number',
+                    controller: phone,
+                    icon: Icons.phone_outlined,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 20),
+                  AveraAuthField(
+                    key: const Key('clinic-address-field'),
+                    label: 'Address',
+                    hintText: 'Enter clinic address',
+                    controller: address,
+                    icon: Icons.location_on_outlined,
+                    textInputAction: TextInputAction.next,
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 20),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cityField = AveraAuthField(
+                        key: const Key('clinic-city-field'),
+                        label: 'City',
+                        hintText: 'Enter city',
+                        controller: city,
+                        icon: Icons.location_city_outlined,
+                        textInputAction: TextInputAction.next,
+                        validator: _required,
+                      );
+                      final countryField = _AuthSelectionField(
+                        key: const Key('clinic-country-field'),
+                        label: 'Country',
+                        value: country.displayName,
+                        icon: Icons.public_outlined,
+                        onTap: selectCountry,
+                      );
+                      if (constraints.maxWidth < 500) {
+                        return Column(
+                          children: [
+                            cityField,
+                            const SizedBox(height: 20),
+                            countryField,
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: cityField),
+                          const SizedBox(width: 16),
+                          Expanded(child: countryField),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            const _AuthSectionTitle('Work Hours'),
+            const SizedBox(height: 12),
+            AveraAuthCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _AuthSelectionField(
+                    key: const Key('clinic-time-zone-field'),
+                    label: 'Time Zone',
+                    value: timeZone.value,
+                    icon: Icons.schedule_outlined,
+                    onTap: selectTimeZone,
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        cityField,
-                        const SizedBox(height: AveraSpacing.cardGap),
-                        countryField,
+                        Text(
+                          'Mon-Sat 08:00-18:00 | Sun Closed',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Individual days and break periods can be adjusted after approval.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
-                    );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: cityField),
-                      const SizedBox(width: AveraSpacing.cardGap),
-                      Expanded(child: countryField),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: AveraSpacing.sectionGap),
-              const AveraSectionHeader(title: 'Work Hours'),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledSelectionField(
-                key: const Key('clinic-time-zone-field'),
-                label: 'Time Zone',
-                value: timeZone.value,
-                onTap: selectTimeZone,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Mon-Sat 08:00-18:00\nSun Closed\nYou can adjust individual days and break periods after approval.',
-                style: averaText(context).caption,
-              ),
-              const SizedBox(height: AveraSpacing.sectionGap),
-              const AveraSectionHeader(title: 'Clinic administrator'),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledTextField(
-                key: const Key('administrator-name-field'),
-                label: 'Full Name',
-                hint: 'Administrator full name',
-                controller: administrator,
-                validator: _required,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledTextField(
-                key: const Key('administrator-email-field'),
-                label: 'Email Address',
-                hint: 'administrator@example.com',
-                controller: administratorEmail,
-                keyboardType: TextInputType.emailAddress,
-                validator: _email,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledTextField(
-                key: const Key('administrator-phone-field'),
-                label: 'Phone Number',
-                hint: 'Administrator phone number',
-                controller: administratorPhone,
-                keyboardType: TextInputType.phone,
-                validator: _required,
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              _LabeledTextField(
-                label: 'Professional Title',
-                hint: 'Veterinarian, Director, Practice Manager...',
-                controller: title,
-              ),
-              const SizedBox(height: AveraSpacing.sectionGap),
-              const AveraSectionHeader(
-                title: 'Subscription',
-                subtitle:
-                    'Choose the plan that fits your clinic \u2014 you can upgrade anytime.',
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              SubscriptionPlanSelector(
-                selectedPlan: selectedPlan,
-                onSelected: (plan) {
-                  ref.read(clinicRegistrationPlanProvider.notifier).state =
-                      plan;
-                },
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  key: const Key('compare-all-features'),
-                  onPressed: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const ClinicSubscriptionComparisonScreen(),
                     ),
                   ),
-                  icon: const Icon(Icons.arrow_forward_rounded),
-                  label: const Text('Compare all features'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            const _AuthSectionTitle('Clinic Administrator'),
+            const SizedBox(height: 12),
+            AveraAuthCard(
+              child: Column(
+                children: [
+                  AveraAuthField(
+                    key: const Key('administrator-name-field'),
+                    label: 'Full Name',
+                    hintText: 'Administrator full name',
+                    controller: administrator,
+                    icon: Icons.person_outline_rounded,
+                    textInputAction: TextInputAction.next,
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 20),
+                  AveraAuthField(
+                    key: const Key('account-email-field'),
+                    label: 'Account Email',
+                    hintText: 'administrator@example.com',
+                    controller: accountEmail,
+                    icon: Icons.mail_outline_rounded,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.email],
+                    helperText:
+                        'Used for sign-in, clinic activation and registration updates.',
+                    validator: _email,
+                  ),
+                  const SizedBox(height: 20),
+                  AveraAuthField(
+                    key: const Key('administrator-phone-field'),
+                    label: 'Phone Number',
+                    hintText: 'Administrator phone number',
+                    controller: administratorPhone,
+                    icon: Icons.phone_outlined,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 20),
+                  AveraAuthField(
+                    key: const Key('administrator-title-field'),
+                    label: 'Professional Title',
+                    hintText: 'Veterinarian, Director, Practice Manager...',
+                    controller: title,
+                    icon: Icons.badge_outlined,
+                    textInputAction: TextInputAction.done,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            const _AuthSectionTitle('Subscription'),
+            const SizedBox(height: 5),
+            Text(
+              'Choose the plan that fits your clinic. You can upgrade later.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            SubscriptionPlanSelector(
+              selectedPlan: selectedPlan,
+              onSelected: (plan) {
+                ref.read(clinicRegistrationPlanProvider.notifier).state = plan;
+              },
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('compare-all-features'),
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => const ClinicSubscriptionComparisonScreen(),
+                  ),
                 ),
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: const Text('Compare all features'),
               ),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                key: const Key('clinic-registration-terms'),
-                contentPadding: EdgeInsets.zero,
-                value: accepted.value,
-                onChanged: (value) => accepted.value = value ?? false,
-                title: Text(
-                  'I accept the Terms of Service and Privacy Policy.',
-                  style: averaText(context).listItemSubtitle,
-                ),
-                controlAffinity: ListTileControlAffinity.leading,
+            ),
+            CheckboxListTile(
+              key: const Key('clinic-registration-terms'),
+              contentPadding: EdgeInsets.zero,
+              value: accepted.value,
+              onChanged: submitting.value
+                  ? null
+                  : (value) => accepted.value = value ?? false,
+              title: Text(
+                'I accept the Terms of Service and Privacy Policy.',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-              const SizedBox(height: 12),
-              AveraPrimaryActionButton(
-                label: 'Continue with ${selectedPlan.label}',
-                icon: Icons.arrow_forward_rounded,
-                loading: submitting.value,
-                onPressed: submit,
-              ),
-            ],
-          ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+            const SizedBox(height: 14),
+            AveraPrimaryActionButton(
+              key: const Key('review-and-continue'),
+              label: 'Review & Continue',
+              icon: Icons.arrow_forward_rounded,
+              loading: submitting.value,
+              onPressed: submit,
+            ),
+          ],
         ),
       ),
     );
@@ -398,73 +495,76 @@ String _registrationFailureMessage(ApiException error) {
   return '${error.message} Your form has been preserved.';
 }
 
-class _LabeledTextField extends StatelessWidget {
-  const _LabeledTextField({
-    super.key,
-    required this.label,
-    required this.hint,
-    required this.controller,
-    this.validator,
-    this.keyboardType,
-  });
+class _AuthSectionTitle extends StatelessWidget {
+  const _AuthSectionTitle(this.title);
 
-  final String label;
-  final String hint;
-  final TextEditingController controller;
-  final String? Function(String?)? validator;
-  final TextInputType? keyboardType;
+  final String title;
 
   @override
-  Widget build(BuildContext context) => AveraLabeledFieldCard(
-    label: label,
-    child: TextFormField(
-      controller: controller,
-      validator: validator,
-      keyboardType: keyboardType,
-      style: averaText(context).fieldValue,
-      decoration: InputDecoration.collapsed(
-        hintText: hint,
-        hintStyle: averaText(context).fieldPlaceholder,
-      ),
-    ),
+  Widget build(BuildContext context) => Text(
+    title,
+    style: Theme.of(
+      context,
+    ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
   );
 }
 
-class _LabeledSelectionField extends StatelessWidget {
-  const _LabeledSelectionField({
+class _AuthSelectionField extends StatelessWidget {
+  const _AuthSelectionField({
     super.key,
     required this.label,
     required this.value,
+    required this.icon,
     required this.onTap,
   });
 
   final String label;
   final String value;
+  final IconData icon;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => AveraLabeledFieldCard(
-    label: label,
-    child: Semantics(
-      button: true,
-      label: '$label, $value',
-      child: InkWell(
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(value, style: averaText(context).fieldValue),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AveraFormLabel(label),
+        const SizedBox(height: 9),
+        Semantics(
+          button: true,
+          label: '$label, $value',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onTap,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 60),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.outlineVariant),
               ),
-              const SizedBox(width: 12),
-              const Icon(Icons.keyboard_arrow_down_rounded),
-            ],
+              child: Row(
+                children: [
+                  Icon(icon, color: colors.onSurfaceVariant),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Text(
+                      value,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(Icons.keyboard_arrow_down_rounded),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      ],
+    );
+  }
 }
 
 class _SearchSelectionSheet extends StatefulWidget {

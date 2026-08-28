@@ -10,6 +10,7 @@ import 'package:avera/core/repositories/clinic_repository.dart';
 import 'package:avera/core/subscription/subscription_plan_config.dart';
 import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/features/authentication/screens/clinic_registration_payment_screen.dart';
+import 'package:avera/features/authentication/screens/clinic_registration_review_screen.dart';
 import 'package:avera/features/authentication/screens/clinic_registration_screen.dart';
 import 'package:avera/features/shared/widgets/subscription_widgets.dart';
 
@@ -55,13 +56,12 @@ void main() {
       final submitted = await repository.submitClinicApplication(
         const ClinicApplication(
           clinicName: 'Crest Veterinary Hospital',
-          clinicEmail: 'hello@crest.test',
+          accountEmail: 'administrator@crest.test',
           phoneNumber: '+2348000000000',
           address: '1 Veterinary Way',
           city: 'Abuja',
           country: 'Nigeria',
           administratorName: 'Crest Administrator',
-          administratorEmail: 'administrator@crest.test',
           administratorPhone: '+2348111111111',
           professionalTitle: 'Veterinarian',
           subscriptionPlan: 'Enterprise',
@@ -71,6 +71,8 @@ void main() {
 
       final clinic = await database.select(database.clinics).getSingle();
       expect(submitted.subscriptionPlan, SubscriptionPlan.enterprise.label);
+      expect(submitted.accountEmail, 'administrator@crest.test');
+      expect(submitted.clinicEmail, submitted.administratorEmail);
       expect(clinic.subscriptionPlan, SubscriptionPlan.enterprise.label);
     },
   );
@@ -91,6 +93,10 @@ void main() {
     expect(countryRect.left, cityRect.left);
     expect(countryRect.width, closeTo(cityRect.width, 1));
     expect(find.text('COUNTRY'), findsOneWidget);
+    expect(find.text('ACCOUNT EMAIL'), findsOneWidget);
+    expect(find.byKey(const Key('clinic-email-field')), findsNothing);
+    expect(find.byKey(const Key('administrator-email-field')), findsNothing);
+    expect(find.text('Register Your Clinic'), findsOneWidget);
 
     await _scrollRegistrationUntilVisible(
       tester,
@@ -128,9 +134,9 @@ void main() {
     );
     await _scrollRegistrationUntilVisible(
       tester,
-      find.text('Continue with Professional'),
+      find.text('Review & Continue'),
     );
-    expect(find.text('Continue with Professional'), findsOneWidget);
+    expect(find.text('Review & Continue'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -208,9 +214,9 @@ void main() {
     );
     await _scrollRegistrationUntilVisible(
       tester,
-      find.text('Continue with Enterprise'),
+      find.text('Review & Continue'),
     );
-    expect(find.text('Continue with Enterprise'), findsOneWidget);
+    expect(find.text('Review & Continue'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -232,94 +238,106 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'submitted application offers payment without submitting a second application',
-    (tester) async {
-      FlutterSecureStorage.setMockInitialValues({});
-      final database = AppDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(database.close);
-      final repository = _PaymentReadyClinicRepository(database);
-      await _pumpRegistration(
-        tester,
-        size: const Size(390, 844),
-        repository: repository,
-      );
+  testWidgets('review edits reuse the same unpaid application before payment', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = _PaymentReadyClinicRepository(database);
+    await _pumpRegistration(
+      tester,
+      size: const Size(390, 844),
+      repository: repository,
+    );
 
-      await _enterRegistrationField(
-        tester,
-        const Key('clinic-name-field'),
-        'Crest Veterinary Hospital',
-      );
-      await _enterRegistrationField(
-        tester,
-        const Key('clinic-email-field'),
-        'hello@crest.test',
-      );
-      await _enterRegistrationField(
-        tester,
-        const Key('clinic-phone-field'),
-        '+2348000000000',
-      );
-      await _enterRegistrationField(
-        tester,
-        const Key('clinic-address-field'),
-        '1 Veterinary Way',
-      );
-      await _enterRegistrationField(
-        tester,
-        const Key('clinic-city-field'),
-        'Abuja',
-      );
-      await _enterRegistrationField(
-        tester,
-        const Key('administrator-name-field'),
-        'Crest Administrator',
-      );
-      await _enterRegistrationField(
-        tester,
-        const Key('administrator-email-field'),
-        'administrator@crest.test',
-      );
-      await _enterRegistrationField(
-        tester,
-        const Key('administrator-phone-field'),
-        '+2348111111111',
-      );
+    await _enterRegistrationField(
+      tester,
+      const Key('clinic-name-field'),
+      'Crest Veterinary Hospital',
+    );
+    await _enterRegistrationField(
+      tester,
+      const Key('account-email-field'),
+      'administrator@crest.test',
+    );
+    await _enterRegistrationField(
+      tester,
+      const Key('clinic-phone-field'),
+      '+2348000000000',
+    );
+    await _enterRegistrationField(
+      tester,
+      const Key('clinic-address-field'),
+      '1 Veterinary Way',
+    );
+    await _enterRegistrationField(
+      tester,
+      const Key('clinic-city-field'),
+      'Abuja',
+    );
+    await _enterRegistrationField(
+      tester,
+      const Key('administrator-name-field'),
+      'Crest Administrator',
+    );
+    await _enterRegistrationField(
+      tester,
+      const Key('administrator-phone-field'),
+      '+2348111111111',
+    );
 
-      final enterprise = find.byKey(const Key('subscription-plan-enterprise'));
-      await _scrollRegistrationUntilVisible(tester, enterprise);
-      await tester.tap(enterprise);
-      await tester.pumpAndSettle();
-      final terms = find.byKey(const Key('clinic-registration-terms'));
-      await _scrollRegistrationUntilVisible(tester, terms);
-      await tester.tap(terms);
-      await tester.pumpAndSettle();
-      final submit = find.text('Continue with Enterprise');
-      await _scrollRegistrationUntilVisible(tester, submit);
-      await tester.tap(submit);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+    final enterprise = find.byKey(const Key('subscription-plan-enterprise'));
+    await _scrollRegistrationUntilVisible(tester, enterprise);
+    await tester.tap(enterprise);
+    await tester.pumpAndSettle();
+    final terms = find.byKey(const Key('clinic-registration-terms'));
+    await _scrollRegistrationUntilVisible(tester, terms);
+    await tester.tap(terms);
+    await tester.pumpAndSettle();
+    final submit = find.text('Review & Continue');
+    await _scrollRegistrationUntilVisible(tester, submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
 
-      expect(find.text('Application submitted'), findsOneWidget);
-      expect(find.text('Continue to Payment'), findsOneWidget);
-      expect(find.textContaining('Plan: Enterprise'), findsOneWidget);
-      expect(find.textContaining('Payment: Pending'), findsOneWidget);
-      expect(repository.submissionCount, 1);
-      expect(repository.submitted?.subscriptionPlan, 'Enterprise');
+    expect(find.byType(ClinicRegistrationReviewScreen), findsOneWidget);
+    expect(find.text('Continue to Payment'), findsOneWidget);
+    expect(find.text('administrator@crest.test'), findsOneWidget);
+    expect(find.text('Enterprise'), findsOneWidget);
+    expect(repository.submissionCount, 1);
+    expect(repository.submitted?.subscriptionPlan, 'Enterprise');
+    expect(repository.submittedApplicationIds, [null]);
 
-      await tester.tap(
-        find.byKey(const Key('continue-to-registration-payment')),
-      );
-      await tester.pumpAndSettle();
+    final editDetails = find.byKey(const Key('edit-registration-details'));
+    await _scrollAuthUntilVisible(tester, editDetails);
+    await tester.tap(editDetails);
+    await tester.pumpAndSettle();
+    expect(find.byType(ClinicRegistrationScreen), findsOneWidget);
+    await _enterRegistrationField(
+      tester,
+      const Key('clinic-address-field'),
+      '22 Corrected Veterinary Way',
+    );
+    await _scrollRegistrationUntilVisible(tester, submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
 
-      expect(find.byType(ClinicRegistrationPaymentScreen), findsOneWidget);
-      expect(find.text('AVR-20260818-ABC123'), findsOneWidget);
-      expect(find.text('Enterprise'), findsOneWidget);
-      expect(find.text('Pending approval'), findsOneWidget);
-      expect(repository.submissionCount, 1);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    expect(find.byType(ClinicRegistrationReviewScreen), findsOneWidget);
+    expect(find.textContaining('22 Corrected Veterinary Way'), findsOneWidget);
+    expect(repository.submissionCount, 2);
+    expect(repository.submittedApplicationIds, [null, 'application-1']);
+
+    final continueToPayment = find.byKey(
+      const Key('continue-registration-to-payment'),
+    );
+    await _scrollAuthUntilVisible(tester, continueToPayment);
+    await tester.tap(continueToPayment);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ClinicRegistrationPaymentScreen), findsOneWidget);
+    expect(repository.submissionCount, 2);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('registration explains throttling and preserves entered form data', (
     tester,
@@ -340,7 +358,7 @@ void main() {
     );
     await _completeRequiredRegistrationFields(tester);
 
-    final submit = find.text('Continue with Starter');
+    final submit = find.text('Review & Continue');
     await _scrollRegistrationUntilVisible(tester, submit);
     await tester.tap(submit);
     await tester.pumpAndSettle();
@@ -370,12 +388,11 @@ void main() {
 Future<void> _completeRequiredRegistrationFields(WidgetTester tester) async {
   const fields = <(Key, String)>[
     (Key('clinic-name-field'), 'Crest Veterinary Hospital'),
-    (Key('clinic-email-field'), 'hello@crest.test'),
     (Key('clinic-phone-field'), '+2348000000000'),
     (Key('clinic-address-field'), '1 Veterinary Way'),
     (Key('clinic-city-field'), 'Abuja'),
     (Key('administrator-name-field'), 'Crest Administrator'),
-    (Key('administrator-email-field'), 'administrator@crest.test'),
+    (Key('account-email-field'), 'administrator@crest.test'),
     (Key('administrator-phone-field'), '+2348111111111'),
   ];
   for (final (key, value) in fields) {
@@ -407,17 +424,33 @@ Future<void> _scrollRegistrationUntilVisible(
   Finder target, {
   bool upward = false,
 }) async {
-  final form = find.byKey(const Key('clinic-registration-form'));
+  await _dragPageUntilVisible(tester, target, upward: upward);
+}
+
+Future<void> _scrollAuthUntilVisible(WidgetTester tester, Finder target) async {
+  await _dragPageUntilVisible(tester, target);
+}
+
+Future<void> _dragPageUntilVisible(
+  WidgetTester tester,
+  Finder target, {
+  bool upward = false,
+}) async {
+  if (target.evaluate().isEmpty) {
+    fail('Could not find the target widget in the current page.');
+  }
+  final page = find.byType(SingleChildScrollView).first;
+  final viewportHeight =
+      tester.view.physicalSize.height / tester.view.devicePixelRatio;
   for (var attempt = 0; attempt < 20; attempt++) {
-    if (target.evaluate().isNotEmpty) {
-      await tester.ensureVisible(target);
-      await tester.pumpAndSettle();
-      return;
-    }
-    await tester.drag(form, Offset(0, upward ? 600 : -600));
+    final rect = tester.getRect(target);
+    if (rect.top >= 0 && rect.bottom <= viewportHeight) return;
+    final moveUp = rect.top >= viewportHeight || !upward;
+    await tester.drag(page, Offset(0, moveUp ? -500 : 500));
     await tester.pumpAndSettle();
   }
-  fail('Could not reveal the target widget in the registration form.');
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pumpRegistration(
@@ -426,6 +459,7 @@ Future<void> _pumpRegistration(
   ThemeMode themeMode = ThemeMode.light,
   ClinicRepository? repository,
 }) async {
+  FlutterSecureStorage.setMockInitialValues({});
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
@@ -450,6 +484,7 @@ class _PaymentReadyClinicRepository extends ClinicRepository {
 
   int submissionCount = 0;
   ClinicApplication? submitted;
+  final submittedApplicationIds = <String?>[];
 
   @override
   Future<ClinicApplication> submitClinicApplication(
@@ -457,15 +492,15 @@ class _PaymentReadyClinicRepository extends ClinicRepository {
   ) async {
     submissionCount += 1;
     submitted = application;
+    submittedApplicationIds.add(application.applicationId);
     return ClinicApplication(
       clinicName: application.clinicName,
-      clinicEmail: application.clinicEmail,
+      accountEmail: application.accountEmail,
       phoneNumber: application.phoneNumber,
       address: application.address,
       city: application.city,
       country: application.country,
       administratorName: application.administratorName,
-      administratorEmail: application.administratorEmail,
       administratorPhone: application.administratorPhone,
       professionalTitle: application.professionalTitle,
       subscriptionPlan: application.subscriptionPlan,

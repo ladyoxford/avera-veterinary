@@ -725,6 +725,32 @@ test('inventory subcategory migration is additive, nullable, and clinic scoped',
   assert.match(routes, /category_key, subcategory, subcategory_key/);
 });
 
+test('provider identity migration stores only verified links and hashed challenges', () => {
+  const providerIdentity = fs.readFileSync(
+    new URL(
+      '../migrations/029_auth_provider_links_and_registration_drafts.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  for (const table of [
+    'user_auth_providers',
+    'auth_provider_link_challenges',
+  ]) {
+    assert.match(providerIdentity, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
+  }
+  assert.match(providerIdentity, /UNIQUE \(provider_type, provider_subject\)/);
+  assert.match(providerIdentity, /UNIQUE \(user_id, provider_type\)/);
+  assert.match(providerIdentity, /code_hash TEXT NOT NULL/);
+  assert.match(providerIdentity, /attempts_remaining INTEGER NOT NULL DEFAULT 5/);
+  assert.match(providerIdentity, /expires_at TIMESTAMPTZ NOT NULL/);
+  assert.match(providerIdentity, /used_at TIMESTAMPTZ/);
+  assert.match(providerIdentity, /revoked_at TIMESTAMPTZ/);
+  assert.match(providerIdentity, /ENABLE ROW LEVEL SECURITY/);
+  assert.doesNotMatch(providerIdentity, /code\s+TEXT/i);
+  assert.doesNotMatch(providerIdentity, /DROP TABLE|TRUNCATE|DELETE FROM users/i);
+});
+
 test('Add Stock is permission guarded, additive, tenant scoped, and ledger backed', () => {
   const routes = fs.readFileSync(
     new URL('../src/routes/clinical-routes.js', import.meta.url),

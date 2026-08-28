@@ -1,0 +1,133 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/repositories/clinic_repository.dart';
+import '../../shared/widgets/avera_auth_ui.dart';
+import 'clinic_registration_payment_screen.dart';
+
+enum ClinicRegistrationReviewAction { edit }
+
+class ClinicRegistrationReviewScreen extends StatelessWidget {
+  const ClinicRegistrationReviewScreen({super.key, required this.application});
+
+  final ClinicApplication application;
+
+  @override
+  Widget build(BuildContext context) => AveraAuthScaffold(
+    backTitle: 'Review Your Clinic',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Confirm these details before opening Paystack.',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 24),
+        AveraAuthCard(
+          child: Column(
+            children: [
+              _ReviewRow(label: 'Clinic', value: application.clinicName),
+              _ReviewRow(
+                label: 'Administrator',
+                value: application.administratorName,
+              ),
+              _ReviewRow(
+                label: 'Account Email',
+                value: application.accountEmail,
+              ),
+              _ReviewRow(label: 'Phone', value: application.phoneNumber),
+              _ReviewRow(
+                label: 'Address',
+                value:
+                    '${application.address}, ${application.city}, ${application.country}',
+              ),
+              _ReviewRow(label: 'Time Zone', value: application.timeZone),
+              _ReviewRow(
+                label: 'Plan',
+                value: application.subscriptionPlan,
+                last: true,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            key: const Key('edit-registration-details'),
+            onPressed: () =>
+                Navigator.pop(context, ClinicRegistrationReviewAction.edit),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Edit Details'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            key: const Key('continue-registration-to-payment'),
+            onPressed: application.canContinueToPayment
+                ? () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => ClinicRegistrationPaymentScreen(
+                        application: application,
+                      ),
+                    ),
+                  )
+                : null,
+            icon: const Icon(Icons.lock_outline_rounded),
+            label: const Text('Continue to Payment'),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Payment is verified by the AVERA backend. Closing or cancelling Paystack keeps this application available for retry.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    ),
+  );
+}
+
+class _ReviewRow extends StatelessWidget {
+  const _ReviewRow({
+    required this.label,
+    required this.value,
+    this.last = false,
+  });
+
+  final String label;
+  final String value;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(vertical: 13),
+    decoration: BoxDecoration(
+      border: last
+          ? null
+          : Border(
+              bottom: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(value, style: Theme.of(context).textTheme.titleSmall),
+      ],
+    ),
+  );
+}

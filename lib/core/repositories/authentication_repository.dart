@@ -49,6 +49,42 @@ class AuthenticationRepository {
     return session.user;
   }
 
+  Future<RemoteProviderAuthOutcome> beginProviderAuth({
+    required String provider,
+    required String idToken,
+    required String deviceId,
+    String? nonce,
+    String? existingEmail,
+    String? platform,
+  }) async {
+    final outcome = await _remote.beginProviderAuth(
+      provider: provider,
+      idToken: idToken,
+      deviceId: deviceId,
+      nonce: nonce,
+      existingEmail: existingEmail,
+      platform: platform,
+    );
+    if (outcome.session != null) await _persist(outcome.session!);
+    return outcome;
+  }
+
+  Future<RemoteProviderAuthOutcome> verifyProviderLink({
+    required String challengeId,
+    required String code,
+    required String deviceId,
+    String? platform,
+  }) async {
+    final outcome = await _remote.verifyProviderLink(
+      challengeId: challengeId,
+      code: code,
+      deviceId: deviceId,
+      platform: platform,
+    );
+    if (outcome.session != null) await _persist(outcome.session!);
+    return outcome;
+  }
+
   Future<RemoteClinicAdministratorActivation>
   inspectClinicAdministratorActivation(String token) =>
       _remote.inspectClinicAdministratorActivation(token);

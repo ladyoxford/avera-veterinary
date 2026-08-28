@@ -236,7 +236,8 @@ test('clinic application returns a scoped payment capability that cannot cross a
   const client = transactionClient((sql) => {
     if (
       sql.includes('FROM clinic_applications') &&
-      sql.includes('lower(administrator_email::text)')
+      (sql.includes('lower(administrator_email::text)') ||
+        sql.includes('WHERE application_id = $1'))
     ) {
       return { rows: [] };
     }
@@ -266,13 +267,12 @@ test('clinic application returns a scoped payment capability that cannot cross a
     url: '/api/v1/clinic-applications',
     payload: {
       clinicName: 'Crest Veterinary Hospital',
-      clinicEmail: 'hello@crest.test',
+      accountEmail: 'administrator@crest.test',
       phoneNumber: '+2348000000000',
       address: '1 Veterinary Way',
       city: 'Abuja',
       country: 'Nigeria',
       administratorName: 'Crest Administrator',
-      administratorEmail: 'administrator@crest.test',
       administratorPhone: '+2348111111111',
       professionalTitle: 'Veterinarian',
       subscriptionPlan: 'Enterprise',
@@ -284,14 +284,19 @@ test('clinic application returns a scoped payment capability that cannot cross a
   const application = registration.json().application;
   assert.equal(application.applicationId, 'application-1');
   assert.equal(application.selectedPlan, 'Enterprise');
-  assert.equal(application.status, 'Pending');
+  assert.equal(application.status, 'AwaitingPayment');
   assert.equal(application.paymentStatus, 'Pending');
   assert.equal(typeof application.paymentAccessToken, 'string');
+  assert.equal(typeof application.draftAccessToken, 'string');
   const claims = app.jwt.verify(application.paymentAccessToken);
   assert.equal(claims.scope, 'clinic-application-payment');
   assert.equal(claims.applicationId, 'application-1');
   assert.equal(claims.clinicId, application.clinicId);
   assert.equal(claims.selectedPlan, 'Enterprise');
+  const draftClaims = app.jwt.verify(application.draftAccessToken);
+  assert.equal(draftClaims.scope, 'clinic-application-draft');
+  assert.equal(draftClaims.applicationId, 'application-1');
+  assert.equal(draftClaims.accountEmail, 'administrator@crest.test');
 
   const planCalls = [];
   app.subscriptionService.getApplicationPaymentPlan = async (input) => {
@@ -381,6 +386,109 @@ test('clinic application returns a scoped payment capability that cannot cross a
   });
   assert.equal(expired.statusCode, 403);
   assert.equal(calls.length, 1);
+});
+
+test('unpaid clinic registration edits reuse one draft and do not provision a user', async (context) => {
+  const applicationId = 'b8cf095d-e317-429b-a24c-cd96a04bdbb1';
+  const state = {
+    application: null,
+    applicationInserts: 0,
+    clinicId: null,
+  };
+  const client = transactionClient((sql, parameters) => {
+    if (
+      sql.includes('FROM clinic_applications') &&
+      (sql.includes('lower(administrator_email::text)') ||
+        sql.includes('WHERE application_id = $1'))
+    ) {
+      return { rows: state.application ? [state.application] : [] };
+    }
+    if (sql.includes('INSERT INTO clinics')) {
+      state.clinicId = parameters[0];
+      return { rows: [] };
+    }
+    if (sql.includes('INSERT INTO clinic_applications')) {
+      state.applicationInserts += 1;
+      state.application = {
+        application_id: applicationId,
+        clinic_id: state.clinicId,
+        application_reference: 'AVR-20260828-DRAFT1',
+        status: 'AwaitingPayment',
+        payment_status: 'Pending',
+        payment_reference: null,
+        selected_plan: parameters[1],
+        administrator_email: parameters[11],
+        submitted_at: new Date('2026-08-28T08:00:00Z'),
+        updated_at: new Date('2026-08-28T08:00:00Z'),
+      };
+      return { rows: [state.application] };
+    }
+    if (sql.includes('UPDATE clinics')) return { rows: [] };
+    if (sql.includes('UPDATE clinic_applications')) {
+      state.application = {
+        ...state.application,
+        status: 'AwaitingPayment',
+        selected_plan: parameters[1],
+        clinic_name: parameters[2],
+        administrator_email: parameters[3],
+        address: parameters[5],
+        updated_at: new Date('2026-08-28T08:05:00Z'),
+      };
+      return { rows: [state.application] };
+    }
+    return { rows: [] };
+  });
+  const app = await buildApp({
+    environment: {
+      ...testEnvironment(),
+      REGISTRATION_DRAFT_TOKEN_TTL_MINUTES: 60,
+    },
+    pool: transactionPool(client),
+  });
+  context.after(() => app.close());
+
+  const payload = {
+    clinicName: 'Crest Veterinary Hospital',
+    accountEmail: 'administrator@crest.test',
+    phoneNumber: '+2348000000000',
+    address: 'Old address',
+    city: 'Abuja',
+    country: 'Nigeria',
+    administratorName: 'Crest Administrator',
+    administratorPhone: '+2348111111111',
+    professionalTitle: 'Veterinarian',
+    subscriptionPlan: 'Professional',
+    timeZone: 'Africa/Lagos',
+  };
+  const created = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications',
+    payload,
+  });
+  assert.equal(created.statusCode, 201);
+  const first = created.json().application;
+
+  const updated = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications',
+    payload: {
+      ...payload,
+      address: 'Correct address',
+      applicationId: first.applicationId,
+      draftAccessToken: first.draftAccessToken,
+    },
+  });
+
+  assert.equal(updated.statusCode, 200);
+  assert.equal(updated.json().application.applicationId, first.applicationId);
+  assert.equal(updated.json().application.reference, first.reference);
+  assert.equal(updated.json().application.status, 'AwaitingPayment');
+  assert.equal(state.application.address, 'Correct address');
+  assert.equal(state.applicationInserts, 1);
+  assert.equal(
+    client.calls.some(({ sql }) => /INSERT INTO users|INSERT INTO clinic_memberships/.test(sql)),
+    false,
+  );
 });
 
 test('clinic registration throttling returns a safe actionable error', async (context) => {
@@ -831,7 +939,7 @@ for (const mode of ['test', 'live']) {
       },
     };
     const forbiddenMutation =
-      /\bsubscriptions\b|UPDATE clinics|INSERT INTO users|activation_tokens/;
+      /\bsubscriptions\b|INSERT INTO users|activation_tokens/;
     const client = transactionClient((sql, parameters) => {
       if (forbiddenMutation.test(sql)) {
         throw new Error(`Application payment must not run: ${sql}`);
@@ -851,6 +959,12 @@ for (const mode of ['test', 'live']) {
       if (sql.includes('UPDATE clinic_applications')) {
         assert.equal(parameters[0], application.application_id);
         assert.equal(parameters[1], mode === 'test' ? 'TestVerified' : 'Paid');
+        return { rows: [] };
+      }
+      if (sql.includes('UPDATE clinics')) {
+        assert.equal(parameters[0], application.clinic_id);
+        assert.match(sql, /status = 'PendingApproval'/);
+        assert.match(sql, /status = 'RegistrationDraft'/);
         return { rows: [] };
       }
       return { rows: [] };
@@ -907,6 +1021,12 @@ for (const mode of ['test', 'live']) {
     assert.equal(result.activation.deliveryMethod, 'email');
     assert.equal(result.activation.status, 'PendingActivation');
     assert.equal('activationUrl' in result.activation, false);
+    assert.equal(
+      client.calls.some(({ sql }) =>
+        sql.includes('UPDATE clinics') &&
+        sql.includes("status = 'PendingApproval'")),
+      true,
+    );
     assert.equal(JSON.stringify(result).includes('token=secret'), false);
     assert.equal(result.application.status, 'Pending');
     assert.equal(

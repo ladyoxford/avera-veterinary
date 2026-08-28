@@ -1253,6 +1253,10 @@ void main() {
         repository.canSellInventoryCategory(pharmacistSession, 'vaccines'),
         isFalse,
       );
+      expect(
+        repository.canSellInventoryCategory(administrator, 'other'),
+        isTrue,
+      );
     },
   );
 

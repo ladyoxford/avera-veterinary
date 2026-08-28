@@ -799,6 +799,9 @@ test('farm invoice and package stock routes lock, scope, snapshot, and reject ex
     'utf8',
   );
   assert.match(routes, /async function prepareProductLines/);
+  assert.match(routes, /COALESCE\(u\.conversion_to_base, 1\)/);
+  assert.match(routes, /COALESCE\(u\.selling_price, p\.selling_price\)/);
+  assert.match(routes, /requested\.productUnitId != null && !row\.product_unit_id/);
   assert.match(routes, /FOR UPDATE/);
   assert.match(routes, /inventory_product_expired/);
   assert.match(routes, /Number\(row\.quantity\) < Number\(row\.base_quantity\)/);

@@ -306,7 +306,7 @@ class InventoryCategories {
       id: 'other',
       name: 'Other',
       aliases: ['custom', 'miscellaneous'],
-      isSellable: false,
+      isSellable: true,
       subcategories: [
         InventorySubcategoryDefinition(
           id: 'other',

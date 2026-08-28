@@ -7910,6 +7910,13 @@ class ClinicRepository {
       _permissionsFromJson(user.permissions),
     );
     if (configuredSell.isNotEmpty) return configuredSell;
+    if (user.accountType == AccountTypes.platformOwner ||
+        user.accountType == AccountTypes.clinicAdministrator ||
+        user.role == 'Clinic Administrator' ||
+        user.role == 'Practice Manager' ||
+        user.role == 'Inventory Officer') {
+      return {for (final category in InventoryCategories.all) category.id};
+    }
     return {
       for (final category in InventoryCategories.all)
         if (category.isSellable &&

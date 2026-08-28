@@ -18,6 +18,7 @@ import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../../shared/widgets/remote_patient_selector.dart';
+import '../services/billing_inventory_utils.dart';
 import '../services/invoice_pdf_service.dart';
 import '../services/invoice_presentation_factory.dart';
 import '../widgets/payment_capture_dialog.dart';
@@ -34,6 +35,7 @@ class BillingScreen extends ConsumerStatefulWidget {
 class _BillingScreenState extends ConsumerState<BillingScreen> {
   final List<Animal> _patients = [];
   final List<RemotePatient> _remotePatients = [];
+  final Map<int, String> _localOwnerNames = {};
   String _submissionId = const Uuid().v4();
   final List<_ProductCharge> _products = [];
   final List<_RemoteProductCharge> _remoteProducts = [];
@@ -167,6 +169,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 _PatientCard(
                   patients: _selectedPatientLabels,
                   onSelect: () => _selectPatient(replace: true),
+                  onChangePatient: () => _selectPatient(replace: true),
                   onAdd: _hasPatient ? () => _selectPatient() : null,
                   onRemove: _removePatient,
                 )
@@ -410,12 +413,18 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         id: patient.id,
         name: patient.name,
         hospitalNumber: patient.hospitalNumber,
+        species: patient.species,
+        breed: patient.breed,
+        ownerName: patient.ownerName,
       ),
     for (final patient in _patients)
       _SelectedPatientLabel(
         id: '${patient.id}',
         name: patient.animalName,
         hospitalNumber: patient.hospitalNumber,
+        species: patient.species,
+        breed: patient.breed,
+        ownerName: _localOwnerNames[patient.id],
       ),
   ];
 
@@ -468,14 +477,17 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         ),
       );
       if (patient != null && mounted) {
-        setState(() {
-          if (replace) _remotePatients.clear();
-          if (!_remotePatients.any((value) => value.id == patient.id)) {
-            _remotePatients.add(patient);
-          }
-          _patients.clear();
-          _removeOrphanedCharges();
-        });
+        final changingPatient =
+            replace &&
+            (_remotePatients.length != 1 ||
+                _remotePatients.first.id != patient.id);
+        final canApply =
+            !changingPatient ||
+            !_hasPatientSpecificCharges ||
+            await _confirmPatientChange(patient.name);
+        if (canApply && mounted) {
+          _applyRemotePatient(patient, replace: replace);
+        }
       }
       return;
     }
@@ -491,15 +503,87 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       ),
     );
     if (patient != null && mounted) {
-      setState(() {
-        if (replace) _patients.clear();
-        if (!_patients.any((value) => value.id == patient.id)) {
-          _patients.add(patient);
-        }
-        _remotePatients.clear();
-        _removeOrphanedCharges();
-      });
+      final owner =
+          await (ref
+                  .read(databaseProvider)
+                  .select(ref.read(databaseProvider).owners)
+                ..where((row) => row.id.equals(patient.ownerId)))
+              .getSingleOrNull();
+      if (!mounted) return;
+      final changingPatient =
+          replace &&
+          (_patients.length != 1 || _patients.first.id != patient.id);
+      final canApply =
+          !changingPatient ||
+          !_hasPatientSpecificCharges ||
+          await _confirmPatientChange(patient.animalName);
+      if (canApply && mounted) {
+        _applyLocalPatient(patient, owner?.fullName, replace: replace);
+      }
     }
+  }
+
+  Future<bool> _confirmPatientChange(String nextPatientName) async {
+    final currentNames = _selectedPatientLabels.map((patient) => patient.name);
+    final currentLabel = currentNames.isEmpty
+        ? 'the current patient'
+        : currentNames.join(', ');
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Change Patient?'),
+            content: Text(
+              'Some selected items belong specifically to $currentLabel. '
+              'Changing the patient to $nextPatientName will remove those '
+              'patient-specific items, while keeping general charges.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Change Patient'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  bool get _hasPatientSpecificCharges =>
+      _products.any((charge) => !charge.target.isGeneral) ||
+      _remoteProducts.any((charge) => !charge.target.isGeneral) ||
+      _services.any((charge) => !charge.target.isGeneral);
+
+  void _applyRemotePatient(RemotePatient patient, {required bool replace}) {
+    setState(() {
+      if (replace) _remotePatients.clear();
+      if (!_remotePatients.any((value) => value.id == patient.id)) {
+        _remotePatients.add(patient);
+      }
+      _patients.clear();
+      _removeOrphanedCharges();
+    });
+  }
+
+  void _applyLocalPatient(
+    Animal patient,
+    String? ownerName, {
+    required bool replace,
+  }) {
+    setState(() {
+      if (replace) _patients.clear();
+      if (!_patients.any((value) => value.id == patient.id)) {
+        _patients.add(patient);
+      }
+      if (ownerName != null && ownerName.isNotEmpty) {
+        _localOwnerNames[patient.id] = ownerName;
+      }
+      _remotePatients.clear();
+      _removeOrphanedCharges();
+    });
   }
 
   void _removePatient(String id) {
@@ -507,6 +591,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     setState(() {
       _remotePatients.removeWhere((patient) => patient.id == id);
       _patients.removeWhere((patient) => '${patient.id}' == id);
+      _localOwnerNames.removeWhere((animalId, _) => '$animalId' == id);
       _removeOrphanedCharges();
     });
   }
@@ -610,31 +695,17 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   }
 
   List<_RemoteBillableUnit> _billableUnits(RemoteInventoryItem product) {
-    final configured = product.productUnits
+    return billableUnitsForInventoryProduct(product)
         .map(
           (unit) => _RemoteBillableUnit(
-            productUnitId: unit.id,
+            productUnitId: unit.productUnitId,
             label: unit.label,
             conversionToBase: unit.conversionToBase,
-            sellingPrice: unit.sellingPrice.toDouble(),
-            availableBaseQuantity: product.quantity,
+            sellingPrice: unit.sellingPrice,
+            availableBaseQuantity: unit.availableBaseQuantity,
           ),
         )
-        .where((unit) => unit.availableQuantity > 0)
-        .toList();
-    if (configured.isNotEmpty) return configured;
-    if (product.productUnits.isNotEmpty || product.quantity <= 0) {
-      return const [];
-    }
-    return [
-      _RemoteBillableUnit(
-        productUnitId: null,
-        label: product.baseUnitLabel,
-        conversionToBase: 1,
-        sellingPrice: product.sellingPrice.toDouble(),
-        availableBaseQuantity: product.quantity,
-      ),
-    ];
+        .toList(growable: false);
   }
 
   Future<_BillingTarget?> _selectChargeTarget() async {
@@ -1333,11 +1404,17 @@ class _SelectedPatientLabel {
     required this.id,
     required this.name,
     required this.hospitalNumber,
+    this.species,
+    this.breed,
+    this.ownerName,
   });
 
   final String id;
   final String name;
   final String hospitalNumber;
+  final String? species;
+  final String? breed;
+  final String? ownerName;
 }
 
 class _BillingTarget {
@@ -1782,11 +1859,13 @@ class _PatientCard extends StatelessWidget {
   const _PatientCard({
     required this.patients,
     required this.onSelect,
+    required this.onChangePatient,
     required this.onAdd,
     required this.onRemove,
   });
   final List<_SelectedPatientLabel> patients;
   final VoidCallback onSelect;
+  final VoidCallback onChangePatient;
   final VoidCallback? onAdd;
   final ValueChanged<String> onRemove;
 
@@ -1816,7 +1895,17 @@ class _PatientCard extends StatelessWidget {
                         ),
                       ),
                       title: Text(patients[index].name),
-                      subtitle: Text(patients[index].hospitalNumber),
+                      subtitle: Text(
+                        [
+                          patients[index].hospitalNumber,
+                          if (patients[index].species?.isNotEmpty == true)
+                            patients[index].species!,
+                          if (patients[index].breed?.isNotEmpty == true)
+                            patients[index].breed!,
+                          if (patients[index].ownerName?.isNotEmpty == true)
+                            'Owner: ${patients[index].ownerName}',
+                        ].join(' | '),
+                      ),
                       trailing: patients.length > 1
                           ? IconButton(
                               tooltip: 'Remove animal',
@@ -1828,6 +1917,14 @@ class _PatientCard extends StatelessWidget {
                     if (index < patients.length - 1) const Divider(height: 1),
                   ],
                   const Divider(height: 1),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: onChangePatient,
+                      icon: const Icon(Icons.swap_horiz_rounded),
+                      label: const Text('Change Patient'),
+                    ),
+                  ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
@@ -2236,51 +2333,124 @@ class _BillingPatientPicker extends ConsumerWidget {
   );
 }
 
-class _BillingProductPicker extends StatelessWidget {
+class _BillingProductPicker extends StatefulWidget {
   const _BillingProductPicker({required this.items});
   final List<InventoryItem> items;
+
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Text('Add Product', style: averaText(context).sectionTitle),
-          Expanded(
-            child: ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                final expired =
-                    item.expiryDate?.isBefore(DateTime.now()) ?? false;
-                return ListTile(
-                  title: Text(item.drugName),
-                  subtitle: Text(
-                    '${item.quantity} available / ${formatNaira(item.sellingPrice)}',
-                  ),
-                  trailing: expired ? const Chip(label: Text('Expired')) : null,
-                  enabled: !expired && item.quantity > 0,
-                  onTap: !expired && item.quantity > 0
-                      ? () => Navigator.pop(context, item)
-                      : null,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+  State<_BillingProductPicker> createState() => _BillingProductPickerState();
 }
 
-class _RemoteBillingProductPicker extends StatelessWidget {
+class _BillingProductPickerState extends State<_BillingProductPicker> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.items
+        .where(
+          (item) => matchesBillingText(_search.text, [
+            item.drugName,
+            item.genericName,
+            item.brandName,
+            item.categoryId,
+            item.category,
+            item.subcategoryId,
+            item.subcategory,
+            item.sku,
+            item.barcode,
+          ]),
+        )
+        .toList(growable: false);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Text('Add Product', style: averaText(context).sectionTitle),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search_rounded),
+                hintText: 'Search product, brand, category, SKU or barcode',
+                suffixIcon: _search.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          _search.clear();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.clear_rounded),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: items.isEmpty
+                  ? const Center(child: Text('No matching products.'))
+                  : ListView.builder(
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        final expired =
+                            item.expiryDate?.isBefore(DateTime.now()) ?? false;
+                        return ListTile(
+                          title: Text(item.drugName),
+                          subtitle: Text(
+                            '${item.quantity} ${item.baseUnitLabel} available / ${formatNaira(item.sellingPrice)}',
+                          ),
+                          trailing: expired
+                              ? const Chip(label: Text('Expired'))
+                              : const Icon(Icons.chevron_right_rounded),
+                          enabled: !expired && item.quantity > 0,
+                          onTap: !expired && item.quantity > 0
+                              ? () => Navigator.pop(context, item)
+                              : null,
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoteBillingProductPicker extends StatefulWidget {
   const _RemoteBillingProductPicker({required this.items});
 
   final List<RemoteInventoryItem> items;
 
   @override
+  State<_RemoteBillingProductPicker> createState() =>
+      _RemoteBillingProductPickerState();
+}
+
+class _RemoteBillingProductPickerState
+    extends State<_RemoteBillingProductPicker> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final today = DateUtils.dateOnly(DateTime.now());
+    final items = widget.items
+        .where((item) => matchesBillingInventorySearch(item, _search.text))
+        .toList(growable: false);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Column(
@@ -2288,32 +2458,53 @@ class _RemoteBillingProductPicker extends StatelessWidget {
         children: [
           Text('Add Product', style: averaText(context).sectionTitle),
           const SizedBox(height: 12),
-          Expanded(
-            child: ListView.separated(
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final item = items[index];
-                final expired =
-                    item.expiryDate != null &&
-                    DateUtils.dateOnly(item.expiryDate!).isBefore(today);
-                final hasStock = item.quantity > 0;
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item.name),
-                  subtitle: Text(
-                    '${item.quantity} ${item.baseUnitLabel} available | ${item.productUnits.length} sale unit${item.productUnits.length == 1 ? '' : 's'}',
-                  ),
-                  trailing: expired
-                      ? const Chip(label: Text('Expired'))
-                      : const Icon(Icons.chevron_right_rounded),
-                  enabled: !expired && hasStock,
-                  onTap: !expired && hasStock
-                      ? () => Navigator.pop(context, item)
-                      : null,
-                );
-              },
+          TextField(
+            controller: _search,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search_rounded),
+              hintText: 'Search product, brand, category, SKU or barcode',
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _search.clear();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.clear_rounded),
+                    ),
             ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: items.isEmpty
+                ? const Center(child: Text('No matching products.'))
+                : ListView.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      final expired =
+                          item.expiryDate != null &&
+                          DateUtils.dateOnly(item.expiryDate!).isBefore(today);
+                      final hasStock = item.quantity > 0;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(item.name),
+                        subtitle: Text(
+                          '${item.quantity} ${item.baseUnitLabel} available | ${billableUnitsForInventoryProduct(item).length} sale unit${billableUnitsForInventoryProduct(item).length == 1 ? '' : 's'}',
+                        ),
+                        trailing: expired
+                            ? const Chip(label: Text('Expired'))
+                            : const Icon(Icons.chevron_right_rounded),
+                        enabled: !expired && hasStock,
+                        onTap: !expired && hasStock
+                            ? () => Navigator.pop(context, item)
+                            : null,
+                      );
+                    },
+                  ),
           ),
         ],
       ),

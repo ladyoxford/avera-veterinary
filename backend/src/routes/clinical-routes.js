@@ -1102,8 +1102,10 @@ async function prepareProductLines(client, clinicId, products) {
       `SELECT p.inventory_product_id, p.name, p.batch_number, p.expiry_date,
               p.purchase_price, p.selling_price, p.quantity, p.base_unit_label,
               p.is_sellable, p.is_archived,
-              u.product_unit_id, u.unit_label, u.conversion_to_base,
-              u.selling_price AS unit_selling_price
+              u.product_unit_id,
+              COALESCE(u.unit_label, NULLIF(btrim(p.base_unit_label), ''), 'unit') AS unit_label,
+              COALESCE(u.conversion_to_base, 1) AS conversion_to_base,
+              COALESCE(u.selling_price, p.selling_price) AS unit_selling_price
          FROM inventory_products p
          LEFT JOIN inventory_product_units u
            ON u.clinic_id=p.clinic_id AND u.inventory_product_id=p.inventory_product_id
@@ -1115,7 +1117,9 @@ async function prepareProductLines(client, clinicId, products) {
       [clinicId, requested.inventoryProductId, requested.productUnitId ?? null],
     );
     const row = result.rows[0];
-    if (!row || !row.product_unit_id || !row.is_sellable || row.is_archived) {
+    if (!row ||
+        (requested.productUnitId != null && !row.product_unit_id) ||
+        !row.is_sellable || row.is_archived) {
       return { error: 'inventory_product_unavailable' };
     }
     if (row.expiry_date && new Date(row.expiry_date) < new Date(new Date().toISOString().slice(0, 10))) {

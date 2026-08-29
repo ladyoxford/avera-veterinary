@@ -952,27 +952,6 @@ export class ActivationEmailDeliveryService {
     return { reference: body.id ?? null };
   }
 
-  async sendProviderLinkCode(message) {
-    if (!this.configured) throw new Error('Verification email is not configured.');
-    const response = await this.fetchImpl('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.environment.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'AVERA-Backend/1.0',
-        'Idempotency-Key': message.idempotencyKey,
-      },
-      body: JSON.stringify({
-        from: this.environment.ACTIVATION_EMAIL_FROM,
-        to: [message.to],
-        subject: `Verify your ${providerName(message.provider)} AVERA sign-in`,
-        text: providerLinkEmailText(message),
-      }),
-    });
-    if (!response.ok) throw new Error('Verification email delivery failed.');
-    const body = await response.json();
-    return { reference: body.id ?? null };
-  }
 }
 
 function activationEmailText(message) {
@@ -1000,21 +979,6 @@ function staffActivationEmailText(message) {
     `This link expires at ${new Date(message.expiresAt).toISOString()}.`,
     'If you were not expecting this invitation, ignore this email.',
   ].join('\n');
-}
-
-function providerLinkEmailText(message) {
-  return [
-    'Use this one-time code to securely connect your AVERA account:',
-    '',
-    message.code,
-    '',
-    `This code expires at ${new Date(message.expiresAt).toISOString()}.`,
-    'If you did not request this connection, ignore this email.',
-  ].join('\n');
-}
-
-function providerName(provider) {
-  return provider === 'apple' ? 'Apple' : 'Google';
 }
 
 function mapActivationStatus(row) {

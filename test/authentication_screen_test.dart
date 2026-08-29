@@ -41,12 +41,16 @@ void main() {
     );
     expect(find.textContaining('Zevora Veterinary Clinic'), findsNothing);
     expect(find.byType(AveraAuthCard), findsOneWidget);
-    expect(find.byKey(const Key('continue-with-google')), findsOneWidget);
-    expect(find.byKey(const Key('continue-with-apple')), findsOneWidget);
-    expect(find.text('or continue with email'), findsOneWidget);
+    expect(find.byKey(const Key('continue-with-google')), findsNothing);
+    expect(find.byKey(const Key('continue-with-apple')), findsNothing);
+    expect(find.text('Continue with Google'), findsNothing);
+    expect(find.text('Continue with Apple'), findsNothing);
+    expect(find.text('or continue with email'), findsNothing);
     expect(find.byKey(const Key('sign-in-email')), findsOneWidget);
     expect(find.byKey(const Key('sign-in-password')), findsOneWidget);
     expect(find.text('Remember me'), findsOneWidget);
+    expect(find.byKey(const Key('sign-in-button')), findsOneWidget);
+    expect(find.text('Forgot password?'), findsOneWidget);
     expect(find.byKey(const Key('register-clinic-button')), findsOneWidget);
     expect(
       find.textContaining("Your clinic's data is encrypted and isolated"),

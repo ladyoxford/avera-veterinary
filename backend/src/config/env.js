@@ -34,8 +34,6 @@ const schema = z.object({
   AVERA_STAFF_ACTIVATION_BASE_URL: z.string().min(1).default('https://accounts.averavet.sbs/activate-staff'),
   RESEND_API_KEY: z.string().min(1).optional(),
   ACTIVATION_EMAIL_FROM: z.string().min(3).optional(),
-  GOOGLE_OAUTH_CLIENT_IDS: z.string().optional(),
-  APPLE_OAUTH_CLIENT_IDS: z.string().optional(),
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
   PROFILE_PHOTO_BUCKET: z.string().min(1).default('profile-photos'),

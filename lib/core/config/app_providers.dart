@@ -21,7 +21,6 @@ import '../repositories/subscription_repository.dart';
 import '../security/access_control.dart';
 import '../services/offline_sync_coordinator.dart';
 import '../services/local_session_store.dart';
-import '../services/social_identity_client.dart';
 import '../services/clinic_operating_status_service.dart';
 import '../services/clinic_registration_draft_store.dart';
 import '../services/hospital_numbering.dart';
@@ -191,10 +190,6 @@ final tokenStoreProvider = Provider<TokenStore>(
 
 final biometricAuthServiceProvider = Provider<BiometricAuthService>(
   (ref) => BiometricAuthService(),
-);
-
-final socialIdentityClientProvider = Provider<SocialIdentityClient>(
-  (ref) => NativeSocialIdentityClient(),
 );
 
 final biometricEnrollmentProvider = FutureProvider<BiometricEnrollment?>(

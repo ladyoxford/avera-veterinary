@@ -48,6 +48,31 @@ test('staff activation fallback is token-safe and contains no browser password f
   assert.doesNotMatch(response.body, /type=["']password/i);
 });
 
+test('backend starts without social OAuth configuration and exposes email auth only', async (context) => {
+  const app = await buildApp({ environment: testEnvironment(), pool: unusedPool() });
+  context.after(() => app.close());
+
+  const emailAuth = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/sign-in',
+    payload: {},
+  });
+  assert.equal(emailAuth.statusCode, 400);
+
+  const providerStart = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/provider/start',
+    payload: {},
+  });
+  const providerVerify = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/provider/link/verify',
+    payload: {},
+  });
+  assert.equal(providerStart.statusCode, 404);
+  assert.equal(providerVerify.statusCode, 404);
+});
+
 test('activation query tokens are removed from application request logs', () => {
   const secret = 'do-not-log-this-token';
   const sanitized = sanitizeRequestUrl(`/activate-clinic-admin?token=${secret}`);

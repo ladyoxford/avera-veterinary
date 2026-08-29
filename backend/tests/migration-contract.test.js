@@ -725,7 +725,7 @@ test('inventory subcategory migration is additive, nullable, and clinic scoped',
   assert.match(routes, /category_key, subcategory, subcategory_key/);
 });
 
-test('provider identity migration stores only verified links and hashed challenges', () => {
+test('dormant provider identity migration remains additive and secure', () => {
   const providerIdentity = fs.readFileSync(
     new URL(
       '../migrations/029_auth_provider_links_and_registration_drafts.sql',
@@ -749,6 +749,23 @@ test('provider identity migration stores only verified links and hashed challeng
   assert.match(providerIdentity, /ENABLE ROW LEVEL SECURITY/);
   assert.doesNotMatch(providerIdentity, /code\s+TEXT/i);
   assert.doesNotMatch(providerIdentity, /DROP TABLE|TRUNCATE|DELETE FROM users/i);
+});
+
+test('runtime authentication has no social provider routes or environment requirements', () => {
+  const environment = fs.readFileSync(
+    new URL('../src/config/env.js', import.meta.url),
+    'utf8',
+  );
+  const app = fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  const routes = fs.readFileSync(
+    new URL('../src/routes/auth-routes.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.doesNotMatch(environment, /GOOGLE_OAUTH_CLIENT_IDS|APPLE_OAUTH_CLIENT_IDS/);
+  assert.doesNotMatch(app, /SocialAuthService|ProviderTokenVerifier|socialAuthService/);
+  assert.doesNotMatch(routes, /auth\/provider|completeProviderOutcome/);
+  assert.match(routes, /auth\/sign-in/);
 });
 
 test('Add Stock is permission guarded, additive, tenant scoped, and ledger backed', () => {

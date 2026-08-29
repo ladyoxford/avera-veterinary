@@ -11,10 +11,7 @@ import '../../../core/config/app_providers.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/remote/auth_remote_data_source.dart';
 import '../../../core/services/local_session_store.dart';
-import '../../../core/services/social_identity_client.dart';
 import '../../shared/widgets/avera_auth_ui.dart';
-import 'clinic_registration_screen.dart';
-import 'provider_auth_screens.dart';
 import 'security_auth_screens.dart';
 
 class AuthenticationScreen extends HookConsumerWidget {
@@ -28,11 +25,10 @@ class AuthenticationScreen extends HookConsumerWidget {
     final remember = useState(true);
     final obscurePassword = useState(true);
     final signingIn = useState(false);
-    final providerBusy = useState<SocialProvider?>(null);
     final biometricEnrollment = ref
         .watch(biometricEnrollmentProvider)
         .valueOrNull;
-    final working = signingIn.value || providerBusy.value != null;
+    final working = signingIn.value;
 
     Future<void> completeRemoteSignIn(RemoteCurrentUser remote) async {
       await ref.read(clinicRepositoryProvider).cacheRemoteSession(remote);
@@ -186,211 +182,6 @@ class AuthenticationScreen extends HookConsumerWidget {
       }
     }
 
-    Future<void> handleProviderOutcome(
-      RemoteProviderAuthOutcome outcome,
-      SocialIdentityCredential credential,
-    ) async {
-      final platform = Theme.of(context).platform.name;
-      switch (outcome.action) {
-        case RemoteProviderAction.signedIn:
-          final remote = outcome.session?.user;
-          if (remote == null) {
-            throw const ApiException(
-              'invalid_response',
-              'AVERA did not receive a valid provider session.',
-            );
-          }
-          await completeRemoteSignIn(remote);
-          return;
-        case RemoteProviderAction.verificationRequired:
-          final verified = await Navigator.of(context)
-              .push<RemoteProviderAuthOutcome>(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ProviderLinkVerificationScreen(outcome: outcome),
-                ),
-              );
-          if (verified != null && context.mounted) {
-            await handleProviderOutcome(verified, credential);
-          }
-          return;
-        case RemoteProviderAction.registrationRequired:
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) => ProviderAuthStatusScreen(
-                title: 'No AVERA Account Found',
-                message:
-                    outcome.message ??
-                    'No clinic or staff account is associated with this email.',
-                registrationEmail: outcome.email,
-              ),
-            ),
-          );
-          return;
-        case RemoteProviderAction.resumeRegistration:
-          final remoteApplication = outcome.application;
-          if (remoteApplication == null) return;
-          final application = clinicApplicationFromRemote(remoteApplication);
-          await ref
-              .read(clinicRegistrationDraftStoreProvider)
-              .save(application);
-          if (!context.mounted) return;
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) =>
-                  ClinicRegistrationScreen(initialApplication: application),
-            ),
-          );
-          return;
-        case RemoteProviderAction.applicationPending:
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) => ProviderAuthStatusScreen(
-                title: 'Application Pending',
-                message:
-                    outcome.message ??
-                    'Payment was received and your clinic application is awaiting approval.',
-              ),
-            ),
-          );
-          return;
-        case RemoteProviderAction.applicationRestricted:
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) => ProviderAuthStatusScreen(
-                title: 'Registration Unavailable',
-                message:
-                    outcome.message ??
-                    'This clinic application cannot continue in its current state. Contact AVERA support for assistance.',
-              ),
-            ),
-          );
-          return;
-        case RemoteProviderAction.activationRequired:
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) => ProviderAuthStatusScreen(
-                title: 'Activation Required',
-                message:
-                    outcome.message ??
-                    'Use the secure activation link sent to your account email to finish setup.',
-              ),
-            ),
-          );
-          return;
-        case RemoteProviderAction.staffActivationRequired:
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) => ProviderAuthStatusScreen(
-                title: 'Complete Account Activation',
-                message:
-                    outcome.message ??
-                    'Use the secure activation email sent by AVERA or your clinic administrator.',
-              ),
-            ),
-          );
-          return;
-        case RemoteProviderAction.accountEmailRequired:
-          final existingEmail = await Navigator.of(context).push<String>(
-            MaterialPageRoute(
-              builder: (_) => ExistingAveraEmailScreen(
-                provider: outcome.provider ?? 'Apple',
-              ),
-            ),
-          );
-          if (existingEmail == null || !context.mounted) return;
-          final deviceId = await ref
-              .read(offlineAuthorizationServiceProvider)
-              .deviceId();
-          final retried = await ref
-              .read(authenticationRepositoryProvider)
-              .beginProviderAuth(
-                provider: credential.provider.name,
-                idToken: credential.idToken,
-                nonce: credential.nonce,
-                existingEmail: existingEmail,
-                deviceId: deviceId,
-                platform: platform,
-              );
-          await handleProviderOutcome(retried, credential);
-          return;
-      }
-    }
-
-    Future<void> signInWithProvider(SocialProvider provider) async {
-      if (working) return;
-      final platform = Theme.of(context).platform.name;
-      providerBusy.value = provider;
-      try {
-        if (BackendConfiguration.isLocalMode) {
-          throw const ApiException(
-            'provider_sign_in_requires_backend',
-            'Google and Apple sign-in require the secure AVERA backend.',
-          );
-        }
-        final credential = await ref
-            .read(socialIdentityClientProvider)
-            .authenticate(provider);
-        if (credential == null) return;
-        final deviceId = await ref
-            .read(offlineAuthorizationServiceProvider)
-            .deviceId();
-        final outcome = await ref
-            .read(authenticationRepositoryProvider)
-            .beginProviderAuth(
-              provider: provider.name,
-              idToken: credential.idToken,
-              nonce: credential.nonce,
-              deviceId: deviceId,
-              platform: platform,
-            );
-        if (context.mounted) {
-          await handleProviderOutcome(outcome, credential);
-        }
-      } on MfaRequiredException catch (challenge) {
-        if (context.mounted) {
-          context.push(
-            '/mfa-challenge',
-            extra: MfaChallengeArgs(
-              challengeToken: challenge.challengeToken,
-              expiresIn: challenge.expiresIn,
-            ),
-          );
-        }
-      } on SocialIdentityConfigurationException catch (error) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(error.message)));
-        }
-      } on ApiException catch (error) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(error.message)));
-        }
-      } catch (error, stackTrace) {
-        if (kDebugMode) {
-          developer.log(
-            'Provider sign-in failed: $error',
-            name: 'AVERA.auth',
-            stackTrace: stackTrace,
-          );
-        }
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Unable to complete provider sign-in right now. Please try again.',
-              ),
-            ),
-          );
-        }
-      } finally {
-        providerBusy.value = null;
-      }
-    }
-
     return AveraAuthScaffold(
       footer: const Text('AVERA | Smarter Care. Better Practice.'),
       child: AveraAuthCard(
@@ -414,26 +205,6 @@ class AuthenticationScreen extends HookConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
-                AveraSocialAuthButton(
-                  key: const Key('continue-with-google'),
-                  provider: 'Google',
-                  loading: providerBusy.value == SocialProvider.google,
-                  onPressed: working
-                      ? null
-                      : () => signInWithProvider(SocialProvider.google),
-                ),
-                const SizedBox(height: 12),
-                AveraSocialAuthButton(
-                  key: const Key('continue-with-apple'),
-                  provider: 'Apple',
-                  loading: providerBusy.value == SocialProvider.apple,
-                  onPressed: working
-                      ? null
-                      : () => signInWithProvider(SocialProvider.apple),
-                ),
-                const SizedBox(height: 24),
-                const AveraAuthDivider(label: 'or continue with email'),
-                const SizedBox(height: 24),
                 AveraAuthField(
                   key: const Key('sign-in-email'),
                   label: 'Email Address',

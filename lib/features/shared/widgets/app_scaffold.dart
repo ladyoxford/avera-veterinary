@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/security/access_control.dart';
 import 'avera_logo.dart';
+import 'avera_ui.dart';
 
 class AppScaffold extends ConsumerWidget {
   const AppScaffold({super.key, required this.child});
@@ -17,19 +18,11 @@ class AppScaffold extends ConsumerWidget {
     final session = ref.watch(userSessionProvider).valueOrNull;
     final offline = ref.watch(offlineAuthorizationSnapshotProvider);
     final mobileDestinations = <_Destination>[
-      const _Destination('Dashboard', Icons.dashboard_rounded, '/dashboard'),
-      const _Destination('Patients', Icons.pets_rounded, '/animals'),
-      const _Destination(
-        'Consult',
-        Icons.medical_services_rounded,
-        '/consultations/new',
-      ),
-      const _Destination(
-        'Schedule',
-        Icons.calendar_month_rounded,
-        '/appointments',
-      ),
-      const _Destination('More', Icons.apps_rounded, '/more'),
+      const _Destination('Dashboard', Icons.dashboard, '/dashboard'),
+      const _Destination('Patients', Icons.pets, '/animals'),
+      const _Destination('Consult', Icons.local_hospital, '/consultations/new'),
+      const _Destination('Schedule', Icons.event, '/appointments'),
+      const _Destination('More', Icons.menu, '/more'),
     ];
     final destinations = <_Destination>[
       const _Destination('Dashboard', Iconsax.category, '/dashboard'),
@@ -60,6 +53,7 @@ class AppScaffold extends ConsumerWidget {
     ];
     final width = MediaQuery.sizeOf(context).width;
     final location = GoRouterState.of(context).uri.toString();
+    final darkFoundation = usesAveraDarkCoreFoundation(location);
     final selected = destinations
         .indexWhere((d) {
           if (d.path == '/dashboard') return location == '/dashboard';
@@ -68,7 +62,7 @@ class AppScaffold extends ConsumerWidget {
         .clamp(0, destinations.length - 1);
 
     if (width >= 900) {
-      return Scaffold(
+      final scaffold = Scaffold(
         body: Row(
           children: [
             NavigationRail(
@@ -112,32 +106,60 @@ class AppScaffold extends ConsumerWidget {
           ],
         ),
       );
+      return darkFoundation ? AveraDarkTheme(child: scaffold) : scaffold;
     }
 
-    final mobileSelected = mobileDestinations
-        .indexWhere((d) {
-          if (d.path == '/dashboard') return location == '/dashboard';
-          return location.startsWith(d.path);
-        })
-        .clamp(0, mobileDestinations.length - 1);
+    final mobileSelected = mobileNavigationIndex(location);
 
-    return Scaffold(
-      body: _WorkspaceBody(offline: offline != null, child: child),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: mobileSelected,
-        onDestinationSelected: (index) =>
-            context.go(mobileDestinations[index].path),
-        destinations: [
-          for (final destination in mobileDestinations)
-            NavigationDestination(
-              icon: Icon(destination.icon),
-              label: destination.label,
+    final navigationBar = NavigationBar(
+      key: const Key('shared-mobile-navigation'),
+      selectedIndex: mobileSelected,
+      onDestinationSelected: (index) =>
+          context.go(mobileDestinations[index].path),
+      destinations: [
+        for (final destination in mobileDestinations)
+          NavigationDestination(
+            icon: Icon(
+              destination.icon,
+              key: Key('app-nav-icon-${destination.label.toLowerCase()}'),
             ),
-        ],
-      ),
+            selectedIcon: Icon(
+              destination.icon,
+              key: Key(
+                'app-nav-selected-icon-${destination.label.toLowerCase()}',
+              ),
+            ),
+            label: destination.label,
+          ),
+      ],
     );
+
+    final scaffold = Scaffold(
+      body: _WorkspaceBody(offline: offline != null, child: child),
+      bottomNavigationBar: navigationBar,
+    );
+    return darkFoundation ? AveraDarkTheme(child: scaffold) : scaffold;
   }
 }
+
+int mobileNavigationIndex(String location) {
+  if (location == '/dashboard' ||
+      location.startsWith('/inventory') ||
+      location.startsWith('/billing') ||
+      location.startsWith('/revenue')) {
+    return 0;
+  }
+  if (location.startsWith('/animals')) return 1;
+  if (location.startsWith('/consultations')) return 2;
+  if (location.startsWith('/appointments')) return 3;
+  return 4;
+}
+
+bool usesAveraDarkCoreFoundation(String location) =>
+    location.startsWith('/animals') ||
+    location.startsWith('/inventory') ||
+    location.startsWith('/billing') ||
+    location.startsWith('/revenue');
 
 class _WorkspaceBody extends StatelessWidget {
   const _WorkspaceBody({required this.child, required this.offline});

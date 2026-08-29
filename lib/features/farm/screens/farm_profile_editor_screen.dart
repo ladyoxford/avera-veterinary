@@ -10,6 +10,7 @@ import '../../../core/models/animal_catalogue.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../../shared/widgets/catalogue_selector.dart';
+import '../widgets/farm_back_navigation.dart';
 
 class FarmProfileEditorScreen extends ConsumerStatefulWidget {
   const FarmProfileEditorScreen({super.key, this.farmId});
@@ -90,7 +91,14 @@ class _FarmProfileEditorScreenState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.isEditing ? 'Edit Farm' : 'Add Farm')),
+    appBar: AppBar(
+      leading: FarmBackButton(
+        fallbackPath: widget.isEditing
+            ? '/farm-records/${widget.farmId}'
+            : '/farm-records',
+      ),
+      title: Text(widget.isEditing ? 'Edit Farm' : 'Add Farm'),
+    ),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
         : Form(

@@ -165,7 +165,12 @@ class _CloudPatientListScreenState
                   ),
                 ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  16,
+                  20,
+                  AveraSpacing.bottomContentClearance,
+                ),
                 sliver: SliverList.separated(
                   itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
                   separatorBuilder: (_, __) => const SizedBox(height: 12),

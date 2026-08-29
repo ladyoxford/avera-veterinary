@@ -17,6 +17,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/services/clinic_document_branding.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../services/farm_report_service.dart';
+import '../widgets/farm_back_navigation.dart';
 
 class FarmOverviewScreen extends ConsumerWidget {
   const FarmOverviewScreen({super.key, required this.farmId});
@@ -27,6 +28,7 @@ class FarmOverviewScreen extends ConsumerWidget {
     final session = ref.watch(userSessionProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(
+        leading: FarmBackButton(fallbackPath: '/farm-records/$farmId'),
         title: const Text('Farm Overview'),
         actions: [
           if (session?.can(Permissions.farmsCreate) == true)
@@ -481,6 +483,7 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
     final session = ref.watch(userSessionProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(
+        leading: FarmBackButton(fallbackPath: '/farm-records/${widget.farmId}'),
         title: const Text('Farm Unit Details'),
         actions: [
           if (session?.can(Permissions.farmUnitsManage) == true)
@@ -1561,7 +1564,10 @@ class _FarmDailyRecordDetailScreenState
   Widget build(BuildContext context) {
     final session = ref.watch(userSessionProvider).valueOrNull;
     return Scaffold(
-      appBar: AppBar(title: const Text('Daily Farm Record')),
+      appBar: AppBar(
+        leading: FarmBackButton(fallbackPath: '/farm-records/${widget.farmId}'),
+        title: const Text('Daily Farm Record'),
+      ),
       body: FutureBuilder<FarmDailyRecordDetail?>(
         future: _detail,
         builder: (context, snapshot) {

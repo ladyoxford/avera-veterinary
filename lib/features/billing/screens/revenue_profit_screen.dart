@@ -11,6 +11,10 @@ import '../../shared/widgets/avera_ui.dart';
 
 enum RevenuePeriod { today, sevenDays, month, year, twoYears, allTime }
 
+String missingHistoricalCostWarning(int count) =>
+    '$count invoice line(s) have no historical cost. '
+    'Profit may be overstated until historical cost is added.';
+
 class RevenueProfitScreen extends ConsumerStatefulWidget {
   const RevenueProfitScreen({super.key});
 
@@ -44,26 +48,21 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
           AveraSpacing.bottomContentClearance,
         ),
         children: [
-          const AveraPageHeader(
-            title: 'Revenue & Profit',
-            subtitle: 'Verified payments, costs, and operating margin.',
+          Text(
+            'Verified payments, costs, and operating margin.',
+            style: averaText(context).pageSubtitle,
           ),
           const SizedBox(height: AveraSpacing.subtitleToContentGap),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SegmentedButton<RevenuePeriod>(
               segments: const [
-                ButtonSegment(value: RevenuePeriod.today, label: Text('Today')),
                 ButtonSegment(
                   value: RevenuePeriod.sevenDays,
-                  label: Text('7 Days'),
+                  label: Text('7D'),
                 ),
-                ButtonSegment(value: RevenuePeriod.month, label: Text('Month')),
-                ButtonSegment(value: RevenuePeriod.year, label: Text('Year')),
-                ButtonSegment(
-                  value: RevenuePeriod.twoYears,
-                  label: Text('2 Years'),
-                ),
+                ButtonSegment(value: RevenuePeriod.month, label: Text('1M')),
+                ButtonSegment(value: RevenuePeriod.year, label: Text('1Y')),
                 ButtonSegment(
                   value: RevenuePeriod.allTime,
                   label: Text('All Time'),
@@ -101,14 +100,18 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GridView.count(
-                    crossAxisCount: 2,
+                  GridView.builder(
+                    itemCount: 4,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          mainAxisExtent: 142,
+                        ),
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.35,
-                    children: [
+                    itemBuilder: (context, index) => [
                       _MetricCard(
                         label: 'Revenue',
                         value: money.format(summary.revenue),
@@ -129,7 +132,7 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
                         value: '${(summary.margin * 100).toStringAsFixed(1)}%',
                         icon: Icons.analytics_outlined,
                       ),
-                    ],
+                    ][index],
                   ),
                   const SizedBox(height: AveraSpacing.sectionGap),
                   const AveraSectionHeader(title: 'Revenue Sources'),
@@ -161,8 +164,24 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
                           .extension<AppSemanticColors>()!
                           .warning
                           .withValues(alpha: .1),
-                      child: Text(
-                        '${summary.missingCostLines} invoice line(s) have no historical cost. Profit excludes those unknown costs.',
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Theme.of(
+                              context,
+                            ).extension<AppSemanticColors>()!.warning,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              missingHistoricalCostWarning(
+                                summary.missingCostLines,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

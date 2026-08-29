@@ -12,6 +12,7 @@ import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../widgets/farm_back_navigation.dart';
 
 class FarmDailyRecordEditorScreen extends ConsumerStatefulWidget {
   const FarmDailyRecordEditorScreen({
@@ -151,6 +152,7 @@ class _FarmDailyRecordEditorScreenState
     final session = ref.watch(userSessionProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(
+        leading: FarmBackButton(fallbackPath: '/farm-records/${widget.farmId}'),
         title: Text(
           widget.correctionMode
               ? 'Correct Daily Record'

@@ -281,7 +281,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 total: total,
               ),
               const SizedBox(height: 8),
-              Chip(label: Text(_invoiceStatus)),
+              Align(
+                alignment: Alignment.center,
+                child: Chip(label: Text(_invoiceStatus)),
+              ),
               const SizedBox(height: 16),
               AveraPrimaryActionButton(
                 label: !hasProducts
@@ -297,30 +300,37 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     : () => _pay(session, total),
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              Row(
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : () => _saveDraft(session),
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Save Draft'),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _saveDraft(session),
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Save Draft'),
+                    ),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: _busy || total <= 0
-                        ? null
-                        : () => _issueInvoice(session),
-                    icon: const Icon(Icons.send_outlined),
-                    label: const Text('Issue Invoice'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _invoiceId == null && _remoteInvoiceId == null
-                        ? null
-                        : () => _print(session),
-                    icon: const Icon(Icons.print_outlined),
-                    label: const Text('Print / PDF'),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _busy || total <= 0
+                          ? null
+                          : () => _issueInvoice(session),
+                      icon: const Icon(Icons.send_outlined),
+                      label: const Text('Issue Invoice'),
+                    ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _invoiceId == null && _remoteInvoiceId == null
+                      ? null
+                      : () => _print(session),
+                  icon: const Icon(Icons.print_outlined),
+                  label: const Text('Print / PDF'),
+                ),
               ),
             ],
           );

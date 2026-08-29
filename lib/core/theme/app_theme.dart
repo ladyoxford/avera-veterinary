@@ -463,10 +463,19 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
         height: 72,
+        backgroundColor: cardColor,
+        indicatorColor: scheme.primaryContainer,
         indicatorShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
         ),
         labelTextStyle: WidgetStatePropertyAll(textTheme.labelSmall),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? scheme.primary : scheme.onSurfaceVariant,
+            size: 24,
+          );
+        }),
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: cardColor,

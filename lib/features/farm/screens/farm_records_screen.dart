@@ -13,6 +13,7 @@ import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../../shared/widgets/catalogue_selector.dart';
+import '../widgets/farm_back_navigation.dart';
 
 class FarmRecordsScreen extends ConsumerStatefulWidget {
   const FarmRecordsScreen({super.key});
@@ -33,6 +34,10 @@ class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
       return const Scaffold(body: _FarmDenied());
     }
     return Scaffold(
+      appBar: AppBar(
+        leading: const FarmBackButton(fallbackPath: '/more'),
+        title: const Text('Farm Records'),
+      ),
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               onPressed: () => context.push('/farm-records/new'),
@@ -63,10 +68,9 @@ class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
                 AveraSpacing.bottomContentClearance,
               ),
               children: [
-                const AveraPageHeader(
-                  title: 'Farm Records',
-                  subtitle:
-                      'Manage livestock farms and daily production records.',
+                Text(
+                  'Manage livestock farms and daily production records.',
+                  style: averaText(context).pageSubtitle,
                 ),
                 const SizedBox(height: AveraSpacing.subtitleToContentGap),
                 TextField(
@@ -144,7 +148,10 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
   Widget build(BuildContext context) {
     final session = ref.watch(userSessionProvider).valueOrNull;
     return Scaffold(
-      appBar: AppBar(title: const Text('Farm Records')),
+      appBar: AppBar(
+        leading: const FarmBackButton(fallbackPath: '/farm-records'),
+        title: const Text('Farm Records'),
+      ),
       floatingActionButton: session?.can(Permissions.farmDailyRecord) == true
           ? FloatingActionButton.extended(
               onPressed: () async {
@@ -453,7 +460,10 @@ class _FarmDailyRecordScreenState extends ConsumerState<FarmDailyRecordScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Daily Farm Record')),
+    appBar: AppBar(
+      leading: FarmBackButton(fallbackPath: '/farm-records/${widget.farmId}'),
+      title: const Text('Daily Farm Record'),
+    ),
     body: Form(
       key: _formKey,
       child: ListView(

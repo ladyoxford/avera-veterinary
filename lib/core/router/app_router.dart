@@ -33,6 +33,7 @@ import '../../features/consultation/screens/consultation_screen.dart';
 import '../../features/consultation/screens/cloud_consultation_detail_screen.dart';
 import '../../features/consultation/screens/cloud_consultation_edit_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
+import '../../features/farm/widgets/farm_back_navigation.dart';
 import '../../features/reports/screens/reports_screen.dart';
 import '../../features/shared/screens/appointments_screen.dart';
 import '../../features/shared/screens/backup_screen.dart';
@@ -629,21 +630,31 @@ final appRouter = GoRouter(
     // prevents clinic navigation from obscuring unit records and modal sheets.
     GoRoute(
       path: '/farm-records',
-      builder: (context, state) => const FarmRecordsScreen(),
+      builder: (context, state) => const FarmBackNavigationScope(
+        fallbackPath: '/more',
+        child: FarmRecordsScreen(),
+      ),
     ),
     GoRoute(
       path: '/farm-records/new',
-      builder: (context, state) => const FarmProfileEditorScreen(),
+      builder: (context, state) => const FarmBackNavigationScope(
+        fallbackPath: '/farm-records',
+        child: FarmProfileEditorScreen(),
+      ),
     ),
     GoRoute(
       path: '/farm-records/:farmId/edit',
-      builder: (context, state) =>
-          FarmProfileEditorScreen(farmId: state.pathParameters['farmId']!),
+      builder: (context, state) => FarmBackNavigationScope(
+        fallbackPath: '/farm-records/${state.pathParameters['farmId']!}',
+        child: FarmProfileEditorScreen(farmId: state.pathParameters['farmId']!),
+      ),
     ),
     GoRoute(
       path: '/farm-records/:farmId/overview',
-      builder: (context, state) =>
-          FarmOverviewScreen(farmId: state.pathParameters['farmId']!),
+      builder: (context, state) => FarmBackNavigationScope(
+        fallbackPath: '/farm-records/${state.pathParameters['farmId']!}',
+        child: FarmOverviewScreen(farmId: state.pathParameters['farmId']!),
+      ),
     ),
     GoRoute(
       path: '/farm-records/:farmId/invoice',
@@ -652,29 +663,40 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/farm-records/:farmId/units/:unitId',
-      builder: (context, state) => FarmUnitDetailScreen(
-        farmId: state.pathParameters['farmId']!,
-        unitId: int.parse(state.pathParameters['unitId']!),
+      builder: (context, state) => FarmBackNavigationScope(
+        fallbackPath: '/farm-records/${state.pathParameters['farmId']!}',
+        child: FarmUnitDetailScreen(
+          farmId: state.pathParameters['farmId']!,
+          unitId: int.parse(state.pathParameters['unitId']!),
+        ),
       ),
     ),
     GoRoute(
       path: '/farm-records/:farmId/daily/:recordId',
-      builder: (context, state) => FarmDailyRecordDetailScreen(
-        farmId: state.pathParameters['farmId']!,
-        recordId: state.pathParameters['recordId']!,
+      builder: (context, state) => FarmBackNavigationScope(
+        fallbackPath: '/farm-records/${state.pathParameters['farmId']!}',
+        child: FarmDailyRecordDetailScreen(
+          farmId: state.pathParameters['farmId']!,
+          recordId: state.pathParameters['recordId']!,
+        ),
       ),
     ),
     GoRoute(
       path: '/farm-records/:farmId',
-      builder: (context, state) =>
-          FarmDetailScreen(farmId: state.pathParameters['farmId']!),
+      builder: (context, state) => FarmBackNavigationScope(
+        fallbackPath: '/farm-records',
+        child: FarmDetailScreen(farmId: state.pathParameters['farmId']!),
+      ),
     ),
     GoRoute(
       path: '/farm-records/:farmId/daily',
-      builder: (context, state) => FarmDailyRecordEditorScreen(
-        farmId: state.pathParameters['farmId']!,
-        recordId: state.uri.queryParameters['recordId'],
-        correctionMode: state.uri.queryParameters['correct'] == 'true',
+      builder: (context, state) => FarmBackNavigationScope(
+        fallbackPath: '/farm-records/${state.pathParameters['farmId']!}',
+        child: FarmDailyRecordEditorScreen(
+          farmId: state.pathParameters['farmId']!,
+          recordId: state.uri.queryParameters['recordId'],
+          correctionMode: state.uri.queryParameters['correct'] == 'true',
+        ),
       ),
     ),
   ],

@@ -199,6 +199,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           AveraSpacing.bottomContentClearance,
         ),
         children: [
+          Text(
+            'Manage products and stock levels',
+            style: averaText(context).pageSubtitle,
+          ),
+          const SizedBox(height: AveraSpacing.subtitleToContentGap),
           if (fromCache) ...[
             Row(
               children: [

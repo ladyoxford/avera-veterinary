@@ -188,8 +188,7 @@ class _UserAvatarButton extends StatelessWidget {
   );
 
   Future<void> _showMenu(BuildContext context) async {
-    final router = GoRouter.of(context);
-    await showModalBottomSheet<void>(
+    final destination = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -208,7 +207,7 @@ class _UserAvatarButton extends StatelessWidget {
                     name: name,
                     photoReference: profilePhoto,
                     size: 52,
-                    onTap: () => _openProfile(sheetContext, router),
+                    onTap: () => _selectProfile(sheetContext),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -234,7 +233,7 @@ class _UserAvatarButton extends StatelessWidget {
                 key: const Key('account-menu-profile'),
                 leading: const Icon(Icons.person_outline_rounded),
                 title: const Text('My Profile'),
-                onTap: () => _openProfile(sheetContext, router),
+                onTap: () => _selectProfile(sheetContext),
               ),
               ListTile(
                 leading: const Icon(Icons.manage_accounts_outlined),
@@ -266,13 +265,11 @@ class _UserAvatarButton extends StatelessWidget {
         ),
       ),
     );
+    if (destination == accountProfileRoute && context.mounted) {
+      context.push(destination!);
+    }
   }
 
-  void _openProfile(BuildContext sheetContext, GoRouter router) {
-    Navigator.of(sheetContext).pop();
-    Future<void>.delayed(
-      const Duration(milliseconds: 200),
-      () => router.go(accountProfileRoute),
-    );
-  }
+  void _selectProfile(BuildContext sheetContext) =>
+      Navigator.of(sheetContext).pop(accountProfileRoute);
 }

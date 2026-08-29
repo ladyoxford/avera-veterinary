@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../widgets/avera_ui.dart';
 import '../widgets/identity_avatar.dart';
 import '../widgets/avera_photo_actions.dart';
+import '../widgets/safe_back_navigation.dart';
 
 class MyProfileScreen extends ConsumerStatefulWidget {
   const MyProfileScreen({super.key});
@@ -37,134 +38,143 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final asyncSession = ref.watch(userSessionProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Profile')),
-      body: asyncSession.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(
-          child: Text('Your profile could not be loaded. Please try again.'),
+    return SafeBackNavigationScope(
+      fallbackPath: '/dashboard',
+      child: Scaffold(
+        appBar: AppBar(
+          leading: const SafeBackButton(
+            buttonKey: Key('profile-safe-back-button'),
+            fallbackPath: '/dashboard',
+          ),
+          title: const Text('My Profile'),
         ),
-        data: (session) {
-          if (_loadedUserId != session.user.userId) {
-            _loadedUserId = session.user.userId;
-            _name.text = session.user.fullName;
-            _phone.text = session.user.phoneNumber ?? '';
-            _license.text = session.user.veterinaryLicenseNumber ?? '';
-          }
-          final showLicense = session.user.role.toLowerCase().contains(
-            'veterinarian',
-          );
-          return SafeArea(
-            top: false,
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(
-                  AveraSpacing.pageHorizontalPadding,
-                  12,
-                  AveraSpacing.pageHorizontalPadding,
-                  32,
-                ),
-                children: [
-                  Center(
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        AveraIdentityAvatar(
-                          key: const Key('profile-avatar'),
-                          name: session.user.fullName,
-                          photoReference: session.user.profilePhoto,
-                          size: 120,
-                          onTap: _saving
-                              ? null
-                              : () => _showPhotoActions(session),
-                        ),
-                        Positioned(
-                          right: -2,
-                          bottom: 2,
-                          child: CircleAvatar(
-                            radius: 19,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primary,
-                            child: const Icon(
-                              Icons.photo_camera_outlined,
-                              size: 21,
+        body: asyncSession.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => const Center(
+            child: Text('Your profile could not be loaded. Please try again.'),
+          ),
+          data: (session) {
+            if (_loadedUserId != session.user.userId) {
+              _loadedUserId = session.user.userId;
+              _name.text = session.user.fullName;
+              _phone.text = session.user.phoneNumber ?? '';
+              _license.text = session.user.veterinaryLicenseNumber ?? '';
+            }
+            final showLicense = session.user.role.toLowerCase().contains(
+              'veterinarian',
+            );
+            return SafeArea(
+              top: false,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(
+                    AveraSpacing.pageHorizontalPadding,
+                    12,
+                    AveraSpacing.pageHorizontalPadding,
+                    32,
+                  ),
+                  children: [
+                    Center(
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          AveraIdentityAvatar(
+                            key: const Key('profile-avatar'),
+                            name: session.user.fullName,
+                            photoReference: session.user.profilePhoto,
+                            size: 120,
+                            onTap: _saving
+                                ? null
+                                : () => _showPhotoActions(session),
+                          ),
+                          Positioned(
+                            right: -2,
+                            bottom: 2,
+                            child: CircleAvatar(
+                              radius: 19,
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
+                              child: const Icon(
+                                Icons.photo_camera_outlined,
+                                size: 21,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Center(child: Text('Tap to change photo')),
-                  const SizedBox(height: 14),
-                  Text(
-                    session.user.fullName,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${session.user.role}  |  ${session.clinic.clinicName}',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 20),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  _editableField(
-                    label: 'FULL NAME',
-                    controller: _name,
-                    validator: (value) => value?.trim().isEmpty == true
-                        ? 'Enter your full name.'
-                        : null,
-                  ),
-                  _gap,
-                  _readOnlyField('ROLE', session.user.role),
-                  _gap,
-                  _readOnlyField(
-                    'PROFESSIONAL TITLE',
-                    session.user.professionalTitle ?? 'Not set',
-                  ),
-                  _gap,
-                  _readOnlyField('CLINIC', session.clinic.clinicName),
-                  _gap,
-                  _readOnlyField('EMAIL ADDRESS', session.user.email),
-                  _gap,
-                  _editableField(
-                    label: 'PHONE NUMBER',
-                    controller: _phone,
-                    keyboardType: TextInputType.phone,
-                    validator: (value) {
-                      final phone = value?.trim() ?? '';
-                      if (phone.isEmpty) return null;
-                      return RegExp(r'^\+?[0-9 ()-]{7,24}$').hasMatch(phone)
-                          ? null
-                          : 'Enter a valid phone number.';
-                    },
-                  ),
-                  if (showLicense) ...[
+                    const SizedBox(height: 8),
+                    const Center(child: Text('Tap to change photo')),
+                    const SizedBox(height: 14),
+                    Text(
+                      session.user.fullName,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${session.user.role}  |  ${session.clinic.clinicName}',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    _editableField(
+                      label: 'FULL NAME',
+                      controller: _name,
+                      validator: (value) => value?.trim().isEmpty == true
+                          ? 'Enter your full name.'
+                          : null,
+                    ),
+                    _gap,
+                    _readOnlyField('ROLE', session.user.role),
+                    _gap,
+                    _readOnlyField(
+                      'PROFESSIONAL TITLE',
+                      session.user.professionalTitle ?? 'Not set',
+                    ),
+                    _gap,
+                    _readOnlyField('CLINIC', session.clinic.clinicName),
+                    _gap,
+                    _readOnlyField('EMAIL ADDRESS', session.user.email),
                     _gap,
                     _editableField(
-                      label: 'LICENSE / REGISTRATION NO.',
-                      controller: _license,
+                      label: 'PHONE NUMBER',
+                      controller: _phone,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        final phone = value?.trim() ?? '';
+                        if (phone.isEmpty) return null;
+                        return RegExp(r'^\+?[0-9 ()-]{7,24}$').hasMatch(phone)
+                            ? null
+                            : 'Enter a valid phone number.';
+                      },
+                    ),
+                    if (showLicense) ...[
+                      _gap,
+                      _editableField(
+                        label: 'LICENSE / REGISTRATION NO.',
+                        controller: _license,
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    AveraPrimaryActionButton(
+                      key: const Key('save-profile-button'),
+                      label: _saving ? 'Saving...' : 'Save Changes',
+                      icon: Icons.save_outlined,
+                      onPressed: _saving ? null : () => _save(session),
                     ),
                   ],
-                  const SizedBox(height: 24),
-                  AveraPrimaryActionButton(
-                    key: const Key('save-profile-button'),
-                    label: _saving ? 'Saving...' : 'Save Changes',
-                    icon: Icons.save_outlined,
-                    onPressed: _saving ? null : () => _save(session),
-                  ),
-                ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

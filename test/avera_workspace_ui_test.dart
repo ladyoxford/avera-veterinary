@@ -3,7 +3,6 @@ import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/features/billing/screens/revenue_profit_screen.dart';
 import 'package:avera/features/farm/widgets/farm_back_navigation.dart';
 import 'package:avera/features/shared/widgets/app_scaffold.dart';
-import 'package:avera/features/shared/widgets/avera_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,14 +18,6 @@ void main() {
     expect(mobileNavigationIndex('/consultations/new'), 2);
     expect(mobileNavigationIndex('/appointments'), 3);
     expect(mobileNavigationIndex('/more'), 4);
-  });
-
-  test('dark workspace foundation is limited to the upgraded modules', () {
-    expect(usesAveraDarkCoreFoundation('/animals'), isTrue);
-    expect(usesAveraDarkCoreFoundation('/inventory'), isTrue);
-    expect(usesAveraDarkCoreFoundation('/billing/history'), isTrue);
-    expect(usesAveraDarkCoreFoundation('/revenue'), isTrue);
-    expect(usesAveraDarkCoreFoundation('/settings'), isFalse);
   });
 
   testWidgets('permanent mobile navigation uses stable visible glyphs', (
@@ -97,24 +88,68 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('AVERA dark wrapper supplies dark theme to descendants', (
+  testWidgets('upgraded workspaces inherit light and dark app themes', (
     tester,
   ) async {
-    Brightness? brightness;
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: AveraDarkTheme(
-          child: Builder(
-            builder: (context) {
-              brightness = Theme.of(context).brightness;
-              return const SizedBox();
-            },
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const paths = ['/animals', '/inventory', '/billing', '/revenue'];
+    for (final entry in const [
+      (ThemeMode.light, Brightness.light),
+      (ThemeMode.dark, Brightness.dark),
+    ]) {
+      Brightness? inheritedBrightness;
+      final router = GoRouter(
+        initialLocation: paths.first,
+        routes: [
+          for (final path in paths)
+            GoRoute(
+              path: path,
+              builder: (context, state) => AppScaffold(
+                child: Builder(
+                  builder: (context) {
+                    inheritedBrightness = Theme.of(context).brightness;
+                    return Text('Theme probe for $path');
+                  },
+                ),
+              ),
+            ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            userSessionProvider.overrideWith(
+              (ref) async => throw StateError('No session required'),
+            ),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            darkTheme: AppTheme.dark(),
+            themeMode: entry.$1,
+            routerConfig: router,
           ),
         ),
-      ),
-    );
-    expect(brightness, Brightness.dark);
+      );
+      await tester.pumpAndSettle();
+
+      for (final path in paths) {
+        router.go(path);
+        await tester.pumpAndSettle();
+        expect(
+          inheritedBrightness,
+          entry.$2,
+          reason: '$path must respect ${entry.$1.name} mode',
+        );
+      }
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      router.dispose();
+    }
   });
 
   testWidgets('farm system back falls back to More instead of exiting', (

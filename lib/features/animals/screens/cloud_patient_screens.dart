@@ -211,16 +211,16 @@ class CloudPatientCard extends ConsumerWidget {
               }
             : null,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
               AveraIdentityAvatar(
                 key: Key('patient-avatar-${patient.id}'),
                 name: patient.name,
                 photoReference: patient.photoUrl,
-                size: 48,
+                size: 60,
               ),
-              const SizedBox(width: AveraSpacing.compactRowGap),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

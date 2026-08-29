@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_providers.dart';
 import '../../../core/security/access_control.dart';
 import 'avera_logo.dart';
-import 'avera_ui.dart';
 
 class AppScaffold extends ConsumerWidget {
   const AppScaffold({super.key, required this.child});
@@ -53,7 +52,6 @@ class AppScaffold extends ConsumerWidget {
     ];
     final width = MediaQuery.sizeOf(context).width;
     final location = GoRouterState.of(context).uri.toString();
-    final darkFoundation = usesAveraDarkCoreFoundation(location);
     final selected = destinations
         .indexWhere((d) {
           if (d.path == '/dashboard') return location == '/dashboard';
@@ -106,7 +104,7 @@ class AppScaffold extends ConsumerWidget {
           ],
         ),
       );
-      return darkFoundation ? AveraDarkTheme(child: scaffold) : scaffold;
+      return scaffold;
     }
 
     final mobileSelected = mobileNavigationIndex(location);
@@ -138,7 +136,7 @@ class AppScaffold extends ConsumerWidget {
       body: _WorkspaceBody(offline: offline != null, child: child),
       bottomNavigationBar: navigationBar,
     );
-    return darkFoundation ? AveraDarkTheme(child: scaffold) : scaffold;
+    return scaffold;
   }
 }
 
@@ -154,12 +152,6 @@ int mobileNavigationIndex(String location) {
   if (location.startsWith('/appointments')) return 3;
   return 4;
 }
-
-bool usesAveraDarkCoreFoundation(String location) =>
-    location.startsWith('/animals') ||
-    location.startsWith('/inventory') ||
-    location.startsWith('/billing') ||
-    location.startsWith('/revenue');
 
 class _WorkspaceBody extends StatelessWidget {
   const _WorkspaceBody({required this.child, required this.offline});

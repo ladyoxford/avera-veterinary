@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_theme.dart';
 import 'avera_logo.dart';
 
 class AveraAuthScaffold extends StatelessWidget {
@@ -23,47 +22,40 @@ class AveraAuthScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final darkTheme = AppTheme.dark();
-    return Theme(
-      data: darkTheme,
-      child: Builder(
-        builder: (context) => Scaffold(
-          body: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: EdgeInsets.fromLTRB(
-                  constraints.maxWidth < 420 ? 22 : 32,
-                  26,
-                  constraints.maxWidth < 420 ? 22 : 32,
-                  28 + MediaQuery.viewInsetsOf(context).bottom,
+    return Scaffold(
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(
+              constraints.maxWidth < 420 ? 22 : 32,
+              26,
+              constraints.maxWidth < 420 ? 22 : 32,
+              28 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: maxWidth,
+                  minHeight: (constraints.maxHeight - 54)
+                      .clamp(0.0, double.infinity)
+                      .toDouble(),
                 ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: maxWidth,
-                      minHeight: (constraints.maxHeight - 54)
-                          .clamp(0.0, double.infinity)
-                          .toDouble(),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (backTitle != null)
-                          AveraBackHeader(title: backTitle!, onBack: onBack)
-                        else if (showBrand)
-                          const AveraBrandLockup(),
-                        if (showBrand || backTitle != null)
-                          const SizedBox(height: 34),
-                        child,
-                        if (footer != null) ...[
-                          const SizedBox(height: 34),
-                          Center(child: footer!),
-                        ],
-                      ],
-                    ),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (backTitle != null)
+                      AveraBackHeader(title: backTitle!, onBack: onBack)
+                    else if (showBrand)
+                      const AveraBrandLockup(),
+                    if (showBrand || backTitle != null)
+                      const SizedBox(height: 34),
+                    child,
+                    if (footer != null) ...[
+                      const SizedBox(height: 34),
+                      Center(child: footer!),
+                    ],
+                  ],
                 ),
               ),
             ),

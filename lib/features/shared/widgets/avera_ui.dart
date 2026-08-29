@@ -5,20 +5,6 @@ import '../../../core/theme/app_theme.dart';
 AveraTextStyles averaText(BuildContext context) =>
     Theme.of(context).extension<AveraTextStyles>()!;
 
-/// Applies the canonical AVERA dark workspace theme without changing the
-/// clinic's configured accent color.
-class AveraDarkTheme extends StatelessWidget {
-  const AveraDarkTheme({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Theme(
-    data: AppTheme.dark(accentColor: Theme.of(context).colorScheme.primary),
-    child: child,
-  );
-}
-
 class AveraPageHeader extends StatelessWidget {
   const AveraPageHeader({super.key, required this.title, this.subtitle});
   final String title;

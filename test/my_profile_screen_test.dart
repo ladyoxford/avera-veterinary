@@ -10,6 +10,7 @@ import 'package:avera/core/database/app_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   test('shared initials preserve established first-two-name behavior', () {
@@ -133,4 +134,55 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+
+  testWidgets(
+    'direct profile back falls back to Dashboard instead of exiting',
+    (tester) async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final router = GoRouter(
+        initialLocation: '/profile',
+        routes: [
+          GoRoute(
+            path: '/dashboard',
+            builder: (_, __) => const Scaffold(body: Text('Dashboard')),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (_, __) => const MyProfileScreen(),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            clinicRepositoryProvider.overrideWithValue(repository),
+            userSessionProvider.overrideWith((ref) async => session),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('My Profile'), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(router.routeInformationProvider.value.uri.path, '/dashboard');
+      expect(find.text('Dashboard'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

@@ -56,6 +56,16 @@ void main() {
       find.textContaining("Your clinic's data is encrypted and isolated"),
       findsOneWidget,
     );
+    final authContext = tester.element(find.byType(AveraAuthCard));
+    expect(Theme.of(authContext).brightness, theme.brightness);
+    expect(
+      tester.widget<Text>(find.text('Welcome back')).style?.color,
+      theme.colorScheme.onSurface,
+    );
+    expect(
+      tester.widget<Text>(find.text('Remember me')).style?.color,
+      theme.colorScheme.onSurface,
+    );
     expect(tester.takeException(), isNull);
   }
 

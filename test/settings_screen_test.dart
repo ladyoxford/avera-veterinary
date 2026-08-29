@@ -260,4 +260,54 @@ void main() {
     expect(find.byKey(const Key('clinic-dashboard-banner')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('account profile preserves the page it was opened from', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      initialLocation: '/dashboard',
+      routes: [
+        GoRoute(
+          path: '/dashboard',
+          builder: (_, __) => const Scaffold(
+            appBar: BrandedAppBar(),
+            body: Text('Dashboard origin'),
+          ),
+        ),
+        GoRoute(
+          path: '/profile',
+          builder: (_, __) => const Scaffold(body: Text('Profile destination')),
+        ),
+        GoRoute(path: '/notifications', builder: (_, __) => const Scaffold()),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: providerOverrides,
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('account-menu-button')));
+    await tester.pumpAndSettle();
+    tester
+        .widget<ListTile>(find.byKey(const Key('account-menu-profile')))
+        .onTap!();
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(router.canPop(), isTrue);
+    expect(find.text('Profile destination'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/dashboard');
+    expect(find.text('Dashboard origin'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

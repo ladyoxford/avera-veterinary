@@ -19,7 +19,7 @@ void main() {
         find.byKey(const Key('patient-avatar-patient-1')),
       );
       expect(avatar.photoReference, photoUrl);
-      expect(avatar.size, 48);
+      expect(avatar.size, 60);
     },
   );
 

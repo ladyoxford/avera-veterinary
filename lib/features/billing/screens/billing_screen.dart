@@ -2287,7 +2287,9 @@ class _TotalRow extends StatelessWidget {
         Text(
           formatNaira(value),
           style: bold
-              ? averaText(context).listItemTitle
+              ? averaText(context).listItemTitle.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                )
               : averaText(context).fieldValue,
         ),
       ],

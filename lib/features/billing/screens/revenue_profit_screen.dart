@@ -53,8 +53,8 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
             style: averaText(context).pageSubtitle,
           ),
           const SizedBox(height: AveraSpacing.subtitleToContentGap),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          SizedBox(
+            width: double.infinity,
             child: SegmentedButton<RevenuePeriod>(
               segments: const [
                 ButtonSegment(

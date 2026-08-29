@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import { buildApp } from '../src/app.js';
-import { normalizeClinicStatus } from '../src/routes/platform-routes.js';
+import {
+  normalizeClinicStatus,
+  queryPlatformClinics,
+} from '../src/routes/platform-routes.js';
 
 const migration = fs.readFileSync(
   new URL('../migrations/008_platform_clinic_profiles.sql', import.meta.url),
@@ -20,6 +23,79 @@ test('PendingApproval is normalized for the Flutter Pending filter', () => {
   assert.equal(normalizeClinicStatus('PendingApproval'), 'Pending');
   assert.equal(normalizeClinicStatus('Pending'), 'Pending');
   assert.equal(normalizeClinicStatus('Active'), 'Active');
+  assert.equal(
+    normalizeClinicStatus('RegistrationDraft', 'AwaitingPayment'),
+    'Awaiting Payment',
+  );
+  assert.equal(normalizeClinicStatus('Active', 'AwaitingPayment'), 'Active');
+});
+
+test('platform clinic listing includes newly registered clinics awaiting payment', async () => {
+  const calls = [];
+  const client = {
+    async query(sql, parameters = []) {
+      calls.push({ sql, parameters });
+      if (sql.includes('SELECT count(*)::int AS count')) {
+        return { rows: [{ count: 1 }] };
+      }
+      return {
+        rows: [{
+          clinic_id: 'clinic-new',
+          name: 'New Veterinary Clinic',
+          email: 'account@example.com',
+          phone: '+2348000000000',
+          address: '1 Clinic Road',
+          city: 'Lagos',
+          country: 'Nigeria',
+          time_zone: 'Africa/Lagos',
+          status: 'RegistrationDraft',
+          subscription_plan: 'Professional',
+          created_at: new Date('2026-08-29T08:00:00Z'),
+          updated_at: new Date('2026-08-29T08:00:00Z'),
+          application_reference: 'AVR-20260829-ABC123',
+          application_status: 'AwaitingPayment',
+          payment_status: 'Pending',
+          account_email: 'account@example.com',
+          application_submitted_at: new Date('2026-08-29T08:00:00Z'),
+          subscription_status: null,
+          user_count: 0,
+          patient_count: 0,
+        }],
+      };
+    },
+  };
+
+  const result = await queryPlatformClinics(client, { limit: 25 });
+
+  assert.equal(result.total, 1);
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].status, 'Awaiting Payment');
+  assert.equal(result.items[0].paymentStatus, 'Pending');
+  assert.equal(result.items[0].accountEmail, 'account@example.com');
+  assert.equal(
+    calls.some(({ sql }) => sql.includes("status <> 'RegistrationDraft'")),
+    false,
+  );
+});
+
+test('Pending platform filter includes registration and approval queues', async () => {
+  const calls = [];
+  const client = {
+    async query(sql, parameters = []) {
+      calls.push({ sql, parameters });
+      return sql.includes('SELECT count(*)::int AS count')
+        ? { rows: [{ count: 0 }] }
+        : { rows: [] };
+    },
+  };
+
+  await queryPlatformClinics(client, { status: 'Pending' });
+
+  assert.deepEqual(calls[0].parameters[0], [
+    'registrationdraft',
+    'pending',
+    'pendingapproval',
+  ]);
 });
 
 test('clinic accounts cannot access Platform Owner clinic APIs', async (context) => {

@@ -162,6 +162,52 @@ void main() {
   );
 
   test(
+    'remote platform clinic list includes and caches registrations awaiting payment',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final session = await _platformOwnerSession(database);
+      final tokens = const TokenStore(FlutterSecureStorage());
+      await tokens.save(
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      );
+      late Uri requestedUri;
+      final repository = RemotePlatformRepository(
+        db: database,
+        apiClient: ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: tokens,
+          client: MockClient((request) async {
+            requestedUri = request.url;
+            return http.Response(
+              jsonEncode({
+                'items': [_remoteClinic(status: 'RegistrationDraft')],
+                'total': 1,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final clinics = await repository.loadClinics(session);
+
+      expect(requestedUri.path, '/api/v1/platform/clinics');
+      expect(requestedUri.queryParameters['pageSize'], '100');
+      expect(clinics.single.clinicStatus, 'Awaiting Payment');
+      final pending = await LocalPlatformRepository(
+        database,
+      ).loadClinics(session, status: 'Pending');
+      expect(
+        pending.map((clinic) => clinic.clinicId),
+        contains('remote-clinic'),
+      );
+    },
+  );
+
+  test(
     'platform clinic detail preserves application reference and payment status',
     () async {
       final database = AppDatabase.forTesting(NativeDatabase.memory());

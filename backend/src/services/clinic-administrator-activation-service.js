@@ -65,12 +65,12 @@ export class ClinicAdministratorActivationService {
         const alreadyApproved =
           target.clinic_status === 'Active' &&
           target.application_status === 'Approved';
-        if (alreadyApproved) {
-          return { approved: true, issued: null };
-        }
         if (
-          !['Pending', 'PendingApproval'].includes(target.clinic_status) ||
-          !['Pending', 'PendingApproval'].includes(target.application_status)
+          !alreadyApproved &&
+          (
+            !['Pending', 'PendingApproval'].includes(target.clinic_status) ||
+            !['Pending', 'PendingApproval'].includes(target.application_status)
+          )
         ) {
           throw serviceError(
             'automatic_approval_not_allowed',
@@ -79,12 +79,14 @@ export class ClinicAdministratorActivationService {
           );
         }
 
-        await client.query(
-          `UPDATE clinics
-              SET status = 'Active', updated_at = now(), revision = revision + 1
-            WHERE clinic_id = $1`,
-          [context.clinicId],
-        );
+        if (!alreadyApproved) {
+          await client.query(
+            `UPDATE clinics
+                SET status = 'Active', updated_at = now(), revision = revision + 1
+              WHERE clinic_id = $1`,
+            [context.clinicId],
+          );
+        }
         const administrator = await this.provisionOnApproval(client, {
           clinicId: context.clinicId,
           clinicName: target.clinic_name,
@@ -97,7 +99,9 @@ export class ClinicAdministratorActivationService {
           actingUserId: null,
           targetType: 'Clinic',
           targetId: context.clinicId,
-          action: 'clinic.auto_approved_after_verified_payment',
+          action: alreadyApproved
+            ? 'clinic.administrator_reconciled_after_verified_payment'
+            : 'clinic.auto_approved_after_verified_payment',
           previousSummary: {
             clinicStatus: target.clinic_status,
             applicationStatus: target.application_status,
@@ -122,17 +126,35 @@ export class ClinicAdministratorActivationService {
   async provisionOnApproval(client, context) {
     const application = (
       await client.query(
-        `SELECT * FROM clinic_applications
-          WHERE clinic_id = $1
-          ORDER BY submitted_at DESC
-          LIMIT 1 FOR UPDATE`,
+        `SELECT a.*,
+                COALESCE(
+                  NULLIF(trim(a.administrator_email::text), ''),
+                  NULLIF(trim(a.clinic_email::text), ''),
+                  NULLIF(trim(c.email::text), '')
+                ) AS account_email
+           FROM clinic_applications a
+           JOIN clinics c ON c.clinic_id = a.clinic_id
+          WHERE a.clinic_id = $1
+          ORDER BY a.submitted_at DESC
+          LIMIT 1 FOR UPDATE OF a`,
         [context.clinicId],
       )
     ).rows[0];
-    if (!application?.administrator_email || !application?.administrator_name) {
+    const accountEmail =
+      application?.account_email ??
+      application?.administrator_email ??
+      application?.clinic_email;
+    if (!accountEmail) {
       throw serviceError(
-        'administrator_details_missing',
-        'The clinic application does not contain administrator details.',
+        'administrator_account_email_missing',
+        'The Clinic Administrator could not be provisioned because no valid registration Account Email is available.',
+        409,
+      );
+    }
+    if (!application?.administrator_name) {
+      throw serviceError(
+        'administrator_name_missing',
+        'The Clinic Administrator could not be provisioned because the clinic application has no administrator name.',
         409,
       );
     }
@@ -173,7 +195,7 @@ export class ClinicAdministratorActivationService {
       actorUserId: context.actorUserId,
     });
 
-    const normalizedEmail = String(application.administrator_email).toLowerCase();
+    const normalizedEmail = String(accountEmail).trim().toLowerCase();
     let user = (
       await client.query(
         'SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL FOR UPDATE',
@@ -216,6 +238,23 @@ export class ClinicAdministratorActivationService {
               SET full_name = $2, phone = $3, role_id = $4,
                   status = 'PendingActivation', updated_at = now(),
                   updated_by = $5, deleted_at = NULL
+            WHERE user_id = $1
+            RETURNING *`,
+          [
+            user.user_id,
+            application.administrator_name,
+            application.administrator_phone,
+            role.role_id,
+            context.actorUserId,
+          ],
+        )
+      ).rows[0];
+    } else {
+      user = (
+        await client.query(
+          `UPDATE users
+              SET full_name = $2, phone = $3, role_id = $4,
+                  updated_at = now(), updated_by = $5, deleted_at = NULL
             WHERE user_id = $1
             RETURNING *`,
           [
@@ -343,25 +382,60 @@ export class ClinicAdministratorActivationService {
       { isPlatformOwner: true },
       async (client) => {
         const result = await client.query(
-      `SELECT u.user_id, u.full_name, u.email, u.status,
-              t.expires_at, t.used_at, t.revoked_at, t.delivery_method,
-              t.delivered_at
-         FROM users u
-         LEFT JOIN LATERAL (
-           SELECT expires_at, used_at, revoked_at, delivery_method, delivered_at
-             FROM activation_tokens
-            WHERE user_id = u.user_id AND purpose = $2
-            ORDER BY created_at DESC LIMIT 1
-         ) t ON true
-        WHERE u.clinic_id = $1
-          AND u.account_type = 'ClinicAdministrator'
-          AND u.deleted_at IS NULL
-        ORDER BY u.created_at
-        LIMIT 1`,
-      [clinicId, purpose],
-    );
+          `SELECT u.user_id, u.full_name, u.email, u.status,
+                  t.expires_at, t.used_at, t.revoked_at, t.delivery_method,
+                  t.delivered_at
+             FROM users u
+             LEFT JOIN LATERAL (
+               SELECT expires_at, used_at, revoked_at, delivery_method,
+                      delivered_at
+                 FROM activation_tokens
+                WHERE user_id = u.user_id AND purpose = $2
+                ORDER BY created_at DESC LIMIT 1
+             ) t ON true
+            WHERE u.clinic_id = $1
+              AND u.account_type = 'ClinicAdministrator'
+              AND u.deleted_at IS NULL
+            ORDER BY u.created_at
+            LIMIT 1`,
+          [clinicId, purpose],
+        );
         const row = result.rows[0];
-        if (!row) return { status: 'NotProvisioned', canResend: false };
+        if (!row) {
+          const repair = (
+            await client.query(
+              `SELECT c.status AS clinic_status,
+                      a.administrator_name,
+                      COALESCE(
+                        NULLIF(trim(a.administrator_email::text), ''),
+                        NULLIF(trim(a.clinic_email::text), ''),
+                        NULLIF(trim(c.email::text), '')
+                      ) AS account_email
+                 FROM clinics c
+                 LEFT JOIN LATERAL (
+                   SELECT administrator_name, administrator_email, clinic_email
+                     FROM clinic_applications
+                    WHERE clinic_id = c.clinic_id
+                    ORDER BY submitted_at DESC
+                    LIMIT 1
+                 ) a ON true
+                WHERE c.clinic_id = $1 AND c.deleted_at IS NULL`,
+              [clinicId],
+            )
+          ).rows[0];
+          const canReconcile =
+            repair?.clinic_status === 'Active' &&
+            Boolean(repair?.administrator_name) &&
+            Boolean(repair?.account_email);
+          return {
+            status: 'NotProvisioned',
+            canResend: canReconcile,
+            email: repair?.account_email ?? null,
+            reason: canReconcile
+              ? 'Administrator provisioning can be repaired from the registration Account Email.'
+              : 'A valid registration Account Email and administrator name are required before provisioning can be repaired.',
+          };
+        }
         return mapActivationStatus(row);
       },
     );
@@ -386,7 +460,7 @@ export class ClinicAdministratorActivationService {
             409,
           );
         }
-        const user = (
+        const existingUser = (
           await client.query(
             `SELECT * FROM users
               WHERE clinic_id = $1 AND account_type = 'ClinicAdministrator'
@@ -395,28 +469,44 @@ export class ClinicAdministratorActivationService {
             [context.clinicId],
           )
         ).rows[0];
-        if (!user || user.status === 'Active') {
+        if (existingUser?.status === 'Active') {
           throw serviceError(
             'activation_not_required',
-            'This clinic administrator is already active or has not been provisioned.',
+            'This Clinic Administrator is already active.',
             409,
           );
         }
-        const token = await this.#issueToken(client, {
+        const reconciliation = await this.provisionOnApproval(client, {
           clinicId: context.clinicId,
-          user,
           clinicName: clinic.name,
           actorUserId: context.actorUserId,
+          sessionId: context.sessionId,
           ipAddress: context.ipAddress,
-          force: true,
         });
+        const user = reconciliation.user;
+        const token =
+          reconciliation.issued ??
+          await this.#issueToken(client, {
+            clinicId: context.clinicId,
+            user,
+            clinicName: clinic.name,
+            actorUserId: context.actorUserId,
+            ipAddress: context.ipAddress,
+            force: true,
+          });
         await writeAudit(client, {
           clinicId: context.clinicId,
           actingUserId: context.actorUserId,
           targetType: 'User',
           targetId: user.user_id,
-          action: 'administrator.activation_resent',
-          newSummary: { expiresAt: token.expiresAt },
+          action: existingUser
+            ? 'administrator.activation_resent'
+            : 'administrator.provisioned_and_activation_sent',
+          newSummary: {
+            expiresAt: token.expiresAt,
+            administratorProvisioned: !existingUser,
+            recipientEmail: user.email,
+          },
           sessionId: context.sessionId,
           ipAddress: context.ipAddress,
         });

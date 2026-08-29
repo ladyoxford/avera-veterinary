@@ -287,7 +287,9 @@ class LocalPlatformRepository implements PlatformRepository {
         query.where(
           (clinic) =>
               clinic.clinicStatus.equals('Pending') |
-              clinic.clinicStatus.equals('PendingApproval'),
+              clinic.clinicStatus.equals('PendingApproval') |
+              clinic.clinicStatus.equals('Awaiting Payment') |
+              clinic.clinicStatus.equals('RegistrationDraft'),
         );
       } else {
         query.where((clinic) => clinic.clinicStatus.equals(status));
@@ -398,7 +400,7 @@ class RemotePlatformRepository implements PlatformRepository {
     _ensurePlatformAccount(session);
     try {
       final query = status == null
-          ? ''
+          ? '?pageSize=100'
           : '?status=${Uri.encodeQueryComponent(status)}&pageSize=100';
       final response = await _apiClient.get('/api/v1/platform/clinics$query');
       final clinics = _clinicList(response['items'] ?? response['clinics']);
@@ -648,5 +650,10 @@ class RemotePlatformRepository implements PlatformRepository {
 
 int _integer(Object? value) => (value as num?)?.toInt() ?? 0;
 
-String _normalizeStatus(String? value) =>
-    value?.toLowerCase() == 'pendingapproval' ? 'Pending' : value ?? 'Pending';
+String _normalizeStatus(String? value) {
+  final normalized = value?.toLowerCase();
+  if (normalized == 'registrationdraft' || normalized == 'awaitingpayment') {
+    return 'Awaiting Payment';
+  }
+  return normalized == 'pendingapproval' ? 'Pending' : value ?? 'Pending';
+}

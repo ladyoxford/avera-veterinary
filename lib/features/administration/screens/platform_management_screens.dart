@@ -110,18 +110,26 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
     final applicationPayment = ref.watch(
       platformClinicApplicationPaymentProvider(clinicId),
     );
-    ref.watch(platformClinicProvider(clinicId));
+    final clinic = ref.watch(platformClinicProvider(clinicId));
     return _PlatformGuard(
-      child: StreamBuilder<List<Clinic>>(
-        stream: ref.read(clinicRepositoryProvider).watchPlatformClinics(),
-        builder: (context, snapshot) {
-          final clinic = snapshot.data?.cast<Clinic?>().firstWhere(
-            (item) => item?.clinicId == clinicId,
-            orElse: () => null,
-          );
+      child: clinic.when(
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (error, _) => Scaffold(
+          appBar: AppBar(title: const Text('Clinic Details')),
+          body: _PlatformLoadError(
+            message: _platformErrorMessage(error),
+            onRetry: () => ref.invalidate(platformClinicProvider(clinicId)),
+          ),
+        ),
+        data: (clinic) {
           if (clinic == null) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
+            return Scaffold(
+              appBar: AppBar(title: const Text('Clinic Details')),
+              body: const _EmptyState(
+                icon: Icons.business_outlined,
+                message: 'This clinic registration is no longer available.',
+              ),
             );
           }
           return Scaffold(
@@ -433,11 +441,15 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              activation?.deliveryMethod == 'email'
-                  ? 'Clinic approved. The activation email was sent.'
-                  : 'Clinic status changed to $status.',
-            ),
+            content: Text(switch (activation?.deliveryMethod) {
+              'email' =>
+                'Clinic activated. The administrator was provisioned and an activation email was sent${activation?.email == null ? '' : ' to ${activation!.email}'}.',
+              'email_failed' =>
+                'Clinic activated and the administrator was provisioned, but email delivery failed. Use Resend Activation to try again.',
+              _ when activation?.status == 'Active' =>
+                'Clinic is active and administrator access is already configured.',
+              _ => 'Clinic status changed to $status.',
+            }),
           ),
         );
       }
@@ -445,7 +457,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ).showSnackBar(SnackBar(content: Text(_platformErrorMessage(error))));
       }
     }
   }
@@ -460,6 +472,10 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
           .read(platformRepositoryProvider)
           .resendAdministratorActivation(session: session, clinicId: clinicId);
       ref.invalidate(platformAdministratorActivationProvider(clinicId));
+      ref.invalidate(platformClinicProvider(clinicId));
+      ref.invalidate(platformClinicApplicationPaymentProvider(clinicId));
+      ref.invalidate(platformClinicsProvider);
+      ref.invalidate(platformOverviewProvider);
       if (context.mounted) {
         if (activation.activationUrl != null) {
           await _showOneTimeActivationLink(context, activation);
@@ -469,8 +485,10 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
           SnackBar(
             content: Text(
               activation.deliveryMethod == 'email'
-                  ? 'A new activation email was sent.'
-                  : 'Activation delivery could not be completed.',
+                  ? 'The Clinic Administrator was reconciled and a new activation email was sent${activation.email == null ? '' : ' to ${activation.email}'}. '
+                  : activation.deliveryMethod == 'email_failed'
+                  ? 'Administrator provisioning is complete, but activation email delivery failed. Check email delivery and try again.'
+                  : 'Administrator provisioning is complete. Use the secure activation link shown here.',
             ),
           ),
         );
@@ -479,7 +497,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ).showSnackBar(SnackBar(content: Text(_platformErrorMessage(error))));
       }
     }
   }
@@ -493,7 +511,10 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
             : 'Pending activation - manual delivery required',
       'LinkExpired' => 'Activation link expired',
       'LinkRevoked' => 'Activation link revoked',
-      'NotProvisioned' => 'Administrator not provisioned',
+      'NotProvisioned' =>
+        activation.canResend
+            ? 'Administrator not provisioned - use Resend Activation to repair access'
+            : 'Administrator not provisioned - registration Account Email or administrator details are missing',
       'LocalDevelopment' => 'Local development activation',
       _ => activation.status,
     };
@@ -514,7 +535,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
       'paid' =>
         'Payment is verified. Platform Owner approval and administrator activation remain separate required steps.',
       'testverified' =>
-        'Payment was verified in test mode. No subscription, approval, or activation changes were applied.',
+        'Payment was verified through Paystack test mode. The clinic and administrator activation statuses are shown separately above.',
       'failed' || 'cancelled' || 'canceled' =>
         'The clinic application remains submitted and payment may be retried safely.',
       _ =>
@@ -566,6 +587,11 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _platformErrorMessage(Object error) {
+  if (error is ApiException) return error.message;
+  return 'The Platform Owner action could not be completed. Please try again.';
 }
 
 class PlatformSubscriptionsScreen extends ConsumerWidget {

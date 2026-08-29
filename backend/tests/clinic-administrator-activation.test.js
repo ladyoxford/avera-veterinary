@@ -328,6 +328,88 @@ test('verified clinic payment automatically approves and delivers activation ema
   );
 });
 
+test('verified payment retry reconciles an approved active clinic without changing payment state', async () => {
+  const calls = [];
+  const client = {
+    async query(sql, parameters = []) {
+      calls.push({ sql, parameters });
+      if (
+        sql === 'BEGIN' ||
+        sql === 'COMMIT' ||
+        sql === 'ROLLBACK' ||
+        sql.includes("set_config('avera.") ||
+        sql.includes('pg_advisory_xact_lock') ||
+        sql.includes('INSERT INTO audit_logs')
+      ) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM clinic_applications a')) {
+        return {
+          rows: [{
+            application_id: 'application-repair',
+            clinic_id: 'clinic-repair',
+            application_status: 'Approved',
+            payment_status: 'TestVerified',
+            payment_reference: 'AVERA-REPAIR-1',
+            clinic_name: 'Repair Veterinary Clinic',
+            clinic_status: 'Active',
+            transaction_status: 'Successful',
+          }],
+        };
+      }
+      throw new Error(`Unexpected reconciliation query: ${sql}`);
+    },
+    release() {},
+  };
+  const activation = service({
+    connect: async () => client,
+    query: (...arguments_) => client.query(...arguments_),
+  });
+  let reconciled = 0;
+  activation.provisionOnApproval = async () => {
+    reconciled += 1;
+    return { issued: null };
+  };
+  activation.activationStatus = async () => ({
+    status: 'PendingActivation',
+    canResend: true,
+  });
+
+  const result = await activation.approveAfterVerifiedPayment({
+    applicationId: 'application-repair',
+    clinicId: 'clinic-repair',
+    reference: 'AVERA-REPAIR-1',
+    mode: 'test',
+  });
+
+  assert.equal(result.approved, true);
+  assert.equal(reconciled, 1);
+  assert.equal(result.activation.status, 'PendingActivation');
+  assert.equal(
+    calls.some(({ sql }) => sql.includes('UPDATE clinics')),
+    false,
+  );
+  assert.equal(
+    calls.some(({ sql }) => sql.includes('UPDATE clinic_applications') && sql.includes('payment_status')),
+    false,
+  );
+});
+
+test('canonical registration Account Email provisions the administrator through legacy application columns', async () => {
+  const harness = approvalHarness();
+  harness.state.application.administrator_email = null;
+  harness.state.application.clinic_email = 'ACCOUNT@EXAMPLE.COM';
+
+  const result = await service(harness.pool).provisionOnApproval(harness.client, {
+    clinicId: 'clinic-1',
+    clinicName: 'Ada Veterinary Clinic',
+    actorUserId: 'platform-owner-1',
+  });
+
+  assert.equal(result.user.email, 'account@example.com');
+  assert.equal(harness.state.membershipCount, 1);
+});
+
 test('activation token is hashed and plaintext is never passed to persistence', async () => {
   const harness = approvalHarness();
   const result = await service(harness.pool).provisionOnApproval(harness.client, {
@@ -527,4 +609,69 @@ test('resend revokes the previous token and issues a different one', async () =>
   assert.match(resent.activationUrl, /^https:\/\/accounts\.averavet\.sbs\/activate-clinic-admin\?token=/);
   assert.equal(harness.state.tokenInsertCount, 2);
   assert.notEqual(harness.state.liveToken.token_hash, originalHash);
+});
+
+test('resend reconciles a missing administrator before issuing activation', async () => {
+  const harness = approvalHarness();
+  const activation = service(harness.pool);
+
+  const resent = await activation.resend({
+    clinicId: 'clinic-1',
+    actorUserId: 'platform-owner-1',
+    sessionId: 'platform-session-1',
+  });
+
+  assert.equal(resent.status, 'PendingActivation');
+  assert.equal(resent.email, 'ada@example.com');
+  assert.equal(resent.deliveryMethod, 'manual');
+  assert.equal(harness.state.user.status, 'PendingActivation');
+  assert.equal(harness.state.membershipCount, 1);
+  assert.equal(harness.state.tokenInsertCount, 1);
+  assert.equal(
+    harness.state.calls.filter(({ sql }) => sql.includes('INSERT INTO users')).length,
+    1,
+  );
+  assert.equal(
+    harness.state.calls.some(({ sql, parameters }) =>
+      sql.includes('INSERT INTO audit_logs') &&
+      parameters[4] === 'administrator.provisioned_and_activation_sent'),
+    true,
+  );
+});
+
+test('missing administrator exposes repair only when canonical application details are available', async () => {
+  const client = {
+    async query(sql) {
+      if (
+        sql === 'BEGIN' ||
+        sql === 'COMMIT' ||
+        sql === 'ROLLBACK' ||
+        sql.includes("set_config('avera.")
+      ) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM users u')) return { rows: [] };
+      if (sql.includes('FROM clinics c')) {
+        return {
+          rows: [{
+            clinic_status: 'Active',
+            administrator_name: 'Ada Clinic Owner',
+            account_email: 'ada@example.com',
+          }],
+        };
+      }
+      throw new Error(`Unexpected activation status query: ${sql}`);
+    },
+    release() {},
+  };
+
+  const status = await service({
+    connect: async () => client,
+    query: (...arguments_) => client.query(...arguments_),
+  }).activationStatus('clinic-1');
+
+  assert.equal(status.status, 'NotProvisioned');
+  assert.equal(status.canResend, true);
+  assert.equal(status.email, 'ada@example.com');
+  assert.match(status.reason, /can be repaired/i);
 });

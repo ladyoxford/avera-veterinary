@@ -410,7 +410,9 @@ export async function platformRoutes(app) {
                 WHERE deleted_at IS NULL AND lower(status) = 'active') AS active_clinics,
               (SELECT count(*)::int FROM clinics
                 WHERE deleted_at IS NULL
-                  AND lower(status) IN ('pending', 'pendingapproval')) AS pending_applications,
+                  AND lower(status) IN
+                    ('registrationdraft', 'pending', 'pendingapproval'))
+                AS pending_applications,
               (SELECT count(*)::int FROM clinics
                 WHERE deleted_at IS NULL AND lower(status) = 'suspended') AS suspended_clinics,
               (SELECT count(*)::int FROM users
@@ -517,21 +519,16 @@ export async function platformRoutes(app) {
           );
           let administratorProvision = null;
           if (storedStatus === 'Active') {
-            const isInitialApproval = ['Pending', 'PendingApproval'].includes(
-              previous.status,
+            administratorProvision = await app.activationService.provisionOnApproval(
+              client,
+              {
+                clinicId: request.params.clinicId,
+                clinicName: previous.clinicName,
+                actorUserId: request.auth.userId,
+                sessionId: request.auth.sessionId,
+                ipAddress: request.ip,
+              },
             );
-            if (isInitialApproval) {
-              administratorProvision = await app.activationService.provisionOnApproval(
-                client,
-                {
-                  clinicId: request.params.clinicId,
-                  clinicName: previous.clinicName,
-                  actorUserId: request.auth.userId,
-                  sessionId: request.auth.sessionId,
-                  ipAddress: request.ip,
-                },
-              );
-            }
           }
           if (storedStatus === 'Suspended') {
             await client.query(
@@ -881,7 +878,7 @@ async function requirePlatformAccount(request, reply) {
   }
 }
 
-async function queryPlatformClinics(
+export async function queryPlatformClinics(
   client,
   { status, limit = 25, offset = 0 } = {},
 ) {
@@ -889,10 +886,15 @@ async function queryPlatformClinics(
   const parameters = [];
   let statusClause = '';
   if (status) {
+    const normalizedStatus = String(status)
+      .toLowerCase()
+      .replaceAll(/[^a-z]/g, '');
     parameters.push(
-      String(status).toLowerCase() === 'pending'
-        ? ['pending', 'pendingapproval']
-        : [String(status).toLowerCase()],
+      normalizedStatus === 'pending'
+        ? ['registrationdraft', 'pending', 'pendingapproval']
+        : normalizedStatus === 'awaitingpayment'
+          ? ['registrationdraft']
+          : [String(status).toLowerCase()],
     );
     statusClause = ` AND lower(c.status) = ANY($${parameters.length}::text[])`;
   }
@@ -900,8 +902,7 @@ async function queryPlatformClinics(
     await client.query(
       `SELECT count(*)::int AS count
          FROM clinics c
-        WHERE c.deleted_at IS NULL
-          AND c.status <> 'RegistrationDraft'${statusClause}`,
+        WHERE c.deleted_at IS NULL${statusClause}`,
       parameters,
     )
   ).rows[0].count;
@@ -909,7 +910,7 @@ async function queryPlatformClinics(
   const rows = await client.query(
     `${platformClinicSelect()}
       WHERE c.deleted_at IS NULL
-        AND c.status <> 'RegistrationDraft'${statusClause}
+        ${statusClause}
       ORDER BY c.created_at DESC
       LIMIT $${parameters.length - 1} OFFSET $${parameters.length}`,
     parameters,
@@ -937,7 +938,11 @@ function platformClinicSelect() {
     SELECT c.clinic_id, c.name, c.email, c.phone, c.address, c.city,
            c.country, c.time_zone, c.status, c.subscription_plan,
            c.created_at, c.updated_at,
-           a.application_reference, a.payment_status,
+           a.application_reference, a.status AS application_status,
+           a.payment_status,
+           COALESCE(a.administrator_email, a.clinic_email, c.email)
+             AS account_email,
+           a.submitted_at AS application_submitted_at,
            s.status AS subscription_status,
            (SELECT count(*)::int FROM users u
              WHERE u.clinic_id = c.clinic_id AND u.deleted_at IS NULL) AS user_count,
@@ -945,7 +950,8 @@ function platformClinicSelect() {
              WHERE p.clinic_id = c.clinic_id AND p.deleted_at IS NULL) AS patient_count
       FROM clinics c
       LEFT JOIN LATERAL (
-        SELECT application_reference, payment_status
+        SELECT application_reference, status, payment_status,
+               administrator_email, clinic_email, submitted_at
           FROM clinic_applications
          WHERE clinic_id = c.clinic_id
          ORDER BY submitted_at DESC LIMIT 1
@@ -974,7 +980,10 @@ function mapPlatformClinic(row) {
     subscriptionPlan: row.subscription_plan,
     subscriptionStatus: row.subscription_status,
     paymentStatus: row.payment_status,
+    applicationStatus: row.application_status,
+    accountEmail: row.account_email,
     applicationReference: row.application_reference,
+    applicationSubmittedAt: row.application_submitted_at,
     registrationDate: row.created_at,
     updatedAt: row.updated_at,
     userCount: row.user_count,
@@ -983,7 +992,9 @@ function mapPlatformClinic(row) {
 }
 
 export function normalizeClinicStatus(status) {
-  return String(status).toLowerCase() === 'pendingapproval'
-    ? 'Pending'
-    : status;
+  const normalized = String(status).toLowerCase();
+  if (normalized === 'registrationdraft') {
+    return 'Awaiting Payment';
+  }
+  return normalized === 'pendingapproval' ? 'Pending' : status;
 }

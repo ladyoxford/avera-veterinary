@@ -809,6 +809,19 @@ test('farm billing and product unit migration is additive, tenant scoped, and ra
   assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM inventory_products/i);
 });
 
+test('inventory billing category repair is scoped and preserves intentional non-sellable records', () => {
+  const migration = fs.readFileSync(
+    new URL('../migrations/030_inventory_billing_categories.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /UPDATE inventory_products/);
+  assert.match(migration, /is_sellable = true/);
+  assert.match(migration, /medical_equipment/);
+  assert.match(migration, /office_admin/);
+  assert.match(migration, /is_sellable = false/);
+  assert.doesNotMatch(migration, /DROP TABLE|TRUNCATE|DELETE FROM inventory_products/i);
+});
+
 test('product unit and reorder payloads enforce canonical inventory rules', () => {
   const base = {
     unitLabel: 'Vial',

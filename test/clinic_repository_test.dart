@@ -1257,6 +1257,14 @@ void main() {
         repository.canSellInventoryCategory(administrator, 'other'),
         isTrue,
       );
+      expect(
+        repository.canSellInventoryCategory(administrator, 'medical_equipment'),
+        isTrue,
+      );
+      expect(
+        repository.canSellInventoryCategory(administrator, 'office_admin'),
+        isTrue,
+      );
     },
   );
 

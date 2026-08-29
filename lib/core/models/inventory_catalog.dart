@@ -213,7 +213,7 @@ class InventoryCategories {
       name: 'Medical Equipment & Instruments',
       aliases: ['equipment', 'instruments', 'medical devices'],
       legacyIds: ['laboratory_equipment', 'general_equipment'],
-      isSellable: false,
+      isSellable: true,
       isClinical: true,
       isLaboratory: true,
       subcategories: _equipmentSubcategories,
@@ -299,7 +299,7 @@ class InventoryCategories {
       name: 'Office & Administrative Supplies',
       aliases: ['office', 'administrative', 'stationery'],
       legacyIds: ['office_supplies'],
-      isSellable: false,
+      isSellable: true,
       subcategories: _officeSubcategories,
     ),
     InventoryCategoryDefinition(

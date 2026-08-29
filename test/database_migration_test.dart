@@ -205,4 +205,32 @@ void main() {
     expect(line.read<int>('invoice_id'), 1);
     expect(line.read<String>('description'), 'Consultation');
   });
+
+  test('version 33 restores billable inventory category records', () async {
+    final database = AppDatabase.forTesting(
+      NativeDatabase.memory(
+        setup: (sqlite) {
+          sqlite.execute(
+            'CREATE TABLE inventory_items ('
+            'id INTEGER PRIMARY KEY, category TEXT NOT NULL, '
+            'category_id TEXT, is_sellable INTEGER NOT NULL)',
+          );
+          sqlite.execute(
+            "INSERT INTO inventory_items VALUES "
+            "(1, 'Medical Equipment & Instruments', 'medical_equipment', 0), "
+            "(2, 'Office & Administrative Supplies', 'office_admin', 0), "
+            "(3, 'Medicines / Drugs', 'drugs', 0)",
+          );
+          sqlite.execute('PRAGMA user_version = 32');
+        },
+      ),
+    );
+    addTearDown(database.close);
+
+    final rows = await database
+        .customSelect('SELECT id, is_sellable FROM inventory_items ORDER BY id')
+        .get();
+
+    expect(rows.map((row) => row.read<int>('is_sellable')), [1, 1, 0]);
+  });
 }

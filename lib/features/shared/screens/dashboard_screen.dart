@@ -158,7 +158,7 @@ class DashboardScreen extends ConsumerWidget {
                                       )),
                             ),
                           const SizedBox(height: 24),
-                          _DashboardQuickActionGrid(actions: actions),
+                          _DashboardQuickAccess(actions: actions),
                           const SizedBox(height: 36),
                           _AlertsAndActivity(
                             data: data,
@@ -391,31 +391,46 @@ class _QuickActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _toneColor(context, action.tone);
     return Card(
+      key: ValueKey('dashboard-quick-action-${action.label}'),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => context.push(action.path),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 48,
-                height: 48,
+                key: ValueKey('dashboard-quick-action-icon-${action.label}'),
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: .13),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(action.icon, color: color),
+                child: Icon(action.icon, size: 22, color: color),
               ),
-              const SizedBox(height: 10),
-              Text(
-                action.label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 34,
+                child: Center(
+                  child: Text(
+                    action.label,
+                    key: ValueKey(
+                      'dashboard-quick-action-label-${action.label}',
+                    ),
+                    maxLines: 2,
+                    softWrap: true,
+                    overflow: TextOverflow.clip,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.15,
+                      letterSpacing: 0,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -975,14 +990,23 @@ class _SkeletonBlock extends StatelessWidget {
 }
 
 class _QuickAction {
-  const _QuickAction(this.label, this.icon, this.path, this.tone);
+  const _QuickAction(
+    this.label,
+    this.icon,
+    this.path,
+    this.tone, {
+    this.group = _QuickActionGroup.clinical,
+  });
   final String label;
   final IconData icon;
   final String path;
   final _ActionTone tone;
+  final _QuickActionGroup group;
 }
 
 enum _ActionTone { teal, blue, green, amber, red, violet }
+
+enum _QuickActionGroup { clinical, business }
 
 Color _toneColor(BuildContext context, _ActionTone tone) {
   final semantic = Theme.of(context).extension<AppSemanticColors>()!;
@@ -1142,8 +1166,8 @@ class _StaffGreetingCard extends StatelessWidget {
   }
 }
 
-class _DashboardQuickActionGrid extends StatelessWidget {
-  const _DashboardQuickActionGrid({required this.actions});
+class _DashboardQuickAccess extends StatelessWidget {
+  const _DashboardQuickAccess({required this.actions});
 
   final List<_QuickAction> actions;
 
@@ -1155,30 +1179,76 @@ class _DashboardQuickActionGrid extends StatelessWidget {
         text: 'No dashboard actions are available for this account.',
       );
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 640
-            ? 4
-            : constraints.maxWidth >= 460
-            ? 3
-            : 2;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: actions.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: columns == 2 ? 1.05 : .92,
+    final clinical = actions
+        .where((action) => action.group == _QuickActionGroup.clinical)
+        .toList(growable: false);
+    final business = actions
+        .where((action) => action.group == _QuickActionGroup.business)
+        .toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (clinical.isNotEmpty) ...[
+          const _QuickActionSectionHeading(title: 'CLINICAL'),
+          const SizedBox(height: 12),
+          _DashboardQuickActionGrid(
+            key: const Key('dashboard-quick-access-clinical-grid'),
+            actions: clinical,
           ),
-          itemBuilder: (context, index) =>
-              _QuickActionTile(action: actions[index]).animate().fadeIn(
-                delay: Duration(milliseconds: 25 * index),
-                duration: 180.ms,
-              ),
-        );
-      },
+        ],
+        if (business.isNotEmpty) ...[
+          if (clinical.isNotEmpty) const SizedBox(height: 28),
+          const _QuickActionSectionHeading(title: 'BUSINESS & ADMIN'),
+          const SizedBox(height: 12),
+          _DashboardQuickActionGrid(
+            key: const Key('dashboard-quick-access-business-grid'),
+            actions: business,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _QuickActionSectionHeading extends StatelessWidget {
+  const _QuickActionSectionHeading({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    title,
+    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    ),
+  );
+}
+
+class _DashboardQuickActionGrid extends StatelessWidget {
+  const _DashboardQuickActionGrid({super.key, required this.actions});
+
+  final List<_QuickAction> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: actions.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        mainAxisExtent: 112,
+      ),
+      itemBuilder: (context, index) =>
+          _QuickActionTile(action: actions[index]).animate().fadeIn(
+            delay: Duration(milliseconds: 25 * index),
+            duration: 180.ms,
+          ),
     );
   }
 }
@@ -1218,13 +1288,14 @@ List<_QuickAction> _dashboardActionsFor(
     required _ActionTone tone,
     required String permission,
     required AveraFeature feature,
+    _QuickActionGroup group = _QuickActionGroup.clinical,
   }) {
     if (session.can(permission) &&
         FeatureGateService.canAccess(
           subscriptionPlan: session.clinic.subscriptionPlan,
           feature: feature,
         )) {
-      actions.add(_QuickAction(label, icon, path, tone));
+      actions.add(_QuickAction(label, icon, path, tone, group: group));
     }
   }
 
@@ -1236,6 +1307,7 @@ List<_QuickAction> _dashboardActionsFor(
           Icons.groups_rounded,
           '/administration/users',
           _ActionTone.blue,
+          group: _QuickActionGroup.business,
         ),
       );
     }
@@ -1246,6 +1318,7 @@ List<_QuickAction> _dashboardActionsFor(
       tone: _ActionTone.violet,
       permission: Permissions.reportsExport,
       feature: AveraFeature.reports,
+      group: _QuickActionGroup.business,
     );
   }
 
@@ -1296,6 +1369,7 @@ List<_QuickAction> _dashboardActionsFor(
     tone: _ActionTone.violet,
     permission: Permissions.billingView,
     feature: AveraFeature.billing,
+    group: _QuickActionGroup.business,
   );
   add(
     label: 'Inventory',
@@ -1304,6 +1378,7 @@ List<_QuickAction> _dashboardActionsFor(
     tone: _ActionTone.amber,
     permission: Permissions.inventoryView,
     feature: AveraFeature.inventory,
+    group: _QuickActionGroup.business,
   );
   add(
     label: 'Revenue',
@@ -1312,6 +1387,7 @@ List<_QuickAction> _dashboardActionsFor(
     tone: _ActionTone.green,
     permission: Permissions.billingHistory,
     feature: AveraFeature.billing,
+    group: _QuickActionGroup.business,
   );
   return actions;
 }

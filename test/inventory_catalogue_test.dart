@@ -32,6 +32,15 @@ void main() {
     },
   );
 
+  test('every inventory category is available to billing', () {
+    expect(
+      InventoryCategories.all.where((category) => !category.isSellable),
+      isEmpty,
+      reason:
+          'Billing must include every permitted inventory category and all of its subcategories.',
+    );
+  });
+
   test(
     'category and subcategory aliases are case and punctuation tolerant',
     () {
@@ -132,6 +141,7 @@ void main() {
     expect(baseOptions.single.sellingPrice, 5000);
     expect(packageOptions.map((option) => option.label), ['tablet', 'box']);
     expect(packageOptions.last.availableQuantity, 10);
+    expect(InventoryCategories.byId(baseOnly.categoryId)?.isSellable, isTrue);
 
     final fourEligibleProducts = [baseOnly, packaged, baseOnly, packaged];
     expect(
@@ -146,6 +156,26 @@ void main() {
           .length,
       4,
     );
+  });
+
+  test('medical equipment drafts remain sellable in remote billing', () {
+    const draft = InventoryItemDraft(
+      submissionId: 'medical-equipment-submission',
+      name: 'Patient Monitor',
+      categoryId: 'medical_equipment',
+      categoryName: 'Medical Equipment & Instruments',
+      subcategoryId: 'patient_monitors',
+      subcategoryName: 'Patient Monitors',
+      quantity: 1,
+      minimumQuantity: 0,
+      sellingPrice: 250000,
+      buyingPrice: 200000,
+    );
+
+    final payload = draft.toRemotePayload();
+    expect(payload['categoryId'], 'medical_equipment');
+    expect(payload['subcategoryId'], 'patient_monitors');
+    expect(payload['isSellable'], isTrue);
   });
 
   test('billing search reaches catalogue records beyond the first screen', () {

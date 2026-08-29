@@ -1218,7 +1218,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 32;
+  static const currentSchemaVersion = 33;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1955,6 +1955,16 @@ class AppDatabase extends _$AppDatabase {
         if (!await _hasColumn('inventory_items', 'subcategory_id')) {
           await m.addColumn(inventoryItems, inventoryItems.subcategoryId);
         }
+      }
+      if (from < 33) {
+        await customStatement(
+          'UPDATE inventory_items SET is_sellable = 1 '
+          "WHERE LOWER(COALESCE(category_id, '')) IN "
+          "('medical_equipment', 'laboratory_equipment', 'general_equipment', "
+          "'office_admin', 'office_supplies') OR LOWER(TRIM(category)) IN "
+          "('medical equipment & instruments', 'laboratory equipment', "
+          "'office & administrative supplies')",
+        );
       }
     },
   );

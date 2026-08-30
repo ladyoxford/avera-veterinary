@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
@@ -401,7 +402,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
                           if (value.expiresAt != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              'Link expires ${value.expiresAt!.toLocal()}',
+                              'Link expires ${_formatPlatformDateTime(value.expiresAt!)}',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
@@ -612,10 +613,10 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(switch (activation?.deliveryMethod) {
-              'email' =>
-                'Clinic activated. The administrator was provisioned and an activation email was sent${activation?.email == null ? '' : ' to ${activation!.email}'}.',
+              'email_submitted' || 'email' =>
+                'Clinic activated. The administrator was provisioned and the activation email was submitted to the email provider${activation?.email == null ? '' : ' for ${activation!.email}'}.',
               'email_failed' =>
-                'Clinic activated and the administrator was provisioned, but email delivery failed. Use Resend Activation to try again.',
+                'Clinic activated and the administrator was provisioned, but the activation email could not be submitted. Use Resend Activation to try again.',
               _ when activation?.status == 'Active' =>
                 'Clinic is active and administrator access is already configured.',
               _ => 'Clinic status changed to $status.',
@@ -650,11 +651,11 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              activation.deliveryMethod == 'email'
-                  ? 'The Clinic Administrator was reconciled and a new activation email was sent${activation.email == null ? '' : ' to ${activation.email}'}. '
+              _emailWasSubmitted(activation)
+                  ? 'The Clinic Administrator was reconciled and a new activation email was submitted to the email provider${activation.email == null ? '' : ' for ${activation.email}'}. '
                   : activation.deliveryMethod == 'email_failed'
-                  ? 'Administrator provisioning is complete, but activation email delivery failed. Check email delivery and try again.'
-                  : 'Administrator provisioning is complete. Use the secure activation link shown here.',
+                  ? 'Administrator provisioning is complete, but activation email submission failed. Check the email configuration and try again.'
+                  : 'Administrator provisioning is complete, but manual activation delivery is required.',
             ),
           ),
         );
@@ -686,11 +687,11 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            activation.deliveryMethod == 'email'
-                ? 'Administrator access was repaired and the activation email was sent${activation.email == null ? '' : ' to ${activation.email}'}. '
+            _emailWasSubmitted(activation)
+                ? 'Administrator access was repaired and the activation email was submitted to the email provider${activation.email == null ? '' : ' for ${activation.email}'}. '
                 : activation.deliveryMethod == 'email_failed'
-                ? 'Administrator access was repaired, but email delivery failed. Try Resend Activation after checking email delivery.'
-                : 'Administrator access was repaired.',
+                ? 'Administrator access was repaired, but email submission failed. Try Resend Activation after checking the email configuration.'
+                : 'Administrator access was repaired, but manual activation delivery is required.',
           ),
         ),
       );
@@ -805,7 +806,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Enter the six-digit code sent to ${challenge.recipientEmail}. It expires at ${challenge.expiresAt.toLocal()}.',
+                'The confirmation code was submitted to the email provider for ${challenge.recipientEmail}. Enter the six-digit code below. It expires ${_formatPlatformDateTime(challenge.expiresAt)}.',
               ),
               const SizedBox(height: 16),
               TextField(
@@ -881,9 +882,12 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
     return switch (activation.status) {
       'Active' => 'Activated',
       'PendingActivation' =>
-        activation.deliveryMethod == 'email'
-            ? 'Pending activation - email sent'
+        _emailWasSubmitted(activation)
+            ? 'Pending activation - submitted to email provider'
+            : activation.deliveryMethod == 'email_failed'
+            ? 'Pending activation - email submission failed'
             : 'Pending activation - manual delivery required',
+      'DeliveryFailed' => 'Pending activation - email submission failed',
       'LinkExpired' => 'Activation link expired',
       'LinkRevoked' => 'Activation link revoked',
       'NotProvisioned' =>
@@ -965,9 +969,34 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
 }
 
 String _platformErrorMessage(Object error) {
-  if (error is ApiException) return error.message;
+  if (error is ApiException) {
+    return switch (error.code) {
+      'clinic_deletion_email_unavailable' =>
+        'Deletion confirmation email is not configured. Nothing was deleted.',
+      'clinic_deletion_email_failed' =>
+        'Deletion confirmation email could not be submitted. Nothing was deleted.',
+      'clinic_deletion_code_invalid' => error.message,
+      'clinic_deletion_code_expired' =>
+        'The confirmation code has expired. Request a new code.',
+      'clinic_deletion_attempts_exhausted' =>
+        'Too many incorrect attempts. Request a new code.',
+      'clinic_deletion_request_unavailable' =>
+        'This deletion request is no longer available. Request a new code.',
+      'clinic_deletion_request_failed' ||
+      'clinic_deletion_confirmation_failed' ||
+      'internal_error' => 'Deletion service is temporarily unavailable.',
+      _ => error.message,
+    };
+  }
   return 'The Platform Owner action could not be completed. Please try again.';
 }
+
+bool _emailWasSubmitted(PlatformAdministratorActivation activation) =>
+    activation.deliveryMethod == 'email_submitted' ||
+    activation.deliveryMethod == 'email';
+
+String _formatPlatformDateTime(DateTime value) =>
+    DateFormat('d MMM y, h:mm a').format(value.toLocal());
 
 class PlatformSubscriptionsScreen extends ConsumerWidget {
   const PlatformSubscriptionsScreen({super.key, this.status});

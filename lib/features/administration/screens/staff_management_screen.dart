@@ -339,13 +339,20 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen>
             ? () async {
                 Navigator.pop(sheetContext);
                 await _perform(
-                  () => ref
-                      .read(clinicRepositoryProvider)
-                      .resendClinicUserInvitation(
-                        actingSession: session,
-                        targetUserId: user.userId,
-                      ),
-                  'A new activation invitation was sent to ${user.email}.',
+                  () async {
+                    final delivery = await ref
+                        .read(clinicRepositoryProvider)
+                        .resendClinicUserInvitation(
+                          actingSession: session,
+                          targetUserId: user.userId,
+                        );
+                    if (!delivery.emailSubmitted) {
+                      throw StateError(
+                        'The activation email could not be submitted. Check the email configuration before trying again.',
+                      );
+                    }
+                  },
+                  'A new activation invitation was submitted to the email provider for ${user.email}.',
                 );
               }
             : null,

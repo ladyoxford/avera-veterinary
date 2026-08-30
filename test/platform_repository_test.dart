@@ -300,7 +300,7 @@ void main() {
   );
 
   test(
-    'approval returns a one-time manual activation link and resend uses the same state contract',
+    'approval and resend parse the provider-submitted activation contract without exposing a token',
     () async {
       final database = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(database.close);
@@ -321,9 +321,11 @@ void main() {
             final activation = {
               'status': 'PendingActivation',
               'email': 'ada@example.com',
-              'deliveryMethod': 'manual',
-              'activationUrl':
-                  'avera://app/activate-clinic-admin?token=one-time',
+              'deliveryMethod': 'email_submitted',
+              'emailState': 'Submitted',
+              'provider': 'resend',
+              'providerMessageId': 'resend-message-1',
+              'submittedAt': '2026-08-30T08:05:00.000Z',
               'canResend': true,
             };
             return http.Response(
@@ -350,8 +352,12 @@ void main() {
         clinicId: 'remote-clinic',
       );
 
-      expect(approved.activation.deliveryMethod, 'manual');
-      expect(approved.activation.activationUrl, contains('token=one-time'));
+      expect(approved.activation.deliveryMethod, 'email_submitted');
+      expect(approved.activation.emailState, 'Submitted');
+      expect(approved.activation.provider, 'resend');
+      expect(approved.activation.providerMessageId, 'resend-message-1');
+      expect(approved.activation.submittedAt, isNotNull);
+      expect(approved.activation.activationUrl, isNull);
       expect(resent.canResend, true);
       expect(requests.first.method, 'PATCH');
       expect(requests.last.method, 'POST');
@@ -359,6 +365,79 @@ void main() {
         requests.last.url.path,
         '/api/v1/platform/clinics/remote-clinic/administrator-activation/resend',
       );
+    },
+  );
+
+  test(
+    'mutual deletion uses the request and confirmation backend routes',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final session = await _platformOwnerSession(database);
+      final tokens = const TokenStore(FlutterSecureStorage());
+      await tokens.save(
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      );
+      final requests = <http.Request>[];
+      final repository = RemotePlatformRepository(
+        db: database,
+        apiClient: ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: tokens,
+          client: MockClient((request) async {
+            requests.add(request);
+            if (request.url.path.endsWith('/confirm')) {
+              return http.Response(
+                jsonEncode({
+                  'deletion': {'status': 'Deleted'},
+                }),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            return http.Response(
+              jsonEncode({
+                'deletionRequest': {
+                  'requestId': 'request-1',
+                  'recipientEmail': 'cl****@example.com',
+                  'expiresAt': '2026-08-30T08:20:00.000Z',
+                  'attemptsRemaining': 5,
+                },
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final challenge = await repository.requestClinicDeletion(
+        session: session,
+        clinicId: 'remote-clinic',
+        reason: 'Mutually agreed reset.',
+      );
+      await repository.confirmClinicDeletion(
+        session: session,
+        clinicId: 'remote-clinic',
+        requestId: challenge.requestId,
+        code: '123456',
+      );
+
+      expect(challenge.recipientEmail, 'cl****@example.com');
+      expect(
+        requests.first.url.path,
+        '/api/v1/platform/clinics/remote-clinic/deletion-requests',
+      );
+      expect(requests.first.method, 'POST');
+      expect(jsonDecode(requests.first.body), {
+        'reason': 'Mutually agreed reset.',
+      });
+      expect(
+        requests.last.url.path,
+        '/api/v1/platform/clinics/remote-clinic/deletion-requests/request-1/confirm',
+      );
+      expect(jsonDecode(requests.last.body), {'code': '123456'});
     },
   );
 }

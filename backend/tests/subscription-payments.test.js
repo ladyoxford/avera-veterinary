@@ -1161,7 +1161,7 @@ for (const mode of ['test', 'live']) {
           approved: true,
           activation: {
             status: 'PendingActivation',
-            deliveryMethod: 'email',
+            deliveryMethod: 'email_submitted',
             activationUrl:
               'https://accounts.averavet.sbs/activate-clinic-admin?token=secret',
           },
@@ -1180,7 +1180,7 @@ for (const mode of ['test', 'live']) {
     assert.equal(result.subscriptionApplied, false);
     assert.equal(result.subscription, null);
     assert.equal(result.applicationApproved, true);
-    assert.equal(result.activation.deliveryMethod, 'email');
+    assert.equal(result.activation.deliveryMethod, 'email_submitted');
     assert.equal(result.activation.status, 'PendingActivation');
     assert.equal('activationUrl' in result.activation, false);
     assert.equal(

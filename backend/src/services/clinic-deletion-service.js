@@ -98,15 +98,21 @@ export class ClinicDeletionService {
     );
 
     if (!this.deliveryService.configured) {
-      await this.#markDeliveryFailed(requestId);
+      await this.#recordEmailFailure({
+        requestId,
+        context,
+        pending,
+        failureCategory: 'email_transport_unconfigured',
+      });
       throw serviceError(
         'clinic_deletion_email_unavailable',
         'Deletion confirmation email is not configured. No clinic data was deleted.',
         503,
       );
     }
+    let delivery;
     try {
-      const delivery = await this.deliveryService.sendClinicDeletionCode({
+      delivery = await this.deliveryService.sendClinicDeletionCode({
         to: pending.email,
         clinicName: pending.clinicName,
         code,
@@ -114,21 +120,56 @@ export class ClinicDeletionService {
         reason: context.reason,
         idempotencyKey: `clinic-deletion-${requestId}`,
       });
-      await this.pool.query(
-        `UPDATE clinic_deletion_requests
-            SET delivered_at = now(), delivery_reference = $2,
-                updated_at = now()
-          WHERE request_id = $1 AND status = 'Pending'`,
-        [requestId, delivery.reference],
-      );
     } catch (_) {
-      await this.#markDeliveryFailed(requestId);
+      delivery = {
+        accepted: false,
+        provider: 'resend',
+        failureCode: 'email_provider_exception',
+      };
+    }
+    if (!isAcceptedEmailSubmission(delivery)) {
+      await this.#recordEmailFailure({
+        requestId,
+        context,
+        pending,
+        failureCategory:
+          delivery?.failureCode ?? 'email_provider_invalid_result',
+      });
       throw serviceError(
         'clinic_deletion_email_failed',
-        'The deletion code could not be delivered. No clinic data was deleted.',
+        'Deletion confirmation email could not be submitted. Nothing was deleted.',
         502,
       );
     }
+    await withTenantTransaction(
+      this.pool,
+      { isPlatformOwner: true },
+      async (client) => {
+        await client.query(
+          `UPDATE clinic_deletion_requests
+              SET delivered_at = $2, delivery_reference = $3,
+                  updated_at = now()
+            WHERE request_id = $1 AND status = 'Pending'`,
+          [requestId, delivery.submittedAt, delivery.providerMessageId],
+        );
+        await writeAudit(client, {
+          clinicId: pending.clinicId,
+          actingUserId: context.actorUserId,
+          targetType: 'Clinic',
+          targetId: pending.clinicId,
+          action: 'clinic.mutual_deletion_email_submitted',
+          newSummary: {
+            deletionRequestId: requestId,
+            recipientEmail: pending.email,
+            provider: delivery.provider,
+            providerMessageId: delivery.providerMessageId,
+            submittedAt: delivery.submittedAt,
+          },
+          sessionId: context.sessionId,
+          ipAddress: context.ipAddress,
+        });
+      },
+    );
 
     return {
       requestId,
@@ -137,6 +178,10 @@ export class ClinicDeletionService {
       expiresAt,
       attemptsRemaining: maximumCodeAttempts,
       status: 'Pending',
+      emailState: 'Submitted',
+      provider: delivery.provider,
+      providerMessageId: delivery.providerMessageId,
+      submittedAt: delivery.submittedAt,
     };
   }
 
@@ -337,14 +382,49 @@ export class ClinicDeletionService {
     return result;
   }
 
-  async #markDeliveryFailed(requestId) {
-    await this.pool.query(
-      `UPDATE clinic_deletion_requests
-          SET status = 'DeliveryFailed', updated_at = now()
-        WHERE request_id = $1 AND status = 'Pending'`,
-      [requestId],
+  async #recordEmailFailure({
+    requestId,
+    context,
+    pending,
+    failureCategory,
+  }) {
+    await withTenantTransaction(
+      this.pool,
+      { isPlatformOwner: true },
+      async (client) => {
+        await client.query(
+          `UPDATE clinic_deletion_requests
+              SET status = 'DeliveryFailed', updated_at = now()
+            WHERE request_id = $1 AND status = 'Pending'`,
+          [requestId],
+        );
+        await writeAudit(client, {
+          clinicId: pending.clinicId,
+          actingUserId: context.actorUserId,
+          targetType: 'Clinic',
+          targetId: pending.clinicId,
+          action: 'clinic.mutual_deletion_email_submission_failed',
+          newSummary: {
+            deletionRequestId: requestId,
+            recipientEmail: pending.email,
+            provider: 'resend',
+            failureCategory,
+          },
+          sessionId: context.sessionId,
+          ipAddress: context.ipAddress,
+          success: false,
+        });
+      },
     );
   }
+}
+
+function isAcceptedEmailSubmission(result) {
+  return result?.accepted === true &&
+    typeof result.providerMessageId === 'string' &&
+    result.providerMessageId.trim().length > 0 &&
+    typeof result.submittedAt === 'string' &&
+    result.submittedAt.trim().length > 0;
 }
 
 function deletionCodeHash(requestId, code) {

@@ -473,12 +473,14 @@ class _AddClinicUserScreenState extends ConsumerState<AddClinicUserScreen> {
             context: context,
             builder: (dialogContext) => AlertDialog(
               title: Text(
-                invitation.emailSent ? 'Invitation sent' : 'Invitation created',
+                invitation.emailSubmitted
+                    ? 'Invitation submitted'
+                    : 'Invitation created',
               ),
               content: Text(
-                invitation.emailSent
-                    ? 'Staff number ${invitation.staffNumber} was assigned. An activation email has been sent to ${_email.text.trim().toLowerCase()}.'
-                    : 'Staff number ${invitation.staffNumber} was assigned, but the activation email could not be delivered. Check email delivery before resending.',
+                invitation.emailSubmitted
+                    ? 'Staff number ${invitation.staffNumber} was assigned. The activation email was submitted to the email provider for ${_email.text.trim().toLowerCase()}.'
+                    : 'Staff number ${invitation.staffNumber} was assigned, but the activation email could not be submitted. Check the email configuration before resending.',
               ),
               actions: [
                 FilledButton(

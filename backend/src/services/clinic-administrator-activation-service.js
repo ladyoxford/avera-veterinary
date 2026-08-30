@@ -330,16 +330,25 @@ export class ClinicAdministratorActivationService {
     if (!issued) return null;
     const activationUrl = this.#activationUrl(issued.rawToken);
     if (!this.deliveryService.configured) {
+      const delivery = emailSubmissionFailure(
+        'email_transport_unconfigured',
+        'Activation email submission is not configured.',
+      );
+      await this.#recordAdministratorEmailOutcome(issued, delivery, 'manual');
       return {
         status: 'PendingActivation',
         email: issued.email,
         expiresAt: issued.expiresAt,
         deliveryMethod: 'manual',
+        emailState: 'ManualDeliveryRequired',
+        failureCode: delivery.failureCode,
+        failureReason: delivery.failureReason,
         activationUrl,
       };
     }
+    let delivery;
     try {
-      const delivery = await this.deliveryService.sendClinicAdministratorActivation({
+      delivery = await this.deliveryService.sendClinicAdministratorActivation({
         to: issued.email,
         applicantName: issued.fullName,
         clinicName: issued.clinicName,
@@ -347,33 +356,89 @@ export class ClinicAdministratorActivationService {
         expiresAt: issued.expiresAt,
         idempotencyKey: `activation-${issued.tokenId}`,
       });
-      await this.pool.query(
-        `UPDATE activation_tokens
-            SET delivery_method = 'email', delivered_at = now(),
-                delivery_reference = $2
-          WHERE token_id = $1`,
-        [issued.tokenId, delivery.reference],
-      );
-      return {
-        status: 'PendingActivation',
-        email: issued.email,
-        expiresAt: issued.expiresAt,
-        deliveryMethod: 'email',
-      };
     } catch (_) {
-      await this.pool.query(
-        `UPDATE activation_tokens
-            SET delivery_method = 'email_failed'
-          WHERE token_id = $1`,
-        [issued.tokenId],
+      delivery = emailSubmissionFailure(
+        'email_provider_exception',
+        'The email provider could not accept the activation email.',
+      );
+    }
+    if (!isAcceptedEmailSubmission(delivery)) {
+      const failure = normalizeEmailSubmissionFailure(delivery);
+      await this.#recordAdministratorEmailOutcome(
+        issued,
+        failure,
+        'email_failed',
       );
       return {
         status: 'DeliveryFailed',
         email: issued.email,
         expiresAt: issued.expiresAt,
         deliveryMethod: 'email_failed',
+        emailState: 'DeliveryFailed',
+        failureCode: failure.failureCode,
+        failureReason: failure.failureReason,
       };
     }
+    await this.#recordAdministratorEmailOutcome(
+      issued,
+      delivery,
+      'email_submitted',
+    );
+    return {
+      status: 'PendingActivation',
+      email: issued.email,
+      expiresAt: issued.expiresAt,
+      submittedAt: delivery.submittedAt,
+      deliveryMethod: 'email_submitted',
+      emailState: 'Submitted',
+      provider: delivery.provider,
+      providerMessageId: delivery.providerMessageId,
+    };
+  }
+
+  async #recordAdministratorEmailOutcome(issued, delivery, deliveryMethod) {
+    const submitted = isAcceptedEmailSubmission(delivery);
+    await withTenantTransaction(
+      this.pool,
+      { isPlatformOwner: true },
+      async (client) => {
+        await client.query(
+          `UPDATE activation_tokens
+              SET delivery_method = $2, delivered_at = $3,
+                  delivery_reference = $4
+            WHERE token_id = $1`,
+          [
+            issued.tokenId,
+            deliveryMethod,
+            submitted ? delivery.submittedAt : null,
+            submitted ? delivery.providerMessageId : null,
+          ],
+        );
+        await writeAudit(client, {
+          clinicId: issued.clinicId,
+          actingUserId: issued.actorUserId,
+          targetType: 'User',
+          targetId: issued.userId,
+          action: submitted
+            ? 'administrator.activation_email_submitted'
+            : deliveryMethod === 'manual'
+              ? 'administrator.activation_email_manual_delivery_required'
+              : 'administrator.activation_email_submission_failed',
+          newSummary: {
+            recipientEmail: issued.email,
+            provider: delivery.provider,
+            providerMessageId: submitted
+              ? delivery.providerMessageId
+              : null,
+            submittedAt: submitted ? delivery.submittedAt : null,
+            failureCategory: submitted ? null : delivery.failureCode,
+          },
+          sessionId: issued.sessionId,
+          ipAddress: issued.ipAddress,
+          success: submitted,
+        });
+      },
+    );
   }
 
   async activationStatus(clinicId) {
@@ -384,11 +449,11 @@ export class ClinicAdministratorActivationService {
         const result = await client.query(
           `SELECT u.user_id, u.full_name, u.email, u.status,
                   t.expires_at, t.used_at, t.revoked_at, t.delivery_method,
-                  t.delivered_at
+                  t.delivered_at, t.delivery_reference
              FROM users u
              LEFT JOIN LATERAL (
                SELECT expires_at, used_at, revoked_at, delivery_method,
-                      delivered_at
+                      delivered_at, delivery_reference
                  FROM activation_tokens
                 WHERE user_id = u.user_id AND purpose = $2
                 ORDER BY created_at DESC LIMIT 1
@@ -500,8 +565,8 @@ export class ClinicAdministratorActivationService {
           targetType: 'User',
           targetId: user.user_id,
           action: existingUser
-            ? 'administrator.activation_resent'
-            : 'administrator.provisioned_and_activation_sent',
+            ? 'administrator.activation_submission_requested'
+            : 'administrator.provisioned_and_activation_submission_requested',
           newSummary: {
             expiresAt: token.expiresAt,
             administratorProvisioned: !existingUser,
@@ -660,7 +725,8 @@ export class ClinicAdministratorActivationService {
       await writeAudit(client, {
         clinicId: context.clinicId, actingUserId: context.actorUserId,
         targetType: 'User', targetId: target.user_id,
-        action: 'staff.invitation_resent', newSummary: { expiresAt: token.expiresAt },
+        action: 'staff.invitation_resubmission_requested',
+        newSummary: { expiresAt: token.expiresAt },
         sessionId: context.sessionId, ipAddress: context.ipAddress,
       });
       return token;
@@ -816,12 +882,22 @@ export class ClinicAdministratorActivationService {
         expiresAt: issued.expiresAt,
         idempotencyKey: `staff-activation-${issued.tokenId}`,
       });
+      if (!isAcceptedEmailSubmission(delivery)) {
+        throw new Error('The email provider did not confirm the submission.');
+      }
       await this.pool.query(
-        `UPDATE activation_tokens SET delivery_method='email',
-                delivered_at=now(), delivery_reference=$2 WHERE token_id=$1`,
-        [issued.tokenId, delivery.reference],
+        `UPDATE activation_tokens SET delivery_method='email_submitted',
+                delivered_at=$3, delivery_reference=$2 WHERE token_id=$1`,
+        [issued.tokenId, delivery.providerMessageId, delivery.submittedAt],
       );
-      return { status: 'EmailSent', expiresAt: issued.expiresAt };
+      return {
+        status: 'Submitted',
+        emailState: 'Submitted',
+        provider: delivery.provider,
+        providerMessageId: delivery.providerMessageId,
+        submittedAt: delivery.submittedAt,
+        expiresAt: issued.expiresAt,
+      };
     } catch (_) {
       await this.pool.query(
         `UPDATE activation_tokens SET delivery_method='email_failed' WHERE token_id=$1`,
@@ -933,11 +1009,16 @@ export class ClinicAdministratorActivationService {
     ).rows[0];
     return {
       tokenId: inserted.token_id,
+      userId: context.user.user_id,
+      clinicId: context.clinicId,
       rawToken,
       expiresAt,
       email: context.user.email,
       fullName: context.user.full_name,
       clinicName: context.clinicName,
+      actorUserId: context.actorUserId ?? null,
+      sessionId: context.sessionId ?? null,
+      ipAddress: context.ipAddress ?? null,
     };
   }
 
@@ -999,71 +1080,125 @@ export class ActivationEmailDeliveryService {
   }
 
   async sendClinicAdministratorActivation(message) {
-    if (!this.configured) throw new Error('Activation email is not configured.');
-    const response = await this.fetchImpl('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.environment.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'AVERA-Backend/1.0',
-        'Idempotency-Key': message.idempotencyKey,
-      },
-      body: JSON.stringify({
-        from: this.environment.ACTIVATION_EMAIL_FROM,
-        to: [message.to],
-        subject: `Activate your ${message.clinicName} administrator account`,
-        text: activationEmailText(message),
-      }),
+    return this.#submit({
+      to: message.to,
+      subject: `Activate your ${message.clinicName} administrator account`,
+      text: activationEmailText(message),
+      idempotencyKey: message.idempotencyKey,
     });
-    if (!response.ok) throw new Error('Activation email delivery failed.');
-    const body = await response.json();
-    return { reference: body.id ?? null };
   }
 
   async sendStaffActivation(message) {
-    if (!this.configured) throw new Error('Activation email is not configured.');
-    const response = await this.fetchImpl('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.environment.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'AVERA-Backend/1.0',
-        'Idempotency-Key': message.idempotencyKey,
-      },
-      body: JSON.stringify({
-        from: this.environment.ACTIVATION_EMAIL_FROM,
-        to: [message.to],
-        subject: `Activate your ${message.clinicName} staff account`,
-        text: staffActivationEmailText(message),
-      }),
+    return this.#submit({
+      to: message.to,
+      subject: `Activate your ${message.clinicName} staff account`,
+      text: staffActivationEmailText(message),
+      idempotencyKey: message.idempotencyKey,
     });
-    if (!response.ok) throw new Error('Activation email delivery failed.');
-    const body = await response.json();
-    return { reference: body.id ?? null };
   }
 
   async sendClinicDeletionCode(message) {
-    if (!this.configured) throw new Error('Deletion email is not configured.');
-    const response = await this.fetchImpl('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.environment.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'AVERA-Backend/1.0',
-        'Idempotency-Key': message.idempotencyKey,
-      },
-      body: JSON.stringify({
-        from: this.environment.ACTIVATION_EMAIL_FROM,
-        to: [message.to],
-        subject: `Confirm mutual deletion of ${message.clinicName}`,
-        text: clinicDeletionEmailText(message),
-      }),
+    return this.#submit({
+      to: message.to,
+      subject: `Confirm mutual deletion of ${message.clinicName}`,
+      text: clinicDeletionEmailText(message),
+      idempotencyKey: message.idempotencyKey,
     });
-    if (!response.ok) throw new Error('Deletion email delivery failed.');
-    const body = await response.json();
-    return { reference: body.id ?? null };
   }
 
+  async #submit({ to, subject, text, idempotencyKey }) {
+    if (!this.configured) {
+      return emailSubmissionFailure(
+        'email_transport_unconfigured',
+        'Email submission is not configured.',
+      );
+    }
+    let response;
+    try {
+      response = await this.fetchImpl('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.environment.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'AVERA-Backend/1.0',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify({
+          from: this.environment.ACTIVATION_EMAIL_FROM,
+          to: [to],
+          subject,
+          text,
+        }),
+      });
+    } catch (_) {
+      return emailSubmissionFailure(
+        'email_provider_unavailable',
+        'The email provider could not be reached.',
+      );
+    }
+    let body;
+    try {
+      body = await response.json();
+    } catch (_) {
+      return emailSubmissionFailure(
+        'email_provider_invalid_response',
+        'The email provider returned an invalid response.',
+      );
+    }
+    if (!response.ok) {
+      return emailSubmissionFailure(
+        'email_provider_rejected',
+        'The email provider rejected the submission.',
+      );
+    }
+    const providerMessageId = typeof body?.id === 'string'
+      ? body.id.trim()
+      : '';
+    if (!providerMessageId) {
+      return emailSubmissionFailure(
+        'email_provider_missing_message_id',
+        'The email provider did not confirm the submission.',
+      );
+    }
+    const submittedAt = new Date().toISOString();
+    return {
+      accepted: true,
+      provider: 'resend',
+      providerMessageId,
+      reference: providerMessageId,
+      submittedAt,
+      failureCode: null,
+      failureReason: null,
+    };
+  }
+}
+
+function emailSubmissionFailure(failureCode, failureReason) {
+  return {
+    accepted: false,
+    provider: 'resend',
+    providerMessageId: null,
+    reference: null,
+    submittedAt: null,
+    failureCode,
+    failureReason,
+  };
+}
+
+function isAcceptedEmailSubmission(result) {
+  return result?.accepted === true &&
+    typeof result.providerMessageId === 'string' &&
+    result.providerMessageId.trim().length > 0 &&
+    typeof result.submittedAt === 'string' &&
+    result.submittedAt.trim().length > 0;
+}
+
+function normalizeEmailSubmissionFailure(result) {
+  if (result?.accepted === false) return result;
+  return emailSubmissionFailure(
+    'email_provider_invalid_result',
+    'The email provider did not confirm the submission.',
+  );
 }
 
 function activationEmailText(message) {
@@ -1123,8 +1258,23 @@ function mapActivationStatus(row) {
     administratorName: row.full_name,
     email: row.email,
     expiresAt: row.expires_at,
-    deliveredAt: row.delivered_at,
-    deliveryMethod: row.delivery_method,
+    submittedAt: row.delivered_at,
+    deliveredAt: row.delivery_method === 'delivered'
+      ? row.delivered_at
+      : null,
+    deliveryMethod: row.delivery_method === 'email'
+      ? 'email_submitted'
+      : row.delivery_method,
+    provider: row.delivery_reference ? 'resend' : null,
+    providerMessageId: row.delivery_reference ?? null,
+    emailState: row.delivery_method === 'email' ||
+        row.delivery_method === 'email_submitted'
+      ? 'Submitted'
+      : row.delivery_method === 'email_failed'
+        ? 'DeliveryFailed'
+        : row.delivery_method === 'manual'
+          ? 'ManualDeliveryRequired'
+          : 'NotAttempted',
     canResend: row.status === 'PendingActivation',
   };
 }

@@ -73,6 +73,12 @@ function approvalHarness() {
         state.liveToken = null;
         return { rows: [] };
       }
+      if (
+        sql.includes('UPDATE activation_tokens') &&
+        sql.includes('delivery_method = $2')
+      ) {
+        return { rows: [] };
+      }
       if (sql.includes('INSERT INTO activation_tokens')) {
         state.tokenInsertCount += 1;
         state.liveToken = {
@@ -189,7 +195,7 @@ function staffHarness({ expired = false, used = false, revoked = false, existing
         state.revokedAt = new Date();
         return { rows: [] };
       }
-      if (sql.includes("UPDATE activation_tokens SET delivery_method='email'")) return { rows: [] };
+      if (sql.includes("UPDATE activation_tokens SET delivery_method='email_submitted'")) return { rows: [] };
       if (sql.includes('INSERT INTO activation_tokens')) {
         state.tokenInsertCount += 1;
         return { rows: [{ token_id: `staff-token-${state.tokenInsertCount}` }] };
@@ -230,6 +236,180 @@ function staffHarness({ expired = false, used = false, revoked = false, existing
   };
 }
 
+function emailOutcomeHarness() {
+  const state = { calls: [], deliveryMethod: null, deliveryReference: null };
+  const client = {
+    async query(sql, parameters = []) {
+      state.calls.push({ sql, parameters });
+      if (
+        sql === 'BEGIN' ||
+        sql === 'COMMIT' ||
+        sql === 'ROLLBACK' ||
+        sql.includes("set_config('avera.") ||
+        sql.includes('INSERT INTO audit_logs')
+      ) {
+        return { rows: [] };
+      }
+      if (
+        sql.includes('UPDATE activation_tokens') &&
+        sql.includes('delivery_method = $2')
+      ) {
+        state.deliveryMethod = parameters[1];
+        state.deliveryReference = parameters[3];
+        return { rows: [] };
+      }
+      throw new Error(`Unexpected email outcome query: ${sql}`);
+    },
+    release() {},
+  };
+  return {
+    state,
+    pool: {
+      connect: async () => client,
+      query: (...arguments_) => client.query(...arguments_),
+    },
+  };
+}
+
+function issuedAdministratorToken() {
+  return {
+    tokenId: 'token-email-1',
+    userId: 'user-admin-1',
+    clinicId: 'clinic-1',
+    rawToken: 'secure-activation-token-with-more-than-32-characters',
+    expiresAt: new Date(Date.now() + 60_000),
+    email: 'canonical@example.com',
+    fullName: 'Ada Clinic Owner',
+    clinicName: 'Ada Veterinary Clinic',
+    actorUserId: 'platform-owner-1',
+    sessionId: 'platform-session-1',
+    ipAddress: '127.0.0.1',
+  };
+}
+
+test('Resend acceptance requires a non-empty provider message ID', async () => {
+  const provider = new ActivationEmailDeliveryService({
+    environment: {
+      ...environment,
+      RESEND_API_KEY: 'test-key',
+      ACTIVATION_EMAIL_FROM: 'AVERA <accounts@example.com>',
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return { id: 'resend-message-1' };
+      },
+    }),
+  });
+
+  const result = await provider.sendClinicAdministratorActivation({
+    to: 'canonical@example.com',
+    applicantName: 'Ada Clinic Owner',
+    clinicName: 'Ada Veterinary Clinic',
+    activationUrl: 'https://accounts.example.test/activate',
+    expiresAt: new Date(Date.now() + 60_000),
+    idempotencyKey: 'activation-token-email-1',
+  });
+
+  assert.equal(result.accepted, true);
+  assert.equal(result.provider, 'resend');
+  assert.equal(result.providerMessageId, 'resend-message-1');
+  assert.ok(Date.parse(result.submittedAt));
+});
+
+test('empty, rejected, and unavailable provider responses are never successful', async () => {
+  const configuredEnvironment = {
+    ...environment,
+    RESEND_API_KEY: 'test-key',
+    ACTIVATION_EMAIL_FROM: 'AVERA <accounts@example.com>',
+  };
+  const message = {
+    to: 'canonical@example.com',
+    applicantName: 'Ada Clinic Owner',
+    clinicName: 'Ada Veterinary Clinic',
+    activationUrl: 'https://accounts.example.test/activate',
+    expiresAt: new Date(Date.now() + 60_000),
+    idempotencyKey: 'activation-token-email-2',
+  };
+  const cases = [
+    {
+      fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
+      failureCode: 'email_provider_missing_message_id',
+    },
+    {
+      fetchImpl: async () => ({ ok: false, json: async () => ({}) }),
+      failureCode: 'email_provider_rejected',
+    },
+    {
+      fetchImpl: async () => {
+        throw new Error('network unavailable');
+      },
+      failureCode: 'email_provider_unavailable',
+    },
+  ];
+
+  for (const testCase of cases) {
+    const provider = new ActivationEmailDeliveryService({
+      environment: configuredEnvironment,
+      fetchImpl: testCase.fetchImpl,
+    });
+    const result = await provider.sendClinicAdministratorActivation(message);
+    assert.equal(result.accepted, false);
+    assert.equal(result.providerMessageId, null);
+    assert.equal(result.failureCode, testCase.failureCode);
+  }
+});
+
+test('administrator email outcomes distinguish Submitted, DeliveryFailed, and ManualDeliveryRequired', async () => {
+  const acceptedHarness = emailOutcomeHarness();
+  const accepted = await service(acceptedHarness.pool, {
+    configured: true,
+    async sendClinicAdministratorActivation() {
+      return {
+        accepted: true,
+        provider: 'resend',
+        providerMessageId: 'resend-message-accepted',
+        submittedAt: new Date().toISOString(),
+      };
+    },
+  }).deliverIssuedToken(issuedAdministratorToken());
+  assert.equal(accepted.deliveryMethod, 'email_submitted');
+  assert.equal(accepted.emailState, 'Submitted');
+  assert.equal('activationUrl' in accepted, false);
+  assert.equal(acceptedHarness.state.deliveryMethod, 'email_submitted');
+  assert.equal(
+    acceptedHarness.state.deliveryReference,
+    'resend-message-accepted',
+  );
+
+  const failedHarness = emailOutcomeHarness();
+  const failed = await service(failedHarness.pool, {
+    configured: true,
+    async sendClinicAdministratorActivation() {
+      return undefined;
+    },
+  }).deliverIssuedToken(issuedAdministratorToken());
+  assert.equal(failed.deliveryMethod, 'email_failed');
+  assert.equal(failed.emailState, 'DeliveryFailed');
+  assert.equal('activationUrl' in failed, false);
+  assert.equal(failedHarness.state.deliveryMethod, 'email_failed');
+  assert.equal(
+    failedHarness.state.calls.some(({ sql }) => sql.includes('UPDATE clinics')),
+    false,
+  );
+
+  const manualHarness = emailOutcomeHarness();
+  const manual = await service(manualHarness.pool, {
+    configured: false,
+  }).deliverIssuedToken(issuedAdministratorToken());
+  assert.equal(manual.deliveryMethod, 'manual');
+  assert.equal(manual.emailState, 'ManualDeliveryRequired');
+  assert.equal(
+    new URL(manual.activationUrl).searchParams.get('token'),
+    issuedAdministratorToken().rawToken,
+  );
+});
+
 test('approval provisions exactly one passwordless pending administrator and is idempotent', async () => {
   const harness = approvalHarness();
   const activation = service(harness.pool);
@@ -251,7 +431,7 @@ test('approval provisions exactly one passwordless pending administrator and is 
   assert.equal(harness.state.calls.filter((call) => call.sql.includes('INSERT INTO users')).length, 1);
 });
 
-test('verified clinic payment automatically approves and delivers activation email', async () => {
+test('verified clinic payment automatically approves and submits activation email', async () => {
   const calls = [];
   const client = {
     async query(sql, parameters = []) {
@@ -303,7 +483,10 @@ test('verified clinic payment automatically approves and delivers activation ema
   };
   activation.deliverIssuedToken = async (issued) => {
     assert.equal(issued.tokenId, 'activation-token-1');
-    return { status: 'PendingActivation', deliveryMethod: 'email' };
+    return {
+      status: 'PendingActivation',
+      deliveryMethod: 'email_submitted',
+    };
   };
 
   const result = await activation.approveAfterVerifiedPayment({
@@ -314,7 +497,7 @@ test('verified clinic payment automatically approves and delivers activation ema
   });
 
   assert.equal(result.approved, true);
-  assert.equal(result.activation.deliveryMethod, 'email');
+  assert.equal(result.activation.deliveryMethod, 'email_submitted');
   assert.equal(
     calls.some((call) =>
       call.sql.includes("UPDATE clinics") && call.sql.includes("status = 'Active'")),
@@ -476,14 +659,19 @@ test('staff invitation is passwordless, token-hashed, tenant-scoped, and pending
   assert.deepEqual(roleLookup.parameters, ['clinic-1', 'role-vet']);
 });
 
-test('staff invitation emails the selected role and rejects stale role IDs', async () => {
+test('staff invitation submits the selected role and rejects stale role IDs', async () => {
   const harness = staffHarness();
   let delivered;
   const deliveryService = {
     configured: true,
     async sendStaffActivation(message) {
       delivered = message;
-      return { reference: 'resend-message-1' };
+      return {
+        accepted: true,
+        provider: 'resend',
+        providerMessageId: 'resend-message-1',
+        submittedAt: new Date().toISOString(),
+      };
     },
   };
   const result = await service(harness.pool, deliveryService).inviteStaff({
@@ -491,7 +679,11 @@ test('staff invitation emails the selected role and rejects stale role IDs', asy
     email: 'jane@example.com', roleId: 'role-vet',
     professionalTitle: 'Veterinary Surgeon', ipAddress: '127.0.0.1',
   });
-  assert.equal(result.delivery.status, 'EmailSent');
+  assert.equal(result.delivery.status, 'Submitted');
+  assert.equal(result.delivery.emailState, 'Submitted');
+  assert.equal(result.delivery.provider, 'resend');
+  assert.equal(result.delivery.providerMessageId, 'resend-message-1');
+  assert.ok(Date.parse(result.delivery.submittedAt));
   assert.equal(delivered.to, 'jane@example.com');
   assert.equal(delivered.roleName, 'Veterinarian');
   assert.equal(delivered.professionalTitle, 'Veterinary Surgeon');
@@ -514,7 +706,12 @@ test('staff invitation resend preserves role, title, and staff number', async ()
     configured: true,
     async sendStaffActivation(message) {
       delivered = message;
-      return { reference: 'resend-message-2' };
+      return {
+        accepted: true,
+        provider: 'resend',
+        providerMessageId: 'resend-message-2',
+        submittedAt: new Date().toISOString(),
+      };
     },
   };
   const originalQuery = harness.pool.query;
@@ -546,7 +743,11 @@ test('staff invitation resend preserves role, title, and staff number', async ()
     targetUserId: 'staff-1',
   });
 
-  assert.equal(result.status, 'EmailSent');
+  assert.equal(result.status, 'Submitted');
+  assert.equal(result.emailState, 'Submitted');
+  assert.equal(result.provider, 'resend');
+  assert.equal(result.providerMessageId, 'resend-message-2');
+  assert.ok(Date.parse(result.submittedAt));
   assert.equal(delivered.roleName, 'Veterinarian');
   assert.equal(delivered.professionalTitle, 'Veterinary Surgeon');
   assert.equal(delivered.staffNumber, '007');
@@ -606,7 +807,13 @@ test('resend revokes the previous token and issues a different one', async () =>
   });
 
   assert.equal(resent.deliveryMethod, 'manual');
-  assert.match(resent.activationUrl, /^https:\/\/accounts\.averavet\.sbs\/activate-clinic-admin\?token=/);
+  assert.match(
+    resent.activationUrl,
+    /^https:\/\/accounts\.averavet\.sbs\/activate-clinic-admin\?token=/,
+  );
+  const resentToken = new URL(resent.activationUrl).searchParams.get('token');
+  assert.notEqual(resentToken, first.issued.rawToken);
+  assert.equal(hashToken(resentToken), harness.state.liveToken.token_hash);
   assert.equal(harness.state.tokenInsertCount, 2);
   assert.notEqual(harness.state.liveToken.token_hash, originalHash);
 });
@@ -634,7 +841,8 @@ test('resend reconciles a missing administrator before issuing activation', asyn
   assert.equal(
     harness.state.calls.some(({ sql, parameters }) =>
       sql.includes('INSERT INTO audit_logs') &&
-      parameters[4] === 'administrator.provisioned_and_activation_sent'),
+      parameters[4] ===
+        'administrator.provisioned_and_activation_submission_requested'),
     true,
   );
 });
@@ -674,4 +882,49 @@ test('missing administrator exposes repair only when canonical application detai
   assert.equal(status.canResend, true);
   assert.equal(status.email, 'ada@example.com');
   assert.match(status.reason, /can be repaired/i);
+});
+
+test('activation status exposes a persisted provider submission without claiming delivery', async () => {
+  const submittedAt = new Date('2026-08-30T08:05:57.938Z');
+  const client = {
+    async query(sql) {
+      if (
+        sql === 'BEGIN' ||
+        sql === 'COMMIT' ||
+        sql === 'ROLLBACK' ||
+        sql.includes("set_config('avera.")
+      ) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM users u')) {
+        return {
+          rows: [{
+            full_name: 'Ada Clinic Owner',
+            email: 'ada@example.com',
+            status: 'PendingActivation',
+            expires_at: new Date('2099-08-31T08:05:57.938Z'),
+            used_at: null,
+            revoked_at: null,
+            delivery_method: 'email_submitted',
+            delivered_at: submittedAt,
+            delivery_reference: 'resend-message-1',
+          }],
+        };
+      }
+      throw new Error(`Unexpected activation status query: ${sql}`);
+    },
+    release() {},
+  };
+
+  const status = await service({
+    connect: async () => client,
+    query: (...arguments_) => client.query(...arguments_),
+  }).activationStatus('clinic-1');
+
+  assert.equal(status.emailState, 'Submitted');
+  assert.equal(status.deliveryMethod, 'email_submitted');
+  assert.equal(status.provider, 'resend');
+  assert.equal(status.providerMessageId, 'resend-message-1');
+  assert.equal(status.submittedAt, submittedAt);
+  assert.equal(status.deliveredAt, null);
 });

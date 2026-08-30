@@ -23,6 +23,7 @@ import {
 import { publicAccountRoutes } from './routes/public-account-routes.js';
 import { requestLogSerializer } from './config/request-logging.js';
 import { ProfilePhotoStorageService } from './services/profile-photo-storage-service.js';
+import { ClinicDeletionService } from './services/clinic-deletion-service.js';
 
 export async function buildApp({
   environment = loadEnvironment(),
@@ -73,6 +74,13 @@ export async function buildApp({
     deliveryService: activationDeliveryService,
   });
   app.decorate('activationService', activationService);
+  app.decorate(
+    'clinicDeletionService',
+    new ClinicDeletionService({
+      pool: databasePool,
+      deliveryService: activationDeliveryService,
+    }),
+  );
   const subscriptionGateway = new PaystackSubscriptionGateway({
     secretKey: environment.PAYSTACK_SECRET_KEY,
     publicKey: environment.PAYSTACK_PUBLIC_KEY,

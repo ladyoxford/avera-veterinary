@@ -103,22 +103,43 @@ void main() {
   });
 
   test(
-    'verified registration payment reports automatic approval and email',
+    'verified registration payment reports provider submission truthfully',
     () {
       final verification = SubscriptionPaymentVerification.fromJson({
         'verified': true,
         'mode': 'test',
         'subscriptionApplied': false,
         'applicationApproved': true,
-        'activation': {'deliveryMethod': 'email'},
+        'activation': {'deliveryMethod': 'email_submitted'},
       });
 
       expect(verification.applicationApproved, isTrue);
-      expect(verification.activationDeliveryMethod, 'email');
+      expect(verification.activationDeliveryMethod, 'email_submitted');
       expect(
         subscriptionPaymentVerificationMessage(verification),
-        contains('activation email was sent'),
+        contains('submitted to the email provider'),
       );
+      expect(
+        subscriptionPaymentVerificationMessage(verification),
+        isNot(contains('email was sent')),
+      );
+    },
+  );
+
+  test(
+    'activation provider failure cannot produce an email-success message',
+    () {
+      final verification = SubscriptionPaymentVerification.fromJson({
+        'verified': true,
+        'mode': 'test',
+        'subscriptionApplied': false,
+        'applicationApproved': true,
+        'activation': {'deliveryMethod': 'email_failed'},
+      });
+
+      final message = subscriptionPaymentVerificationMessage(verification);
+      expect(message, contains('could not be submitted'));
+      expect(message, isNot(contains('email was sent')));
     },
   );
 

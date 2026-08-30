@@ -502,10 +502,10 @@ String subscriptionPaymentVerificationMessage(
   }
   if (verification.applicationApproved) {
     return switch (verification.activationDeliveryMethod) {
-      'email' =>
-        'Payment confirmed. Your clinic was approved and the administrator activation email was sent.',
+      'email_submitted' || 'email' =>
+        'Payment confirmed. Your clinic was approved and the administrator activation email was submitted to the email provider.',
       'email_failed' =>
-        'Payment confirmed and your clinic was approved, but the activation email could not be delivered. Contact AVERA support.',
+        'Payment confirmed and your clinic was approved, but the activation email could not be submitted. Contact AVERA support.',
       'manual' =>
         'Payment confirmed and your clinic was approved. Email delivery is not configured; contact AVERA support for the activation link.',
       _ =>

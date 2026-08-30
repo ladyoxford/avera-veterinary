@@ -755,9 +755,19 @@ export async function platformRoutes(app) {
           }),
         };
       } catch (error) {
-        return reply.code(error.statusCode ?? 400).send({
-          error: error.code ?? 'clinic_deletion_request_failed',
-          message: error.message,
+        const failure = clinicDeletionErrorResponse(
+          error,
+          'clinic_deletion_request_failed',
+        );
+        if (!failure.known) {
+          request.log.error(
+            { err: error, clinicId: request.params.clinicId },
+            'Clinic deletion request failed',
+          );
+        }
+        return reply.code(failure.statusCode).send({
+          error: failure.code,
+          message: failure.message,
         });
       }
     },
@@ -799,9 +809,19 @@ export async function platformRoutes(app) {
           }),
         };
       } catch (error) {
-        return reply.code(error.statusCode ?? 400).send({
-          error: error.code ?? 'clinic_deletion_confirmation_failed',
-          message: error.message,
+        const failure = clinicDeletionErrorResponse(
+          error,
+          'clinic_deletion_confirmation_failed',
+        );
+        if (!failure.known) {
+          request.log.error(
+            { err: error, clinicId: request.params.clinicId },
+            'Clinic deletion confirmation failed',
+          );
+        }
+        return reply.code(failure.statusCode).send({
+          error: failure.code,
+          message: failure.message,
         });
       }
     },
@@ -1070,6 +1090,37 @@ async function requirePlatformAccount(request, reply) {
       message: 'Platform administration access is required.',
     });
   }
+}
+
+const safeClinicDeletionErrorCodes = new Set([
+  'clinic_not_found',
+  'clinic_deletion_email_missing',
+  'clinic_deletion_email_unavailable',
+  'clinic_deletion_email_failed',
+  'clinic_deletion_request_not_found',
+  'clinic_deletion_request_unavailable',
+  'clinic_deletion_code_expired',
+  'clinic_deletion_attempts_exhausted',
+  'clinic_deletion_code_invalid',
+]);
+
+export function clinicDeletionErrorResponse(error, fallbackCode) {
+  if (safeClinicDeletionErrorCodes.has(error?.code)) {
+    return {
+      known: true,
+      statusCode: Number.isInteger(error.statusCode)
+        ? error.statusCode
+        : 400,
+      code: error.code,
+      message: error.message,
+    };
+  }
+  return {
+    known: false,
+    statusCode: 503,
+    code: fallbackCode,
+    message: 'Deletion service is temporarily unavailable.',
+  };
 }
 
 export async function queryPlatformClinics(

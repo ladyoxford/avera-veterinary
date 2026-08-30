@@ -151,6 +151,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('Invitation submitted'), findsOneWidget);
+    expect(
+      find.textContaining('submitted to the email provider'),
+      findsOneWidget,
+    );
     expect(find.textContaining('jane@example.test'), findsOneWidget);
   });
 
@@ -282,7 +287,7 @@ class _InvitationRepository extends ClinicRepository {
 
   void completeInvitation() {
     if (!_invitation.isCompleted) {
-      _invitation.complete({'status': 'EmailSent'});
+      _invitation.complete({'status': 'Submitted'});
     }
   }
 
@@ -317,8 +322,11 @@ class _InvitationRepository extends ClinicRepository {
     this.professionalTitle = professionalTitle;
     await _invitation.future;
     return const StaffInvitationResult(
-      deliveryStatus: 'EmailSent',
+      deliveryStatus: 'Submitted',
       staffNumber: '004',
+      emailState: 'Submitted',
+      provider: 'resend',
+      providerMessageId: 'resend-message-1',
     );
   }
 }

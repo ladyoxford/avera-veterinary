@@ -44,8 +44,13 @@ class PlatformAdministratorActivation {
     this.administratorName,
     this.email,
     this.expiresAt,
+    this.submittedAt,
     this.deliveredAt,
     this.deliveryMethod,
+    this.emailState,
+    this.provider,
+    this.providerMessageId,
+    this.failureCode,
     this.activationUrl,
     this.reason,
     this.canResend = false,
@@ -55,8 +60,13 @@ class PlatformAdministratorActivation {
   final String? administratorName;
   final String? email;
   final DateTime? expiresAt;
+  final DateTime? submittedAt;
   final DateTime? deliveredAt;
   final String? deliveryMethod;
+  final String? emailState;
+  final String? provider;
+  final String? providerMessageId;
+  final String? failureCode;
   final String? activationUrl;
   final String? reason;
   final bool canResend;
@@ -791,10 +801,15 @@ class RemotePlatformRepository implements PlatformRepository {
       administratorName: json['administratorName'] as String?,
       email: json['email'] as String?,
       expiresAt: _date(json['expiresAt']),
+      submittedAt: _date(json['submittedAt']),
       deliveredAt: _date(json['deliveredAt']),
       deliveryMethod: json['deliveryMethod'] as String?,
+      emailState: json['emailState'] as String?,
+      provider: json['provider'] as String?,
+      providerMessageId: json['providerMessageId'] as String?,
+      failureCode: json['failureCode'] as String?,
       activationUrl: json['activationUrl'] as String?,
-      reason: json['reason'] as String?,
+      reason: json['reason'] as String? ?? json['failureReason'] as String?,
       canResend:
           json['canResend'] as bool? ?? json['status'] == 'PendingActivation',
     );

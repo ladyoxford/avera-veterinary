@@ -145,7 +145,10 @@ void main() {
         role: veterinarian,
       );
 
-      expect(result.emailSent, isTrue);
+      expect(result.emailSubmitted, isTrue);
+      expect(result.emailState, 'Submitted');
+      expect(result.provider, 'resend');
+      expect(result.providerMessageId, 'resend-message-1');
       expect(result.staffNumber, '004');
       expect(api.postPath, '/api/v1/users/invitations');
       expect(api.postBody?['roleId'], 'role-vet');
@@ -294,7 +297,13 @@ class _RoleApiClient extends ApiClient {
           'userId': 'staff-invited',
           'status': 'PendingActivation',
           'staffNumber': '004',
-          'delivery': {'status': 'EmailSent'},
+          'delivery': {
+            'status': 'Submitted',
+            'emailState': 'Submitted',
+            'provider': 'resend',
+            'providerMessageId': 'resend-message-1',
+            'submittedAt': '2026-08-30T08:05:57.938Z',
+          },
         },
       };
     }

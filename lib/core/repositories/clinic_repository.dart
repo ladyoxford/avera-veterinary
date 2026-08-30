@@ -547,13 +547,26 @@ class StaffInvitationResult {
     required this.deliveryStatus,
     required this.staffNumber,
     this.activationLink,
+    this.emailState,
+    this.provider,
+    this.providerMessageId,
+    this.submittedAt,
+    this.expiresAt,
   });
 
   final String deliveryStatus;
   final String staffNumber;
   final String? activationLink;
+  final String? emailState;
+  final String? provider;
+  final String? providerMessageId;
+  final DateTime? submittedAt;
+  final DateTime? expiresAt;
 
-  bool get emailSent => deliveryStatus == 'EmailSent';
+  bool get emailSubmitted =>
+      emailState == 'Submitted' ||
+      deliveryStatus == 'Submitted' ||
+      deliveryStatus == 'EmailSent';
 }
 
 class ClinicApplication {
@@ -2950,6 +2963,13 @@ class ClinicRepository {
       return StaffInvitationResult(
         deliveryStatus: delivery['status'] as String? ?? 'DeliveryUnavailable',
         staffNumber: invitation['staffNumber'] as String? ?? '',
+        emailState: delivery['emailState'] as String?,
+        provider: delivery['provider'] as String?,
+        providerMessageId: delivery['providerMessageId'] as String?,
+        submittedAt: DateTime.tryParse(
+          delivery['submittedAt']?.toString() ?? '',
+        ),
+        expiresAt: DateTime.tryParse(delivery['expiresAt']?.toString() ?? ''),
       );
     }
     final normalizedEmail = email.trim().toLowerCase();
@@ -3037,7 +3057,7 @@ class ClinicRepository {
     );
   }
 
-  Future<void> resendClinicUserInvitation({
+  Future<StaffInvitationResult> resendClinicUserInvitation({
     required UserSession actingSession,
     required String targetUserId,
   }) async {
@@ -3051,11 +3071,25 @@ class ClinicRepository {
         'Invitation resend requires the configured production backend.',
       );
     }
-    await client.post(
+    final response = await client.post(
       '/api/v1/users/$targetUserId/invitation/resend',
       authenticated: true,
     );
+    final invitation = response['invitation'] is Map
+        ? Map<String, dynamic>.from(response['invitation'] as Map)
+        : const <String, dynamic>{};
     await refreshClinicUsers(actingSession);
+    return StaffInvitationResult(
+      deliveryStatus: invitation['status'] as String? ?? 'DeliveryUnavailable',
+      staffNumber: '',
+      emailState: invitation['emailState'] as String?,
+      provider: invitation['provider'] as String?,
+      providerMessageId: invitation['providerMessageId'] as String?,
+      submittedAt: DateTime.tryParse(
+        invitation['submittedAt']?.toString() ?? '',
+      ),
+      expiresAt: DateTime.tryParse(invitation['expiresAt']?.toString() ?? ''),
+    );
   }
 
   Future<void> updateClinicBranding({

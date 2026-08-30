@@ -153,6 +153,15 @@ test('clinic accounts cannot access Platform Owner clinic APIs', async (context)
   });
   assert.equal(resend.statusCode, 403);
   assert.equal(resend.json().error, 'forbidden');
+
+  const deletion = await app.inject({
+    method: 'POST',
+    url: '/api/v1/platform/clinics/clinic-1/deletion-requests',
+    headers: { authorization: `Bearer ${token}` },
+    payload: { reason: 'This account cannot request deletion.' },
+  });
+  assert.equal(deletion.statusCode, 403);
+  assert.equal(deletion.json().error, 'forbidden');
 });
 
 function testEnvironment() {

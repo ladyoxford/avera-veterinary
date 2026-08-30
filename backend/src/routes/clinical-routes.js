@@ -3,6 +3,7 @@ import { withTenantTransaction } from '../database/pool.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { hasPermission, permissions } from '../security/permissions.js';
 import { writeAudit } from '../audit/audit-service.js';
+import { compactInvoiceNumber } from '../services/invoice-number.js';
 import {
   loadRevenueDrilldown,
   loadRevenueSummary,
@@ -2648,8 +2649,7 @@ export async function clinicalRoutes(app) {
         });
       }
       const authoritativeTotal = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
-      const invoiceNumber =
-        `INV-${Date.now()}-${input.submissionId.slice(0, 8).toUpperCase()}`;
+      const invoiceNumber = compactInvoiceNumber(input.submissionId);
       const paid = input.status === 'Paid' ? authoritativeTotal : 0;
       const inserted = await client.query(
         `INSERT INTO invoices

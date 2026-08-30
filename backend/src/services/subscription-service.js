@@ -288,6 +288,9 @@ export class SubscriptionService {
           planCode: plan.plan_key,
           billingCycle: cycle,
           paymentScope: context.paymentScope,
+          ...(context.applicationId && context.email
+            ? { accountEmail: String(context.email).trim().toLowerCase() }
+            : {}),
           ...(context.applicationId
             ? { applicationId: context.applicationId }
             : {}),
@@ -383,7 +386,8 @@ export class SubscriptionService {
       async (client) => (
         await client.query(
           `SELECT application_id, clinic_id, status, selected_plan,
-                  payment_status, payment_reference, application_reference
+                  payment_status, payment_reference, application_reference,
+                  administrator_email
              FROM clinic_applications
             WHERE application_id = $1`,
           [applicationId],
@@ -391,13 +395,50 @@ export class SubscriptionService {
       ).rows[0],
     );
     validateApplicationPaymentTarget(application, { applicationId, clinicId });
-    if (application.payment_reference !== reference) {
-      throw serviceError(
-        'payment_reference_mismatch',
-        'This payment does not belong to the clinic application.',
-        403,
-      );
+    let preferredError;
+    try {
+      return await this.#verifyApplicationPaymentReference({
+        applicationId,
+        clinicId,
+        reference,
+      });
+    } catch (error) {
+      if (!isRecoverableApplicationPaymentError(error)) throw error;
+      preferredError = error;
     }
+
+    const alternatives = (
+      await this.pool.query(
+        `SELECT reference
+           FROM subscription_payment_transactions
+          WHERE clinic_id = $1
+            AND reference <> $2
+            AND gateway_response_summary->>'paymentScope' = 'clinic_application'
+            AND gateway_response_summary->>'applicationId' = $3
+          ORDER BY (status = 'Successful') DESC, created_at DESC
+          LIMIT 10`,
+        [clinicId, reference, applicationId],
+      )
+    ).rows;
+    for (const candidate of alternatives) {
+      try {
+        return await this.#verifyApplicationPaymentReference({
+          applicationId,
+          clinicId,
+          reference: candidate.reference,
+        });
+      } catch (error) {
+        if (!isRecoverableApplicationPaymentError(error)) throw error;
+      }
+    }
+    throw preferredError;
+  }
+
+  async #verifyApplicationPaymentReference({
+    applicationId,
+    clinicId,
+    reference,
+  }) {
     const expected = (
       await this.pool.query(
         `SELECT clinic_id, plan_code, gateway_response_summary
@@ -409,7 +450,6 @@ export class SubscriptionService {
     const paymentMetadata = normalizeMetadata(expected?.gateway_response_summary);
     if (
       expected?.clinic_id !== clinicId ||
-      expected?.plan_code !== application.selected_plan ||
       paymentMetadata.paymentScope !== 'clinic_application' ||
       paymentMetadata.applicationId !== applicationId
     ) {
@@ -424,11 +464,12 @@ export class SubscriptionService {
       reference,
       auth: { clinicId, accountType: 'ClinicApplication' },
       mode,
-      afterVerified: async (client) => {
+      afterVerified: async (client, payment) => {
         const lockedApplication = (
           await client.query(
             `SELECT application_id, clinic_id, status, selected_plan,
-                    payment_status, payment_reference, application_reference
+                    payment_status, payment_reference, application_reference,
+                    administrator_email
                FROM clinic_applications
               WHERE application_id = $1
               FOR UPDATE`,
@@ -439,55 +480,91 @@ export class SubscriptionService {
           applicationId,
           clinicId,
         });
-        if (lockedApplication.payment_reference !== reference) {
-          throw serviceError(
-            'payment_reference_mismatch',
-            'This payment does not belong to the clinic application.',
-            403,
-          );
-        }
+        const verifiedMetadata = normalizeMetadata(
+          payment.gateway_response_summary,
+        );
+        const checkoutEmail = normalizeEmail(
+          verifiedMetadata.accountEmail ?? verifiedMetadata.payerEmail,
+        );
+        const currentEmail = normalizeEmail(
+          lockedApplication.administrator_email,
+        );
+        const registrationIdentityChanged = Boolean(
+          checkoutEmail && currentEmail && checkoutEmail !== currentEmail,
+        );
         const paymentStatus = mode === 'test' ? 'TestVerified' : 'Paid';
         await client.query(
           `UPDATE clinic_applications
-              SET payment_status = $2, status = 'Pending', updated_at = now()
+              SET payment_status = $2, status = 'Pending',
+                  payment_reference = $3, selected_plan = $4,
+                  updated_at = now()
             WHERE application_id = $1`,
-          [applicationId, paymentStatus],
+          [applicationId, paymentStatus, reference, expected.plan_code],
         );
         await client.query(
           `UPDATE clinics
-              SET status = 'PendingApproval', updated_at = now(),
+              SET status = CASE
+                    WHEN status IN ('RegistrationDraft', 'Pending', 'PendingApproval')
+                      THEN 'PendingApproval'
+                    ELSE status
+                  END,
+                  subscription_plan = $2, updated_at = now(),
                   revision = revision + 1
-            WHERE clinic_id = $1 AND status = 'RegistrationDraft'`,
-          [clinicId],
+            WHERE clinic_id = $1`,
+          [clinicId, expected.plan_code],
         );
         await audit(client, {
           clinicId,
           auth: null,
           action: 'clinic.application_payment_verified',
           targetId: applicationId,
-          next: { reference, paymentStatus, mode },
+          next: {
+            reference,
+            paymentStatus,
+            mode,
+            planCode: expected.plan_code,
+            reconciledReference:
+              lockedApplication.payment_reference !== reference,
+            registrationIdentityChanged,
+          },
         });
         return {
           application: {
             applicationId,
             clinicId,
             reference: lockedApplication.application_reference,
-            status: lockedApplication.status,
+            status: 'Pending',
             paymentStatus,
+            registrationIdentityChanged,
           },
         };
       },
     });
-    const approval = await this.onApplicationPaymentVerified?.({
-      applicationId,
-      clinicId,
-      reference,
-      mode,
-    });
+    let approval;
+    let approvalIssue;
+    if (verification.application?.registrationIdentityChanged) {
+      approvalIssue = {
+        code: 'registration_identity_changed_after_checkout',
+        message: 'Payment is verified, but the Account Email changed after Paystack checkout. Platform Owner review is required before administrator activation.',
+        requiresPlatformOwner: true,
+      };
+    } else {
+      try {
+        approval = await this.onApplicationPaymentVerified?.({
+          applicationId,
+          clinicId,
+          reference,
+          mode,
+        });
+      } catch (error) {
+        approvalIssue = safeApplicationApprovalIssue(error);
+      }
+    }
     return {
       ...verification,
       applicationApproved: approval?.approved === true,
       activation: safeActivationSummary(approval?.activation),
+      approvalIssue,
     };
   }
 
@@ -523,6 +600,9 @@ export class SubscriptionService {
             gatewayStatus: verified.status,
             mode,
             subscriptionApplied: false,
+            ...(normalizeEmail(verified.customer?.email)
+              ? { payerEmail: normalizeEmail(verified.customer.email) }
+              : {}),
           };
           payment = (
             await client.query(
@@ -970,6 +1050,44 @@ function safeActivationSummary(activation) {
     deliveryMethod: activation.deliveryMethod ?? null,
     expiresAt: activation.expiresAt ?? null,
   };
+}
+
+function isRecoverableApplicationPaymentError(error) {
+  return new Set([
+    'gateway_request_failed',
+    'payment_not_found',
+    'payment_not_successful',
+    'payment_pending',
+  ]).has(error?.code);
+}
+
+function safeApplicationApprovalIssue(error) {
+  const messages = {
+    administrator_identity_conflict:
+      'Payment is verified, but the Account Email belongs to another AVERA account. Platform Owner repair is required.',
+    administrator_account_email_missing:
+      'Payment is verified, but the registration has no valid Account Email for administrator activation.',
+    administrator_name_missing:
+      'Payment is verified, but the registration has no administrator name for activation.',
+    automatic_approval_not_allowed:
+      'Payment is verified, but this clinic requires Platform Owner review before activation.',
+  };
+  const code = Object.hasOwn(messages, error?.code)
+    ? error.code
+    : 'administrator_activation_requires_review';
+  return {
+    code,
+    message:
+      messages[code] ??
+      'Payment is verified, but administrator activation requires Platform Owner review.',
+    requiresPlatformOwner: true,
+  };
+}
+
+function normalizeEmail(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
 }
 
 export function serviceError(code, message, statusCode) {

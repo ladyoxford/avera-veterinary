@@ -164,6 +164,9 @@ class SubscriptionPaymentVerification {
     required this.subscriptionApplied,
     this.applicationApproved = false,
     this.activationDeliveryMethod,
+    this.approvalIssueCode,
+    this.approvalIssueMessage,
+    this.requiresPlatformOwner = false,
   });
 
   final SubscriptionPaymentRecord? payment;
@@ -173,6 +176,9 @@ class SubscriptionPaymentVerification {
   final bool subscriptionApplied;
   final bool applicationApproved;
   final String? activationDeliveryMethod;
+  final String? approvalIssueCode;
+  final String? approvalIssueMessage;
+  final bool requiresPlatformOwner;
 
   bool get isTestMode => mode == 'test';
 
@@ -187,6 +193,9 @@ class SubscriptionPaymentVerification {
         : null;
     final subscriptionApplied =
         json['subscriptionApplied'] as bool? ?? subscription != null;
+    final approvalIssue = json['approvalIssue'] is Map<String, dynamic>
+        ? json['approvalIssue'] as Map<String, dynamic>
+        : null;
     return SubscriptionPaymentVerification(
       payment: payment,
       subscription: subscription,
@@ -200,6 +209,10 @@ class SubscriptionPaymentVerification {
       activationDeliveryMethod:
           (json['activation'] as Map<String, dynamic>?)?['deliveryMethod']
               as String?,
+      approvalIssueCode: approvalIssue?['code'] as String?,
+      approvalIssueMessage: approvalIssue?['message'] as String?,
+      requiresPlatformOwner:
+          approvalIssue?['requiresPlatformOwner'] as bool? ?? false,
     );
   }
 }
@@ -484,6 +497,9 @@ DateTime? _date(dynamic value) =>
 String subscriptionPaymentVerificationMessage(
   SubscriptionPaymentVerification verification,
 ) {
+  if (verification.verified && verification.approvalIssueMessage != null) {
+    return 'Payment confirmed. ${verification.approvalIssueMessage}';
+  }
   if (verification.applicationApproved) {
     return switch (verification.activationDeliveryMethod) {
       'email' =>

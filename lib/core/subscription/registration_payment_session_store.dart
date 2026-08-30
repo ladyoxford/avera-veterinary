@@ -10,6 +10,7 @@ class RegistrationPaymentSession {
     required this.plan,
     required this.accessToken,
     required this.paymentReference,
+    this.billingCycle = 'monthly',
   });
 
   final String applicationId;
@@ -18,6 +19,7 @@ class RegistrationPaymentSession {
   final String plan;
   final String accessToken;
   final String paymentReference;
+  final String billingCycle;
 
   Map<String, dynamic> toJson() => {
     'applicationId': applicationId,
@@ -26,6 +28,7 @@ class RegistrationPaymentSession {
     'plan': plan,
     'accessToken': accessToken,
     'paymentReference': paymentReference,
+    'billingCycle': billingCycle,
   };
 
   static RegistrationPaymentSession? fromJson(Map<String, dynamic> json) {
@@ -50,6 +53,7 @@ class RegistrationPaymentSession {
       plan: plan,
       accessToken: accessToken,
       paymentReference: paymentReference,
+      billingCycle: json['billingCycle'] == 'annual' ? 'annual' : 'monthly',
     );
   }
 }

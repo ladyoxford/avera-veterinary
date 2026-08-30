@@ -136,8 +136,9 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
         return;
       }
       submitting.value = true;
+      ClinicApplication? pending;
       try {
-        final pending = ClinicApplication(
+        pending = ClinicApplication(
           clinicName: clinicName.text,
           accountEmail: accountEmail.text,
           phoneNumber: phone.text,
@@ -161,7 +162,7 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
             .read(clinicRepositoryProvider)
             .submitClinicApplication(pending);
         activeDraft.value = application;
-        await ref.read(clinicRegistrationDraftStoreProvider).save(application);
+        await ref.read(clinicRegistrationDraftStoreProvider).clear();
         if (context.mounted) {
           await Navigator.of(context).push<ClinicRegistrationReviewAction>(
             MaterialPageRoute(
@@ -171,12 +172,18 @@ class ClinicRegistrationScreen extends HookConsumerWidget {
           );
         }
       } on ApiException catch (error) {
+        if (pending != null && activeDraft.value == null) {
+          await ref.read(clinicRegistrationDraftStoreProvider).save(pending);
+        }
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(_registrationFailureMessage(error))),
           );
         }
       } catch (_) {
+        if (pending != null && activeDraft.value == null) {
+          await ref.read(clinicRegistrationDraftStoreProvider).save(pending);
+        }
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

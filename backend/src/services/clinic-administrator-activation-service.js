@@ -1042,6 +1042,28 @@ export class ActivationEmailDeliveryService {
     return { reference: body.id ?? null };
   }
 
+  async sendClinicDeletionCode(message) {
+    if (!this.configured) throw new Error('Deletion email is not configured.');
+    const response = await this.fetchImpl('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.environment.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'AVERA-Backend/1.0',
+        'Idempotency-Key': message.idempotencyKey,
+      },
+      body: JSON.stringify({
+        from: this.environment.ACTIVATION_EMAIL_FROM,
+        to: [message.to],
+        subject: `Confirm mutual deletion of ${message.clinicName}`,
+        text: clinicDeletionEmailText(message),
+      }),
+    });
+    if (!response.ok) throw new Error('Deletion email delivery failed.');
+    const body = await response.json();
+    return { reference: body.id ?? null };
+  }
+
 }
 
 function activationEmailText(message) {
@@ -1069,6 +1091,22 @@ function staffActivationEmailText(message) {
     `This link expires at ${new Date(message.expiresAt).toISOString()}.`,
     'If you were not expecting this invitation, ignore this email.',
   ].join('\n');
+}
+
+function clinicDeletionEmailText(message) {
+  return [
+    `AVERA received a Platform Owner request to mutually delete ${message.clinicName}.`,
+    '',
+    `Confirmation code: ${message.code}`,
+    '',
+    `This code expires at ${new Date(message.expiresAt).toISOString()}.`,
+    'Share this code with the AVERA Platform Owner only if the clinic agrees to deletion.',
+    'After confirmation, clinic access is revoked and this Account Email can be used for a new registration.',
+    'Payment and audit records remain preserved for accountability.',
+    message.reason ? `Reason supplied: ${message.reason}` : '',
+    '',
+    'If the clinic did not agree to deletion, do not share the code and contact AVERA support.',
+  ].filter(Boolean).join('\n');
 }
 
 function mapActivationStatus(row) {

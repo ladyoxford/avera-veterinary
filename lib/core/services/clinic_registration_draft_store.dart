@@ -14,6 +14,7 @@ class ClinicRegistrationDraftStore {
   Future<void> save(ClinicApplication application) => _storage.write(
     key: _key,
     value: jsonEncode({
+      'kind': 'form',
       'clinicName': application.clinicName,
       'accountEmail': application.accountEmail,
       'phoneNumber': application.phoneNumber,
@@ -25,13 +26,6 @@ class ClinicRegistrationDraftStore {
       'professionalTitle': application.professionalTitle,
       'subscriptionPlan': application.subscriptionPlan,
       'timeZone': application.timeZone,
-      'reference': application.reference,
-      'applicationId': application.applicationId,
-      'clinicId': application.clinicId,
-      'paymentStatus': application.paymentStatus,
-      'paymentAccessToken': application.paymentAccessToken,
-      'draftAccessToken': application.draftAccessToken,
-      'status': application.status,
     }),
   );
 
@@ -41,6 +35,17 @@ class ClinicRegistrationDraftStore {
     try {
       final value = jsonDecode(raw);
       if (value is! Map<String, dynamic>) return null;
+      final containsSubmittedApplication = [
+        value['reference'],
+        value['applicationId'],
+        value['clinicId'],
+        value['paymentAccessToken'],
+        value['draftAccessToken'],
+      ].any((item) => item is String && item.trim().isNotEmpty);
+      if (containsSubmittedApplication) {
+        await clear();
+        return null;
+      }
       final requiredValues = [
         value['clinicName'],
         value['accountEmail'],
@@ -67,13 +72,6 @@ class ClinicRegistrationDraftStore {
         professionalTitle: value['professionalTitle'] as String,
         subscriptionPlan: value['subscriptionPlan'] as String,
         timeZone: value['timeZone'] as String,
-        reference: value['reference'] as String?,
-        applicationId: value['applicationId'] as String?,
-        clinicId: value['clinicId'] as String?,
-        paymentStatus: value['paymentStatus'] as String?,
-        paymentAccessToken: value['paymentAccessToken'] as String?,
-        draftAccessToken: value['draftAccessToken'] as String?,
-        status: value['status'] as String?,
       );
     } catch (_) {
       return null;

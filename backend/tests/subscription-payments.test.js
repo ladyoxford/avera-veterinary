@@ -489,6 +489,26 @@ test('unpaid clinic registration edits reuse one draft and do not provision a us
     client.calls.some(({ sql }) => /INSERT INTO users|INSERT INTO clinic_memberships/.test(sql)),
     false,
   );
+
+  state.application.payment_reference = 'AVERA-CHECKOUT-LOCKED';
+  const lockedIdentityChange = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications',
+    payload: {
+      ...payload,
+      accountEmail: 'different-account@crest.test',
+      applicationId: first.applicationId,
+      draftAccessToken: updated.json().application.draftAccessToken,
+    },
+  });
+
+  assert.equal(lockedIdentityChange.statusCode, 409);
+  assert.equal(
+    lockedIdentityChange.json().error,
+    'application_payment_session_locked',
+  );
+  assert.equal(state.application.administrator_email, payload.accountEmail);
+  assert.equal(state.applicationInserts, 1);
 });
 
 test('clinic registration throttling returns a safe actionable error', async (context) => {
@@ -798,6 +818,7 @@ test('application checkout uses the persisted plan and applicant email', async (
     planCode: 'Enterprise',
     billingCycle: 'annual',
     paymentScope: 'clinic_application',
+    accountEmail: 'applicant@crest.test',
     applicationId: 'application-1',
     applicationReference: 'AVR-20260818-ABC123',
   });
@@ -901,6 +922,143 @@ test('application payment retry replaces only the pending checkout', async () =>
   );
 });
 
+test('application verification recovers an older Paystack success without activating a changed identity', async () => {
+  const currentReference = 'AVERA-NEWER-FAILED';
+  const paidReference = 'AVERA-OLDER-PAID';
+  const application = {
+    application_id: 'application-1',
+    clinic_id: 'clinic-application-1',
+    status: 'AwaitingPayment',
+    selected_plan: 'Enterprise',
+    payment_status: 'Pending',
+    payment_reference: currentReference,
+    application_reference: 'AVR-20260829-4C881C',
+    administrator_email: 'new-account@clinic.test',
+  };
+  const metadata = {
+    clinicId: application.clinic_id,
+    planCode: 'Enterprise',
+    billingCycle: 'annual',
+    paymentScope: 'clinic_application',
+    applicationId: application.application_id,
+    applicationReference: application.application_reference,
+    accountEmail: 'original-account@clinic.test',
+  };
+  const currentPayment = {
+    ...pendingPayment(),
+    reference: currentReference,
+    clinic_id: application.clinic_id,
+    plan_code: 'Enterprise',
+    billing_cycle: 'monthly',
+    amount_minor: 1000000,
+    status: 'Failed',
+    gateway_response_summary: {
+      ...metadata,
+      billingCycle: 'monthly',
+      accountEmail: 'new-account@clinic.test',
+    },
+  };
+  const olderPayment = {
+    ...pendingPayment(),
+    reference: paidReference,
+    clinic_id: application.clinic_id,
+    plan_code: 'Enterprise',
+    billing_cycle: 'annual',
+    amount_minor: 10000000,
+    status: 'Abandoned',
+    gateway_response_summary: metadata,
+  };
+  const client = transactionClient((sql, parameters) => {
+    if (sql.includes('FROM clinic_applications')) {
+      return { rows: [application] };
+    }
+    if (
+      sql.includes('SELECT * FROM subscription_payment_transactions') &&
+      sql.includes('FOR UPDATE')
+    ) {
+      return { rows: [olderPayment] };
+    }
+    if (sql.includes('UPDATE subscription_payment_transactions')) {
+      return {
+        rows: [{
+          ...olderPayment,
+          status: 'Successful',
+          gateway_response_summary: JSON.parse(parameters[4]),
+        }],
+      };
+    }
+    return { rows: [] };
+  });
+  const pool = {
+    ...transactionPool(client),
+    async query(sql, parameters = []) {
+      if (
+        sql.includes('SELECT reference') &&
+        sql.includes("gateway_response_summary->>'applicationId'")
+      ) {
+        return { rows: [{ reference: paidReference }] };
+      }
+      if (sql.includes('FROM subscription_payment_transactions')) {
+        const payment = parameters[0] === paidReference
+          ? olderPayment
+          : currentPayment;
+        return { rows: [payment] };
+      }
+      return { rows: [] };
+    },
+  };
+  const gatewayCalls = [];
+  const approvalCalls = [];
+  const service = new SubscriptionService({
+    pool,
+    environment: { PAYSTACK_MODE: 'test' },
+    gateway: {
+      async verifyPayment(reference) {
+        gatewayCalls.push(reference);
+        if (reference === currentReference) {
+          const error = new Error('Paystack reference was not found.');
+          error.code = 'gateway_request_failed';
+          throw error;
+        }
+        return successfulVerification(olderPayment, {
+          domain: 'test',
+          metadata,
+          customer: { email: 'original-account@clinic.test' },
+        });
+      },
+    },
+    async onApplicationPaymentVerified(input) {
+      approvalCalls.push(input);
+      return { approved: true };
+    },
+  });
+
+  const result = await service.verifyApplicationPayment({
+    applicationId: application.application_id,
+    clinicId: application.clinic_id,
+    reference: currentReference,
+  });
+
+  assert.equal(result.verified, true);
+  assert.equal(result.payment.reference, paidReference);
+  assert.equal(result.application.paymentStatus, 'TestVerified');
+  assert.equal(result.applicationApproved, false);
+  assert.equal(
+    result.approvalIssue.code,
+    'registration_identity_changed_after_checkout',
+  );
+  assert.deepEqual(gatewayCalls, [currentReference, paidReference]);
+  assert.deepEqual(approvalCalls, []);
+  assert.equal(
+    client.calls.some(({ sql, parameters }) =>
+      sql.includes('UPDATE clinic_applications') &&
+      parameters[2] === paidReference &&
+      parameters[3] === 'Enterprise'
+    ),
+    true,
+  );
+});
+
 for (const mode of ['test', 'live']) {
   test(`application ${mode} verification triggers idempotent automatic approval after payment`, async () => {
     const reference = `AVERA-APPLICATION-${mode.toUpperCase()}`;
@@ -963,8 +1121,12 @@ for (const mode of ['test', 'live']) {
       }
       if (sql.includes('UPDATE clinics')) {
         assert.equal(parameters[0], application.clinic_id);
-        assert.match(sql, /status = 'PendingApproval'/);
-        assert.match(sql, /status = 'RegistrationDraft'/);
+        assert.match(sql, /THEN 'PendingApproval'/);
+        assert.match(
+          sql,
+          /status IN \('RegistrationDraft', 'Pending', 'PendingApproval'\)/,
+        );
+        assert.equal(parameters[1], application.selected_plan);
         return { rows: [] };
       }
       return { rows: [] };
@@ -1024,7 +1186,7 @@ for (const mode of ['test', 'live']) {
     assert.equal(
       client.calls.some(({ sql }) =>
         sql.includes('UPDATE clinics') &&
-        sql.includes("status = 'PendingApproval'")),
+        sql.includes("THEN 'PendingApproval'")),
       true,
     );
     assert.equal(JSON.stringify(result).includes('token=secret'), false);
@@ -1044,6 +1206,94 @@ for (const mode of ['test', 'live']) {
     }]);
   });
 }
+
+test('verified application payment remains successful when administrator provisioning needs repair', async () => {
+  const reference = 'AVERA-VERIFIED-NEEDS-REPAIR';
+  const application = {
+    application_id: 'application-1',
+    clinic_id: 'clinic-application-1',
+    status: 'Pending',
+    selected_plan: 'Enterprise',
+    payment_status: 'Pending',
+    payment_reference: reference,
+    application_reference: 'AVR-20260829-REPAIR1',
+    administrator_email: 'administrator@clinic.test',
+  };
+  const expected = {
+    ...pendingPayment(),
+    reference,
+    clinic_id: application.clinic_id,
+    plan_code: application.selected_plan,
+    gateway_response_summary: {
+      clinicId: application.clinic_id,
+      planCode: application.selected_plan,
+      billingCycle: 'monthly',
+      paymentScope: 'clinic_application',
+      applicationId: application.application_id,
+      accountEmail: application.administrator_email,
+    },
+  };
+  const client = transactionClient((sql, parameters) => {
+    if (sql.includes('FROM clinic_applications')) {
+      return { rows: [application] };
+    }
+    if (
+      sql.includes('SELECT * FROM subscription_payment_transactions') &&
+      sql.includes('FOR UPDATE')
+    ) {
+      return { rows: [expected] };
+    }
+    if (sql.includes('UPDATE subscription_payment_transactions')) {
+      return {
+        rows: [{
+          ...expected,
+          status: 'Successful',
+          gateway_response_summary: JSON.parse(parameters[4]),
+        }],
+      };
+    }
+    return { rows: [] };
+  });
+  const pool = {
+    ...transactionPool(client),
+    async query(sql) {
+      if (sql.includes('FROM subscription_payment_transactions')) {
+        return { rows: [expected] };
+      }
+      return { rows: [] };
+    },
+  };
+  const service = new SubscriptionService({
+    pool,
+    environment: { PAYSTACK_MODE: 'test' },
+    gateway: {
+      async verifyPayment() {
+        return successfulVerification(expected, {
+          domain: 'test',
+          metadata: expected.gateway_response_summary,
+        });
+      },
+    },
+    async onApplicationPaymentVerified() {
+      const error = new Error('Conflicting account.');
+      error.code = 'administrator_identity_conflict';
+      error.statusCode = 409;
+      throw error;
+    },
+  });
+
+  const result = await service.verifyApplicationPayment({
+    applicationId: application.application_id,
+    clinicId: application.clinic_id,
+    reference,
+  });
+
+  assert.equal(result.verified, true);
+  assert.equal(result.application.paymentStatus, 'TestVerified');
+  assert.equal(result.applicationApproved, false);
+  assert.equal(result.approvalIssue.code, 'administrator_identity_conflict');
+  assert.match(result.approvalIssue.message, /Payment is verified/);
+});
 
 test('test-mode verification records the payment without subscription mutations', async () => {
   const expected = pendingPayment();

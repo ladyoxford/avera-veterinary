@@ -97,7 +97,12 @@ class _ClinicRegistrationPaymentScreenState
         session?.applicationId != widget.application.applicationId) {
       return;
     }
-    setState(() => _paymentReference = session!.paymentReference);
+    setState(() {
+      _paymentReference = session!.paymentReference;
+      _billingCycle = session.billingCycle == 'annual'
+          ? SubscriptionBillingCycle.annual
+          : SubscriptionBillingCycle.monthly;
+    });
   }
 
   Future<void> _startCheckout({bool retry = false}) async {
@@ -139,6 +144,7 @@ class _ClinicRegistrationPaymentScreenState
               plan: widget.application.subscriptionPlan,
               accessToken: accessToken,
               paymentReference: checkout.reference,
+              billingCycle: _billingCycle.apiValue,
             ),
           );
       if (!mounted) return;
@@ -526,6 +532,7 @@ class _ClinicRegistrationPaymentCallbackScreenState
         );
       }
       await ref.read(registrationPaymentSessionStoreProvider).clear();
+      await ref.read(clinicRegistrationDraftStoreProvider).clear();
       if (mounted) setState(() => _verification = verification);
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = _paymentError(error));

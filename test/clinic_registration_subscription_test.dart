@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/native.dart';
 import 'package:avera/core/config/app_providers.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:avera/core/database/app_database.dart';
 import 'package:avera/core/remote/api_client.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
+import 'package:avera/core/services/clinic_registration_draft_store.dart';
 import 'package:avera/core/subscription/subscription_plan_config.dart';
 import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/features/authentication/screens/clinic_registration_payment_screen.dart';
@@ -74,6 +77,84 @@ void main() {
       expect(submitted.accountEmail, 'administrator@crest.test');
       expect(submitted.clinicEmail, submitted.administratorEmail);
       expect(clinic.subscriptionPlan, SubscriptionPlan.enterprise.label);
+    },
+  );
+
+  test(
+    'registration draft storage keeps form data but no submitted identity',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      const storage = FlutterSecureStorage();
+      const store = ClinicRegistrationDraftStore(storage);
+      const application = ClinicApplication(
+        clinicName: 'Fresh Veterinary Clinic',
+        accountEmail: 'fresh@example.test',
+        phoneNumber: '+2348000000000',
+        address: '1 Fresh Street',
+        city: 'Lagos',
+        country: 'Nigeria',
+        administratorName: 'Fresh Administrator',
+        administratorPhone: '+2348111111111',
+        professionalTitle: 'Veterinarian',
+        subscriptionPlan: 'Enterprise',
+        timeZone: 'Africa/Lagos',
+        reference: 'AVR-OLD',
+        applicationId: 'old-application',
+        clinicId: 'old-clinic',
+        paymentAccessToken: 'old-payment-capability',
+        draftAccessToken: 'old-draft-capability',
+      );
+
+      await store.save(application);
+
+      final raw = await storage.read(key: 'avera.clinic-registration-draft');
+      final saved = jsonDecode(raw!) as Map<String, dynamic>;
+      expect(saved['kind'], 'form');
+      expect(saved['clinicName'], 'Fresh Veterinary Clinic');
+      expect(saved.containsKey('reference'), isFalse);
+      expect(saved.containsKey('applicationId'), isFalse);
+      expect(saved.containsKey('clinicId'), isFalse);
+      expect(saved.containsKey('paymentAccessToken'), isFalse);
+      expect(saved.containsKey('draftAccessToken'), isFalse);
+
+      final restored = await store.load();
+      expect(restored?.clinicName, 'Fresh Veterinary Clinic');
+      expect(restored?.applicationId, isNull);
+      expect(restored?.clinicId, isNull);
+      expect(restored?.paymentAccessToken, isNull);
+    },
+  );
+
+  test(
+    'legacy submitted registration is cleared instead of restored as a form',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'avera.clinic-registration-draft': jsonEncode({
+          'clinicName': 'Chinonso Hospital',
+          'accountEmail': 'old@example.test',
+          'phoneNumber': '+2348000000000',
+          'address': 'Old Address',
+          'city': 'Oshogbo',
+          'country': 'Nigeria',
+          'administratorName': 'Chinonso',
+          'administratorPhone': '+2348111111111',
+          'professionalTitle': 'Veterinarian',
+          'subscriptionPlan': 'Enterprise',
+          'timeZone': 'Africa/Lagos',
+          'reference': 'AVR-20260829-4C881C',
+          'applicationId': 'old-application',
+          'clinicId': 'old-clinic',
+          'paymentAccessToken': 'old-payment-capability',
+        }),
+      });
+      const storage = FlutterSecureStorage();
+      const store = ClinicRegistrationDraftStore(storage);
+
+      expect(await store.load(), isNull);
+      expect(
+        await storage.read(key: 'avera.clinic-registration-draft'),
+        isNull,
+      );
     },
   );
 

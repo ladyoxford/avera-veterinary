@@ -47,6 +47,7 @@ class PlatformAdministratorActivation {
     this.deliveredAt,
     this.deliveryMethod,
     this.activationUrl,
+    this.reason,
     this.canResend = false,
   });
 
@@ -57,6 +58,7 @@ class PlatformAdministratorActivation {
   final DateTime? deliveredAt;
   final String? deliveryMethod;
   final String? activationUrl;
+  final String? reason;
   final bool canResend;
 }
 
@@ -74,10 +76,62 @@ class PlatformClinicApplicationPayment {
   const PlatformClinicApplicationPayment({
     required this.applicationReference,
     required this.paymentStatus,
+    this.applicationStatus,
+    this.transactionStatus,
+    this.accountEmail,
+    this.administratorName,
+    this.administratorPhone,
+    this.professionalTitle,
+    this.paymentReference,
+    this.amountMinor,
+    this.currency,
+    this.billingCycle,
+    this.paidAt,
+    this.requiresIdentityReview = false,
   });
 
   final String applicationReference;
   final String paymentStatus;
+  final String? applicationStatus;
+  final String? transactionStatus;
+  final String? accountEmail;
+  final String? administratorName;
+  final String? administratorPhone;
+  final String? professionalTitle;
+  final String? paymentReference;
+  final int? amountMinor;
+  final String? currency;
+  final String? billingCycle;
+  final DateTime? paidAt;
+  final bool requiresIdentityReview;
+}
+
+class PlatformPaymentReconciliation {
+  const PlatformPaymentReconciliation({
+    required this.verified,
+    required this.applicationApproved,
+    this.message,
+    this.issueCode,
+  });
+
+  final bool verified;
+  final bool applicationApproved;
+  final String? message;
+  final String? issueCode;
+}
+
+class PlatformClinicDeletionChallenge {
+  const PlatformClinicDeletionChallenge({
+    required this.requestId,
+    required this.recipientEmail,
+    required this.expiresAt,
+    required this.attemptsRemaining,
+  });
+
+  final String requestId;
+  final String recipientEmail;
+  final DateTime expiresAt;
+  final int attemptsRemaining;
 }
 
 abstract interface class PlatformRepository {
@@ -85,7 +139,11 @@ abstract interface class PlatformRepository {
 
   Stream<PlatformOverviewSnapshot> watchOverview(UserSession session);
 
-  Future<List<Clinic>> loadClinics(UserSession session, {String? status});
+  Future<List<Clinic>> loadClinics(
+    UserSession session, {
+    String? status,
+    String? search,
+  });
 
   Stream<List<Clinic>> watchClinics(UserSession session, {String? status});
 
@@ -117,6 +175,29 @@ abstract interface class PlatformRepository {
     required String clinicId,
   });
 
+  Future<PlatformAdministratorActivation> repairAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
+  });
+
+  Future<PlatformPaymentReconciliation> reconcileClinicPayment({
+    required UserSession session,
+    required String clinicId,
+  });
+
+  Future<PlatformClinicDeletionChallenge> requestClinicDeletion({
+    required UserSession session,
+    required String clinicId,
+    required String reason,
+  });
+
+  Future<void> confirmClinicDeletion({
+    required UserSession session,
+    required String clinicId,
+    required String requestId,
+    required String code,
+  });
+
   Future<Clinic> updateClinicSubscription({
     required UserSession session,
     required String clinicId,
@@ -145,9 +226,10 @@ class LocalPlatformRepository implements PlatformRepository {
   Future<List<Clinic>> loadClinics(
     UserSession session, {
     String? status,
+    String? search,
   }) async {
     _ensurePlatformOwner(session);
-    return _clinicQuery(status).get();
+    return _clinicQuery(status, search: search).get();
   }
 
   @override
@@ -234,6 +316,42 @@ class LocalPlatformRepository implements PlatformRepository {
   }
 
   @override
+  Future<PlatformAdministratorActivation> repairAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
+  }) => resendAdministratorActivation(session: session, clinicId: clinicId);
+
+  @override
+  Future<PlatformPaymentReconciliation> reconcileClinicPayment({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    _ensurePlatformOwner(session);
+    throw StateError('Paystack reconciliation requires the AVERA backend.');
+  }
+
+  @override
+  Future<PlatformClinicDeletionChallenge> requestClinicDeletion({
+    required UserSession session,
+    required String clinicId,
+    required String reason,
+  }) async {
+    _ensurePlatformOwner(session);
+    throw StateError('Mutual clinic deletion requires the AVERA backend.');
+  }
+
+  @override
+  Future<void> confirmClinicDeletion({
+    required UserSession session,
+    required String clinicId,
+    required String requestId,
+    required String code,
+  }) async {
+    _ensurePlatformOwner(session);
+    throw StateError('Mutual clinic deletion requires the AVERA backend.');
+  }
+
+  @override
   Future<Clinic> updateClinicSubscription({
     required UserSession session,
     required String clinicId,
@@ -279,9 +397,16 @@ class LocalPlatformRepository implements PlatformRepository {
     readsFrom: {db.clinics, db.appUsers, db.clinicSubscriptions},
   );
 
-  SimpleSelectStatement<$ClinicsTable, Clinic> _clinicQuery(String? status) {
+  SimpleSelectStatement<$ClinicsTable, Clinic> _clinicQuery(
+    String? status, {
+    String? search,
+  }) {
     final query = db.select(db.clinics)
-      ..where((clinic) => clinic.clinicId.equals('platform-control').not());
+      ..where(
+        (clinic) =>
+            clinic.clinicId.equals('platform-control').not() &
+            clinic.clinicStatus.equals('Deleted').not(),
+      );
     if (status != null) {
       if (status.toLowerCase() == 'pending') {
         query.where(
@@ -294,6 +419,15 @@ class LocalPlatformRepository implements PlatformRepository {
       } else {
         query.where((clinic) => clinic.clinicStatus.equals(status));
       }
+    }
+    final normalizedSearch = search?.trim().toLowerCase();
+    if (normalizedSearch?.isNotEmpty == true) {
+      query.where(
+        (clinic) =>
+            clinic.clinicName.lower().contains(normalizedSearch!) |
+            clinic.email.lower().contains(normalizedSearch) |
+            clinic.city.lower().contains(normalizedSearch),
+      );
     }
     query.orderBy([(clinic) => OrderingTerm.desc(clinic.dateRegistered)]);
     return query;
@@ -396,12 +530,16 @@ class RemotePlatformRepository implements PlatformRepository {
   Future<List<Clinic>> loadClinics(
     UserSession session, {
     String? status,
+    String? search,
   }) async {
     _ensurePlatformAccount(session);
     try {
-      final query = status == null
-          ? '?pageSize=100'
-          : '?status=${Uri.encodeQueryComponent(status)}&pageSize=100';
+      final queryParameters = <String, String>{'pageSize': '100'};
+      if (status != null) queryParameters['status'] = status;
+      if (search?.trim().isNotEmpty == true) {
+        queryParameters['search'] = search!.trim();
+      }
+      final query = '?${Uri(queryParameters: queryParameters).query}';
       final response = await _apiClient.get('/api/v1/platform/clinics$query');
       final clinics = _clinicList(response['items'] ?? response['clinics']);
       await _cacheClinics(clinics);
@@ -409,7 +547,7 @@ class RemotePlatformRepository implements PlatformRepository {
       return clinics;
     } on ApiException {
       onOfflineChanged?.call(true);
-      return _local.loadClinics(session, status: status);
+      return _local.loadClinics(session, status: status, search: search);
     }
   }
 
@@ -462,6 +600,21 @@ class RemotePlatformRepository implements PlatformRepository {
       paymentStatus: paymentStatus?.trim().isNotEmpty == true
           ? paymentStatus!
           : 'Pending',
+      applicationStatus: value['applicationStatus'] as String?,
+      transactionStatus: value['transactionStatus'] as String?,
+      accountEmail: value['accountEmail'] as String?,
+      administratorName: value['administratorName'] as String?,
+      administratorPhone: value['administratorPhone'] as String?,
+      professionalTitle: value['professionalTitle'] as String?,
+      paymentReference: value['paymentReference'] as String?,
+      amountMinor: _nullableInteger(value['paymentAmountMinor']),
+      currency: value['paymentCurrency'] as String?,
+      billingCycle: value['paymentBillingCycle'] as String?,
+      paidAt: _date(value['paymentPaidAt']),
+      requiresIdentityReview:
+          (value['paymentSummary']
+              as Map<String, dynamic>?)?['registrationIdentityChanged'] ==
+          true,
     );
   }
 
@@ -527,6 +680,79 @@ class RemotePlatformRepository implements PlatformRepository {
   }
 
   @override
+  Future<PlatformAdministratorActivation> repairAdministratorActivation({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.post(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/administrator-activation/repair',
+      authenticated: true,
+    );
+    return _activation(response['activation']);
+  }
+
+  @override
+  Future<PlatformPaymentReconciliation> reconcileClinicPayment({
+    required UserSession session,
+    required String clinicId,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.post(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/payment/reconcile',
+      authenticated: true,
+    );
+    final issue = response['approvalIssue'] is Map<String, dynamic>
+        ? response['approvalIssue'] as Map<String, dynamic>
+        : null;
+    return PlatformPaymentReconciliation(
+      verified: response['verified'] == true,
+      applicationApproved: response['applicationApproved'] == true,
+      message: issue?['message'] as String?,
+      issueCode: issue?['code'] as String?,
+    );
+  }
+
+  @override
+  Future<PlatformClinicDeletionChallenge> requestClinicDeletion({
+    required UserSession session,
+    required String clinicId,
+    required String reason,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.post(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/deletion-requests',
+      body: {'reason': reason},
+      authenticated: true,
+    );
+    final value = response['deletionRequest'] as Map<String, dynamic>;
+    return PlatformClinicDeletionChallenge(
+      requestId: value['requestId'] as String,
+      recipientEmail: value['recipientEmail'] as String,
+      expiresAt: _date(value['expiresAt'])!,
+      attemptsRemaining: _integer(value['attemptsRemaining']),
+    );
+  }
+
+  @override
+  Future<void> confirmClinicDeletion({
+    required UserSession session,
+    required String clinicId,
+    required String requestId,
+    required String code,
+  }) async {
+    _ensurePlatformAccount(session);
+    await _apiClient.post(
+      '/api/v1/platform/clinics/${Uri.encodeComponent(clinicId)}/deletion-requests/${Uri.encodeComponent(requestId)}/confirm',
+      body: {'code': code},
+      authenticated: true,
+    );
+    await (db.update(db.clinics)
+          ..where((clinic) => clinic.clinicId.equals(clinicId)))
+        .write(const ClinicsCompanion(clinicStatus: Value('Deleted')));
+  }
+
+  @override
   Future<Clinic> updateClinicSubscription({
     required UserSession session,
     required String clinicId,
@@ -568,6 +794,7 @@ class RemotePlatformRepository implements PlatformRepository {
       deliveredAt: _date(json['deliveredAt']),
       deliveryMethod: json['deliveryMethod'] as String?,
       activationUrl: json['activationUrl'] as String?,
+      reason: json['reason'] as String?,
       canResend:
           json['canResend'] as bool? ?? json['status'] == 'PendingActivation',
     );
@@ -649,6 +876,8 @@ class RemotePlatformRepository implements PlatformRepository {
 }
 
 int _integer(Object? value) => (value as num?)?.toInt() ?? 0;
+
+int? _nullableInteger(Object? value) => (value as num?)?.toInt();
 
 String _normalizeStatus(String? value) {
   final normalized = value?.toLowerCase();

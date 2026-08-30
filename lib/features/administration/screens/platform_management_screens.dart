@@ -13,19 +13,39 @@ import '../../../core/repositories/platform_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 
-class PlatformClinicsScreen extends ConsumerWidget {
+class PlatformClinicsScreen extends ConsumerStatefulWidget {
   const PlatformClinicsScreen({super.key, this.status});
 
   final String? status;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final clinics = ref.watch(platformClinicsProvider(status));
+  ConsumerState<PlatformClinicsScreen> createState() =>
+      _PlatformClinicsScreenState();
+}
+
+class _PlatformClinicsScreenState extends ConsumerState<PlatformClinicsScreen> {
+  final _searchController = TextEditingController();
+  String _search = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final request = (status: widget.status, search: _search);
+    final clinics = ref.watch(platformClinicSearchProvider(request));
     final offline = ref.watch(platformDataOfflineProvider);
     return _PlatformGuard(
       child: Scaffold(
         appBar: AppBar(
-          title: Text(status == null ? 'Clinic Management' : '$status Clinics'),
+          title: Text(
+            widget.status == null
+                ? 'Clinic Management'
+                : '${widget.status} Clinics',
+          ),
         ),
         body: clinics.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -33,15 +53,10 @@ class PlatformClinicsScreen extends ConsumerWidget {
             message: error is ApiException
                 ? error.message
                 : 'Clinic data could not be loaded.',
-            onRetry: () => ref.invalidate(platformClinicsProvider(status)),
+            onRetry: () =>
+                ref.invalidate(platformClinicSearchProvider(request)),
           ),
           data: (items) {
-            if (items.isEmpty) {
-              return const _EmptyState(
-                icon: Icons.business_outlined,
-                message: 'No clinics match this filter.',
-              );
-            }
             return Column(
               children: [
                 if (offline)
@@ -51,41 +66,92 @@ class PlatformClinicsScreen extends ConsumerWidget {
                     ),
                     actions: [SizedBox.shrink()],
                   ),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () async {
-                      ref.invalidate(platformClinicsProvider(status));
-                      await ref.read(platformClinicsProvider(status).future);
-                    },
-                    child: ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(20),
-                      itemCount: items.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final clinic = items[index];
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 8,
-                          ),
-                          leading: CircleAvatar(
-                            child: Text(
-                              clinic.clinicName.substring(0, 1).toUpperCase(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (value) =>
+                        setState(() => _search = value.trim()),
+                    decoration: InputDecoration(
+                      hintText:
+                          'Search clinic, Account Email, reference or city',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: _search.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _search = '');
+                              },
+                              icon: const Icon(Icons.close_rounded),
                             ),
-                          ),
-                          title: Text(clinic.clinicName),
-                          subtitle: Text(
-                            '${clinic.subscriptionPlan} • ${clinic.clinicStatus}\n${clinic.city ?? 'Location not recorded'}',
-                          ),
-                          isThreeLine: true,
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () => context.push(
-                            '/platform/clinics/${clinic.clinicId}',
-                          ),
-                        );
-                      },
                     ),
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 4,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${items.length} clinic${items.length == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: items.isEmpty
+                      ? const _EmptyState(
+                          icon: Icons.business_outlined,
+                          message: 'No clinics match this search and filter.',
+                        )
+                      : RefreshIndicator(
+                          onRefresh: () async {
+                            ref.invalidate(
+                              platformClinicSearchProvider(request),
+                            );
+                            await ref.read(
+                              platformClinicSearchProvider(request).future,
+                            );
+                          },
+                          child: ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(20),
+                            itemCount: items.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final clinic = items[index];
+                              final initial = clinic.clinicName.trim().isEmpty
+                                  ? '?'
+                                  : clinic.clinicName
+                                        .trim()
+                                        .substring(0, 1)
+                                        .toUpperCase();
+                              return ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                leading: CircleAvatar(child: Text(initial)),
+                                title: Text(clinic.clinicName),
+                                subtitle: Text(
+                                  '${clinic.subscriptionPlan} • ${clinic.clinicStatus}\n${clinic.city ?? 'Location not recorded'}${clinic.email == null ? '' : '\n${clinic.email}'}',
+                                ),
+                                isThreeLine: true,
+                                trailing: const Icon(
+                                  Icons.chevron_right_rounded,
+                                ),
+                                onTap: () => context.push(
+                                  '/platform/clinics/${clinic.clinicId}',
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                 ),
               ],
             );
@@ -132,6 +198,14 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
               ),
             );
           }
+          final payment = applicationPayment.valueOrNull;
+          final paymentVerified =
+              payment != null &&
+              {
+                'paid',
+                'testverified',
+              }.contains(payment.paymentStatus.toLowerCase()) &&
+              payment.transactionStatus?.toLowerCase() == 'successful';
           return Scaffold(
             appBar: AppBar(title: const Text('Clinic Details')),
             body: ListView(
@@ -241,75 +315,136 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
                               _paymentStatusDescription(payment.paymentStatus),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
+                            if (payment.accountEmail != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                'Canonical Account Email',
+                                style: Theme.of(context).textTheme.labelMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              SelectableText(payment.accountEmail!),
+                            ],
+                            if (payment.administratorName != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                'Clinic Administrator',
+                                style: Theme.of(context).textTheme.labelMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(payment.administratorName!),
+                            ],
+                            if (payment.amountMinor != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                'Verified transaction',
+                                style: Theme.of(context).textTheme.labelMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${payment.currency ?? 'NGN'} ${(payment.amountMinor! / 100).toStringAsFixed(2)}'
+                                '${payment.billingCycle == null ? '' : ' • ${payment.billingCycle}'}',
+                              ),
+                            ],
+                            if (payment.requiresIdentityReview) ...[
+                              const SizedBox(height: 12),
+                              const _PlatformAttentionMessage(
+                                message:
+                                    'Payment is verified, but the Account Email changed after Paystack checkout. Review the registration identity before administrator activation.',
+                              ),
+                            ],
+                            if (!paymentVerified && session != null) ...[
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _reconcilePayment(context, ref, session),
+                                icon: const Icon(Icons.verified_outlined),
+                                label: const Text('Reconcile Paystack'),
+                              ),
+                            ],
                           ],
                         ],
                       ),
                     ),
                   ),
                 ),
-                if (clinic.clinicStatus == 'Active') ...[
-                  const SizedBox(height: 16),
-                  activation.when(
-                    loading: () => const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(20),
-                        child: LinearProgressIndicator(),
-                      ),
+                const SizedBox(height: 16),
+                activation.when(
+                  loading: () => const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: LinearProgressIndicator(),
                     ),
-                    error: (_, __) => const Card(
-                      child: ListTile(
-                        leading: Icon(Icons.warning_amber_rounded),
-                        title: Text('Administrator activation unavailable'),
-                        subtitle: Text('Pull to refresh or try again shortly.'),
-                      ),
+                  ),
+                  error: (_, __) => const Card(
+                    child: ListTile(
+                      leading: Icon(Icons.warning_amber_rounded),
+                      title: Text('Administrator activation unavailable'),
+                      subtitle: Text('Pull to refresh or try again shortly.'),
                     ),
-                    data: (value) => Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Clinic Administrator Activation',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(_activationStatusText(value)),
-                            if (value.email != null) ...[
-                              const SizedBox(height: 4),
-                              Text(value.email!),
-                            ],
-                            if (value.expiresAt != null) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                'Link expires ${value.expiresAt!.toLocal()}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                            if (value.canResend && session != null) ...[
-                              const SizedBox(height: 12),
-                              OutlinedButton.icon(
-                                onPressed: () =>
-                                    _resendActivation(context, ref, session),
-                                icon: const Icon(
-                                  Icons.mark_email_unread_outlined,
-                                ),
-                                label: const Text('Resend Activation'),
-                              ),
-                            ],
+                  ),
+                  data: (value) => Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Clinic Administrator Activation',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(_activationStatusText(value)),
+                          if (value.email != null) ...[
+                            const SizedBox(height: 4),
+                            Text(value.email!),
                           ],
-                        ),
+                          if (value.expiresAt != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Link expires ${value.expiresAt!.toLocal()}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                          if (value.reason != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              value.reason!,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                          if (value.canResend &&
+                              session != null &&
+                              clinic.clinicStatus == 'Active') ...[
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: () => value.status == 'NotProvisioned'
+                                  ? _repairActivation(context, ref, session)
+                                  : _resendActivation(context, ref, session),
+                              icon: const Icon(
+                                Icons.mark_email_unread_outlined,
+                              ),
+                              label: Text(
+                                value.status == 'NotProvisioned'
+                                    ? 'Repair & Send Activation'
+                                    : 'Resend Activation',
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
-                ],
+                ),
                 const SizedBox(height: 20),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
                   children: [
                     FilledButton.icon(
-                      onPressed: session == null
+                      onPressed:
+                          session == null ||
+                              (!paymentVerified &&
+                                  clinic.clinicStatus != 'Active')
                           ? null
                           : () => _setStatus(context, ref, session, 'Active'),
                       icon: const Icon(Icons.check_circle_outline),
@@ -355,6 +490,45 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
                   'Support access is intentionally read-only and requires a server-side support session in production.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                if (session?.isPlatformOwner == true) ...[
+                  const SizedBox(height: 28),
+                  Text(
+                    'Danger Zone',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Mutual deletion sends a six-digit confirmation code to the clinic Account Email. Nothing is deleted until that code is confirmed.',
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => _requestDeletion(
+                              context,
+                              ref,
+                              session!,
+                              clinic,
+                            ),
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            label: const Text('Request Mutual Deletion'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.error,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           );
@@ -429,11 +603,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
               status: status,
             );
       }
-      ref.invalidate(platformClinicProvider(clinicId));
-      ref.invalidate(platformClinicApplicationPaymentProvider(clinicId));
-      ref.invalidate(platformAdministratorActivationProvider(clinicId));
-      ref.invalidate(platformClinicsProvider);
-      ref.invalidate(platformOverviewProvider);
+      _invalidateClinicState(ref);
       if (context.mounted) {
         if (activation?.activationUrl != null) {
           await _showOneTimeActivationLink(context, activation!);
@@ -471,11 +641,7 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
       final activation = await ref
           .read(platformRepositoryProvider)
           .resendAdministratorActivation(session: session, clinicId: clinicId);
-      ref.invalidate(platformAdministratorActivationProvider(clinicId));
-      ref.invalidate(platformClinicProvider(clinicId));
-      ref.invalidate(platformClinicApplicationPaymentProvider(clinicId));
-      ref.invalidate(platformClinicsProvider);
-      ref.invalidate(platformOverviewProvider);
+      _invalidateClinicState(ref);
       if (context.mounted) {
         if (activation.activationUrl != null) {
           await _showOneTimeActivationLink(context, activation);
@@ -500,6 +666,215 @@ class PlatformClinicDetailScreen extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text(_platformErrorMessage(error))));
       }
     }
+  }
+
+  Future<void> _repairActivation(
+    BuildContext context,
+    WidgetRef ref,
+    UserSession session,
+  ) async {
+    try {
+      final activation = await ref
+          .read(platformRepositoryProvider)
+          .repairAdministratorActivation(session: session, clinicId: clinicId);
+      _invalidateClinicState(ref);
+      if (!context.mounted) return;
+      if (activation.activationUrl != null) {
+        await _showOneTimeActivationLink(context, activation);
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            activation.deliveryMethod == 'email'
+                ? 'Administrator access was repaired and the activation email was sent${activation.email == null ? '' : ' to ${activation.email}'}. '
+                : activation.deliveryMethod == 'email_failed'
+                ? 'Administrator access was repaired, but email delivery failed. Try Resend Activation after checking email delivery.'
+                : 'Administrator access was repaired.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_platformErrorMessage(error))));
+      }
+    }
+  }
+
+  Future<void> _reconcilePayment(
+    BuildContext context,
+    WidgetRef ref,
+    UserSession session,
+  ) async {
+    try {
+      final result = await ref
+          .read(platformRepositoryProvider)
+          .reconcileClinicPayment(session: session, clinicId: clinicId);
+      _invalidateClinicState(ref);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.applicationApproved
+                ? 'Paystack payment was verified and the clinic was activated.'
+                : result.verified
+                ? result.message ??
+                      'Paystack payment was verified. Review the administrator state before activation.'
+                : 'Paystack has not verified this payment.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_platformErrorMessage(error))));
+      }
+    }
+  }
+
+  Future<void> _requestDeletion(
+    BuildContext context,
+    WidgetRef ref,
+    UserSession session,
+    Clinic clinic,
+  ) async {
+    final reasonController = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Request Mutual Deletion'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'A confirmation code will be sent to ${clinic.clinicName}\'s canonical Account Email. The clinic must provide that code before deletion can continue.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              maxLength: 500,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Reason',
+                hintText: 'Why both parties agreed to delete this clinic',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              final value = reasonController.text.trim();
+              if (value.length >= 3) Navigator.pop(dialogContext, value);
+            },
+            icon: const Icon(Icons.mark_email_unread_outlined),
+            label: const Text('Email Code'),
+          ),
+        ],
+      ),
+    );
+    reasonController.dispose();
+    if (reason == null || !context.mounted) return;
+
+    try {
+      final challenge = await ref
+          .read(platformRepositoryProvider)
+          .requestClinicDeletion(
+            session: session,
+            clinicId: clinicId,
+            reason: reason,
+          );
+      if (!context.mounted) return;
+      final codeController = TextEditingController();
+      final code = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Confirm Mutual Deletion'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enter the six-digit code sent to ${challenge.recipientEmail}. It expires at ${challenge.expiresAt.toLocal()}.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: codeController,
+                autofocus: true,
+                maxLength: 6,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(labelText: 'Deletion code'),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Confirmation revokes clinic access and releases its Account Email for a new registration. Payment and audit history remain preserved.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                final value = codeController.text.trim();
+                if (value.length == 6) Navigator.pop(dialogContext, value);
+              },
+              icon: const Icon(Icons.delete_forever_outlined),
+              label: const Text('Confirm Deletion'),
+            ),
+          ],
+        ),
+      );
+      codeController.dispose();
+      if (code == null || !context.mounted) return;
+      await ref
+          .read(platformRepositoryProvider)
+          .confirmClinicDeletion(
+            session: session,
+            clinicId: clinicId,
+            requestId: challenge.requestId,
+            code: code,
+          );
+      _invalidateClinicState(ref);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Clinic mutually deleted. Its Account Email can now register again.',
+            ),
+          ),
+        );
+        context.go('/platform/clinics');
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_platformErrorMessage(error))));
+      }
+    }
+  }
+
+  void _invalidateClinicState(WidgetRef ref) {
+    ref.invalidate(platformClinicProvider(clinicId));
+    ref.invalidate(platformClinicApplicationPaymentProvider(clinicId));
+    ref.invalidate(platformAdministratorActivationProvider(clinicId));
+    ref.invalidate(platformClinicsProvider);
+    ref.invalidate(platformClinicSearchProvider);
+    ref.invalidate(platformOverviewProvider);
   }
 
   String _activationStatusText(PlatformAdministratorActivation activation) {
@@ -1120,6 +1495,39 @@ class _DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       ListTile(title: Text(label), trailing: Text(value));
+}
+
+class _PlatformAttentionMessage extends StatelessWidget {
+  const _PlatformAttentionMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.warning_amber_rounded, color: colors.onErrorContainer),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(color: colors.onErrorContainer),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PlatformLoadError extends StatelessWidget {

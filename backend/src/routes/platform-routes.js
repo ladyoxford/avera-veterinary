@@ -78,6 +78,14 @@ const clinicSubscriptionSchema = z.object({
   reason: z.string().trim().min(3).max(500).optional(),
 });
 
+const clinicDeletionRequestSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+const clinicDeletionConfirmationSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/),
+});
+
 export async function platformRoutes(app) {
   app.post(
     '/api/v1/clinic-applications',
@@ -142,17 +150,19 @@ export async function platformRoutes(app) {
             ) {
               return { resumeRequired: true, application: existing };
             }
-            if (existing.payment_reference && existing.selected_plan !== input.subscriptionPlan) {
-              await client.query(
-                `UPDATE subscription_payment_transactions
-                    SET status = CASE WHEN status = 'Pending' THEN 'Abandoned' ELSE status END,
-                        updated_at = now(),
-                        gateway_response_summary =
-                          COALESCE(gateway_response_summary, '{}'::jsonb) ||
-                          jsonb_build_object('reason', 'registration_plan_changed')
-                  WHERE reference = $1 AND clinic_id = $2`,
-                [existing.payment_reference, existing.clinic_id],
-              );
+            const accountEmailChanged =
+              String(existing.administrator_email).trim().toLowerCase() !==
+              input.accountEmail;
+            const selectedPlanChanged =
+              existing.selected_plan !== input.subscriptionPlan;
+            if (
+              existing.payment_reference &&
+              (accountEmailChanged || selectedPlanChanged)
+            ) {
+              return {
+                paymentSessionLocked: true,
+                application: existing,
+              };
             }
             await client.query(
               `UPDATE clinics
@@ -181,8 +191,6 @@ export async function platformRoutes(app) {
                         address = $6, city = $7, country = $8, time_zone = $9,
                         administrator_name = $10, administrator_email = $4,
                         administrator_phone = $11, professional_title = $12,
-                        payment_reference = CASE
-                          WHEN selected_plan = $2 THEN payment_reference ELSE NULL END,
                         updated_at = now()
                   WHERE application_id = $1
                   RETURNING *`,
@@ -289,6 +297,12 @@ export async function platformRoutes(app) {
         return reply.code(409).send({
           error: 'application_resume_required',
           message: 'You already started registering this clinic. Continue from the device or verified provider that created it.',
+        });
+      }
+      if (application.paymentSessionLocked) {
+        return reply.code(409).send({
+          error: 'application_payment_session_locked',
+          message: 'This application already has a Paystack checkout. Keep its Account Email and plan unchanged, or start a separate clinic registration.',
         });
       }
       if (application.blocked) {
@@ -450,6 +464,10 @@ export async function platformRoutes(app) {
       (client) =>
         queryPlatformClinics(client, {
           status: request.query?.status,
+          search: request.query?.search,
+          paymentStatus: request.query?.paymentStatus,
+          subscriptionPlan: request.query?.subscriptionPlan,
+          sort: request.query?.sort,
           limit: request.query?.pageSize,
           offset:
             (Math.max(1, Number(request.query?.page) || 1) - 1) *
@@ -500,16 +518,25 @@ export async function platformRoutes(app) {
       }
       const storedStatus =
         parsed.data.status === 'Pending' ? 'PendingApproval' : parsed.data.status;
-      const result = await withTenantTransaction(
-        app.pool,
-        { isPlatformOwner: true },
-        async (client) => {
+      let result;
+      try {
+        result = await withTenantTransaction(
+          app.pool,
+          { isPlatformOwner: true },
+          async (client) => {
           const previous = await loadPlatformClinic(
             client,
             request.params.clinicId,
             true,
           );
           if (!previous) return null;
+          if (storedStatus === 'Active') {
+            await assertClinicPaymentAllowsActivation(client, {
+              clinicId: request.params.clinicId,
+              previousStatus: previous.rawStatus,
+              allowTestPayment: app.environment.PAYSTACK_MODE !== 'live',
+            });
+          }
           await client.query(
             `UPDATE clinics
                 SET status = $1, updated_at = now(), updated_by = $2,
@@ -561,8 +588,15 @@ export async function platformRoutes(app) {
             clinic: await loadPlatformClinic(client, request.params.clinicId),
             issued: administratorProvision?.issued ?? null,
           };
-        },
-      );
+          },
+        );
+      } catch (error) {
+        return reply.code(error.statusCode ?? 400).send({
+          error: error.code ?? 'clinic_status_change_failed',
+          message:
+            error.message ?? 'The clinic status could not be changed right now.',
+        });
+      }
       if (!result?.clinic) {
         return reply.code(404).send({
           error: 'not_found',
@@ -607,6 +641,166 @@ export async function platformRoutes(app) {
       } catch (error) {
         return reply.code(error.statusCode ?? 400).send({
           error: error.code ?? 'activation_resend_failed',
+          message: error.message,
+        });
+      }
+    },
+  );
+
+  app.post(
+    '/api/v1/platform/clinics/:clinicId/administrator-activation/repair',
+    {
+      preHandler: [
+        authenticate,
+        requirePlatformAccount,
+        requirePermission(permissions.clinicsApprove),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const activation = await app.activationService.resend({
+          clinicId: request.params.clinicId,
+          actorUserId: request.auth.userId,
+          sessionId: request.auth.sessionId,
+          ipAddress: request.ip,
+        });
+        return { activation, repaired: true };
+      } catch (error) {
+        return reply.code(error.statusCode ?? 400).send({
+          error: error.code ?? 'administrator_repair_failed',
+          message: error.message,
+        });
+      }
+    },
+  );
+
+  app.post(
+    '/api/v1/platform/clinics/:clinicId/payment/reconcile',
+    {
+      preHandler: [
+        authenticate,
+        requirePlatformAccount,
+        requirePermission(permissions.clinicsApprove),
+      ],
+    },
+    async (request, reply) => {
+      const application = await withTenantTransaction(
+        app.pool,
+        { isPlatformOwner: true },
+        async (client) => (
+          await client.query(
+            `SELECT application_id, clinic_id, payment_reference
+               FROM clinic_applications
+              WHERE clinic_id = $1
+              ORDER BY submitted_at DESC
+              LIMIT 1`,
+            [request.params.clinicId],
+          )
+        ).rows[0],
+      );
+      if (!application?.payment_reference) {
+        return reply.code(409).send({
+          error: 'payment_reference_missing',
+          message: 'This clinic application has no Paystack reference to verify.',
+        });
+      }
+      try {
+        return await app.subscriptionService.verifyApplicationPayment({
+          applicationId: application.application_id,
+          clinicId: application.clinic_id,
+          reference: application.payment_reference,
+          ipAddress: request.ip,
+        });
+      } catch (error) {
+        return reply.code(error.statusCode ?? 400).send({
+          error: error.code ?? 'payment_reconciliation_failed',
+          message: error.message,
+        });
+      }
+    },
+  );
+
+  app.post(
+    '/api/v1/platform/clinics/:clinicId/deletion-requests',
+    {
+      config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+      preHandler: [
+        authenticate,
+        requirePlatformAccount,
+        requirePermission(permissions.clinicsApprove),
+      ],
+    },
+    async (request, reply) => {
+      if (request.auth.accountType !== 'PlatformOwner') {
+        return reply.code(403).send({
+          error: 'clinic_deletion_forbidden',
+          message: 'Only the Platform Owner can request mutual clinic deletion.',
+        });
+      }
+      const parsed = clinicDeletionRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: 'validation_error',
+          message: 'Provide a short reason for the mutual deletion request.',
+        });
+      }
+      try {
+        return {
+          deletionRequest: await app.clinicDeletionService.requestDeletion({
+            clinicId: request.params.clinicId,
+            actorUserId: request.auth.userId,
+            sessionId: request.auth.sessionId,
+            ipAddress: request.ip,
+            reason: parsed.data.reason,
+          }),
+        };
+      } catch (error) {
+        return reply.code(error.statusCode ?? 400).send({
+          error: error.code ?? 'clinic_deletion_request_failed',
+          message: error.message,
+        });
+      }
+    },
+  );
+
+  app.post(
+    '/api/v1/platform/clinics/:clinicId/deletion-requests/:requestId/confirm',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+      preHandler: [
+        authenticate,
+        requirePlatformAccount,
+        requirePermission(permissions.clinicsApprove),
+      ],
+    },
+    async (request, reply) => {
+      if (request.auth.accountType !== 'PlatformOwner') {
+        return reply.code(403).send({
+          error: 'clinic_deletion_forbidden',
+          message: 'Only the Platform Owner can confirm mutual clinic deletion.',
+        });
+      }
+      const parsed = clinicDeletionConfirmationSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: 'validation_error',
+          message: 'Enter the six-digit code sent to the clinic Account Email.',
+        });
+      }
+      try {
+        return {
+          deletion: await app.clinicDeletionService.confirmDeletion({
+            clinicId: request.params.clinicId,
+            requestId: request.params.requestId,
+            code: parsed.data.code,
+            actorUserId: request.auth.userId,
+            sessionId: request.auth.sessionId,
+            ipAddress: request.ip,
+          }),
+        };
+      } catch (error) {
+        return reply.code(error.statusCode ?? 400).send({
+          error: error.code ?? 'clinic_deletion_confirmation_failed',
           message: error.message,
         });
       }
@@ -880,11 +1074,19 @@ async function requirePlatformAccount(request, reply) {
 
 export async function queryPlatformClinics(
   client,
-  { status, limit = 25, offset = 0 } = {},
+  {
+    status,
+    search,
+    paymentStatus,
+    subscriptionPlan,
+    sort = 'newest',
+    limit = 25,
+    offset = 0,
+  } = {},
 ) {
   const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
   const parameters = [];
-  let statusClause = '';
+  const clauses = ['c.deleted_at IS NULL'];
   if (status) {
     const normalizedStatus = String(status)
       .toLowerCase()
@@ -896,22 +1098,45 @@ export async function queryPlatformClinics(
           ? ['registrationdraft']
           : [String(status).toLowerCase()],
     );
-    statusClause = ` AND lower(c.status) = ANY($${parameters.length}::text[])`;
+    clauses.push(`lower(c.status) = ANY($${parameters.length}::text[])`);
   }
+  const normalizedSearch = String(search ?? '').trim();
+  if (normalizedSearch) {
+    parameters.push(`%${normalizedSearch}%`);
+    clauses.push(`(
+      c.name ILIKE $${parameters.length}
+      OR COALESCE(a.administrator_email::text, a.clinic_email::text, c.email::text, '')
+         ILIKE $${parameters.length}
+      OR COALESCE(a.application_reference, '') ILIKE $${parameters.length}
+      OR COALESCE(c.city, '') ILIKE $${parameters.length}
+    )`);
+  }
+  if (paymentStatus) {
+    parameters.push(String(paymentStatus).toLowerCase());
+    clauses.push(
+      `lower(COALESCE(a.payment_status, 'Pending')) = $${parameters.length}`,
+    );
+  }
+  if (subscriptionPlan) {
+    parameters.push(String(subscriptionPlan).toLowerCase());
+    clauses.push(`lower(c.subscription_plan) = $${parameters.length}`);
+  }
+  const whereClause = clauses.join('\n AND ');
   const total = (
     await client.query(
       `SELECT count(*)::int AS count
          FROM clinics c
-        WHERE c.deleted_at IS NULL${statusClause}`,
+         ${platformClinicLateralJoins()}
+        WHERE ${whereClause}`,
       parameters,
     )
   ).rows[0].count;
   parameters.push(pageSize, Math.max(0, Number(offset) || 0));
+  const orderBy = switchPlatformClinicSort(sort);
   const rows = await client.query(
     `${platformClinicSelect()}
-      WHERE c.deleted_at IS NULL
-        ${statusClause}
-      ORDER BY c.created_at DESC
+      WHERE ${whereClause}
+      ORDER BY ${orderBy}
       LIMIT $${parameters.length - 1} OFFSET $${parameters.length}`,
     parameters,
   );
@@ -938,30 +1163,47 @@ function platformClinicSelect() {
     SELECT c.clinic_id, c.name, c.email, c.phone, c.address, c.city,
            c.country, c.time_zone, c.status, c.subscription_plan,
            c.created_at, c.updated_at,
-           a.application_reference, a.status AS application_status,
-           a.payment_status,
+           a.application_id, a.application_reference,
+           a.status AS application_status, a.payment_status,
+           a.payment_reference, a.administrator_name,
+           a.administrator_phone, a.professional_title,
            COALESCE(a.administrator_email, a.clinic_email, c.email)
              AS account_email,
            a.submitted_at AS application_submitted_at,
+           p.status AS transaction_status,
+           p.reference AS verified_payment_reference,
+           p.amount_minor AS payment_amount_minor,
+           p.currency AS payment_currency,
+           p.billing_cycle AS payment_billing_cycle,
+           p.paid_at AS payment_paid_at,
+           p.gateway_response_summary AS payment_summary,
            s.status AS subscription_status,
            (SELECT count(*)::int FROM users u
              WHERE u.clinic_id = c.clinic_id AND u.deleted_at IS NULL) AS user_count,
            (SELECT count(*)::int FROM patients p
              WHERE p.clinic_id = c.clinic_id AND p.deleted_at IS NULL) AS patient_count
       FROM clinics c
-      LEFT JOIN LATERAL (
-        SELECT application_reference, status, payment_status,
-               administrator_email, clinic_email, submitted_at
-          FROM clinic_applications
-         WHERE clinic_id = c.clinic_id
-         ORDER BY submitted_at DESC LIMIT 1
-      ) a ON true
-      LEFT JOIN LATERAL (
-        SELECT status
-          FROM subscriptions
-         WHERE clinic_id = c.clinic_id
-         ORDER BY updated_at DESC LIMIT 1
-      ) s ON true`;
+      ${platformClinicLateralJoins()}`;
+}
+
+function platformClinicLateralJoins() {
+  return `
+    LEFT JOIN LATERAL (
+      SELECT application_id, application_reference, status, payment_status,
+             payment_reference, administrator_name, administrator_email,
+             administrator_phone, professional_title, clinic_email, submitted_at
+        FROM clinic_applications
+       WHERE clinic_id = c.clinic_id
+       ORDER BY submitted_at DESC LIMIT 1
+    ) a ON true
+    LEFT JOIN subscription_payment_transactions p
+      ON p.reference = a.payment_reference AND p.clinic_id = c.clinic_id
+    LEFT JOIN LATERAL (
+      SELECT status
+        FROM subscriptions
+       WHERE clinic_id = c.clinic_id
+       ORDER BY updated_at DESC LIMIT 1
+    ) s ON true`;
 }
 
 function mapPlatformClinic(row) {
@@ -980,8 +1222,21 @@ function mapPlatformClinic(row) {
     subscriptionPlan: row.subscription_plan,
     subscriptionStatus: row.subscription_status,
     paymentStatus: row.payment_status,
+    paymentReference: row.payment_reference,
+    transactionStatus: row.transaction_status,
+    paymentAmountMinor: row.payment_amount_minor == null
+      ? null
+      : Number(row.payment_amount_minor),
+    paymentCurrency: row.payment_currency,
+    paymentBillingCycle: row.payment_billing_cycle,
+    paymentPaidAt: row.payment_paid_at,
+    paymentSummary: row.payment_summary,
     applicationStatus: row.application_status,
+    applicationId: row.application_id,
     accountEmail: row.account_email,
+    administratorName: row.administrator_name,
+    administratorPhone: row.administrator_phone,
+    professionalTitle: row.professional_title,
     applicationReference: row.application_reference,
     applicationSubmittedAt: row.application_submitted_at,
     registrationDate: row.created_at,
@@ -991,10 +1246,70 @@ function mapPlatformClinic(row) {
   };
 }
 
+function switchPlatformClinicSort(sort) {
+  return {
+    oldest: 'c.created_at ASC, c.clinic_id ASC',
+    name: 'lower(c.name) ASC, c.clinic_id ASC',
+    updated: 'c.updated_at DESC, c.clinic_id DESC',
+  }[String(sort).toLowerCase()] ?? 'c.created_at DESC, c.clinic_id DESC';
+}
+
 export function normalizeClinicStatus(status) {
   const normalized = String(status).toLowerCase();
   if (normalized === 'registrationdraft') {
     return 'Awaiting Payment';
   }
   return normalized === 'pendingapproval' ? 'Pending' : status;
+}
+
+async function assertClinicPaymentAllowsActivation(
+  client,
+  { clinicId, previousStatus, allowTestPayment },
+) {
+  const application = (
+    await client.query(
+      `SELECT a.payment_status, a.payment_reference,
+              p.status AS transaction_status
+         FROM clinic_applications a
+         LEFT JOIN subscription_payment_transactions p
+           ON p.reference = a.payment_reference
+          AND p.clinic_id = a.clinic_id
+        WHERE a.clinic_id = $1
+        ORDER BY a.submitted_at DESC
+        LIMIT 1
+        FOR UPDATE OF a`,
+      [clinicId],
+    )
+  ).rows[0];
+  const acceptedPaymentStatuses = allowTestPayment
+    ? new Set(['Paid', 'TestVerified'])
+    : new Set(['Paid']);
+  if (
+    application?.transaction_status === 'Successful' &&
+    acceptedPaymentStatuses.has(application.payment_status)
+  ) {
+    return;
+  }
+
+  if (String(previousStatus).toLowerCase() === 'suspended') {
+    const historicalPayment = (
+      await client.query(
+        `SELECT 1
+           FROM subscription_payment_transactions
+          WHERE clinic_id = $1 AND status = 'Successful'
+          LIMIT 1`,
+        [clinicId],
+      )
+    ).rows[0];
+    if (historicalPayment) return;
+  }
+
+  const error = new Error(
+    application?.payment_reference
+      ? 'Paystack payment has not been verified for this clinic application. Reconcile payment before approval.'
+      : 'This clinic application has no verified payment and cannot be approved.',
+  );
+  error.code = 'payment_not_verified';
+  error.statusCode = 409;
+  throw error;
 }

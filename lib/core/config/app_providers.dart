@@ -109,6 +109,17 @@ final platformClinicsProvider = StreamProvider.family<List<Clinic>, String?>((
       .watchClinics(session, status: status);
 });
 
+final platformClinicSearchProvider =
+    FutureProvider.family<List<Clinic>, ({String? status, String search})>((
+      ref,
+      request,
+    ) async {
+      final session = await ref.watch(userSessionProvider.future);
+      return ref
+          .watch(platformRepositoryProvider)
+          .loadClinics(session, status: request.status, search: request.search);
+    });
+
 final platformClinicProvider = FutureProvider.family<Clinic?, String>((
   ref,
   clinicId,

@@ -231,14 +231,12 @@ class _RemoteBillingHistoryScreenState
     return query.isEmpty || invoice.searchable.contains(query);
   }
 
-  void _openInitialInvoice(List<_RemoteInvoiceSummary> invoices) {
+  void _openInitialInvoice(List<_RemoteInvoiceSummary> _) {
     if (_openedInitialInvoice || widget.initialInvoiceId == null) return;
     _openedInitialInvoice = true;
-    if (invoices.any((invoice) => invoice.id == widget.initialInvoiceId)) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _openInvoice(widget.initialInvoiceId!),
-      );
-    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _openInvoice(widget.initialInvoiceId!),
+    );
   }
 
   Future<void> _openInvoice(String invoiceId) async {

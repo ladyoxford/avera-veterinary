@@ -1049,6 +1049,11 @@ void main() {
       history.where((entry) => entry.invoice.id == draft.invoice.id),
       hasLength(1),
     );
+    final revenue = await repository.getRevenueProfitSummary(session: session);
+    expect(revenue.revenue, 30);
+    expect(revenue.clinicRevenue, 30);
+    expect(revenue.transactionCount, 2);
+    expect(revenue.missingCostLines, 1);
   });
 
   test('revenue summary uses paid ledger and immutable product cost', () async {

@@ -653,6 +653,101 @@ class RemoteRevenueProfitSummary {
       );
 }
 
+class RemoteRevenueDrilldownRow {
+  const RemoteRevenueDrilldownRow({
+    required this.id,
+    required this.rowType,
+    required this.invoiceId,
+    required this.invoiceNumber,
+    required this.occurredAt,
+    required this.clientName,
+    required this.context,
+    this.amount,
+    this.saleAmount,
+    this.recordedCost,
+    this.grossProfit,
+    this.description,
+    this.quantity,
+    this.unitCost,
+    this.historicalCost,
+    this.method,
+    this.missingCostLines = 0,
+  });
+
+  final String id;
+  final String rowType;
+  final String invoiceId;
+  final String invoiceNumber;
+  final DateTime? occurredAt;
+  final String clientName;
+  final String context;
+  final double? amount;
+  final double? saleAmount;
+  final double? recordedCost;
+  final double? grossProfit;
+  final String? description;
+  final double? quantity;
+  final double? unitCost;
+  final double? historicalCost;
+  final String? method;
+  final int missingCostLines;
+
+  factory RemoteRevenueDrilldownRow.fromJson(Map<String, dynamic> value) =>
+      RemoteRevenueDrilldownRow(
+        id: '${value['id'] ?? ''}',
+        rowType: '${value['row_type'] ?? ''}',
+        invoiceId: '${value['invoice_id'] ?? ''}',
+        invoiceNumber: '${value['invoice_number'] ?? 'Invoice'}',
+        occurredAt: _date(value['occurred_at']),
+        clientName: '${value['client_name'] ?? 'Client'}',
+        context: '${value['context'] ?? 'Clinic'}',
+        amount: _nullableDouble(value['amount']),
+        saleAmount: _nullableDouble(value['sale_amount']),
+        recordedCost: _nullableDouble(value['recorded_cost']),
+        grossProfit: _nullableDouble(value['gross_profit']),
+        description: value['description']?.toString(),
+        quantity: _nullableDouble(value['quantity']),
+        unitCost: _nullableDouble(value['unit_cost']),
+        historicalCost: _nullableDouble(value['historical_cost']),
+        method: value['method']?.toString(),
+        missingCostLines: _int(value['missing_cost_lines']),
+      );
+}
+
+class RemoteRevenueDrilldownPage {
+  const RemoteRevenueDrilldownPage({
+    required this.items,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.hasNextPage,
+    required this.totalValue,
+  });
+
+  final List<RemoteRevenueDrilldownRow> items;
+  final int page;
+  final int pageSize;
+  final int total;
+  final bool hasNextPage;
+  final double totalValue;
+
+  factory RemoteRevenueDrilldownPage.fromJson(Map<String, dynamic> value) =>
+      RemoteRevenueDrilldownPage(
+        items: (value['items'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => RemoteRevenueDrilldownRow.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList(growable: false),
+        page: _int(value['page']),
+        pageSize: _int(value['pageSize']),
+        total: _int(value['total']),
+        hasNextPage: value['hasNextPage'] == true,
+        totalValue: _num(value['totalValue']).toDouble(),
+      );
+}
+
 class RemotePatientMedicalFile {
   const RemotePatientMedicalFile({
     required this.patient,
@@ -1155,11 +1250,32 @@ class ClinicalRemoteDataSource {
     String? search,
   }) => _generic('/api/v1/payments', page: page, search: search);
   Future<RemoteRevenueProfitSummary> revenueProfitSummary({
+    required String period,
     DateTime? from,
     DateTime? to,
   }) async => RemoteRevenueProfitSummary.fromJson(
     await _client.get(
       _path('/api/v1/billing/revenue-summary', {
+        'period': period,
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (to != null) 'to': to.toUtc().toIso8601String(),
+      }),
+    ),
+  );
+  Future<RemoteRevenueDrilldownPage> revenueDrilldown({
+    required String metric,
+    required String period,
+    DateTime? from,
+    DateTime? to,
+    int page = 1,
+    int pageSize = 25,
+  }) async => RemoteRevenueDrilldownPage.fromJson(
+    await _client.get(
+      _path('/api/v1/billing/revenue-drilldown', {
+        'metric': metric,
+        'period': period,
+        'page': '$page',
+        'pageSize': '$pageSize',
         if (from != null) 'from': from.toUtc().toIso8601String(),
         if (to != null) 'to': to.toUtc().toIso8601String(),
       }),
@@ -1280,6 +1396,10 @@ int? _nullableInt(Object? value) {
 }
 
 num _num(Object? value) => value is num ? value : num.tryParse('$value') ?? 0;
+double? _nullableDouble(Object? value) {
+  if (value == null) return null;
+  return value is num ? value.toDouble() : double.tryParse('$value');
+}
 
 String _canonicalInventoryCategory(String value) {
   return InventoryCategories.canonicalId(value);

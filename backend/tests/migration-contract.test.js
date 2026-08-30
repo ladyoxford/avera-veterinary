@@ -887,13 +887,17 @@ test('revenue summary is tenant scoped and based on settled payment dates', () =
     new URL('../src/security/permissions.js', import.meta.url),
     'utf8',
   );
+  const reportService = fs.readFileSync(
+    new URL('../src/services/revenue-report-service.js', import.meta.url),
+    'utf8',
+  );
   assert.match(permissionsSource, /billingHistory:\s*'billing\.history'/);
   assert.match(routes, /\/api\/v1\/billing\/revenue-summary/);
   assert.match(routes, /requirePermission\(permissions\.billingHistory\)/);
-  assert.match(routes, /p\.clinic_id=\$1/);
-  assert.match(routes, /p\.paid_at >= \$2/);
-  assert.match(routes, /p\.paid_at < \$3/);
-  assert.match(routes, /pbi\.context_type='farm_visit'/);
-  assert.match(routes, /li\.unit_cost_snapshot \* li\.quantity/);
-  assert.match(routes, /li\.invoice_line_item_id IS NOT NULL/);
+  assert.match(reportService, /p\.clinic_id=\$1/);
+  assert.match(reportService, /p\.paid_at >= \$2/);
+  assert.match(reportService, /p\.paid_at < \$3/);
+  assert.match(reportService, /context_type='farm_visit'/);
+  assert.match(reportService, /li\.unit_cost_snapshot \* li\.quantity/);
+  assert.match(reportService, /li\.invoice_line_item_id IS NOT NULL/);
 });

@@ -3,6 +3,11 @@ import { withTenantTransaction } from '../database/pool.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { hasPermission, permissions } from '../security/permissions.js';
 import { writeAudit } from '../audit/audit-service.js';
+import {
+  loadRevenueDrilldown,
+  loadRevenueSummary,
+  revenueDrilldownMetrics,
+} from '../services/revenue-report-service.js';
 
 const pageSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -16,10 +21,40 @@ const pageSchema = z.object({
   to: z.string().datetime().optional(),
 });
 
+const revenuePeriodSchema = z.enum([
+  '1d', '3d', '7d', '1w', '1m', '3m', '6m', '1y', '3y', '10y',
+  'all_time',
+]);
+
+function validateRevenueRange(value, context) {
+  if (value.period !== 'all_time' && (!value.from || !value.to)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'A bounded revenue period requires from and to timestamps.',
+    });
+  }
+  if (value.from && value.to && new Date(value.from) >= new Date(value.to)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'The revenue period start must precede its end.',
+    });
+  }
+}
+
 const revenueSummaryQuerySchema = z.object({
+  period: revenuePeriodSchema.default('all_time'),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
-}).strict();
+}).strict().superRefine(validateRevenueRange);
+
+const revenueDrilldownQuerySchema = z.object({
+  period: revenuePeriodSchema,
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  metric: z.enum(revenueDrilldownMetrics),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+}).strict().superRefine(validateRevenueRange);
 
 const clinicActivityUnionSql = `
   SELECT 'Consultation' AS type, 'Consultations' AS module,
@@ -2613,7 +2648,8 @@ export async function clinicalRoutes(app) {
         });
       }
       const authoritativeTotal = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
-      const invoiceNumber = `INV-${Date.now()}-${input.submissionId.slice(0, 8).toUpperCase()}`;
+      const invoiceNumber =
+        `INV-${Date.now()}-${input.submissionId.slice(0, 8).toUpperCase()}`;
       const paid = input.status === 'Paid' ? authoritativeTotal : 0;
       const inserted = await client.query(
         `INSERT INTO invoices
@@ -3415,62 +3451,33 @@ export async function clinicalRoutes(app) {
         message: 'The revenue date range is invalid.',
       });
     }
-    return withTenantTransaction(app.pool, request.auth, async (client) => {
-      const result = await client.query(
-        `WITH filtered_payments AS (
-           SELECT p.payment_id, p.invoice_id, p.amount, i.total, i.context_type
-             FROM payments p
-             JOIN invoices i
-               ON i.clinic_id=p.clinic_id AND i.invoice_id=p.invoice_id
-            WHERE p.clinic_id=$1
-              AND ($2::timestamptz IS NULL OR p.paid_at >= $2)
-              AND ($3::timestamptz IS NULL OR p.paid_at < $3)
-         ),
-         paid_by_invoice AS (
-           SELECT invoice_id, total, context_type,
-                  sum(amount) AS paid_in_range,
-                  count(*)::int AS transaction_count
-             FROM filtered_payments
-            GROUP BY invoice_id, total, context_type
-         ),
-         invoice_costs AS (
-           SELECT pbi.invoice_id,
-                  coalesce(sum(
-                    CASE WHEN li.unit_cost_snapshot IS NULL THEN 0
-                         ELSE li.unit_cost_snapshot * li.quantity END
-                  ), 0) AS recorded_cost,
-                  count(li.invoice_line_item_id) FILTER (
-                    WHERE li.invoice_line_item_id IS NOT NULL
-                      AND li.unit_cost_snapshot IS NULL
-                  )::int
-                    AS missing_cost_lines
-             FROM paid_by_invoice pbi
-             LEFT JOIN invoice_line_items li
-               ON li.clinic_id=$1 AND li.invoice_id=pbi.invoice_id
-            GROUP BY pbi.invoice_id
-         )
-         SELECT coalesce(sum(pbi.paid_in_range), 0) AS revenue,
-                coalesce(sum(
-                  CASE WHEN pbi.context_type='farm_visit'
-                       THEN pbi.paid_in_range ELSE 0 END
-                ), 0) AS farm_revenue,
-                coalesce(sum(
-                  CASE WHEN pbi.context_type<>'farm_visit'
-                       THEN pbi.paid_in_range ELSE 0 END
-                ), 0) AS clinic_revenue,
-                coalesce(sum(
-                  CASE WHEN pbi.total > 0 THEN
-                    costs.recorded_cost * least(pbi.paid_in_range / pbi.total, 1)
-                  ELSE 0 END
-                ), 0) AS cost,
-                coalesce(sum(pbi.transaction_count), 0)::int AS transaction_count,
-                coalesce(sum(costs.missing_cost_lines), 0)::int AS missing_cost_lines
-           FROM paid_by_invoice pbi
-           JOIN invoice_costs costs ON costs.invoice_id=pbi.invoice_id`,
-        [request.auth.clinicId, parsed.data.from ?? null, parsed.data.to ?? null],
-      );
-      return result.rows[0];
-    });
+    return withTenantTransaction(app.pool, request.auth, (client) =>
+      loadRevenueSummary(client, {
+        clinicId: request.auth.clinicId,
+        from: parsed.data.from ?? null,
+        to: parsed.data.to ?? null,
+      }));
+  });
+  app.get('/api/v1/billing/revenue-drilldown', {
+    preHandler: [authenticate, requirePermission(permissions.billingHistory)],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = revenueDrilldownQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'validation_error',
+        message: 'The revenue drill-down request is invalid.',
+      });
+    }
+    return withTenantTransaction(app.pool, request.auth, (client) =>
+      loadRevenueDrilldown(client, {
+        clinicId: request.auth.clinicId,
+        from: parsed.data.from ?? null,
+        to: parsed.data.to ?? null,
+        metric: parsed.data.metric,
+        page: parsed.data.page,
+        pageSize: parsed.data.pageSize,
+      }));
   });
   app.get('/api/v1/invoices', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, tenantList(invoiceList));
   app.get('/api/v1/payments', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, tenantList(paymentList));

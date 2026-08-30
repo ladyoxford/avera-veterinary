@@ -5,6 +5,61 @@ import '../../../core/theme/app_theme.dart';
 AveraTextStyles averaText(BuildContext context) =>
     Theme.of(context).extension<AveraTextStyles>()!;
 
+Future<T?> showAveraActionSheet<T>({
+  required BuildContext context,
+  required String title,
+  String? description,
+  required WidgetBuilder builder,
+}) => showModalBottomSheet<T>(
+  context: context,
+  useSafeArea: true,
+  showDragHandle: true,
+  isScrollControlled: true,
+  builder: (sheetContext) => AveraActionSheet(
+    title: title,
+    description: description,
+    child: builder(sheetContext),
+  ),
+);
+
+class AveraActionSheet extends StatelessWidget {
+  const AveraActionSheet({
+    super.key,
+    required this.title,
+    required this.child,
+    this.description,
+  });
+
+  final String title;
+  final String? description;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: averaText(context).sectionTitle),
+              if (description?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 4),
+                Text(description!, style: averaText(context).sectionSubtitle),
+              ],
+            ],
+          ),
+        ),
+        child,
+      ],
+    ),
+  );
+}
+
 class AveraPageHeader extends StatelessWidget {
   const AveraPageHeader({super.key, required this.title, this.subtitle});
   final String title;

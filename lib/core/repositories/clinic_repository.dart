@@ -418,6 +418,26 @@ class RevenueProfitSummary {
   double get margin => revenue <= 0 ? 0 : profit / revenue;
 }
 
+/// Normalizes the local payment representation to the canonical signed ledger:
+/// receipts are positive and refunds are negative.
+double signedRevenueLedgerAmount({
+  required String transactionType,
+  required double amount,
+}) => transactionType == 'Refund' ? -amount.abs() : amount;
+
+/// Allocates immutable invoice cost by the net signed ledger share in a period.
+/// There is deliberately no zero floor: a refund-only period reverses the same
+/// proportional cost previously recognized with its revenue.
+double allocateRevenueCost({
+  required double recordedCost,
+  required double netSignedAmount,
+  required double invoiceTotal,
+}) {
+  if (invoiceTotal <= 0) return 0;
+  final paidShare = netSignedAmount / invoiceTotal;
+  return recordedCost * (paidShare > 1 ? 1.0 : paidShare);
+}
+
 class ClinicalOperationDetail {
   const ClinicalOperationDetail({
     required this.record,
@@ -8988,25 +9008,37 @@ class ClinicRepository {
       }
     }
     var revenue = 0.0;
-    var cost = 0.0;
     var clinicRevenue = 0.0;
     var farmRevenue = 0.0;
+    final paidByInvoice = <int, double>{};
     for (final payment in payments) {
       final invoice = invoiceById[payment.invoiceId];
       if (invoice == null) continue;
-      final signedAmount = payment.transactionType == 'Refund'
-          ? -payment.amount
-          : payment.amount;
+      final signedAmount = signedRevenueLedgerAmount(
+        transactionType: payment.transactionType,
+        amount: payment.amount,
+      );
       revenue += signedAmount;
+      paidByInvoice.update(
+        payment.invoiceId,
+        (value) => value + signedAmount,
+        ifAbsent: () => signedAmount,
+      );
       if (invoice.contextType == 'farm_visit') {
         farmRevenue += signedAmount;
       } else {
         clinicRevenue += signedAmount;
       }
-      if (payment.transactionType != 'Refund' && invoice.total > 0) {
-        final paidShare = (payment.amount / invoice.total).clamp(0.0, 1.0);
-        cost += (costByInvoice[invoice.id] ?? 0) * paidShare;
-      }
+    }
+    var cost = 0.0;
+    for (final entry in paidByInvoice.entries) {
+      final invoice = invoiceById[entry.key];
+      if (invoice == null || invoice.total <= 0) continue;
+      cost += allocateRevenueCost(
+        recordedCost: costByInvoice[invoice.id] ?? 0,
+        netSignedAmount: entry.value,
+        invoiceTotal: invoice.total,
+      );
     }
     return RevenueProfitSummary(
       revenue: revenue,

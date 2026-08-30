@@ -8,12 +8,69 @@ import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
-
-enum RevenuePeriod { today, sevenDays, month, year, twoYears, allTime }
+import '../models/revenue_metric.dart';
+import '../models/revenue_period.dart';
+import 'revenue_drilldown_screen.dart';
 
 String missingHistoricalCostWarning(int count) =>
     '$count invoice line(s) have no historical cost. '
     'Profit may be overstated until historical cost is added.';
+
+Future<RevenuePeriod?> showRevenuePeriodPicker(
+  BuildContext context,
+  RevenuePeriod current,
+) {
+  var pending = current;
+  return showAveraActionSheet<RevenuePeriod>(
+    context: context,
+    title: 'Select Timeframe',
+    description: 'Choose the exact period to view revenue and profit for.',
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (context, setSheetState) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GridView.count(
+              key: const Key('revenue-more-period-grid'),
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 2.25,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                for (final period in RevenuePeriod.values)
+                  ChoiceChip(
+                    key: Key('revenue-period-${period.apiValue}'),
+                    label: SizedBox(
+                      width: double.infinity,
+                      child: Text(
+                        period.label,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    selected: pending == period,
+                    onSelected: (_) => setSheetState(() => pending = period),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                key: const Key('apply-revenue-period'),
+                onPressed: () => Navigator.of(sheetContext).pop(pending),
+                child: const Text('Apply'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 class RevenueProfitScreen extends ConsumerStatefulWidget {
   const RevenueProfitScreen({super.key});
@@ -24,7 +81,7 @@ class RevenueProfitScreen extends ConsumerStatefulWidget {
 }
 
 class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
-  RevenuePeriod _period = RevenuePeriod.month;
+  RevenuePeriod _period = RevenuePeriod.oneMonth;
 
   @override
   Widget build(BuildContext context) {
@@ -32,8 +89,8 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
     if (session == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    final range = _range(_period, DateTime.now());
-    final future = _loadSummary(session, range.$1, range.$2);
+    final range = _period.rangeAt(DateTime.now());
+    final future = _loadSummary(session, range);
     final money = NumberFormat.simpleCurrency(
       name: session.clinic.currency,
       decimalDigits: 0,
@@ -53,25 +110,10 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
             style: averaText(context).pageSubtitle,
           ),
           const SizedBox(height: AveraSpacing.subtitleToContentGap),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<RevenuePeriod>(
-              segments: const [
-                ButtonSegment(
-                  value: RevenuePeriod.sevenDays,
-                  label: Text('7D'),
-                ),
-                ButtonSegment(value: RevenuePeriod.month, label: Text('1M')),
-                ButtonSegment(value: RevenuePeriod.year, label: Text('1Y')),
-                ButtonSegment(
-                  value: RevenuePeriod.allTime,
-                  label: Text('All Time'),
-                ),
-              ],
-              selected: {_period},
-              onSelectionChanged: (value) =>
-                  setState(() => _period = value.first),
-            ),
+          RevenueQuickPeriodSelector(
+            selected: _period,
+            onSelected: (period) => setState(() => _period = period),
+            onMore: _selectMorePeriod,
           ),
           const SizedBox(height: AveraSpacing.sectionGap),
           FutureBuilder<RevenueProfitSummary>(
@@ -97,6 +139,13 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
                 );
               }
               final summary = snapshot.data!;
+              void open(RevenueMetric metric) => _openDrilldown(
+                metric: metric,
+                period: _period,
+                range: range,
+                summary: summary,
+                currency: session.clinic.currency,
+              );
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -112,25 +161,29 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemBuilder: (context, index) => [
-                      _MetricCard(
+                      RevenueMetricCard(
                         label: 'Revenue',
                         value: money.format(summary.revenue),
                         icon: Icons.payments_outlined,
+                        onTap: () => open(RevenueMetric.revenue),
                       ),
-                      _MetricCard(
+                      RevenueMetricCard(
                         label: 'Gross profit',
                         value: money.format(summary.profit),
                         icon: Icons.trending_up_rounded,
+                        onTap: () => open(RevenueMetric.grossProfit),
                       ),
-                      _MetricCard(
+                      RevenueMetricCard(
                         label: 'Recorded cost',
                         value: money.format(summary.cost),
                         icon: Icons.receipt_long_outlined,
+                        onTap: () => open(RevenueMetric.recordedCost),
                       ),
-                      _MetricCard(
+                      RevenueMetricCard(
                         label: 'Margin',
                         value: '${(summary.margin * 100).toStringAsFixed(1)}%',
                         icon: Icons.analytics_outlined,
+                        onTap: () => open(RevenueMetric.margin),
                       ),
                     ][index],
                   ),
@@ -138,21 +191,25 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
                   const AveraSectionHeader(title: 'Revenue Sources'),
                   const SizedBox(height: AveraSpacing.cardGap),
                   AveraSurfaceCard(
+                    padding: EdgeInsets.zero,
                     child: Column(
                       children: [
-                        _SourceRow(
+                        RevenueSourceRow(
                           label: 'Clinic operations',
                           value: money.format(summary.clinicRevenue),
+                          onTap: () => open(RevenueMetric.clinicRevenue),
                         ),
-                        const Divider(height: 24),
-                        _SourceRow(
+                        const Divider(height: 1),
+                        RevenueSourceRow(
                           label: 'Farm operations',
                           value: money.format(summary.farmRevenue),
+                          onTap: () => open(RevenueMetric.farmRevenue),
                         ),
-                        const Divider(height: 24),
-                        _SourceRow(
+                        const Divider(height: 1),
+                        RevenueSourceRow(
                           label: 'Settled transactions',
                           value: '${summary.transactionCount}',
+                          onTap: () => open(RevenueMetric.settledTransactions),
                         ),
                       ],
                     ),
@@ -189,7 +246,7 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
                     const SizedBox(height: AveraSpacing.cardGap),
                     const AveraSurfaceCard(
                       child: Text(
-                        'No settled payment or refund transactions exist for this period.',
+                        'No payment or refund ledger entries exist for this period.',
                       ),
                     ),
                   ],
@@ -202,23 +259,51 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
     );
   }
 
+  Future<void> _selectMorePeriod() async {
+    final selected = await showRevenuePeriodPicker(context, _period);
+    if (selected != null && mounted) {
+      setState(() => _period = selected);
+    }
+  }
+
+  Future<void> _openDrilldown({
+    required RevenueMetric metric,
+    required RevenuePeriod period,
+    required RevenueDateRange range,
+    required RevenueProfitSummary summary,
+    required String currency,
+  }) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => RevenueDrilldownScreen(
+        metric: metric,
+        period: period,
+        range: range,
+        summary: summary,
+        currency: currency,
+      ),
+    ),
+  );
+
   Future<RevenueProfitSummary> _loadSummary(
     UserSession session,
-    DateTime? from,
-    DateTime? to,
+    RevenueDateRange range,
   ) async {
     final repository = ref.read(clinicRepositoryProvider);
     if (!BackendConfiguration.isConfigured) {
       return repository.getRevenueProfitSummary(
         session: session,
-        from: from,
-        to: to,
+        from: range.start,
+        to: range.end,
       );
     }
     try {
       final remote = await ref
           .read(clinicalRemoteDataSourceProvider)
-          .revenueProfitSummary(from: from, to: to);
+          .revenueProfitSummary(
+            period: _period.apiValue,
+            from: range.start,
+            to: range.end,
+          );
       return RevenueProfitSummary(
         revenue: remote.revenue,
         cost: remote.cost,
@@ -230,8 +315,8 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
     } catch (_) {
       final cached = await repository.getRevenueProfitSummary(
         session: session,
-        from: from,
-        to: to,
+        from: range.start,
+        to: range.end,
       );
       if (cached.transactionCount > 0) return cached;
       rethrow;
@@ -239,52 +324,175 @@ class _RevenueProfitScreenState extends ConsumerState<RevenueProfitScreen> {
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.label,
-    required this.value,
-    required this.icon,
+class RevenueQuickPeriodSelector extends StatelessWidget {
+  const RevenueQuickPeriodSelector({
+    super.key,
+    required this.selected,
+    required this.onSelected,
+    required this.onMore,
   });
-  final String label;
-  final String value;
-  final IconData icon;
 
-  @override
-  Widget build(BuildContext context) => AveraSurfaceCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary),
-        Text(value, style: averaText(context).sectionTitle),
-        Text(label, style: averaText(context).listItemSubtitle),
-      ],
-    ),
-  );
-}
-
-class _SourceRow extends StatelessWidget {
-  const _SourceRow({required this.label, required this.value});
-  final String label;
-  final String value;
+  final RevenuePeriod selected;
+  final ValueChanged<RevenuePeriod> onSelected;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) => Row(
+    key: const Key('revenue-quick-period-row'),
     children: [
-      Expanded(child: Text(label)),
-      Text(value, style: averaText(context).listItemTitle),
+      for (final period in quickRevenuePeriods) ...[
+        Expanded(
+          child: _QuickPeriodButton(
+            label: period.label,
+            selected: selected == period,
+            onTap: () => onSelected(period),
+          ),
+        ),
+        const SizedBox(width: 6),
+      ],
+      Expanded(
+        child: _QuickPeriodButton(
+          key: const Key('revenue-period-more'),
+          label: 'More',
+          outlined: true,
+          onTap: onMore,
+        ),
+      ),
     ],
   );
 }
 
-(DateTime?, DateTime?) _range(RevenuePeriod period, DateTime now) {
-  final end = now.add(const Duration(microseconds: 1));
-  return switch (period) {
-    RevenuePeriod.today => (DateTime(now.year, now.month, now.day), end),
-    RevenuePeriod.sevenDays => (now.subtract(const Duration(days: 7)), end),
-    RevenuePeriod.month => (DateTime(now.year, now.month), end),
-    RevenuePeriod.year => (DateTime(now.year), end),
-    RevenuePeriod.twoYears => (DateTime(now.year - 1), end),
-    RevenuePeriod.allTime => (null, end),
-  };
+class _QuickPeriodButton extends StatelessWidget {
+  const _QuickPeriodButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.outlined = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+  final bool outlined;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label revenue timeframe',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: selected ? scheme.primaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: outlined ? scheme.primary : scheme.outlineVariant,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (selected) ...[
+                  Icon(Icons.check_rounded, size: 16, color: scheme.primary),
+                  const SizedBox(width: 2),
+                ],
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: outlined || selected
+                        ? scheme.primary
+                        : scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RevenueMetricCard extends StatelessWidget {
+  const RevenueMetricCard({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => AveraSurfaceCard(
+    padding: EdgeInsets.zero,
+    child: Semantics(
+      button: true,
+      label: '$label, $value. Open details.',
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AveraSpacing.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: Theme.of(context).colorScheme.primary),
+              Text(value, style: averaText(context).sectionTitle),
+              Text(label, style: averaText(context).listItemSubtitle),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class RevenueSourceRow extends StatelessWidget {
+  const RevenueSourceRow({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '$label, $value. Open details.',
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(AveraSpacing.cardPadding),
+        child: Row(
+          children: [
+            Expanded(child: Text(label)),
+            Text(value, style: averaText(context).listItemTitle),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      ),
+    ),
+  );
 }

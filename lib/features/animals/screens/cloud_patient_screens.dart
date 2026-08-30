@@ -278,47 +278,36 @@ class CloudPatientCard extends ConsumerWidget {
   }
 
   Future<void> _showStatusSheet(BuildContext context, WidgetRef ref) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAveraActionSheet<String>(
       context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Text(
-                'Manage ${patient.name}',
-                style: averaText(sheetContext).sectionTitle,
-              ),
-            ),
-            for (final status in const ['Active', 'Deceased', 'Relocated'])
-              if (status != patient.status)
-                ListTile(
-                  leading: Icon(
-                    _statusIcon(status),
-                    color: _patientStatusColor(sheetContext, status),
-                  ),
-                  title: Text(
-                    _statusAction(status),
-                    style: TextStyle(
-                      color: _patientStatusColor(sheetContext, status),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(_statusDescription(status)),
-                  onTap: () => Navigator.of(sheetContext).pop(status),
+      title: 'Manage ${patient.name}',
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final status in const ['Active', 'Deceased', 'Relocated'])
+            if (status != patient.status)
+              ListTile(
+                leading: Icon(
+                  _statusIcon(status),
+                  color: _patientStatusColor(sheetContext, status),
                 ),
-            ListTile(
-              leading: const Icon(Icons.close_rounded),
-              title: const Text('Cancel'),
-              onTap: () => Navigator.of(sheetContext).pop(),
-            ),
-          ],
-        ),
+                title: Text(
+                  _statusAction(status),
+                  style: TextStyle(
+                    color: _patientStatusColor(sheetContext, status),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(_statusDescription(status)),
+                onTap: () => Navigator.of(sheetContext).pop(status),
+              ),
+          ListTile(
+            leading: const Icon(Icons.close_rounded),
+            title: const Text('Cancel'),
+            onTap: () => Navigator.of(sheetContext).pop(),
+          ),
+        ],
       ),
     );
     if (selected == null || !context.mounted) return;

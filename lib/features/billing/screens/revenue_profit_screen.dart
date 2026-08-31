@@ -8,6 +8,7 @@ import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/avera_timeframe_selector.dart';
 import '../models/revenue_metric.dart';
 import '../models/revenue_period.dart';
 import 'revenue_drilldown_screen.dart';
@@ -19,58 +20,12 @@ String missingHistoricalCostWarning(int count) =>
 Future<RevenuePeriod?> showRevenuePeriodPicker(
   BuildContext context,
   RevenuePeriod current,
-) {
-  var pending = current;
-  return showAveraActionSheet<RevenuePeriod>(
-    context: context,
-    title: 'Select Timeframe',
-    description: 'Choose the exact period to view revenue and profit for.',
-    builder: (sheetContext) => StatefulBuilder(
-      builder: (context, setSheetState) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GridView.count(
-              key: const Key('revenue-more-period-grid'),
-              crossAxisCount: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 2.25,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                for (final period in RevenuePeriod.values)
-                  ChoiceChip(
-                    key: Key('revenue-period-${period.apiValue}'),
-                    label: SizedBox(
-                      width: double.infinity,
-                      child: Text(
-                        period.label,
-                        maxLines: 1,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    selected: pending == period,
-                    onSelected: (_) => setSheetState(() => pending = period),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                key: const Key('apply-revenue-period'),
-                onPressed: () => Navigator.of(sheetContext).pop(pending),
-                child: const Text('Apply'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
+) => showAveraTimeframePicker(
+  context,
+  current,
+  description: 'Choose the exact period to view revenue and profit for.',
+  keyPrefix: 'revenue',
+);
 
 class RevenueProfitScreen extends ConsumerStatefulWidget {
   const RevenueProfitScreen({super.key});
@@ -337,92 +292,12 @@ class RevenueQuickPeriodSelector extends StatelessWidget {
   final VoidCallback onMore;
 
   @override
-  Widget build(BuildContext context) => Row(
-    key: const Key('revenue-quick-period-row'),
-    children: [
-      for (final period in quickRevenuePeriods) ...[
-        Expanded(
-          child: _QuickPeriodButton(
-            label: period.label,
-            selected: selected == period,
-            onTap: () => onSelected(period),
-          ),
-        ),
-        const SizedBox(width: 6),
-      ],
-      Expanded(
-        child: _QuickPeriodButton(
-          key: const Key('revenue-period-more'),
-          label: 'More',
-          outlined: true,
-          onTap: onMore,
-        ),
-      ),
-    ],
+  Widget build(BuildContext context) => AveraTimeframeSelector(
+    selected: selected,
+    onSelected: onSelected,
+    onMore: onMore,
+    keyPrefix: 'revenue',
   );
-}
-
-class _QuickPeriodButton extends StatelessWidget {
-  const _QuickPeriodButton({
-    super.key,
-    required this.label,
-    required this.onTap,
-    this.selected = false,
-    this.outlined = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool selected;
-  final bool outlined;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '$label revenue timeframe',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: onTap,
-        child: Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            color: selected ? scheme.primaryContainer : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: outlined ? scheme.primary : scheme.outlineVariant,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (selected) ...[
-                  Icon(Icons.check_rounded, size: 16, color: scheme.primary),
-                  const SizedBox(width: 2),
-                ],
-                Text(
-                  label,
-                  maxLines: 1,
-                  style: TextStyle(
-                    color: outlined || selected
-                        ? scheme.primary
-                        : scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class RevenueMetricCard extends StatelessWidget {

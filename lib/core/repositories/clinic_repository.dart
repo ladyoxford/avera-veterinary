@@ -8074,36 +8074,64 @@ class ClinicRepository {
   }) {
     final allowed = permittedInventoryCategoryIds(session);
     final normalizedQuery = query.trim().toLowerCase();
-    return (db.select(db.inventoryItems)
-          ..where(
-            (item) =>
-                item.clinicId.equals(session.clinic.clinicId) &
-                item.isArchived.equals(false),
-          )
-          ..orderBy([(item) => OrderingTerm.asc(item.drugName)]))
-        .watch()
-        .map(
-          (items) => items
-              .where((item) {
-                final canonical = InventoryCategories.canonicalId(
-                  item.categoryId ?? item.category,
-                );
-                if (!allowed.contains(canonical)) return false;
-                if (categoryId != null &&
-                    canonical != InventoryCategories.canonicalId(categoryId)) {
-                  return false;
-                }
-                if (normalizedQuery.isEmpty) return true;
-                return '${item.drugName} ${item.genericName ?? ''} ${item.brandName ?? ''} '
-                        '${item.manufacturer ?? ''} ${item.supplier ?? ''} ${item.sku ?? ''} '
-                        '${item.barcode ?? ''} ${item.category} ${item.subcategory ?? ''} '
-                        '${item.subcategoryId ?? ''} ${item.batchNumber ?? ''}'
-                    .toLowerCase()
-                    .contains(normalizedQuery);
-              })
-              .toList(growable: false),
-        );
+    return _permittedInventoryQuery(session).watch().map(
+      (items) => _filterPermittedInventory(
+        items,
+        allowed: allowed,
+        categoryId: categoryId,
+        normalizedQuery: normalizedQuery,
+      ),
+    );
   }
+
+  Future<List<InventoryItem>> readPermittedInventory(
+    UserSession session, {
+    String? categoryId,
+    String query = '',
+  }) async {
+    final allowed = permittedInventoryCategoryIds(session);
+    final items = await _permittedInventoryQuery(session).get();
+    return _filterPermittedInventory(
+      items,
+      allowed: allowed,
+      categoryId: categoryId,
+      normalizedQuery: query.trim().toLowerCase(),
+    );
+  }
+
+  SimpleSelectStatement<$InventoryItemsTable, InventoryItem>
+  _permittedInventoryQuery(UserSession session) => db.select(db.inventoryItems)
+    ..where(
+      (item) =>
+          item.clinicId.equals(session.clinic.clinicId) &
+          item.isArchived.equals(false),
+    )
+    ..orderBy([(item) => OrderingTerm.asc(item.drugName)]);
+
+  List<InventoryItem> _filterPermittedInventory(
+    List<InventoryItem> items, {
+    required Set<String> allowed,
+    required String? categoryId,
+    required String normalizedQuery,
+  }) => items
+      .where((item) {
+        final canonical = InventoryCategories.canonicalId(
+          item.categoryId ?? item.category,
+        );
+        if (!allowed.contains(canonical)) return false;
+        if (categoryId != null &&
+            canonical != InventoryCategories.canonicalId(categoryId)) {
+          return false;
+        }
+        if (normalizedQuery.isEmpty) return true;
+        return '${item.drugName} ${item.genericName ?? ''} ${item.brandName ?? ''} '
+                '${item.manufacturer ?? ''} ${item.supplier ?? ''} ${item.sku ?? ''} '
+                '${item.barcode ?? ''} ${item.category} ${item.subcategory ?? ''} '
+                '${item.subcategoryId ?? ''} ${item.batchNumber ?? ''}'
+            .toLowerCase()
+            .contains(normalizedQuery);
+      })
+      .toList(growable: false);
 
   Future<int> saveInventoryItem({
     required UserSession session,

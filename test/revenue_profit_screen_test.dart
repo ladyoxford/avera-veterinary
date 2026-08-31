@@ -60,6 +60,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AveraActionSheet), findsOneWidget);
     expect(find.text('Select Timeframe'), findsOneWidget);
+    expect(find.byKey(const Key('revenue-period-1w')), findsNothing);
+    for (final value in const [
+      '1d',
+      '3d',
+      '7d',
+      '1m',
+      '3m',
+      '6m',
+      '1y',
+      '3y',
+      '10y',
+      'all_time',
+    ]) {
+      expect(find.byKey(Key('revenue-period-$value')), findsOneWidget);
+    }
 
     await tester.tap(find.byKey(const Key('revenue-period-3m')));
     await tester.pump();
@@ -68,6 +83,38 @@ void main() {
     await tester.tap(find.byKey(const Key('apply-revenue-period')));
     await tester.pumpAndSettle();
     expect(result, RevenuePeriod.threeMonths);
+  });
+
+  testWidgets('dismissing More preserves the active timeframe', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    RevenuePeriod? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        theme: AppTheme.light(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async {
+                result = await showRevenuePeriodPicker(
+                  context,
+                  RevenuePeriod.oneMonth,
+                );
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('revenue-period-3m')));
+    navigatorKey.currentState!.pop();
+    await tester.pumpAndSettle();
+
+    expect(result, isNull);
   });
 
   testWidgets('metric and source surfaces expose working tap targets', (

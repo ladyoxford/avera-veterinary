@@ -19,7 +19,10 @@ import '../../../core/remote/cloud_clinical_state.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/services/clinic_document_branding.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../billing/models/revenue_period.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../../shared/widgets/avera_timeframe_selector.dart';
+import '../services/canonical_inventory_records.dart';
 
 enum ClinicReportType {
   dailyConsultations('daily-consultations'),
@@ -35,17 +38,6 @@ enum ClinicReportType {
     }
     return null;
   }
-}
-
-enum ReportDatePreset {
-  today('Today'),
-  yesterday('Yesterday'),
-  last7Days('Last 7 Days'),
-  last30Days('Last 30 Days'),
-  custom('Custom');
-
-  const ReportDatePreset(this.label);
-  final String label;
 }
 
 class ReportsScreen extends StatelessWidget {
@@ -64,9 +56,9 @@ class ReportsScreen extends StatelessWidget {
       (
         type: ClinicReportType.inventoryValue,
         icon: Icons.inventory_2_outlined,
-        title: 'Inventory Value',
+        title: 'Inventory Stock & Valuation',
         subtitle:
-            'Inspect cost, retail value, stock level, batch and expiry status.',
+            'Review stock levels, cost value, retail value, batches and expiry status.',
       ),
       (
         type: ClinicReportType.vaccination,
@@ -143,14 +135,20 @@ class ReportDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
-  ReportDatePreset _preset = ReportDatePreset.today;
-  late DateTimeRange _range = _rangeForPreset(_preset);
+  RevenuePeriod _period = RevenuePeriod.oneDay;
   String _vaccinationFilter = 'All';
   bool _exporting = false;
+  late Future<_ReportData> _reportFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportFuture = _load();
+  }
 
   String get _title => switch (widget.type) {
     ClinicReportType.dailyConsultations => 'Daily Consultations',
-    ClinicReportType.inventoryValue => 'Inventory Value',
+    ClinicReportType.inventoryValue => 'Inventory Stock & Valuation',
     ClinicReportType.vaccination => 'Vaccination Report',
   };
 
@@ -159,7 +157,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_title)),
       body: FutureBuilder<_ReportData>(
-        future: _load(),
+        future: _reportFuture,
         builder: (context, snapshot) {
           return ListView(
             padding: const EdgeInsets.fromLTRB(
@@ -171,15 +169,30 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             children: [
               Text(_subtitle, style: averaText(context).pageSubtitle),
               const SizedBox(height: AveraSpacing.subtitleToContentGap),
-              if (widget.type != ClinicReportType.inventoryValue)
-                _DateFilter(
-                  preset: _preset,
-                  range: _range,
-                  onChanged: _setPreset,
-                  onCustomRange: _selectCustomRange,
+              if (widget.type != ClinicReportType.inventoryValue) ...[
+                Text(
+                  'TIMEFRAME',
+                  style: averaText(context).sectionLabel.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
+                const SizedBox(height: 10),
+                AveraTimeframeSelector(
+                  selected: _period,
+                  onSelected: (period) => _reloadReport(() => _period = period),
+                  onMore: _selectMorePeriod,
+                  keyPrefix: widget.type.routeKey,
+                ),
+              ],
               if (widget.type == ClinicReportType.vaccination) ...[
-                const SizedBox(height: AveraSpacing.cardGap),
+                const SizedBox(height: AveraSpacing.sectionGap),
+                Text(
+                  'STATUS',
+                  style: averaText(context).sectionLabel.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 10),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: SegmentedButton<String>(
@@ -195,7 +208,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                     ],
                     selected: {_vaccinationFilter},
                     onSelectionChanged: (values) =>
-                        setState(() => _vaccinationFilter = values.first),
+                        _reloadReport(() => _vaccinationFilter = values.first),
                   ),
                 ),
               ],
@@ -215,7 +228,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                       ),
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
-                        onPressed: () => setState(() {}),
+                        onPressed: () => _reloadReport(() {}),
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Try Again'),
                       ),
@@ -246,20 +259,38 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     );
   }
 
+  void _reloadReport(VoidCallback update) {
+    setState(() {
+      update();
+      _reportFuture = _load();
+    });
+  }
+
   String get _subtitle => switch (widget.type) {
     ClinicReportType.dailyConsultations =>
-      'Patient, owner and consultation activity for the selected date range.',
+      'Patient, owner and consultation activity for the selected period.',
     ClinicReportType.inventoryValue =>
-      'Current clinic inventory values and stock conditions.',
+      'Review stock levels, cost value, retail value, batches and expiry status.',
     ClinicReportType.vaccination =>
       'Vaccination history and due-date status for this clinic.',
   };
 
   Future<_ReportData> _load() async {
     final session = await ref.read(userSessionProvider.future);
-    if (BackendConfiguration.isConfigured) {
-      return _loadRemote(session);
+    if (widget.type == ClinicReportType.inventoryValue) {
+      return _loadInventory(session);
     }
+    final range = _period.rangeAt(DateTime.now());
+    if (BackendConfiguration.isConfigured) {
+      return _loadRemote(session, range);
+    }
+    return _loadLocal(session, range);
+  }
+
+  Future<_ReportData> _loadLocal(
+    UserSession session,
+    RevenueDateRange range,
+  ) async {
     final db = ref.read(databaseProvider);
     final clinicId = session.clinic.clinicId;
     final animals = await (db.select(
@@ -286,18 +317,16 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           'Treatment',
           'Status',
         ]);
-        final visits =
-            await (db.select(db.visits)
-                  ..where(
-                    (row) =>
-                        row.clinicId.equals(clinicId) &
-                        row.visitDate.isBiggerOrEqualValue(_range.start) &
-                        row.visitDate.isSmallerThanValue(
-                          _range.end.add(const Duration(days: 1)),
-                        ),
-                  )
-                  ..orderBy([(row) => OrderingTerm.desc(row.visitDate)]))
-                .get();
+        final query = db.select(db.visits)
+          ..where((row) => row.clinicId.equals(clinicId))
+          ..where((row) => row.visitDate.isSmallerThanValue(range.end))
+          ..orderBy([(row) => OrderingTerm.desc(row.visitDate)]);
+        if (range.start != null) {
+          query.where(
+            (row) => row.visitDate.isBiggerOrEqualValue(range.start!),
+          );
+        }
+        final visits = await query.get();
         for (final visit in visits) {
           final animal = animalById[visit.animalId];
           final owner = animal == null ? null : ownerById[animal.ownerId];
@@ -314,46 +343,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           ]);
         }
       case ClinicReportType.inventoryValue:
-        headers.addAll([
-          'Product',
-          'Category',
-          'Quantity',
-          'Unit Cost',
-          'Selling Price',
-          'Cost Value',
-          'Retail Value',
-          'Stock',
-          'Expiry',
-          'Batch',
-        ]);
-        final items =
-            await (db.select(db.inventoryItems)
-                  ..where((row) => row.clinicId.equals(clinicId))
-                  ..orderBy([(row) => OrderingTerm.asc(row.drugName)]))
-                .get();
-        final now = DateTime.now();
-        for (final item in items) {
-          final expired =
-              item.expiryDate != null && item.expiryDate!.isBefore(now);
-          rows.add([
-            item.drugName,
-            item.category,
-            '${item.quantity}',
-            item.buyingPrice <= 0 ? 'Missing' : _money(item.buyingPrice),
-            _money(item.sellingPrice),
-            item.buyingPrice <= 0
-                ? 'Missing'
-                : _money(item.quantity * item.buyingPrice),
-            _money(item.quantity * item.sellingPrice),
-            item.quantity <= item.minimumQuantity ? 'Low' : 'Normal',
-            expired
-                ? 'Expired'
-                : item.expiryDate == null
-                ? '-'
-                : DateFormat.yMMMd().format(item.expiryDate!),
-            item.batchNumber ?? '-',
-          ]);
-        }
+        throw StateError('Inventory uses the canonical inventory loader.');
       case ClinicReportType.vaccination:
         headers.addAll([
           'Patient',
@@ -368,18 +358,16 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           'Manufacturer',
           'Veterinarian',
         ]);
-        final vaccinations =
-            await (db.select(db.vaccinations)
-                  ..where(
-                    (row) =>
-                        row.clinicId.equals(clinicId) &
-                        row.dateGiven.isBiggerOrEqualValue(_range.start) &
-                        row.dateGiven.isSmallerThanValue(
-                          _range.end.add(const Duration(days: 1)),
-                        ),
-                  )
-                  ..orderBy([(row) => OrderingTerm.desc(row.dateGiven)]))
-                .get();
+        final query = db.select(db.vaccinations)
+          ..where((row) => row.clinicId.equals(clinicId))
+          ..where((row) => row.dateGiven.isSmallerThanValue(range.end))
+          ..orderBy([(row) => OrderingTerm.desc(row.dateGiven)]);
+        if (range.start != null) {
+          query.where(
+            (row) => row.dateGiven.isBiggerOrEqualValue(range.start!),
+          );
+        }
+        final vaccinations = await query.get();
         for (final vaccination in vaccinations) {
           final status = _vaccinationStatus(vaccination);
           if (_vaccinationFilter != 'All' &&
@@ -407,28 +395,31 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     return _ReportData(
       branding: ClinicDocumentBranding.fromSession(session),
       title: _title,
-      rangeLabel: widget.type == ClinicReportType.inventoryValue
-          ? 'Current inventory'
-          : '${DateFormat.yMMMd().format(_range.start)} - ${DateFormat.yMMMd().format(_range.end)}',
+      rangeLabel: _rangeLabel(range),
       headers: headers,
       rows: rows,
+      summaryLabel: widget.type == ClinicReportType.dailyConsultations
+          ? 'Consultations'
+          : 'Vaccinations',
+      primaryColumnIndex: widget.type == ClinicReportType.dailyConsultations
+          ? 1
+          : 0,
+      emptyTitle: widget.type == ClinicReportType.dailyConsultations
+          ? 'No consultations found'
+          : 'No vaccinations found',
+      emptyMessage: widget.type == ClinicReportType.dailyConsultations
+          ? 'No consultation records matched this timeframe.'
+          : 'No vaccination records matched this timeframe and status.',
     );
   }
 
-  Future<_ReportData> _loadRemote(UserSession session) async {
+  Future<_ReportData> _loadRemote(
+    UserSession session,
+    RevenueDateRange range,
+  ) async {
     final rows = <List<String>>[];
     final headers = <String>[];
     final source = ref.read(clinicalRemoteDataSourceProvider);
-    final from = DateTime(
-      _range.start.year,
-      _range.start.month,
-      _range.start.day,
-    );
-    final to = DateTime(
-      _range.end.year,
-      _range.end.month,
-      _range.end.day + 1,
-    ).subtract(const Duration(microseconds: 1));
 
     switch (widget.type) {
       case ClinicReportType.dailyConsultations:
@@ -443,7 +434,10 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           'Treatment',
           'Status',
         ]);
-        final records = await source.reportConsultations(from: from, to: to);
+        final records = await source.reportConsultations(
+          from: range.start,
+          to: range.end,
+        );
         for (final item in records) {
           final occurredAt = DateTime.tryParse('${item['occurred_at']}');
           rows.add([
@@ -461,42 +455,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           ]);
         }
       case ClinicReportType.inventoryValue:
-        headers.addAll([
-          'Product',
-          'Category',
-          'Quantity',
-          'Unit Cost',
-          'Selling Price',
-          'Cost Value',
-          'Retail Value',
-          'Stock',
-          'Expiry',
-          'Batch',
-        ]);
-        await ref.read(remoteInventoryListProvider.notifier).refresh();
-        final items = ref.read(remoteInventoryListProvider).items;
-        final now = DateTime.now();
-        for (final item in items.where((item) => !item.isArchived)) {
-          final cost = item.purchasePrice.toDouble();
-          final selling = item.sellingPrice.toDouble();
-          final expired = item.expiryDate?.isBefore(now) == true;
-          rows.add([
-            item.name,
-            item.categoryName,
-            '${item.quantity}',
-            cost <= 0 ? 'Missing' : _money(cost),
-            _money(selling),
-            cost <= 0 ? 'Missing' : _money(item.quantity * cost),
-            _money(item.quantity * selling),
-            item.quantity <= item.reorderLevel ? 'Low' : 'Normal',
-            expired
-                ? 'Expired'
-                : item.expiryDate == null
-                ? '-'
-                : DateFormat.yMMMd().format(item.expiryDate!),
-            item.batchNumber ?? '-',
-          ]);
-        }
+        throw StateError('Inventory uses the canonical inventory loader.');
       case ClinicReportType.vaccination:
         headers.addAll([
           'Patient',
@@ -511,7 +470,10 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           'Manufacturer',
           'Veterinarian',
         ]);
-        final records = await source.reportVaccinations(from: from, to: to);
+        final records = await source.reportVaccinations(
+          from: range.start,
+          to: range.end,
+        );
         for (final item in records) {
           final administered = DateTime.tryParse('${item['administered_at']}');
           final due = item['next_due_at'] == null
@@ -545,38 +507,123 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     return _ReportData(
       branding: ClinicDocumentBranding.fromSession(session),
       title: _title,
-      rangeLabel: widget.type == ClinicReportType.inventoryValue
-          ? 'Current inventory'
-          : '${DateFormat.yMMMd().format(_range.start)} - ${DateFormat.yMMMd().format(_range.end)}',
+      rangeLabel: _rangeLabel(range),
       headers: headers,
       rows: rows,
+      summaryLabel: widget.type == ClinicReportType.dailyConsultations
+          ? 'Consultations'
+          : 'Vaccinations',
+      primaryColumnIndex: widget.type == ClinicReportType.dailyConsultations
+          ? 1
+          : 0,
+      emptyTitle: widget.type == ClinicReportType.dailyConsultations
+          ? 'No consultations found'
+          : 'No vaccinations found',
+      emptyMessage: widget.type == ClinicReportType.dailyConsultations
+          ? 'No consultation records matched this timeframe.'
+          : 'No vaccination records matched this timeframe and status.',
     );
   }
 
-  void _setPreset(ReportDatePreset preset) {
-    if (preset == ReportDatePreset.custom) {
-      _selectCustomRange();
-      return;
+  Future<_ReportData> _loadInventory(UserSession session) async {
+    final items = await loadCanonicalInventoryRecords(
+      ref: ref,
+      session: session,
+    );
+    final now = DateTime.now();
+    final rows = <List<String>>[];
+    var recordedCostValue = 0.0;
+    var retailValue = 0.0;
+    var missingCosts = 0;
+    for (final item in items) {
+      final cost = item.costPrice;
+      final expired = item.expiryDate?.isBefore(now) == true;
+      if (cost == null) {
+        missingCosts += 1;
+      } else {
+        recordedCostValue += cost * item.quantity;
+      }
+      retailValue += item.sellingPrice * item.quantity;
+      rows.add([
+        item.name,
+        item.category,
+        '${item.quantity}',
+        item.baseUnit,
+        cost == null ? 'Missing Cost' : _money(cost),
+        _money(item.sellingPrice),
+        cost == null ? 'Missing Cost' : _money(cost * item.quantity),
+        _money(item.sellingPrice * item.quantity),
+        item.batchNumber ?? '-',
+        item.expiryDate == null
+            ? '-'
+            : DateFormat.yMMMd().format(item.expiryDate!),
+        expired ? 'Expired' : item.status,
+      ]);
     }
-    setState(() {
-      _preset = preset;
-      _range = _rangeForPreset(preset);
-    });
+    final units = items
+        .map((item) => item.baseUnit.trim().toLowerCase())
+        .where((unit) => unit.isNotEmpty)
+        .toSet();
+    final metrics = <_ReportMetric>[
+      _ReportMetric(label: 'Products', value: '${items.length}'),
+      _ReportMetric(
+        label: 'Recorded Cost Value',
+        value: _money(recordedCostValue),
+      ),
+      _ReportMetric(label: 'Retail Stock Value', value: _money(retailValue)),
+      if (units.length == 1)
+        _ReportMetric(
+          label: 'Units in Stock (${units.first})',
+          value:
+              '${items.fold<int>(0, (total, item) => total + item.quantity)}',
+        ),
+      if (missingCosts > 0)
+        _ReportMetric(label: 'Missing Cost', value: '$missingCosts'),
+    ];
+    return _ReportData(
+      branding: ClinicDocumentBranding.fromSession(session),
+      title: _title,
+      rangeLabel: 'Current inventory',
+      headers: const [
+        'Product',
+        'Category',
+        'Stock',
+        'Unit',
+        'Cost Price',
+        'Selling Price',
+        'Cost Value',
+        'Retail Value',
+        'Batch',
+        'Expiry',
+        'Status',
+      ],
+      rows: rows,
+      summaryLabel: 'Products',
+      primaryColumnIndex: 0,
+      emptyTitle: 'No inventory products',
+      emptyMessage:
+          'Add inventory products to include them in stock reports and exports.',
+      metrics: metrics,
+    );
   }
 
-  Future<void> _selectCustomRange() async {
-    final result = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(DateTime.now().year - 10),
-      lastDate: DateTime.now(),
-      initialDateRange: _range,
+  Future<void> _selectMorePeriod() async {
+    final selected = await showAveraTimeframePicker(
+      context,
+      _period,
+      description: 'Choose the exact period to include in this report.',
+      keyPrefix: widget.type.routeKey,
     );
-    if (result != null && mounted) {
-      setState(() {
-        _preset = ReportDatePreset.custom;
-        _range = result;
-      });
+    if (selected != null && mounted) {
+      _reloadReport(() => _period = selected);
     }
+  }
+
+  String _rangeLabel(RevenueDateRange range) {
+    if (range.start == null) return 'All available records';
+    final start = range.start!.toLocal();
+    final end = range.end.subtract(const Duration(microseconds: 1)).toLocal();
+    return '${DateFormat.yMMMd().format(start)} - ${DateFormat.yMMMd().format(end)}';
   }
 
   Future<Directory> _targetDir() async =>
@@ -721,12 +768,28 @@ class _ReportData {
     required this.rangeLabel,
     required this.headers,
     required this.rows,
+    required this.summaryLabel,
+    required this.primaryColumnIndex,
+    required this.emptyTitle,
+    required this.emptyMessage,
+    this.metrics = const [],
   });
   final ClinicDocumentBranding branding;
   final String title;
   final String rangeLabel;
   final List<String> headers;
   final List<List<String>> rows;
+  final String summaryLabel;
+  final int primaryColumnIndex;
+  final String emptyTitle;
+  final String emptyMessage;
+  final List<_ReportMetric> metrics;
+}
+
+class _ReportMetric {
+  const _ReportMetric({required this.label, required this.value});
+  final String label;
+  final String value;
 }
 
 class _ReportPreview extends StatelessWidget {
@@ -738,22 +801,75 @@ class _ReportPreview extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(data.summaryLabel, style: averaText(context).listItemTitle),
+        const SizedBox(height: 2),
         Text(
-          '${data.rows.length} record(s)',
-          style: averaText(context).listItemTitle,
+          '${data.rows.length}',
+          style: averaText(context).pageTitle.copyWith(fontSize: 30),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(data.rangeLabel, style: averaText(context).caption),
-        const Divider(height: 28),
+        if (data.metrics.isNotEmpty) ...[
+          const Divider(height: 24),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final metric in data.metrics)
+                Container(
+                  width: 156,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        metric.value,
+                        style: averaText(context).sectionTitle,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(metric.label, style: averaText(context).caption),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+        const Divider(height: 24),
         if (data.rows.isEmpty)
-          Text(
-            'No clinic records matched the selected filters.',
-            style: averaText(context).listItemSubtitle,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.inbox_outlined,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data.emptyTitle,
+                      style: averaText(context).listItemTitle,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      data.emptyMessage,
+                      style: averaText(context).listItemSubtitle,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           )
         else
           for (final row in data.rows.take(10)) ...[
             Text(
-              row.length > 1 ? row[1] : row.first,
+              row[data.primaryColumnIndex],
               style: averaText(context).listItemTitle,
             ),
             const SizedBox(height: 2),
@@ -770,50 +886,6 @@ class _ReportPreview extends StatelessWidget {
             style: averaText(context).caption,
           ),
         ],
-      ],
-    ),
-  );
-}
-
-class _DateFilter extends StatelessWidget {
-  const _DateFilter({
-    required this.preset,
-    required this.range,
-    required this.onChanged,
-    required this.onCustomRange,
-  });
-  final ReportDatePreset preset;
-  final DateTimeRange range;
-  final ValueChanged<ReportDatePreset> onChanged;
-  final VoidCallback onCustomRange;
-
-  @override
-  Widget build(BuildContext context) => AveraLabeledFieldCard(
-    label: 'Date Range',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DropdownButtonHideUnderline(
-          child: DropdownButton<ReportDatePreset>(
-            isExpanded: true,
-            value: preset,
-            items: [
-              for (final value in ReportDatePreset.values)
-                DropdownMenuItem(value: value, child: Text(value.label)),
-            ],
-            onChanged: (value) {
-              if (value != null) onChanged(value);
-            },
-          ),
-        ),
-        if (preset == ReportDatePreset.custom)
-          TextButton.icon(
-            onPressed: onCustomRange,
-            icon: const Icon(Icons.date_range_rounded),
-            label: Text(
-              '${DateFormat.yMMMd().format(range.start)} - ${DateFormat.yMMMd().format(range.end)}',
-            ),
-          ),
       ],
     ),
   );
@@ -838,10 +910,8 @@ class _ExportActions extends StatelessWidget {
   final VoidCallback? onExcel;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 10,
-    runSpacing: 10,
-    children: [
+  Widget build(BuildContext context) {
+    final actions = <Widget>[
       FilledButton.icon(
         onPressed: exporting ? null : onPdf,
         icon: const Icon(Icons.picture_as_pdf_outlined),
@@ -869,29 +939,15 @@ class _ExportActions extends StatelessWidget {
           icon: const Icon(Icons.grid_on_outlined),
           label: const Text('Excel'),
         ),
-    ],
-  );
-}
-
-DateTimeRange _rangeForPreset(ReportDatePreset preset) {
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  return switch (preset) {
-    ReportDatePreset.today => DateTimeRange(start: today, end: today),
-    ReportDatePreset.yesterday => DateTimeRange(
-      start: today.subtract(const Duration(days: 1)),
-      end: today.subtract(const Duration(days: 1)),
-    ),
-    ReportDatePreset.last7Days => DateTimeRange(
-      start: today.subtract(const Duration(days: 6)),
-      end: today,
-    ),
-    ReportDatePreset.last30Days => DateTimeRange(
-      start: today.subtract(const Duration(days: 29)),
-      end: today,
-    ),
-    ReportDatePreset.custom => DateTimeRange(start: today, end: today),
-  };
+    ];
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        for (final action in actions) SizedBox(height: 46, child: action),
+      ],
+    );
+  }
 }
 
 String _vaccinationStatus(Vaccination vaccination) {

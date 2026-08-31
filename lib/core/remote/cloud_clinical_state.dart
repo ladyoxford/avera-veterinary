@@ -383,7 +383,7 @@ class RemoteInventoryListController
   final Future<UserSession> Function() _session;
   String _search = '';
 
-  Future<void> refresh({String? search}) async {
+  Future<List<RemoteInventoryItem>> refresh({String? search}) async {
     if (search != null) _search = search;
     state = state.copyWith(isLoading: true, clearError: true);
     UserSession? session;
@@ -415,8 +415,9 @@ class RemoteInventoryListController
           serverUpdatedAt: item.updatedAt,
         );
       }
-      if (!mounted) return;
+      if (!mounted) return unique;
       state = RemoteInventoryListState(items: unique);
+      return unique;
     } catch (error) {
       session ??= await _safeSession();
       final cached = session == null
@@ -425,21 +426,25 @@ class RemoteInventoryListController
               _cacheKey(session.clinic.clinicId),
               clinicId: session.clinic.clinicId,
             );
-      if (!mounted) return;
       if (cached != null) {
-        state = RemoteInventoryListState(
-          items: (cached['items'] as List<dynamic>? ?? const [])
-              .map(
-                (item) => RemoteInventoryItem.fromJson(
-                  Map<String, dynamic>.from(item as Map),
-                ),
-              )
-              .toList(),
-          fromCache: true,
-          error: error,
-        );
+        final items = (cached['items'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => RemoteInventoryItem.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList();
+        if (mounted) {
+          state = RemoteInventoryListState(
+            items: items,
+            fromCache: true,
+            error: error,
+          );
+        }
+        return items;
       } else {
-        state = RemoteInventoryListState(error: error);
+        if (mounted) state = RemoteInventoryListState(error: error);
+        return const [];
       }
     }
   }

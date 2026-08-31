@@ -329,7 +329,7 @@ class RemoteInventoryItem {
   final String? subcategoryName;
   final int quantity;
   final int reorderLevel;
-  final num purchasePrice;
+  final num? purchasePrice;
   final num sellingPrice;
   final String status;
   final String? genericName;
@@ -378,7 +378,9 @@ class RemoteInventoryItem {
       subcategoryName: value['subcategory'] as String?,
       quantity: _int(value['quantity']),
       reorderLevel: _int(value['reorder_level']),
-      purchasePrice: _num(value['purchase_price']),
+      purchasePrice: value['purchase_price'] == null
+          ? null
+          : _num(value['purchase_price']),
       sellingPrice: _num(value['selling_price']),
       status: value['status'] as String? ?? 'Active',
       genericName: value['generic_name'] as String?,
@@ -940,12 +942,12 @@ class ClinicalRemoteDataSource {
   }) => _generic('/api/v1/vaccinations', page: page, search: search);
 
   Future<List<Map<String, dynamic>>> reportConsultations({
-    required DateTime from,
+    DateTime? from,
     required DateTime to,
   }) => _allGeneric('/api/v1/consultations', from: from, to: to);
 
   Future<List<Map<String, dynamic>>> reportVaccinations({
-    required DateTime from,
+    DateTime? from,
     required DateTime to,
   }) => _allGeneric('/api/v1/vaccinations', from: from, to: to);
 
@@ -1383,7 +1385,7 @@ class ClinicalRemoteDataSource {
 
   Future<List<Map<String, dynamic>>> _allGeneric(
     String path, {
-    required DateTime from,
+    DateTime? from,
     required DateTime to,
   }) async {
     final items = <Map<String, dynamic>>[];
@@ -1394,7 +1396,7 @@ class ClinicalRemoteDataSource {
         _path(path, {
           'page': '$page',
           'pageSize': '100',
-          'from': from.toUtc().toIso8601String(),
+          if (from != null) 'from': from.toUtc().toIso8601String(),
           'to': to.toUtc().toIso8601String(),
         }),
       );

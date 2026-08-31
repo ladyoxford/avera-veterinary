@@ -51,4 +51,35 @@ void main() {
       'AVERA_Chinonso_Hospital_Inventory_2026-08-31.xlsx',
     );
   });
+
+  test('export preserves missing cost, known zero cost, and product names', () {
+    const values = [
+      InventoryExportRecord(
+        name: 'Missing Cost Product',
+        category: 'Medical Equipment',
+        quantity: 1,
+        sellingPrice: 500,
+        costPrice: null,
+        baseUnit: 'piece',
+        status: 'Active',
+      ),
+      InventoryExportRecord(
+        name: 'Donated Product',
+        category: 'Medical Equipment',
+        quantity: 2,
+        sellingPrice: 500,
+        costPrice: 0,
+        baseUnit: 'piece',
+        status: 'Active',
+      ),
+    ];
+
+    final excelRows = service.rows(values);
+    final pdfRows = service.pdfRows(values);
+
+    expect(excelRows[0], containsAll(['Missing Cost Product', '']));
+    expect(excelRows[1], containsAll(['Donated Product', '0.00']));
+    expect(pdfRows[0], containsAll(['Missing Cost Product', 'Missing']));
+    expect(pdfRows[1], containsAll(['Donated Product', '0.00']));
+  });
 }

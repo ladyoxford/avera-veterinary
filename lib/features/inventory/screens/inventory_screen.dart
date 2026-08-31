@@ -978,7 +978,7 @@ class _InventoryDisplayItem {
         ),
         quantity: item.quantity,
         minimumQuantity: item.reorderLevel,
-        buyingPrice: item.purchasePrice.toDouble(),
+        buyingPrice: item.purchasePrice?.toDouble() ?? 0,
         sellingPrice: item.sellingPrice.toDouble(),
         isSellable: item.isSellable,
         batchNumber: item.batchNumber,

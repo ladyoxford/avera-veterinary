@@ -172,13 +172,15 @@ void main() {
       () async => _session(const {Permissions.inventoryView}),
     );
     addTearDown(controller.dispose);
-    await controller.refresh();
+    final remoteItems = await controller.refresh();
+    expect(remoteItems, hasLength(1));
     expect(controller.state.fromCache, isFalse);
     expect(controller.state.items.single.name, 'Amoxicillin 250 mg');
 
     source.failInventory = true;
-    await controller.refresh();
+    final cachedItems = await controller.refresh();
 
+    expect(cachedItems, hasLength(1));
     expect(controller.state.fromCache, isTrue);
     expect(controller.state.items.single.id, _inventoryId);
     expect(controller.state.error, isNotNull);

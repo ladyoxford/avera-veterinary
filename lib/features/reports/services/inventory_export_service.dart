@@ -128,23 +128,7 @@ class InventoryExportService {
       'Expiry',
       'Status',
     ];
-    final compactRows = records
-        .map(
-          (item) => <String>[
-            item.name,
-            item.category,
-            '${item.quantity}',
-            item.baseUnit,
-            item.costPrice?.toStringAsFixed(2) ?? 'Missing',
-            item.sellingPrice.toStringAsFixed(2),
-            item.batchNumber ?? '-',
-            item.expiryDate == null
-                ? '-'
-                : DateFormat('yyyy-MM-dd').format(item.expiryDate!),
-            item.status,
-          ],
-        )
-        .toList(growable: false);
+    final compactRows = pdfRows(records);
     document.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4.landscape,
@@ -153,7 +137,7 @@ class InventoryExportService {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
-              'AVERA Inventory Export',
+              'AVERA Inventory Stock & Valuation',
               style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
             pw.Text(clinicName),
@@ -194,6 +178,24 @@ class InventoryExportService {
     );
     return document.save();
   }
+
+  List<List<String>> pdfRows(Iterable<InventoryExportRecord> records) => records
+      .map(
+        (item) => <String>[
+          item.name,
+          item.category,
+          '${item.quantity}',
+          item.baseUnit,
+          item.costPrice?.toStringAsFixed(2) ?? 'Missing',
+          item.sellingPrice.toStringAsFixed(2),
+          item.batchNumber ?? '-',
+          item.expiryDate == null
+              ? '-'
+              : DateFormat('yyyy-MM-dd').format(item.expiryDate!),
+          item.status,
+        ],
+      )
+      .toList(growable: false);
 
   String filename({
     required String clinicName,

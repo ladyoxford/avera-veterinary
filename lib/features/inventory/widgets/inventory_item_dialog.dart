@@ -111,7 +111,7 @@ class InventoryItemDraft {
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
         sellingPrice: item.sellingPrice.toDouble(),
-        buyingPrice: item.purchasePrice.toDouble(),
+        buyingPrice: item.purchasePrice?.toDouble() ?? 0,
         revision: item.revision,
         imageReference: item.imageUrl,
         genericName: item.genericName,

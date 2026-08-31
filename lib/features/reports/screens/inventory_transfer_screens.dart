@@ -11,12 +11,12 @@ import '../../../core/config/app_providers.dart';
 import '../../../core/models/inventory_catalog.dart';
 import '../../../core/remote/api_client.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
-import '../../../core/remote/clinical_remote_data_source.dart';
 import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../inventory/widgets/inventory_item_dialog.dart';
 import '../../shared/widgets/avera_ui.dart';
+import '../services/canonical_inventory_records.dart';
 import '../services/inventory_export_service.dart';
 import '../services/inventory_import_service.dart';
 
@@ -517,76 +517,111 @@ class _ExportRecordsScreenState extends ConsumerState<ExportRecordsScreen> {
   String _format = 'xlsx';
   bool _busy = false;
   String? _message;
+  late Future<List<InventoryExportRecord>> _recordsFuture;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Export Records')),
-    body: ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AveraSpacing.pageHorizontalPadding,
-        AveraSpacing.pageTopPadding,
-        AveraSpacing.pageHorizontalPadding,
-        AveraSpacing.bottomContentClearance,
-      ),
-      children: [
-        Text(
-          'Download current clinic records for accounting or safekeeping.',
-          style: averaText(context).pageSubtitle,
-        ),
-        const SizedBox(height: AveraSpacing.sectionGap),
-        const _SectionLabel(text: 'Export Data'),
-        const SizedBox(height: 12),
-        AveraLabeledFieldCard(
-          label: 'Selected scope',
-          child: const ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.inventory_2_outlined),
-            title: Text('Inventory'),
-            subtitle: Text('All active products in this clinic'),
+  void initState() {
+    super.initState();
+    _recordsFuture = _loadRecords();
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) => FutureBuilder<List<InventoryExportRecord>>(
+    future: _recordsFuture,
+    builder: (context, snapshot) {
+      final count = snapshot.data?.length;
+      return Scaffold(
+        appBar: AppBar(title: const Text('Export Records')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.pageTopPadding,
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.bottomContentClearance,
           ),
-        ),
-        const SizedBox(height: AveraSpacing.cardGap),
-        AveraLabeledFieldCard(
-          label: 'File format',
-          child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(
-                value: 'xlsx',
-                icon: Icon(Icons.grid_on_outlined),
-                label: Text('Excel'),
+          children: [
+            Text(
+              'Download current clinic records for accounting or safekeeping.',
+              style: averaText(context).pageSubtitle,
+            ),
+            const SizedBox(height: AveraSpacing.sectionGap),
+            const _SectionLabel(text: 'Export Data'),
+            const SizedBox(height: 12),
+            AveraLabeledFieldCard(
+              label: 'Selected scope',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.inventory_2_outlined),
+                title: const Text('Inventory'),
+                subtitle: Text(
+                  snapshot.hasError
+                      ? 'Inventory count unavailable'
+                      : count == null
+                      ? 'Loading current inventory...'
+                      : '$count ${count == 1 ? 'product' : 'products'}',
+                  key: const Key('inventory-export-count'),
+                ),
               ),
-              ButtonSegment(
-                value: 'pdf',
-                icon: Icon(Icons.picture_as_pdf_outlined),
-                label: Text('PDF'),
+            ),
+            if (count == 0) ...[
+              const SizedBox(height: AveraSpacing.cardGap),
+              const _MessageCard(
+                message:
+                    'No inventory products. Add inventory products before exporting.',
               ),
             ],
-            selected: {_format},
-            onSelectionChanged: _busy
-                ? null
-                : (values) => setState(() => _format = values.first),
-          ),
+            const SizedBox(height: AveraSpacing.cardGap),
+            AveraLabeledFieldCard(
+              label: 'File format',
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'xlsx',
+                    icon: Icon(Icons.grid_on_outlined),
+                    label: Text('Excel'),
+                  ),
+                  ButtonSegment(
+                    value: 'pdf',
+                    icon: Icon(Icons.picture_as_pdf_outlined),
+                    label: Text('PDF'),
+                  ),
+                ],
+                selected: {_format},
+                onSelectionChanged: _busy
+                    ? null
+                    : (values) => setState(() => _format = values.first),
+              ),
+            ),
+            if (_message != null) ...[
+              const SizedBox(height: 12),
+              _MessageCard(message: _message!),
+            ],
+            const SizedBox(height: AveraSpacing.sectionGap),
+            SizedBox(
+              height: 54,
+              child: FilledButton.icon(
+                onPressed: _busy || count == null || count == 0
+                    ? null
+                    : _export,
+                icon: _busy
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_rounded),
+                label: Text(
+                  count == null
+                      ? 'Loading Inventory'
+                      : 'Export $count ${count == 1 ? 'Product' : 'Products'} as ${_format.toUpperCase()}',
+                ),
+              ),
+            ),
+          ],
         ),
-        if (_message != null) ...[
-          const SizedBox(height: 12),
-          _MessageCard(message: _message!),
-        ],
-        const SizedBox(height: AveraSpacing.sectionGap),
-        SizedBox(
-          height: 54,
-          child: FilledButton.icon(
-            onPressed: _busy ? null : _export,
-            icon: _busy
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.download_rounded),
-            label: Text('Export Inventory as ${_format.toUpperCase()}'),
-          ),
-        ),
-      ],
-    ),
+      );
+    },
   );
 
   Future<void> _export() async {
@@ -602,7 +637,7 @@ class _ExportRecordsScreenState extends ConsumerState<ExportRecordsScreen> {
       _message = null;
     });
     try {
-      final records = await _records(session);
+      final records = await _recordsFuture;
       final filename = _service.filename(
         clinicName: session.clinic.clinicName,
         extension: _format,
@@ -630,73 +665,10 @@ class _ExportRecordsScreenState extends ConsumerState<ExportRecordsScreen> {
     }
   }
 
-  Future<List<InventoryExportRecord>> _records(UserSession session) async {
-    if (BackendConfiguration.isConfigured) {
-      await ref.read(remoteInventoryListProvider.notifier).refresh();
-      return ref
-          .read(remoteInventoryListProvider)
-          .items
-          .where((item) => !item.isArchived)
-          .map(_remoteExportRecord)
-          .toList(growable: false);
-    }
-    final db = ref.read(databaseProvider);
-    final items =
-        await (db.select(db.inventoryItems)
-              ..where(
-                (row) =>
-                    row.clinicId.equals(session.clinic.clinicId) &
-                    row.isArchived.equals(false),
-              )
-              ..orderBy([(row) => OrderingTerm.asc(row.drugName)]))
-            .get();
-    return items
-        .map(
-          (item) => InventoryExportRecord(
-            name: item.drugName,
-            category: item.category,
-            subcategory: item.subcategory,
-            brand: item.brandName,
-            genericName: item.genericName,
-            manufacturer: item.manufacturer,
-            sku: item.sku,
-            barcode: item.barcode,
-            sellingPrice: item.sellingPrice,
-            costPrice: item.buyingPrice <= 0 ? null : item.buyingPrice,
-            quantity: item.quantity,
-            baseUnit: item.baseUnitLabel,
-            packSize: item.packSize,
-            batchNumber: item.batchNumber,
-            expiryDate: item.expiryDate,
-            storageConditions: item.storageConditions,
-            status: item.quantity <= 0 ? 'Out of stock' : 'Active',
-          ),
-        )
-        .toList(growable: false);
+  Future<List<InventoryExportRecord>> _loadRecords() async {
+    final session = await ref.read(userSessionProvider.future);
+    return loadCanonicalInventoryRecords(ref: ref, session: session);
   }
-
-  InventoryExportRecord _remoteExportRecord(RemoteInventoryItem item) =>
-      InventoryExportRecord(
-        name: item.name,
-        category: item.categoryName,
-        subcategory: item.subcategoryName,
-        brand: item.brandName,
-        genericName: item.genericName,
-        manufacturer: item.manufacturer,
-        sku: item.sku,
-        barcode: item.barcode,
-        sellingPrice: item.sellingPrice.toDouble(),
-        costPrice: item.purchasePrice <= 0
-            ? null
-            : item.purchasePrice.toDouble(),
-        quantity: item.quantity,
-        baseUnit: item.baseUnitLabel,
-        packSize: item.packSize,
-        batchNumber: item.batchNumber,
-        expiryDate: item.expiryDate,
-        storageConditions: item.storageConditions,
-        status: item.status,
-      );
 }
 
 class _UploadPanel extends StatelessWidget {

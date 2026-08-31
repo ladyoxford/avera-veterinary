@@ -5,6 +5,9 @@ import { writeAudit } from '../audit/audit-service.js';
 import { withTenantTransaction } from '../database/pool.js';
 import { z } from 'zod';
 
+export const platformLivePaymentClause =
+  "status = 'Successful' AND gateway_response_summary->>'mode' = 'live'";
+
 const userStatusSchema = z.object({
   status: z.enum(['Active', 'Suspended', 'Deactivated']),
   reason: z.string().trim().max(500).optional(),
@@ -85,6 +88,18 @@ const clinicDeletionRequestSchema = z.object({
 const clinicDeletionConfirmationSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/),
 });
+
+const platformListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  search: z.string().trim().max(160).optional(),
+  status: z.string().trim().max(80).optional(),
+}).strict();
+
+const platformAuditQuerySchema = platformListQuerySchema.extend({
+  action: z.string().trim().max(120).optional(),
+  success: z.enum(['true', 'false']).optional(),
+}).strict();
 
 export async function platformRoutes(app) {
   app.post(
@@ -435,13 +450,37 @@ export async function platformRoutes(app) {
                 WHERE status = 'Expired') AS expired_subscriptions,
               (SELECT COALESCE(sum(amount_minor), 0)::bigint
                  FROM subscription_payment_transactions
-                WHERE status = 'Successful'
+                WHERE ${platformLivePaymentClause}
                   AND paid_at >= date_trunc('month', now())
                   AND paid_at < date_trunc('month', now()) + interval '1 month')
-                AS monthly_revenue_minor`,
+                AS monthly_revenue_minor,
+              (SELECT count(*)::int FROM activation_tokens
+                WHERE delivery_method = 'email_failed'
+                  AND created_at >= now() - interval '24 hours')
+                AS recent_email_failures,
+              (SELECT count(*)::int FROM activation_tokens
+                WHERE delivery_method IN ('email', 'email_submitted', 'delivered')
+                  AND created_at >= now() - interval '24 hours')
+                AS recent_email_submissions,
+              (SELECT delivery_method FROM activation_tokens
+                WHERE delivery_method IS NOT NULL
+                ORDER BY created_at DESC LIMIT 1) AS latest_email_state,
+              ((SELECT count(*) FROM patients
+                  WHERE deleted_at IS NULL AND profile_photo_path IS NOT NULL)
+                + (SELECT count(*) FROM inventory_products
+                  WHERE deleted_at IS NULL AND image_path IS NOT NULL))::int
+                AS storage_object_count`,
           )
         ).rows[0];
         const recent = await queryPlatformClinics(client, { limit: 5 });
+        const emailConfigured = Boolean(
+          app.environment.RESEND_API_KEY &&
+          app.environment.ACTIVATION_EMAIL_FROM,
+        );
+        const storageConfigured = Boolean(
+          app.environment.SUPABASE_URL &&
+          app.environment.SUPABASE_SERVICE_ROLE_KEY,
+        );
         return {
           totalClinics: totals.total_clinics,
           activeClinics: totals.active_clinics,
@@ -451,10 +490,156 @@ export async function platformRoutes(app) {
           expiredSubscriptions: totals.expired_subscriptions,
           monthlyRevenueMinor: Number(totals.monthly_revenue_minor),
           currency: app.environment.PAYSTACK_CURRENCY ?? 'NGN',
+          emailDeliveryStatus: platformEmailStatus({
+            configured: emailConfigured,
+            failures: totals.recent_email_failures,
+            submissions: totals.recent_email_submissions,
+            latestState: totals.latest_email_state,
+          }),
+          systemHealthStatus: 'Operational',
+          storageStatus: storageConfigured ? 'Configured' : 'Not configured',
+          storageProvider: 'Supabase Storage',
+          storageObjectCount: null,
           recentClinics: recent.items,
         };
       },
     ),
+  );
+
+  app.get(
+    '/api/v1/platform/subscriptions',
+    {
+      preHandler: [
+        authenticate,
+        requirePlatformAccount,
+        requirePermission(permissions.subscriptionsManage),
+      ],
+    },
+    async (request, reply) => {
+      const parsed = platformListQuerySchema.safeParse(request.query);
+      if (!parsed.success) return platformListValidationError(reply);
+      return withTenantTransaction(
+        app.pool,
+        { isPlatformOwner: true },
+        (client) => queryPlatformSubscriptions(client, parsed.data),
+      );
+    },
+  );
+
+  app.get(
+    '/api/v1/platform/users',
+    {
+      preHandler: [
+        authenticate,
+        requirePlatformAccount,
+        requirePermission(permissions.usersView),
+      ],
+    },
+    async (request, reply) => {
+      const parsed = platformListQuerySchema.safeParse(request.query);
+      if (!parsed.success) return platformListValidationError(reply);
+      return withTenantTransaction(
+        app.pool,
+        { isPlatformOwner: true },
+        (client) => queryPlatformUsers(client, parsed.data),
+      );
+    },
+  );
+
+  app.get(
+    '/api/v1/platform/audit-logs',
+    {
+      preHandler: [
+        authenticate,
+        requirePlatformAccount,
+        requirePermission(permissions.auditLogsView),
+      ],
+    },
+    async (request, reply) => {
+      const parsed = platformAuditQuerySchema.safeParse(request.query);
+      if (!parsed.success) return platformListValidationError(reply);
+      return withTenantTransaction(
+        app.pool,
+        { isPlatformOwner: true },
+        (client) => queryPlatformAuditLogs(client, parsed.data),
+      );
+    },
+  );
+
+  app.get(
+    '/api/v1/platform/notifications',
+    { preHandler: platformView },
+    async () => withTenantTransaction(
+      app.pool,
+      { isPlatformOwner: true },
+      queryPlatformNotifications,
+    ),
+  );
+
+  app.get(
+    '/api/v1/platform/operations/status',
+    { preHandler: platformView },
+    async () => {
+      const checkedAt = new Date();
+      const startedAt = process.hrtime.bigint();
+      const persisted = await withTenantTransaction(
+        app.pool,
+        { isPlatformOwner: true },
+        queryPlatformOperations,
+      );
+      const databaseLatencyMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+      const emailConfigured = Boolean(
+        app.environment.RESEND_API_KEY &&
+        app.environment.ACTIVATION_EMAIL_FROM,
+      );
+      const storageConfigured = Boolean(
+        app.environment.SUPABASE_URL &&
+        app.environment.SUPABASE_SERVICE_ROLE_KEY,
+      );
+      const paymentConfigured = Boolean(
+        app.environment.PAYSTACK_MODE &&
+        app.environment.PAYSTACK_SECRET_KEY,
+      );
+      return {
+        system: {
+          status: 'Operational',
+          api: 'Operational',
+          database: 'Connected',
+          environment: app.environment.NODE_ENV,
+          uptimeSeconds: Math.floor(process.uptime()),
+          databaseLatencyMs: Number(databaseLatencyMs.toFixed(1)),
+          checkedAt,
+        },
+        email: {
+          provider: 'Resend',
+          configured: emailConfigured,
+          status: platformEmailStatus({
+            configured: emailConfigured,
+            failures: persisted.recent_email_failures,
+            submissions: persisted.recent_email_submissions,
+            latestState: persisted.latest_email_state,
+          }),
+          recentSuccessfulSubmissions: Number(persisted.recent_email_submissions),
+          recentFailedSubmissions: Number(persisted.recent_email_failures),
+          latestState: persisted.latest_email_state,
+          lastAttemptAt: persisted.last_email_attempt_at,
+        },
+        storage: {
+          provider: 'Supabase Storage',
+          configured: storageConfigured,
+          status: storageConfigured ? 'Configured' : 'Not configured',
+          objectCount: null,
+          objectCountAvailable: false,
+          actualBytesAvailable: false,
+        },
+        payments: {
+          provider: 'Paystack',
+          configured: paymentConfigured,
+          status: paymentConfigured ? 'Configured' : 'Not configured',
+          mode: app.environment.PAYSTACK_MODE ?? 'Not configured',
+        },
+      };
+    },
   );
 
   app.get('/api/v1/platform/clinics', { preHandler: platformView }, async (request) =>
@@ -926,13 +1111,14 @@ export async function platformRoutes(app) {
   });
 
   app.patch('/api/v1/platform/users/:userId/status', {
-    preHandler: [authenticate, requirePermission(permissions.clinicsSuspend)],
+    preHandler: [authenticate, requirePlatformOwner],
   }, async (request, reply) => {
     const parsed = userStatusSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: 'validation_error', message: 'Select a valid account status.' });
     }
-    const updated = await withTenantTransaction(app.pool, { isPlatformOwner: true }, async (client) => {
+    try {
+      const updated = await withTenantTransaction(app.pool, { isPlatformOwner: true }, async (client) => {
       const previous = (await client.query(
         'SELECT user_id, clinic_id, full_name, account_type, status FROM users WHERE user_id = $1 AND deleted_at IS NULL FOR UPDATE',
         [request.params.userId],
@@ -940,11 +1126,12 @@ export async function platformRoutes(app) {
       if (!previous) return null;
       if (previous.account_type === 'PlatformOwner') {
         const count = await client.query("SELECT count(*)::int AS count FROM users WHERE account_type = 'PlatformOwner' AND status = 'Active' AND deleted_at IS NULL");
-        if (previous.status === 'Active' && parsed.data.status !== 'Active' && count.rows[0].count <= 1) {
-          const error = new Error('The protected primary Platform Owner cannot be suspended.');
-          error.statusCode = 409;
-          throw error;
-        }
+        assertPlatformOwnerStatusChange({
+          target: previous,
+          actingUserId: request.auth.userId,
+          nextStatus: parsed.data.status,
+          activeOwnerCount: count.rows[0].count,
+        });
       }
       const suspended = parsed.data.status === 'Suspended';
       await client.query(
@@ -982,10 +1169,44 @@ export async function platformRoutes(app) {
         reason: parsed.data.reason,
       });
       return { userId: previous.user_id, status: parsed.data.status };
-    });
-    if (!updated) return reply.code(404).send({ error: 'not_found', message: 'User not found.' });
-    return updated;
+      });
+      if (!updated) return reply.code(404).send({ error: 'not_found', message: 'User not found.' });
+      return updated;
+    } catch (error) {
+      if (error.code === 'platform_owner_self_lockout' || error.code === 'platform_owner_last_active') {
+        return reply.code(409).send({ error: error.code, message: error.message });
+      }
+      throw error;
+    }
   });
+}
+
+export function platformUserStatusError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = 409;
+  return error;
+}
+
+export function assertPlatformOwnerStatusChange({
+  target,
+  actingUserId,
+  nextStatus,
+  activeOwnerCount,
+}) {
+  if (target.status !== 'Active' || nextStatus === 'Active') return;
+  if (target.user_id === actingUserId) {
+    throw platformUserStatusError(
+      'platform_owner_self_lockout',
+      'A Platform Owner cannot suspend or deactivate their own account.',
+    );
+  }
+  if (Number(activeOwnerCount) <= 1) {
+    throw platformUserStatusError(
+      'platform_owner_last_active',
+      'At least one active Platform Owner account must remain.',
+    );
+  }
 }
 
 export function createClinicApplicationPaymentToken(app, application) {
@@ -1092,6 +1313,15 @@ async function requirePlatformAccount(request, reply) {
   }
 }
 
+async function requirePlatformOwner(request, reply) {
+  if (request.auth?.accountType !== 'PlatformOwner') {
+    return reply.code(403).send({
+      error: 'forbidden',
+      message: 'Platform Owner authorization is required.',
+    });
+  }
+}
+
 const safeClinicDeletionErrorCodes = new Set([
   'clinic_not_found',
   'clinic_deletion_email_missing',
@@ -1121,6 +1351,346 @@ export function clinicDeletionErrorResponse(error, fallbackCode) {
     code: fallbackCode,
     message: 'Deletion service is temporarily unavailable.',
   };
+}
+
+function platformListValidationError(reply) {
+  return reply.code(400).send({
+    error: 'validation_error',
+    message: 'The Platform Owner list request is invalid.',
+  });
+}
+
+export function platformEmailStatus({
+  configured,
+  failures = 0,
+  submissions = 0,
+  latestState,
+}) {
+  if (!configured) return 'Not configured';
+  if (Number(failures) > 0 || latestState === 'email_failed') {
+    return 'Attention required';
+  }
+  if (Number(submissions) > 0) return 'Operational';
+  return 'Configured';
+}
+
+export async function queryPlatformSubscriptions(
+  client,
+  { page = 1, pageSize = 25, search, status } = {},
+) {
+  const limit = Math.min(100, Math.max(1, Number(pageSize) || 25));
+  const offset = (Math.max(1, Number(page) || 1) - 1) * limit;
+  const parameters = [];
+  const clauses = ['c.deleted_at IS NULL'];
+  if (search) {
+    parameters.push(`%${String(search).trim()}%`);
+    clauses.push(
+      `(c.name ILIKE $${parameters.length} OR c.email::text ILIKE $${parameters.length})`,
+    );
+  }
+  if (status) {
+    parameters.push(String(status));
+    clauses.push(`coalesce(s.status, 'Pending') ILIKE $${parameters.length}`);
+  }
+  parameters.push(limit, offset);
+  const records = await client.query(
+    `WITH latest_subscription AS (
+       SELECT DISTINCT ON (clinic_id)
+              clinic_id, subscription_id, plan, status, billing_cycle,
+              current_period_start, current_period_ends_at, next_billing_date,
+              cancel_at_period_end, updated_at
+         FROM subscriptions
+        ORDER BY clinic_id, updated_at DESC, created_at DESC
+     )
+     SELECT c.clinic_id, c.name AS clinic_name, c.email,
+            c.subscription_plan AS clinic_plan,
+            s.subscription_id, coalesce(s.plan, c.subscription_plan) AS plan,
+            coalesce(s.status, 'Pending') AS status,
+            coalesce(s.billing_cycle, 'monthly') AS billing_cycle,
+            s.current_period_start, s.current_period_ends_at,
+            s.next_billing_date, coalesce(s.cancel_at_period_end, false)
+              AS cancel_at_period_end,
+            s.updated_at, count(*) OVER()::int AS total_count
+       FROM clinics c
+       LEFT JOIN latest_subscription s ON s.clinic_id = c.clinic_id
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY c.name ASC, c.clinic_id ASC
+      LIMIT $${parameters.length - 1} OFFSET $${parameters.length}`,
+    parameters,
+  );
+  const summary = (
+    await client.query(
+      `WITH latest_subscription AS (
+         SELECT DISTINCT ON (clinic_id)
+                clinic_id, status, current_period_ends_at
+           FROM subscriptions
+          ORDER BY clinic_id, updated_at DESC, created_at DESC
+       )
+       SELECT count(*) FILTER (WHERE status = 'Active')::int AS active,
+              count(*) FILTER (
+                WHERE current_period_ends_at >= now()
+                  AND current_period_ends_at < now() + interval '30 days'
+              )::int AS expiring,
+              count(*) FILTER (WHERE status = 'Expired')::int AS expired,
+              count(*) FILTER (WHERE status IN ('Past Due', 'Pending Payment'))::int
+                AS payment_issues,
+              (SELECT coalesce(sum(amount_minor), 0)::bigint
+                 FROM subscription_payment_transactions
+                WHERE ${platformLivePaymentClause}
+                  AND paid_at >= date_trunc('month', now())
+                  AND paid_at < date_trunc('month', now()) + interval '1 month')
+                AS monthly_revenue_minor
+         FROM latest_subscription`,
+    )
+  ).rows[0];
+  const payments = await client.query(
+    `SELECT p.payment_transaction_id, p.clinic_id, c.name AS clinic_name,
+            p.reference, p.gateway, p.plan_code, p.billing_cycle,
+            p.amount_minor, p.currency, p.status, p.payment_channel,
+            p.paid_at, p.created_at,
+            coalesce(p.gateway_response_summary->>'mode', 'unknown') AS mode
+       FROM subscription_payment_transactions p
+       JOIN clinics c ON c.clinic_id = p.clinic_id
+      WHERE c.deleted_at IS NULL
+      ORDER BY coalesce(p.paid_at, p.created_at) DESC
+      LIMIT 100`,
+  );
+  return {
+    page: Math.max(1, Number(page) || 1),
+    pageSize: limit,
+    total: records.rows[0]?.total_count ?? 0,
+    hasNextPage:
+      offset + records.rows.length < (records.rows[0]?.total_count ?? 0),
+    summary: {
+      active: summary.active,
+      expiring: summary.expiring,
+      expired: summary.expired,
+      paymentIssues: summary.payment_issues,
+      monthlyRevenueMinor: Number(summary.monthly_revenue_minor),
+    },
+    items: records.rows.map((row) => ({
+      clinicId: row.clinic_id,
+      clinicName: row.clinic_name,
+      email: row.email,
+      subscriptionId: row.subscription_id,
+      plan: row.plan,
+      status: row.status,
+      billingCycle: row.billing_cycle,
+      currentPeriodStart: row.current_period_start,
+      currentPeriodEnd: row.current_period_ends_at,
+      nextBillingDate: row.next_billing_date,
+      cancelAtPeriodEnd: row.cancel_at_period_end,
+      updatedAt: row.updated_at,
+    })),
+    payments: payments.rows.map((row) => ({
+      paymentId: row.payment_transaction_id,
+      clinicId: row.clinic_id,
+      clinicName: row.clinic_name,
+      reference: row.reference,
+      gateway: row.gateway,
+      plan: row.plan_code,
+      billingCycle: row.billing_cycle,
+      amountMinor: Number(row.amount_minor),
+      currency: row.currency,
+      status: row.status,
+      channel: row.payment_channel,
+      mode: row.mode,
+      paidAt: row.paid_at,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
+export async function queryPlatformUsers(
+  client,
+  { page = 1, pageSize = 25, search, status } = {},
+) {
+  const limit = Math.min(100, Math.max(1, Number(pageSize) || 25));
+  const offset = (Math.max(1, Number(page) || 1) - 1) * limit;
+  const parameters = [];
+  const clauses = [
+    "u.deleted_at IS NULL",
+    "u.account_type IN ('PlatformOwner', 'PlatformAdministrator')",
+  ];
+  if (search) {
+    parameters.push(`%${String(search).trim()}%`);
+    clauses.push(
+      `(u.full_name ILIKE $${parameters.length} OR u.email::text ILIKE $${parameters.length})`,
+    );
+  }
+  if (status) {
+    parameters.push(String(status));
+    clauses.push(`u.status::text ILIKE $${parameters.length}`);
+  }
+  parameters.push(limit, offset);
+  const result = await client.query(
+    `SELECT u.user_id, u.full_name, u.email, u.phone, u.account_type,
+            u.status, u.email_verified_at, u.last_login_at, u.created_at,
+            count(*) OVER()::int AS total_count
+       FROM users u
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY u.created_at DESC, u.user_id DESC
+      LIMIT $${parameters.length - 1} OFFSET $${parameters.length}`,
+    parameters,
+  );
+  return {
+    page: Math.max(1, Number(page) || 1),
+    pageSize: limit,
+    total: result.rows[0]?.total_count ?? 0,
+    items: result.rows.map((row) => ({
+      userId: row.user_id,
+      fullName: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      accountType: row.account_type,
+      status: row.status,
+      emailVerifiedAt: row.email_verified_at,
+      lastLoginAt: row.last_login_at,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
+export async function queryPlatformAuditLogs(
+  client,
+  { page = 1, pageSize = 25, search, status, action, success } = {},
+) {
+  const limit = Math.min(100, Math.max(1, Number(pageSize) || 25));
+  const offset = (Math.max(1, Number(page) || 1) - 1) * limit;
+  const parameters = [];
+  const clauses = ['1 = 1'];
+  if (search) {
+    parameters.push(`%${String(search).trim()}%`);
+    clauses.push(
+      `(a.action ILIKE $${parameters.length} OR a.target_type ILIKE $${parameters.length} OR u.full_name ILIKE $${parameters.length} OR c.name ILIKE $${parameters.length})`,
+    );
+  }
+  if (status) {
+    parameters.push(String(status));
+    clauses.push(`a.target_type ILIKE $${parameters.length}`);
+  }
+  if (action) {
+    parameters.push(String(action));
+    clauses.push(`a.action ILIKE $${parameters.length}`);
+  }
+  if (success != null) {
+    parameters.push(success === 'true');
+    clauses.push(`a.success = $${parameters.length}`);
+  }
+  parameters.push(limit, offset);
+  const result = await client.query(
+    `SELECT a.audit_id, a.clinic_id, c.name AS clinic_name,
+            a.acting_user_id, u.full_name AS actor_name,
+            a.target_type, a.target_id, a.action, a.previous_summary,
+            a.new_summary, a.created_at, a.success, a.reason,
+            count(*) OVER()::int AS total_count
+       FROM audit_logs a
+       LEFT JOIN users u ON u.user_id = a.acting_user_id
+       LEFT JOIN clinics c ON c.clinic_id = a.clinic_id
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY a.created_at DESC, a.audit_id DESC
+      LIMIT $${parameters.length - 1} OFFSET $${parameters.length}`,
+    parameters,
+  );
+  return {
+    page: Math.max(1, Number(page) || 1),
+    pageSize: limit,
+    total: result.rows[0]?.total_count ?? 0,
+    items: result.rows.map((row) => ({
+      auditId: row.audit_id,
+      clinicId: row.clinic_id,
+      clinicName: row.clinic_name,
+      actingUserId: row.acting_user_id,
+      actorName: row.actor_name,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      action: row.action,
+      previousSummary: row.previous_summary,
+      newSummary: row.new_summary,
+      createdAt: row.created_at,
+      success: row.success,
+      reason: row.reason,
+    })),
+  };
+}
+
+export async function queryPlatformNotifications(client) {
+  const result = await client.query(
+    `SELECT * FROM (
+       SELECT 'clinic:' || c.clinic_id::text AS id,
+              'Clinic application requires review' AS title,
+              c.name || ' is waiting for Platform Owner review.' AS message,
+              'warning' AS severity,
+              '/platform/clinics/' || c.clinic_id::text AS route,
+              c.created_at
+         FROM clinics c
+        WHERE c.deleted_at IS NULL
+          AND lower(c.status) IN ('registrationdraft', 'pending', 'pendingapproval')
+       UNION ALL
+       SELECT 'email:' || t.token_id::text,
+              'Activation email submission failed',
+              coalesce(c.name, 'A clinic') || ' needs activation email attention.',
+              'error', '/platform/email', t.created_at
+         FROM activation_tokens t
+         LEFT JOIN clinics c ON c.clinic_id = t.clinic_id
+        WHERE t.delivery_method = 'email_failed'
+          AND t.created_at >= now() - interval '30 days'
+       UNION ALL
+       SELECT 'subscription:' || s.subscription_id::text,
+              'Subscription expired',
+              c.name || ' has an expired subscription.',
+              'warning', '/platform/subscriptions?status=Expired', s.updated_at
+         FROM subscriptions s
+         JOIN clinics c ON c.clinic_id = s.clinic_id
+        WHERE s.status = 'Expired' AND c.deleted_at IS NULL
+     ) notification
+     ORDER BY created_at DESC
+     LIMIT 100`,
+  );
+  return {
+    supportsReadState: false,
+    items: result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      message: row.message,
+      severity: row.severity,
+      route: row.route,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
+export async function queryPlatformOperations(client) {
+  return (
+    await client.query(
+      `SELECT
+        count(*) FILTER (
+          WHERE delivery_method IN ('email', 'email_submitted', 'delivered')
+            AND created_at >= now() - interval '24 hours'
+        )::int AS recent_email_submissions,
+        count(*) FILTER (
+          WHERE delivery_method = 'email_failed'
+            AND created_at >= now() - interval '24 hours'
+        )::int AS recent_email_failures,
+        (SELECT delivery_method FROM activation_tokens
+          WHERE delivery_method IS NOT NULL
+          ORDER BY created_at DESC LIMIT 1) AS latest_email_state,
+        (SELECT max(created_at) FROM activation_tokens
+          WHERE delivery_method IS NOT NULL) AS last_email_attempt_at,
+        (SELECT count(*)::int FROM patients
+          WHERE deleted_at IS NULL AND profile_photo_path IS NOT NULL)
+          AS patient_photo_count,
+        (SELECT count(*)::int FROM inventory_products
+          WHERE deleted_at IS NULL AND image_path IS NOT NULL)
+          AS inventory_image_count,
+        ((SELECT count(*) FROM patients
+            WHERE deleted_at IS NULL AND profile_photo_path IS NOT NULL)
+          + (SELECT count(*) FROM inventory_products
+            WHERE deleted_at IS NULL AND image_path IS NOT NULL))::int
+          AS storage_object_count
+       FROM activation_tokens`,
+    )
+  ).rows[0];
 }
 
 export async function queryPlatformClinics(

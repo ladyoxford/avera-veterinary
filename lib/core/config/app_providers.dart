@@ -128,6 +128,53 @@ final platformClinicProvider = FutureProvider.family<Clinic?, String>((
   return ref.watch(platformRepositoryProvider).loadClinic(session, clinicId);
 });
 
+final platformSubscriptionsProvider =
+    FutureProvider.family<
+      PlatformSubscriptionsSnapshot,
+      ({String? status, String search, int page, int pageSize})
+    >((ref, request) async {
+      final session = await ref.watch(userSessionProvider.future);
+      return ref
+          .watch(platformRepositoryProvider)
+          .loadSubscriptions(
+            session,
+            status: request.status,
+            search: request.search,
+            page: request.page,
+            pageSize: request.pageSize,
+          );
+    });
+
+final platformUsersProvider = FutureProvider.family<PlatformUserPage, String?>((
+  ref,
+  status,
+) async {
+  final session = await ref.watch(userSessionProvider.future);
+  return ref
+      .watch(platformRepositoryProvider)
+      .loadPlatformUsers(session, status: status);
+});
+
+final platformAuditProvider = FutureProvider<PlatformAuditPage>((ref) async {
+  final session = await ref.watch(userSessionProvider.future);
+  return ref.watch(platformRepositoryProvider).loadPlatformAuditLogs(session);
+});
+
+final platformNotificationsProvider =
+    FutureProvider<PlatformNotificationSnapshot>((ref) async {
+      final session = await ref.watch(userSessionProvider.future);
+      return ref
+          .watch(platformRepositoryProvider)
+          .loadPlatformNotifications(session);
+    });
+
+final platformOperationsProvider = FutureProvider<PlatformOperationsSnapshot>((
+  ref,
+) async {
+  final session = await ref.watch(userSessionProvider.future);
+  return ref.watch(platformRepositoryProvider).loadOperations(session);
+});
+
 final platformClinicApplicationPaymentProvider =
     FutureProvider.family<PlatformClinicApplicationPayment?, String>((
       ref,

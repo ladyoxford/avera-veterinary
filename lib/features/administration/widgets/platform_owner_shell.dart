@@ -132,7 +132,8 @@ class PlatformOwnerShell extends ConsumerWidget {
       return 2;
     }
     if (path.startsWith('/platform/account') ||
-        path.startsWith('/platform/password')) {
+        path.startsWith('/platform/password') ||
+        path.startsWith('/platform/mfa')) {
       return 4;
     }
     return 3;

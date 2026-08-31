@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -985,6 +987,11 @@ String _platformErrorMessage(Object error) {
       'clinic_deletion_request_failed' ||
       'clinic_deletion_confirmation_failed' ||
       'internal_error' => 'Deletion service is temporarily unavailable.',
+      'platform_owner_self_lockout' =>
+        'You cannot suspend or deactivate your own Platform Owner account.',
+      'platform_owner_last_active' =>
+        'At least one active Platform Owner account must remain.',
+      'forbidden' => 'Only a Platform Owner can manage platform accounts.',
       _ => error.message,
     };
   }
@@ -998,13 +1005,39 @@ bool _emailWasSubmitted(PlatformAdministratorActivation activation) =>
 String _formatPlatformDateTime(DateTime value) =>
     DateFormat('d MMM y, h:mm a').format(value.toLocal());
 
-class PlatformSubscriptionsScreen extends ConsumerWidget {
+class PlatformSubscriptionsScreen extends ConsumerStatefulWidget {
   const PlatformSubscriptionsScreen({super.key, this.status});
   final String? status;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlatformSubscriptionsScreen> createState() =>
+      _PlatformSubscriptionsScreenState();
+}
+
+class _PlatformSubscriptionsScreenState
+    extends ConsumerState<PlatformSubscriptionsScreen> {
+  final _searchController = TextEditingController();
+  String _search = '';
+  int _page = 1;
+  static const _pageSize = 25;
+
+  ({String? status, String search, int page, int pageSize}) get _request => (
+    status: widget.status,
+    search: _search,
+    page: _page,
+    pageSize: _pageSize,
+  );
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(userSessionProvider).valueOrNull;
-    ref.watch(platformClinicsProvider(status));
+    final snapshot = ref.watch(platformSubscriptionsProvider(_request));
     return _PlatformGuard(
       child: Scaffold(
         appBar: AppBar(
@@ -1014,54 +1047,148 @@ class PlatformSubscriptionsScreen extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        body: StreamBuilder<List<Clinic>>(
-          stream: ref
-              .read(clinicRepositoryProvider)
-              .watchPlatformClinics(status: status),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final clinics = snapshot.data!;
-            if (clinics.isEmpty) {
-              return const _EmptyState(
-                icon: Icons.workspace_premium_outlined,
-                message: 'No subscription records match this filter.',
-              );
-            }
-            return ListView.separated(
+        body: snapshot.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => _PlatformLoadError(
+            message: 'Subscription data is unavailable: $error',
+            onRetry: () =>
+                ref.invalidate(platformSubscriptionsProvider(_request)),
+          ),
+          data: (data) {
+            return ListView(
               padding: const EdgeInsets.all(20),
-              itemCount: clinics.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) => ListTile(
-                title: Text(clinics[index].clinicName),
-                subtitle: Text(
-                  '${clinics[index].subscriptionPlan} • ${clinics[index].clinicStatus}',
+              children: [
+                SearchBar(
+                  controller: _searchController,
+                  hintText: 'Search clinic or account email',
+                  leading: const Icon(Icons.search),
+                  trailing: [
+                    if (_search.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _search = '';
+                            _page = 1;
+                          });
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                  ],
+                  onSubmitted: (value) => setState(() {
+                    _search = value.trim();
+                    _page = 1;
+                  }),
                 ),
-                trailing: PopupMenuButton<String>(
-                  tooltip: 'Change subscription',
-                  onSelected: session == null
-                      ? null
-                      : (plan) => _changePlan(
-                          context,
-                          ref,
-                          session,
-                          clinics[index].clinicId,
-                          plan,
-                        ),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'Starter', child: Text('Starter')),
-                    PopupMenuItem(
-                      value: 'Professional',
-                      child: Text('Professional'),
-                    ),
-                    PopupMenuItem(
-                      value: 'Enterprise',
-                      child: Text('Enterprise'),
-                    ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Chip(label: Text('Active ${data.active}')),
+                    Chip(label: Text('Expiring ${data.expiring}')),
+                    Chip(label: Text('Expired ${data.expired}')),
+                    Chip(label: Text('Payment issues ${data.paymentIssues}')),
                   ],
                 ),
-              ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.status == null
+                      ? 'Subscriptions (${data.total})'
+                      : '${widget.status} subscriptions (${data.total})',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                if (data.items.isEmpty)
+                  const _EmptyState(
+                    icon: Icons.workspace_premium_outlined,
+                    message: 'No subscription records match this filter.',
+                  )
+                else
+                  ...data.items.map(
+                    (item) => ListTile(
+                      title: Text(item.clinicName),
+                      subtitle: Text(
+                        '${item.plan} • ${item.status} • ${item.billingCycle}',
+                      ),
+                      trailing: session == null
+                          ? null
+                          : PopupMenuButton<String>(
+                              tooltip: 'Change subscription',
+                              onSelected: (plan) => _changePlan(
+                                context,
+                                ref,
+                                session,
+                                item.clinicId,
+                                plan,
+                              ),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 'Starter',
+                                  child: Text('Starter'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'Professional',
+                                  child: Text('Professional'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'Enterprise',
+                                  child: Text('Enterprise'),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                if (data.total > data.pageSize) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        tooltip: 'Previous page',
+                        onPressed: data.page > 1
+                            ? () => setState(() => _page--)
+                            : null,
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      Text('Page ${data.page}'),
+                      IconButton(
+                        tooltip: 'Next page',
+                        onPressed: data.hasNextPage
+                            ? () => setState(() => _page++)
+                            : null,
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                    ],
+                  ),
+                ],
+                const Divider(height: 32),
+                Text(
+                  'Recent payments',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                ...data.payments
+                    .take(20)
+                    .map(
+                      (payment) => ListTile(
+                        leading: const Icon(Icons.receipt_long_outlined),
+                        title: Text(payment.clinicName),
+                        subtitle: Text(
+                          '${payment.reference} • ${payment.status}',
+                        ),
+                        trailing: Text(
+                          '${payment.mode.toLowerCase() == 'live'
+                              ? 'LIVE'
+                              : payment.mode.toLowerCase() == 'test'
+                              ? 'TEST'
+                              : 'UNKNOWN'}\n${payment.currency} ${(payment.amountMinor / 100).toStringAsFixed(0)}',
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                    ),
+              ],
             );
           },
         ),
@@ -1086,6 +1213,7 @@ class PlatformSubscriptionsScreen extends ConsumerWidget {
           );
       ref.invalidate(platformClinicsProvider);
       ref.invalidate(platformOverviewProvider);
+      ref.invalidate(platformSubscriptionsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Subscription changed to $plan.')),
@@ -1102,45 +1230,137 @@ class PlatformSubscriptionsScreen extends ConsumerWidget {
 }
 
 class PlatformUsersScreen extends ConsumerWidget {
-  const PlatformUsersScreen({super.key});
+  const PlatformUsersScreen({super.key, this.status});
+  final String? status;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => _PlatformGuard(
-    child: Scaffold(
-      appBar: AppBar(title: const Text('Platform Users')),
-      body: StreamBuilder<List<AppUser>>(
-        stream: ref.read(clinicRepositoryProvider).watchPlatformUsers(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.data!.isEmpty) {
-            return const _EmptyState(
-              icon: Icons.people_outline,
-              message: 'No user accounts found.',
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: snapshot.data!.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final user = snapshot.data![index];
-              return ListTile(
-                leading: CircleAvatar(
-                  child: Text(user.fullName.substring(0, 1).toUpperCase()),
-                ),
-                title: Text(user.fullName),
-                subtitle: Text(
-                  '${user.role} • ${user.accountStatus}\n${user.email}',
-                ),
-                isThreeLine: true,
-              );
-            },
-          );
-        },
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(userSessionProvider).valueOrNull;
+    return _PlatformGuard(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Platform Users')),
+        body: ref
+            .watch(platformUsersProvider(status))
+            .when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => _PlatformLoadError(
+                message: 'Platform users are unavailable: $error',
+                onRetry: () => ref.invalidate(platformUsersProvider(status)),
+              ),
+              data: (page) => page.items.isEmpty
+                  ? const _EmptyState(
+                      icon: Icons.people_outline,
+                      message: 'No platform accounts found.',
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(20),
+                      itemCount: page.items.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final user = page.items[index];
+                        final canManage =
+                            session?.user.accountType == 'PlatformOwner' &&
+                            session?.user.userId != user.userId;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              user.fullName.characters.first.toUpperCase(),
+                            ),
+                          ),
+                          title: Text(user.fullName),
+                          subtitle: Text(
+                            '${user.accountType} • ${user.status}\n${user.email}',
+                          ),
+                          isThreeLine: true,
+                          trailing: canManage
+                              ? PopupMenuButton<String>(
+                                  tooltip: 'Manage account status',
+                                  onSelected: (status) =>
+                                      _updateStatus(context, ref, user, status),
+                                  itemBuilder: (_) => [
+                                    if (user.status != 'Active')
+                                      const PopupMenuItem(
+                                        value: 'Active',
+                                        child: Text('Reactivate'),
+                                      ),
+                                    if (user.status == 'Active')
+                                      const PopupMenuItem(
+                                        value: 'Suspended',
+                                        child: Text('Suspend'),
+                                      ),
+                                    if (user.status != 'Deactivated')
+                                      const PopupMenuItem(
+                                        value: 'Deactivated',
+                                        child: Text('Deactivate'),
+                                      ),
+                                  ],
+                                )
+                              : null,
+                        );
+                      },
+                    ),
+            ),
       ),
-    ),
-  );
+    );
+  }
+
+  Future<void> _updateStatus(
+    BuildContext context,
+    WidgetRef ref,
+    PlatformUserRecord user,
+    String status,
+  ) async {
+    final action = status == 'Active'
+        ? 'reactivate'
+        : status == 'Suspended'
+        ? 'suspend'
+        : 'deactivate';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          '${action[0].toUpperCase()}${action.substring(1)} account?',
+        ),
+        content: Text(
+          "This will change ${user.fullName}'s platform access to $status.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(action[0].toUpperCase() + action.substring(1)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final session = ref.read(userSessionProvider).valueOrNull;
+    if (session == null) return;
+    try {
+      await ref
+          .read(platformRepositoryProvider)
+          .updatePlatformUserStatus(
+            session: session,
+            userId: user.userId,
+            status: status,
+            reason: 'Platform Owner account management',
+          );
+      ref.invalidate(platformUsersProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${user.fullName} is now $status.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_platformErrorMessage(error))));
+      }
+    }
+  }
 }
 
 class PlatformAuditLogsScreen extends ConsumerWidget {
@@ -1149,49 +1369,140 @@ class PlatformAuditLogsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => _PlatformGuard(
     child: Scaffold(
       appBar: AppBar(title: const Text('Global Audit Logs')),
-      body: StreamBuilder<List<AuditLog>>(
-        stream: ref.read(clinicRepositoryProvider).watchPlatformAuditLogs(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.data!.isEmpty) {
-            return const _EmptyState(
-              icon: Icons.history_outlined,
-              message: 'No administrative activity recorded yet.',
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: snapshot.data!.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final log = snapshot.data![index];
-              return ListTile(
-                leading: const Icon(Icons.history_rounded),
-                title: Text(log.action),
-                subtitle: Text(
-                  '${log.details ?? 'No details'}\n${log.createdAt.toLocal()}',
-                ),
-                isThreeLine: true,
-                onTap: () => showDialog<void>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: Text(log.action),
-                    content: Text(log.details ?? 'No additional details.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Close'),
-                      ),
-                    ],
+      body: ref
+          .watch(platformAuditProvider)
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => _PlatformLoadError(
+              message: 'Audit data is unavailable: $error',
+              onRetry: () => ref.invalidate(platformAuditProvider),
+            ),
+            data: (page) => page.items.isEmpty
+                ? const _EmptyState(
+                    icon: Icons.history_outlined,
+                    message: 'No administrative activity recorded yet.',
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: page.items.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final log = page.items[index];
+                      return ListTile(
+                        leading: Icon(
+                          log.success
+                              ? Icons.check_circle_outline
+                              : Icons.error_outline,
+                        ),
+                        title: Text(log.action),
+                        subtitle: Text(
+                          '${log.targetType} • ${log.actorName ?? 'System'}\n${log.createdAt.toLocal()}',
+                        ),
+                        isThreeLine: true,
+                        onTap: () => _showAuditDetails(context, log),
+                      );
+                    },
                   ),
-                ),
-              );
-            },
-          );
-        },
+          ),
+    ),
+  );
+}
+
+void _showAuditDetails(BuildContext context, PlatformAuditRecord log) {
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Audit details'),
+      content: SingleChildScrollView(
+        child: SelectionArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _AuditDetail(label: 'Action', value: log.action),
+              _AuditDetail(
+                label: 'Date',
+                value: _formatPlatformDateTime(log.createdAt),
+              ),
+              _AuditDetail(label: 'Actor', value: log.actorName ?? 'System'),
+              _AuditDetail(
+                label: 'Target',
+                value:
+                    '${log.targetType}${log.targetId == null ? '' : ' • ${log.targetId}'}',
+              ),
+              _AuditDetail(
+                label: 'Clinic',
+                value: log.clinicName ?? 'Platform',
+              ),
+              _AuditDetail(
+                label: 'Result',
+                value: log.success ? 'Successful' : 'Failed',
+              ),
+              if (log.reason?.trim().isNotEmpty == true)
+                _AuditDetail(label: 'Reason', value: log.reason!),
+              _AuditDetail(
+                label: 'Previous',
+                value: _safeAuditSummary(log.previousSummary),
+              ),
+              _AuditDetail(
+                label: 'New',
+                value: _safeAuditSummary(log.newSummary),
+              ),
+            ],
+          ),
+        ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
+String _safeAuditSummary(Map<String, dynamic>? summary) {
+  if (summary == null || summary.isEmpty) return 'Not recorded';
+  dynamic redact(dynamic value) {
+    if (value is Map) {
+      return value.map((key, nested) {
+        final normalized = key.toString().toLowerCase();
+        final sensitive = const [
+          'password',
+          'secret',
+          'token',
+          'authorization',
+          'api_key',
+        ].any(normalized.contains);
+        return MapEntry(
+          key.toString(),
+          sensitive ? '[redacted]' : redact(nested),
+        );
+      });
+    }
+    if (value is Iterable) return value.map(redact).toList(growable: false);
+    return value;
+  }
+
+  return const JsonEncoder.withIndent('  ').convert(redact(summary));
+}
+
+class _AuditDetail extends StatelessWidget {
+  const _AuditDetail({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 2),
+        Text(value),
+      ],
     ),
   );
 }
@@ -1226,8 +1537,9 @@ class PlatformOperationsScreen extends StatelessWidget {
           _PlatformRouteCard(
             icon: Icons.campaign_outlined,
             title: 'Announcements',
-            subtitle: 'Create and publish platform notices',
-            route: '/platform/notifications',
+            subtitle:
+                'Platform notices are not configured for this environment',
+            route: '/platform/announcements',
           ),
           _PlatformRouteCard(
             icon: Icons.admin_panel_settings_outlined,
@@ -1256,6 +1568,209 @@ class PlatformOperationsScreen extends StatelessWidget {
           ),
         ],
       ),
+    ),
+  );
+}
+
+class PlatformNotificationsScreen extends ConsumerWidget {
+  const PlatformNotificationsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _PlatformGuard(
+    child: Scaffold(
+      appBar: AppBar(title: const Text('Platform Notifications')),
+      body: ref
+          .watch(platformNotificationsProvider)
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => _PlatformLoadError(
+              message: 'Notifications are unavailable: $error',
+              onRetry: () => ref.invalidate(platformNotificationsProvider),
+            ),
+            data: (snapshot) => snapshot.items.isEmpty
+                ? const _EmptyState(
+                    icon: Icons.notifications_none_rounded,
+                    message: 'No platform notifications require attention.',
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: snapshot.items.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = snapshot.items[index];
+                      return ListTile(
+                        leading: Icon(
+                          item.severity == 'error'
+                              ? Icons.error_outline
+                              : Icons.warning_amber_outlined,
+                        ),
+                        title: Text(item.title),
+                        subtitle: Text(
+                          '${item.message}\n${item.createdAt.toLocal()}',
+                        ),
+                        isThreeLine: true,
+                        onTap: () => context.go(item.route),
+                      );
+                    },
+                  ),
+          ),
+    ),
+  );
+}
+
+class PlatformOperationsStatusScreen extends ConsumerWidget {
+  const PlatformOperationsStatusScreen({super.key, this.focus});
+
+  final String? focus;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _PlatformGuard(
+    child: Scaffold(
+      appBar: AppBar(title: Text(_title)),
+      body: ref
+          .watch(platformOperationsProvider)
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => _PlatformLoadError(
+              message: 'Operational status is unavailable: $error',
+              onRetry: () => ref.invalidate(platformOperationsProvider),
+            ),
+            data: (status) => ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                if (status.isUnavailable)
+                  const _PlatformAttentionMessage(
+                    message:
+                        'Local development does not provide backend health data.',
+                  ),
+                if (focus == null || focus == 'system')
+                  _PlatformStatusTile(
+                    icon: Icons.monitor_heart_outlined,
+                    title: 'System health',
+                    value: status.systemStatus,
+                    detail: 'Database: ${status.databaseStatus}',
+                  ),
+                if (focus == null || focus == 'email')
+                  _PlatformStatusTile(
+                    icon: Icons.email_outlined,
+                    title: 'Email delivery',
+                    value: status.emailStatus,
+                    detail:
+                        'Provider: ${status.emailProvider}${status.lastAttemptAt == null ? '' : '\nLast attempt: ${status.lastAttemptAt!.toLocal()}'}',
+                  ),
+                if (focus == null || focus == 'storage')
+                  _PlatformStatusTile(
+                    icon: Icons.storage_outlined,
+                    title: 'Storage',
+                    value: status.storageStatus,
+                    detail:
+                        'Provider: ${status.storageProvider}\nObject count: ${status.objectCount?.toString() ?? 'Unavailable'}\nBytes: Unavailable',
+                  ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Operational data is read from the AVERA backend. Secret keys and credentials are never shown here.',
+                ),
+              ],
+            ),
+          ),
+    ),
+  );
+
+  String get _title => switch (focus) {
+    'email' => 'Email Delivery',
+    'storage' => 'Storage Usage',
+    _ => 'System Health',
+  };
+}
+
+class PlatformSettingsScreen extends ConsumerWidget {
+  const PlatformSettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _PlatformGuard(
+    child: Scaffold(
+      appBar: AppBar(title: const Text('Platform Settings')),
+      body: ref
+          .watch(platformOperationsProvider)
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => _PlatformLoadError(
+              message: 'Platform configuration is unavailable: $error',
+              onRetry: () => ref.invalidate(platformOperationsProvider),
+            ),
+            data: (status) => ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                _PlatformStatusTile(
+                  icon: Icons.email_outlined,
+                  title: 'Email provider',
+                  value: status.emailProvider,
+                  detail: status.emailStatus,
+                ),
+                _PlatformStatusTile(
+                  icon: Icons.cloud_outlined,
+                  title: 'Storage provider',
+                  value: status.storageProvider,
+                  detail: status.storageStatus,
+                ),
+                _PlatformStatusTile(
+                  icon: Icons.payments_outlined,
+                  title: 'Payment provider',
+                  value: status.paymentProvider,
+                  detail:
+                      '${status.paymentStatus}\nMode: ${status.paymentMode.toUpperCase()}',
+                ),
+                _PlatformStatusTile(
+                  icon: Icons.security_outlined,
+                  title: 'Security',
+                  value: 'Protected',
+                  detail:
+                      'Platform Owner authorization and audit logging are enabled.',
+                ),
+              ],
+            ),
+          ),
+    ),
+  );
+}
+
+class PlatformAnnouncementsScreen extends StatelessWidget {
+  const PlatformAnnouncementsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => _PlatformGuard(
+    child: Scaffold(
+      appBar: AppBar(title: const Text('Announcements')),
+      body: const _EmptyState(
+        icon: Icons.campaign_outlined,
+        message:
+            'Announcements are not available until platform notice storage is configured.',
+      ),
+    ),
+  );
+}
+
+class _PlatformStatusTile extends StatelessWidget {
+  const _PlatformStatusTile({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.detail,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: 14),
+    child: ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(detail),
+      trailing: Text(value, textAlign: TextAlign.end),
     ),
   );
 }
@@ -1311,6 +1826,14 @@ class PlatformAccountScreen extends ConsumerWidget {
                     context,
                   ).extension<AveraTextStyles>()!.pageSubtitle,
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  session.user.email,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).extension<AveraTextStyles>()!.pageSubtitle,
+                ),
                 const SizedBox(height: 24),
                 _PlatformRouteCard(
                   icon: Icons.lock_outline_rounded,
@@ -1322,7 +1845,7 @@ class PlatformAccountScreen extends ConsumerWidget {
                   icon: Icons.security_outlined,
                   title: 'Security Settings',
                   subtitle: 'Review authentication and platform security',
-                  route: '/platform/settings',
+                  route: '/platform/mfa',
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(

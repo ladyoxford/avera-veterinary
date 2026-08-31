@@ -167,7 +167,8 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/platform/users',
-          builder: (context, state) => const PlatformUsersScreen(),
+          builder: (context, state) =>
+              PlatformUsersScreen(status: state.uri.queryParameters['status']),
         ),
         GoRoute(
           path: '/platform/audit',
@@ -175,38 +176,30 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/platform/notifications',
-          builder: (context, state) => const PlatformUtilityScreen(
-            title: 'Platform Notifications',
-            message: 'No platform notifications require attention.',
-            icon: Icons.notifications_none_rounded,
-          ),
+          builder: (context, state) => const PlatformNotificationsScreen(),
         ),
         GoRoute(
           path: '/platform/email',
-          builder: (context, state) => const PlatformUtilityScreen(
-            title: 'Email Delivery',
-            message:
-                'Email delivery requires a configured secure provider backend.',
-            icon: Icons.email_outlined,
-          ),
+          builder: (context, state) =>
+              const PlatformOperationsStatusScreen(focus: 'email'),
+        ),
+        GoRoute(
+          path: '/platform/health',
+          builder: (context, state) =>
+              const PlatformOperationsStatusScreen(focus: 'system'),
         ),
         GoRoute(
           path: '/platform/storage',
-          builder: (context, state) => const PlatformUtilityScreen(
-            title: 'Storage Usage',
-            message:
-                'Storage reporting will become available after cloud storage is configured.',
-            icon: Icons.storage_outlined,
-          ),
+          builder: (context, state) =>
+              const PlatformOperationsStatusScreen(focus: 'storage'),
         ),
         GoRoute(
           path: '/platform/settings',
-          builder: (context, state) => const PlatformUtilityScreen(
-            title: 'Platform Settings',
-            message:
-                'Global settings are ready for secure backend configuration.',
-            icon: Icons.settings_outlined,
-          ),
+          builder: (context, state) => const PlatformSettingsScreen(),
+        ),
+        GoRoute(
+          path: '/platform/announcements',
+          builder: (context, state) => const PlatformAnnouncementsScreen(),
         ),
         GoRoute(
           path: '/platform/operations',
@@ -223,6 +216,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/platform/password',
           builder: (context, state) => const PlatformPasswordScreen(),
+        ),
+        GoRoute(
+          path: '/platform/mfa',
+          builder: (context, state) => const TwoFactorAuthenticationScreen(),
         ),
       ],
     ),

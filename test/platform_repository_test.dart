@@ -369,6 +369,95 @@ void main() {
   );
 
   test(
+    'subscription request sends server filters and preserves server pagination',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final session = await _platformOwnerSession(database);
+      final tokens = const TokenStore(FlutterSecureStorage());
+      await tokens.save(
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      );
+      late Uri requestedUri;
+      final repository = RemotePlatformRepository(
+        db: database,
+        apiClient: ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: tokens,
+          client: MockClient((request) async {
+            requestedUri = request.url;
+            return http.Response(
+              jsonEncode({
+                'page': 3,
+                'pageSize': 25,
+                'total': 126,
+                'hasNextPage': true,
+                'summary': {
+                  'active': 0,
+                  'expiring': 0,
+                  'expired': 126,
+                  'paymentIssues': 0,
+                  'monthlyRevenueMinor': 500000,
+                },
+                'items': [
+                  {
+                    'clinicId': 'clinic-51',
+                    'clinicName': 'Expired Clinic',
+                    'plan': 'Professional',
+                    'status': 'Expired',
+                    'billingCycle': 'monthly',
+                  },
+                ],
+                'payments': [
+                  {
+                    'reference': 'PAY-LIVE-1',
+                    'clinicName': 'Expired Clinic',
+                    'amountMinor': 500000,
+                    'currency': 'NGN',
+                    'status': 'Successful',
+                    'mode': 'live',
+                  },
+                  {
+                    'reference': 'PAY-TEST-1',
+                    'clinicName': 'Test Clinic',
+                    'amountMinor': 10000000,
+                    'currency': 'NGN',
+                    'status': 'Successful',
+                    'mode': 'test',
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final result = await repository.loadSubscriptions(
+        session,
+        status: 'Expired',
+        search: 'clinic',
+        page: 3,
+        pageSize: 25,
+      );
+
+      expect(requestedUri.queryParameters, {
+        'page': '3',
+        'pageSize': '25',
+        'status': 'Expired',
+        'search': 'clinic',
+      });
+      expect(result.total, 126);
+      expect(result.page, 3);
+      expect(result.hasNextPage, true);
+      expect(result.monthlyRevenueMinor, 500000);
+      expect(result.payments.map((payment) => payment.mode), ['live', 'test']);
+    },
+  );
+
+  test(
     'mutual deletion uses the request and confirmation backend routes',
     () async {
       final database = AppDatabase.forTesting(NativeDatabase.memory());

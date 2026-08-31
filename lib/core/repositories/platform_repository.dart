@@ -17,6 +17,9 @@ class PlatformOverviewSnapshot {
     this.currency = 'NGN',
     this.emailDeliveryStatus,
     this.systemHealthStatus,
+    this.storageStatus,
+    this.storageProvider,
+    this.storageObjectCount,
     this.storageUsedBytes,
     this.storageAvailableBytes,
     this.isOffline = false,
@@ -33,9 +36,188 @@ class PlatformOverviewSnapshot {
   final String currency;
   final String? emailDeliveryStatus;
   final String? systemHealthStatus;
+  final String? storageStatus;
+  final String? storageProvider;
+  final int? storageObjectCount;
   final int? storageUsedBytes;
   final int? storageAvailableBytes;
   final bool isOffline;
+}
+
+class PlatformSubscriptionRecord {
+  const PlatformSubscriptionRecord({
+    required this.clinicId,
+    required this.clinicName,
+    required this.plan,
+    required this.status,
+    required this.billingCycle,
+    this.email,
+    this.currentPeriodEnd,
+  });
+  final String clinicId;
+  final String clinicName;
+  final String? email;
+  final String plan;
+  final String status;
+  final String billingCycle;
+  final DateTime? currentPeriodEnd;
+}
+
+class PlatformPaymentRecord {
+  const PlatformPaymentRecord({
+    required this.reference,
+    required this.clinicName,
+    required this.amountMinor,
+    required this.currency,
+    required this.status,
+    required this.mode,
+    this.paidAt,
+  });
+  final String reference;
+  final String clinicName;
+  final int amountMinor;
+  final String currency;
+  final String status;
+  final String mode;
+  final DateTime? paidAt;
+}
+
+class PlatformSubscriptionsSnapshot {
+  const PlatformSubscriptionsSnapshot({
+    required this.items,
+    required this.payments,
+    required this.total,
+    required this.active,
+    required this.expiring,
+    required this.expired,
+    required this.paymentIssues,
+    required this.monthlyRevenueMinor,
+    required this.page,
+    required this.pageSize,
+    required this.hasNextPage,
+  });
+  final List<PlatformSubscriptionRecord> items;
+  final List<PlatformPaymentRecord> payments;
+  final int total;
+  final int active;
+  final int expiring;
+  final int expired;
+  final int paymentIssues;
+  final int monthlyRevenueMinor;
+  final int page;
+  final int pageSize;
+  final bool hasNextPage;
+}
+
+class PlatformUserRecord {
+  const PlatformUserRecord({
+    required this.userId,
+    required this.fullName,
+    required this.email,
+    required this.accountType,
+    required this.status,
+    this.lastLoginAt,
+  });
+  final String userId;
+  final String fullName;
+  final String email;
+  final String accountType;
+  final String status;
+  final DateTime? lastLoginAt;
+}
+
+class PlatformUserPage {
+  const PlatformUserPage({required this.items, required this.total});
+  final List<PlatformUserRecord> items;
+  final int total;
+}
+
+class PlatformAuditRecord {
+  const PlatformAuditRecord({
+    required this.auditId,
+    required this.action,
+    required this.targetType,
+    required this.createdAt,
+    required this.success,
+    this.actorName,
+    this.clinicName,
+    this.reason,
+    this.targetId,
+    this.previousSummary,
+    this.newSummary,
+  });
+  final String auditId;
+  final String action;
+  final String targetType;
+  final DateTime createdAt;
+  final bool success;
+  final String? actorName;
+  final String? clinicName;
+  final String? reason;
+  final String? targetId;
+  final Map<String, dynamic>? previousSummary;
+  final Map<String, dynamic>? newSummary;
+}
+
+class PlatformAuditPage {
+  const PlatformAuditPage({required this.items, required this.total});
+  final List<PlatformAuditRecord> items;
+  final int total;
+}
+
+class PlatformNotificationRecord {
+  const PlatformNotificationRecord({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.severity,
+    required this.route,
+    required this.createdAt,
+  });
+  final String id;
+  final String title;
+  final String message;
+  final String severity;
+  final String route;
+  final DateTime createdAt;
+}
+
+class PlatformNotificationSnapshot {
+  const PlatformNotificationSnapshot({
+    required this.items,
+    required this.supportsReadState,
+  });
+  final List<PlatformNotificationRecord> items;
+  final bool supportsReadState;
+}
+
+class PlatformOperationsSnapshot {
+  const PlatformOperationsSnapshot({
+    required this.systemStatus,
+    required this.databaseStatus,
+    required this.emailStatus,
+    required this.storageStatus,
+    required this.emailProvider,
+    required this.storageProvider,
+    required this.objectCount,
+    required this.lastAttemptAt,
+    required this.isUnavailable,
+    required this.paymentProvider,
+    required this.paymentMode,
+    required this.paymentStatus,
+  });
+  final String systemStatus;
+  final String databaseStatus;
+  final String emailStatus;
+  final String storageStatus;
+  final String emailProvider;
+  final String storageProvider;
+  final int? objectCount;
+  final DateTime? lastAttemptAt;
+  final bool isUnavailable;
+  final String paymentProvider;
+  final String paymentMode;
+  final String paymentStatus;
 }
 
 class PlatformAdministratorActivation {
@@ -213,6 +395,34 @@ abstract interface class PlatformRepository {
     required String clinicId,
     required String plan,
   });
+
+  Future<PlatformSubscriptionsSnapshot> loadSubscriptions(
+    UserSession session, {
+    String? status,
+    String? search,
+    int page = 1,
+    int pageSize = 25,
+  });
+
+  Future<PlatformUserPage> loadPlatformUsers(
+    UserSession session, {
+    String? status,
+  });
+
+  Future<void> updatePlatformUserStatus({
+    required UserSession session,
+    required String userId,
+    required String status,
+    String? reason,
+  });
+
+  Future<PlatformAuditPage> loadPlatformAuditLogs(UserSession session);
+
+  Future<PlatformNotificationSnapshot> loadPlatformNotifications(
+    UserSession session,
+  );
+
+  Future<PlatformOperationsSnapshot> loadOperations(UserSession session);
 }
 
 class LocalPlatformRepository implements PlatformRepository {
@@ -376,6 +586,86 @@ class LocalPlatformRepository implements PlatformRepository {
     return (await loadClinic(session, clinicId))!;
   }
 
+  @override
+  Future<PlatformSubscriptionsSnapshot> loadSubscriptions(
+    UserSession session, {
+    String? status,
+    String? search,
+    int page = 1,
+    int pageSize = 25,
+  }) async {
+    _ensurePlatformOwner(session);
+    return PlatformSubscriptionsSnapshot(
+      items: [],
+      payments: [],
+      total: 0,
+      active: 0,
+      expiring: 0,
+      expired: 0,
+      paymentIssues: 0,
+      monthlyRevenueMinor: 0,
+      page: page,
+      pageSize: pageSize,
+      hasNextPage: false,
+    );
+  }
+
+  @override
+  Future<PlatformUserPage> loadPlatformUsers(
+    UserSession session, {
+    String? status,
+  }) async {
+    _ensurePlatformOwner(session);
+    return const PlatformUserPage(items: [], total: 0);
+  }
+
+  @override
+  Future<void> updatePlatformUserStatus({
+    required UserSession session,
+    required String userId,
+    required String status,
+    String? reason,
+  }) async {
+    _ensurePlatformOwner(session);
+    throw StateError('Platform account management requires the AVERA backend.');
+  }
+
+  @override
+  Future<PlatformAuditPage> loadPlatformAuditLogs(UserSession session) async {
+    _ensurePlatformOwner(session);
+    return const PlatformAuditPage(items: [], total: 0);
+  }
+
+  @override
+  Future<PlatformNotificationSnapshot> loadPlatformNotifications(
+    UserSession session,
+  ) async {
+    _ensurePlatformOwner(session);
+    return const PlatformNotificationSnapshot(
+      items: [],
+      supportsReadState: false,
+    );
+  }
+
+  @override
+  Future<PlatformOperationsSnapshot> loadOperations(UserSession session) async {
+    _ensurePlatformOwner(session);
+    return const PlatformOperationsSnapshot(
+      systemStatus: 'Unavailable',
+      databaseStatus: 'Local development',
+      emailStatus: 'Unavailable',
+      storageStatus: 'Unavailable',
+      emailProvider: 'Resend',
+      storageProvider: 'Supabase Storage',
+      objectCount: null,
+      lastAttemptAt: null,
+      isUnavailable: true,
+      paymentProvider: 'Paystack',
+      paymentMode: 'Unavailable',
+      paymentStatus: 'Unavailable',
+    );
+  }
+
   void _ensurePlatformOwner(UserSession session) {
     if (!session.isPlatformOwner) {
       throw StateError('Platform Owner authorization is required.');
@@ -508,6 +798,11 @@ class RemotePlatformRepository implements PlatformRepository {
         recentClinics: recent,
         monthlyRevenue: _integer(response['monthlyRevenueMinor']) / 100,
         currency: response['currency'] as String? ?? 'NGN',
+        emailDeliveryStatus: response['emailDeliveryStatus'] as String?,
+        systemHealthStatus: response['systemHealthStatus'] as String?,
+        storageStatus: response['storageStatus'] as String?,
+        storageProvider: response['storageProvider'] as String?,
+        storageObjectCount: _nullableInteger(response['storageObjectCount']),
       );
     } on ApiException {
       onOfflineChanged?.call(true);
@@ -526,6 +821,9 @@ class RemotePlatformRepository implements PlatformRepository {
         systemHealthStatus: cached.systemHealthStatus,
         storageUsedBytes: cached.storageUsedBytes,
         storageAvailableBytes: cached.storageAvailableBytes,
+        storageStatus: cached.storageStatus,
+        storageProvider: cached.storageProvider,
+        storageObjectCount: cached.storageObjectCount,
         isOffline: true,
       );
     }
@@ -779,6 +1077,202 @@ class RemotePlatformRepository implements PlatformRepository {
     return clinic;
   }
 
+  @override
+  Future<PlatformSubscriptionsSnapshot> loadSubscriptions(
+    UserSession session, {
+    String? status,
+    String? search,
+    int page = 1,
+    int pageSize = 25,
+  }) async {
+    _ensurePlatformAccount(session);
+    final query = <String, String>{
+      'page': '$page',
+      'pageSize': '$pageSize',
+      if (status?.trim().isNotEmpty == true) 'status': status!.trim(),
+      if (search?.trim().isNotEmpty == true) 'search': search!.trim(),
+    };
+    final response = await _apiClient.get(
+      Uri(
+        path: '/api/v1/platform/subscriptions',
+        queryParameters: query,
+      ).toString(),
+    );
+    final summary = response['summary'] as Map<String, dynamic>? ?? const {};
+    return PlatformSubscriptionsSnapshot(
+      items: _maps(response['items'])
+          .map(
+            (json) => PlatformSubscriptionRecord(
+              clinicId: json['clinicId'] as String,
+              clinicName: json['clinicName'] as String? ?? 'Unnamed Clinic',
+              email: json['email'] as String?,
+              plan: json['plan'] as String? ?? 'Unknown',
+              status: json['status'] as String? ?? 'Pending',
+              billingCycle: json['billingCycle'] as String? ?? 'monthly',
+              currentPeriodEnd: _date(json['currentPeriodEnd']),
+            ),
+          )
+          .toList(growable: false),
+      payments: _maps(response['payments'])
+          .map(
+            (json) => PlatformPaymentRecord(
+              reference: json['reference'] as String? ?? 'Unknown reference',
+              clinicName: json['clinicName'] as String? ?? 'Unknown clinic',
+              amountMinor: _integer(json['amountMinor']),
+              currency: json['currency'] as String? ?? 'NGN',
+              status: json['status'] as String? ?? 'Pending',
+              mode: json['mode'] as String? ?? 'unknown',
+              paidAt: _date(json['paidAt']),
+            ),
+          )
+          .toList(growable: false),
+      total: _integer(response['total']),
+      active: _integer(summary['active']),
+      expiring: _integer(summary['expiring']),
+      expired: _integer(summary['expired']),
+      paymentIssues: _integer(summary['paymentIssues']),
+      monthlyRevenueMinor: _integer(summary['monthlyRevenueMinor']),
+      page: _integer(response['page']) == 0 ? page : _integer(response['page']),
+      pageSize: _integer(response['pageSize']) == 0
+          ? pageSize
+          : _integer(response['pageSize']),
+      hasNextPage: response['hasNextPage'] as bool? ?? false,
+    );
+  }
+
+  @override
+  Future<PlatformUserPage> loadPlatformUsers(
+    UserSession session, {
+    String? status,
+  }) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.get(
+      Uri(
+        path: '/api/v1/platform/users',
+        queryParameters: {
+          'pageSize': '100',
+          if (status?.trim().isNotEmpty == true) 'status': status!.trim(),
+        },
+      ).toString(),
+    );
+    return PlatformUserPage(
+      total: _integer(response['total']),
+      items: _maps(response['items'])
+          .map(
+            (json) => PlatformUserRecord(
+              userId: json['userId'] as String,
+              fullName: json['fullName'] as String? ?? 'Unnamed user',
+              email: json['email'] as String? ?? '',
+              accountType:
+                  json['accountType'] as String? ?? 'PlatformAdministrator',
+              status: json['status'] as String? ?? 'Unknown',
+              lastLoginAt: _date(json['lastLoginAt']),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<void> updatePlatformUserStatus({
+    required UserSession session,
+    required String userId,
+    required String status,
+    String? reason,
+  }) async {
+    _ensurePlatformAccount(session);
+    await _apiClient.patch(
+      '/api/v1/platform/users/${Uri.encodeComponent(userId)}/status',
+      body: {
+        'status': status,
+        if (reason?.trim().isNotEmpty == true) 'reason': reason!.trim(),
+      },
+    );
+  }
+
+  @override
+  Future<PlatformAuditPage> loadPlatformAuditLogs(UserSession session) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.get(
+      '/api/v1/platform/audit-logs?pageSize=100',
+    );
+    return PlatformAuditPage(
+      total: _integer(response['total']),
+      items: _maps(response['items'])
+          .map(
+            (json) => PlatformAuditRecord(
+              auditId: json['auditId'] as String,
+              action: json['action'] as String? ?? 'Unknown action',
+              targetType: json['targetType'] as String? ?? 'Unknown target',
+              createdAt:
+                  _date(json['createdAt']) ??
+                  DateTime.fromMillisecondsSinceEpoch(0),
+              success: json['success'] as bool? ?? true,
+              actorName: json['actorName'] as String?,
+              clinicName: json['clinicName'] as String?,
+              reason: json['reason'] as String?,
+              targetId: json['targetId'] as String?,
+              previousSummary: json['previousSummary'] is Map
+                  ? Map<String, dynamic>.from(json['previousSummary'] as Map)
+                  : null,
+              newSummary: json['newSummary'] is Map
+                  ? Map<String, dynamic>.from(json['newSummary'] as Map)
+                  : null,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<PlatformNotificationSnapshot> loadPlatformNotifications(
+    UserSession session,
+  ) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.get('/api/v1/platform/notifications');
+    return PlatformNotificationSnapshot(
+      supportsReadState: response['supportsReadState'] as bool? ?? false,
+      items: _maps(response['items'])
+          .map(
+            (json) => PlatformNotificationRecord(
+              id: json['id'] as String,
+              title: json['title'] as String? ?? 'Platform notification',
+              message: json['message'] as String? ?? '',
+              severity: json['severity'] as String? ?? 'info',
+              route: json['route'] as String? ?? '/platform',
+              createdAt:
+                  _date(json['createdAt']) ??
+                  DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<PlatformOperationsSnapshot> loadOperations(UserSession session) async {
+    _ensurePlatformAccount(session);
+    final response = await _apiClient.get('/api/v1/platform/operations/status');
+    final system = response['system'] as Map<String, dynamic>? ?? const {};
+    final email = response['email'] as Map<String, dynamic>? ?? const {};
+    final storage = response['storage'] as Map<String, dynamic>? ?? const {};
+    final payments = response['payments'] as Map<String, dynamic>? ?? const {};
+    return PlatformOperationsSnapshot(
+      systemStatus: system['status'] as String? ?? 'Unknown',
+      databaseStatus: system['database'] as String? ?? 'Unknown',
+      emailStatus: email['status'] as String? ?? 'Unknown',
+      storageStatus: storage['status'] as String? ?? 'Unknown',
+      emailProvider: email['provider'] as String? ?? 'Resend',
+      storageProvider: storage['provider'] as String? ?? 'Supabase Storage',
+      objectCount: _nullableInteger(storage['objectCount']),
+      lastAttemptAt: _date(email['lastAttemptAt']),
+      isUnavailable: false,
+      paymentProvider: payments['provider'] as String? ?? 'Paystack',
+      paymentMode: payments['mode'] as String? ?? 'Not configured',
+      paymentStatus: payments['status'] as String? ?? 'Not configured',
+    );
+  }
+
   void _ensurePlatformAccount(UserSession session) {
     if (!session.isPlatformAccount) {
       throw StateError('Platform administration authorization is required.');
@@ -893,6 +1387,11 @@ class RemotePlatformRepository implements PlatformRepository {
 int _integer(Object? value) => (value as num?)?.toInt() ?? 0;
 
 int? _nullableInteger(Object? value) => (value as num?)?.toInt();
+
+List<Map<String, dynamic>> _maps(Object? value) =>
+    (value as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList(growable: false);
 
 String _normalizeStatus(String? value) {
   final normalized = value?.toLowerCase();

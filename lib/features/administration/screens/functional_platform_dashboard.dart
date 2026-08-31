@@ -213,7 +213,7 @@ class _OverviewBody extends StatelessWidget {
                           icon: Icons.monitor_heart_outlined,
                           color: scheme.onSurfaceVariant,
                           compactValue: true,
-                          onTap: () => context.go('/platform/settings'),
+                          onTap: () => context.go('/platform/health'),
                         ),
                         _StatCard(
                           fullWidth: true,
@@ -268,7 +268,7 @@ class _OverviewBody extends StatelessWidget {
                           icon: Icons.campaign_outlined,
                           title: 'Announcements',
                           description: 'Create and publish platform notices',
-                          route: '/platform/notifications',
+                          route: '/platform/announcements',
                         ),
                       ],
                     ),
@@ -759,6 +759,12 @@ String _money(double amount, String currency) =>
     '$currency ${amount.toStringAsFixed(2)}';
 
 String _storageLabel(PlatformOverviewSnapshot overview) {
+  if (overview.storageStatus != null) {
+    final count = overview.storageObjectCount;
+    return count == null
+        ? overview.storageStatus!
+        : '${overview.storageStatus} • $count objects';
+  }
   final used = overview.storageUsedBytes;
   final available = overview.storageAvailableBytes;
   if (used == null || available == null) return 'Health data unavailable';

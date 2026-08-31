@@ -939,6 +939,16 @@ class ClinicalRemoteDataSource {
     String? search,
   }) => _generic('/api/v1/vaccinations', page: page, search: search);
 
+  Future<List<Map<String, dynamic>>> reportConsultations({
+    required DateTime from,
+    required DateTime to,
+  }) => _allGeneric('/api/v1/consultations', from: from, to: to);
+
+  Future<List<Map<String, dynamic>>> reportVaccinations({
+    required DateTime from,
+    required DateTime to,
+  }) => _allGeneric('/api/v1/vaccinations', from: from, to: to);
+
   Future<RemotePage<RemoteVaccinationRecord>> vaccinationSchedule({
     int page = 1,
     int pageSize = 100,
@@ -1369,6 +1379,31 @@ class ClinicalRemoteDataSource {
       }),
     );
     return _page(response, (value) => value);
+  }
+
+  Future<List<Map<String, dynamic>>> _allGeneric(
+    String path, {
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final items = <Map<String, dynamic>>[];
+    var page = 1;
+    var hasNext = true;
+    while (hasNext) {
+      final response = await _client.get(
+        _path(path, {
+          'page': '$page',
+          'pageSize': '100',
+          'from': from.toUtc().toIso8601String(),
+          'to': to.toUtc().toIso8601String(),
+        }),
+      );
+      final result = _page(response, (value) => value);
+      items.addAll(result.items);
+      hasNext = result.hasNextPage;
+      page += 1;
+    }
+    return items;
   }
 
   RemotePage<T> _page<T>(

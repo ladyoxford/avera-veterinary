@@ -5933,7 +5933,9 @@ class ClinicRepository {
                 batchNumberSnapshot: Value(item.batchNumber),
                 quantity: product.quantity,
                 unitPrice: item.sellingPrice,
-                unitCostSnapshot: Value(item.buyingPrice),
+                unitCostSnapshot: Value(
+                  item.buyingPrice > 0 ? item.buyingPrice : null,
+                ),
                 lineTotal: lineTotal,
               ),
             );
@@ -8685,7 +8687,9 @@ class ClinicRepository {
                 batchNumberSnapshot: Value(item.batchNumber),
                 quantity: product.quantity,
                 unitPrice: item.sellingPrice,
-                unitCostSnapshot: Value(item.buyingPrice),
+                unitCostSnapshot: Value(
+                  item.buyingPrice > 0 ? item.buyingPrice : null,
+                ),
                 lineTotal: lineTotal,
               ),
             );

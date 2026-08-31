@@ -14,6 +14,9 @@ import 'package:printing/printing.dart';
 
 import '../../../core/config/app_providers.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/remote/api_client.dart';
+import '../../../core/remote/cloud_clinical_state.dart';
+import '../../../core/repositories/clinic_repository.dart';
 import '../../../core/services/clinic_document_branding.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
@@ -74,34 +77,58 @@ class ReportsScreen extends StatelessWidget {
     ];
     return Scaffold(
       appBar: AppBar(title: const Text('Reports')),
-      body: ListView.separated(
+      body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AveraSpacing.pageHorizontalPadding,
           AveraSpacing.pageTopPadding,
           AveraSpacing.pageHorizontalPadding,
           AveraSpacing.bottomContentClearance,
         ),
-        itemCount: reports.length + 1,
-        separatorBuilder: (_, index) => SizedBox(
-          height: index == 0
-              ? AveraSpacing.subtitleToContentGap
-              : AveraSpacing.cardGap,
-        ),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Text(
-              'Generate reports from this clinic\'s saved records.',
-              style: averaText(context).pageSubtitle,
-            );
-          }
-          final report = reports[index - 1];
-          return AveraAdministrationCard(
-            icon: report.icon,
-            title: report.title,
-            subtitle: report.subtitle,
-            onTap: () => context.push('/reports/${report.type.routeKey}'),
-          );
-        },
+        children: [
+          Text(
+            'Generate reports from this clinic\'s saved records.',
+            style: averaText(context).pageSubtitle,
+          ),
+          const SizedBox(height: AveraSpacing.subtitleToContentGap),
+          for (var index = 0; index < reports.length; index++) ...[
+            if (index > 0) const SizedBox(height: AveraSpacing.cardGap),
+            AveraAdministrationCard(
+              icon: reports[index].icon,
+              title: reports[index].title,
+              subtitle: reports[index].subtitle,
+              onTap: () =>
+                  context.push('/reports/${reports[index].type.routeKey}'),
+            ),
+          ],
+          const SizedBox(height: AveraSpacing.sectionGap),
+          Text(
+            'DATA IMPORT & EXPORT',
+            style: averaText(context).sectionLabel.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Bring in existing records, or back up what\'s here.',
+            style: averaText(context).caption,
+          ),
+          const SizedBox(height: 12),
+          AveraAdministrationCard(
+            icon: Icons.upload_file_rounded,
+            title: 'Import Inventory',
+            subtitle:
+                'Bring in products from Excel, CSV, or supported scanned documents.',
+            onTap: () => context.push('/reports/import-inventory'),
+          ),
+          const SizedBox(height: AveraSpacing.cardGap),
+          AveraAdministrationCard(
+            icon: Icons.download_rounded,
+            title: 'Export Records',
+            subtitle:
+                'Download clinic data as Excel or PDF for backup or accounting.',
+            onTap: () => context.push('/reports/export-records'),
+          ),
+        ],
       ),
     );
   }
@@ -230,6 +257,9 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
   Future<_ReportData> _load() async {
     final session = await ref.read(userSessionProvider.future);
+    if (BackendConfiguration.isConfigured) {
+      return _loadRemote(session);
+    }
     final db = ref.read(databaseProvider);
     final clinicId = session.clinic.clinicId;
     final animals = await (db.select(
@@ -309,9 +339,11 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             item.drugName,
             item.category,
             '${item.quantity}',
-            _money(item.buyingPrice),
+            item.buyingPrice <= 0 ? 'Missing' : _money(item.buyingPrice),
             _money(item.sellingPrice),
-            _money(item.quantity * item.buyingPrice),
+            item.buyingPrice <= 0
+                ? 'Missing'
+                : _money(item.quantity * item.buyingPrice),
             _money(item.quantity * item.sellingPrice),
             item.quantity <= item.minimumQuantity ? 'Low' : 'Normal',
             expired
@@ -369,6 +401,144 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
             vaccination.batchNumber ?? '-',
             vaccination.manufacturer ?? '-',
             vaccination.veterinarian ?? vaccination.administeredBy ?? '-',
+          ]);
+        }
+    }
+    return _ReportData(
+      branding: ClinicDocumentBranding.fromSession(session),
+      title: _title,
+      rangeLabel: widget.type == ClinicReportType.inventoryValue
+          ? 'Current inventory'
+          : '${DateFormat.yMMMd().format(_range.start)} - ${DateFormat.yMMMd().format(_range.end)}',
+      headers: headers,
+      rows: rows,
+    );
+  }
+
+  Future<_ReportData> _loadRemote(UserSession session) async {
+    final rows = <List<String>>[];
+    final headers = <String>[];
+    final source = ref.read(clinicalRemoteDataSourceProvider);
+    final from = DateTime(
+      _range.start.year,
+      _range.start.month,
+      _range.start.day,
+    );
+    final to = DateTime(
+      _range.end.year,
+      _range.end.month,
+      _range.end.day + 1,
+    ).subtract(const Duration(microseconds: 1));
+
+    switch (widget.type) {
+      case ClinicReportType.dailyConsultations:
+        headers.addAll([
+          'Date',
+          'Patient',
+          'Hospital No.',
+          'Owner',
+          'Veterinarian',
+          'Complaint',
+          'Diagnosis',
+          'Treatment',
+          'Status',
+        ]);
+        final records = await source.reportConsultations(from: from, to: to);
+        for (final item in records) {
+          final occurredAt = DateTime.tryParse('${item['occurred_at']}');
+          rows.add([
+            occurredAt == null
+                ? '-'
+                : DateFormat.yMMMd().add_jm().format(occurredAt.toLocal()),
+            '${item['patient_name'] ?? 'Patient unavailable'}',
+            '${item['hospital_number'] ?? '-'}',
+            '${item['owner_name'] ?? '-'}',
+            '${item['clinician_name_snapshot'] ?? '-'}',
+            '${item['chief_complaint'] ?? '-'}',
+            '${item['final_diagnosis'] ?? '-'}',
+            '${item['treatment'] ?? '-'}',
+            '${item['status'] ?? '-'}',
+          ]);
+        }
+      case ClinicReportType.inventoryValue:
+        headers.addAll([
+          'Product',
+          'Category',
+          'Quantity',
+          'Unit Cost',
+          'Selling Price',
+          'Cost Value',
+          'Retail Value',
+          'Stock',
+          'Expiry',
+          'Batch',
+        ]);
+        await ref.read(remoteInventoryListProvider.notifier).refresh();
+        final items = ref.read(remoteInventoryListProvider).items;
+        final now = DateTime.now();
+        for (final item in items.where((item) => !item.isArchived)) {
+          final cost = item.purchasePrice.toDouble();
+          final selling = item.sellingPrice.toDouble();
+          final expired = item.expiryDate?.isBefore(now) == true;
+          rows.add([
+            item.name,
+            item.categoryName,
+            '${item.quantity}',
+            cost <= 0 ? 'Missing' : _money(cost),
+            _money(selling),
+            cost <= 0 ? 'Missing' : _money(item.quantity * cost),
+            _money(item.quantity * selling),
+            item.quantity <= item.reorderLevel ? 'Low' : 'Normal',
+            expired
+                ? 'Expired'
+                : item.expiryDate == null
+                ? '-'
+                : DateFormat.yMMMd().format(item.expiryDate!),
+            item.batchNumber ?? '-',
+          ]);
+        }
+      case ClinicReportType.vaccination:
+        headers.addAll([
+          'Patient',
+          'Hospital No.',
+          'Species',
+          'Breed',
+          'Vaccine',
+          'Date Given',
+          'Due Date',
+          'Status',
+          'Batch',
+          'Manufacturer',
+          'Veterinarian',
+        ]);
+        final records = await source.reportVaccinations(from: from, to: to);
+        for (final item in records) {
+          final administered = DateTime.tryParse('${item['administered_at']}');
+          final due = item['next_due_at'] == null
+              ? null
+              : DateTime.tryParse('${item['next_due_at']}');
+          final status = _vaccinationStatusFromValues(
+            '${item['status'] ?? ''}',
+            due,
+          );
+          if (_vaccinationFilter != 'All' &&
+              !_matchesVaccinationFilter(status, _vaccinationFilter)) {
+            continue;
+          }
+          rows.add([
+            '${item['patient_name'] ?? 'Patient unavailable'}',
+            '${item['hospital_number'] ?? '-'}',
+            '${item['species'] ?? '-'}',
+            '${item['breed'] ?? '-'}',
+            '${item['vaccine_name'] ?? '-'}',
+            administered == null
+                ? '-'
+                : DateFormat.yMMMd().format(administered.toLocal()),
+            due == null ? '-' : DateFormat.yMMMd().format(due.toLocal()),
+            status,
+            '${item['batch_number'] ?? '-'}',
+            '${item['manufacturer'] ?? '-'}',
+            '-',
           ]);
         }
     }
@@ -734,6 +904,19 @@ String _vaccinationStatus(Vaccination vaccination) {
   final start = DateTime(today.year, today.month, today.day);
   if (due.isBefore(start)) return 'Overdue';
   if (due.isBefore(start.add(const Duration(days: 1)))) return 'Due';
+  return 'Upcoming';
+}
+
+String _vaccinationStatusFromValues(String storedStatus, DateTime? due) {
+  if (storedStatus.toLowerCase().contains('completed') || due == null) {
+    return 'Completed';
+  }
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final localDue = due.toLocal();
+  final dueDay = DateTime(localDue.year, localDue.month, localDue.day);
+  if (dueDay.isBefore(today)) return 'Overdue';
+  if (dueDay == today) return 'Due';
   return 'Upcoming';
 }
 

@@ -35,6 +35,7 @@ import '../../features/consultation/screens/cloud_consultation_edit_screen.dart'
 import '../../features/inventory/screens/inventory_screen.dart';
 import '../../features/farm/widgets/farm_back_navigation.dart';
 import '../../features/reports/screens/reports_screen.dart';
+import '../../features/reports/screens/inventory_transfer_screens.dart';
 import '../../features/shared/screens/appointments_screen.dart';
 import '../../features/shared/screens/backup_screen.dart';
 import '../../features/shared/screens/clinic_operations_screens.dart';
@@ -554,6 +555,20 @@ final appRouter = GoRouter(
           builder: (context, state) => const FeatureGate(
             feature: AveraFeature.reports,
             child: ReportsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/reports/import-inventory',
+          builder: (context, state) => const FeatureGate(
+            feature: AveraFeature.inventory,
+            child: ImportInventoryScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/reports/export-records',
+          builder: (context, state) => const FeatureGate(
+            feature: AveraFeature.reports,
+            child: ExportRecordsScreen(),
           ),
         ),
         GoRoute(

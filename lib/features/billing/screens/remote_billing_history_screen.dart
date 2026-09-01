@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import 'package:uuid/uuid.dart';
@@ -148,7 +149,6 @@ class _RemoteBillingHistoryScreenState
                       'Partially paid',
                       'Paid',
                       'Refunded',
-                      'Voided',
                       'Cancelled',
                     ])
                       Padding(
@@ -199,6 +199,9 @@ class _RemoteBillingHistoryScreenState
                   invoice: invoice,
                   currency: widget.session.clinic.currency,
                   onTap: () => _openInvoice(invoice.id),
+                  onLongPress: widget.session.can(Permissions.billingVoid)
+                      ? () => _showInvoiceActions(invoice)
+                      : null,
                 ),
                 const SizedBox(height: AveraSpacing.cardGap),
               ],
@@ -309,6 +312,93 @@ class _RemoteBillingHistoryScreenState
     }
   }
 
+  Future<void> _showInvoiceActions(_RemoteInvoiceSummary invoice) async {
+    await HapticFeedback.selectionClick();
+    if (!mounted) return;
+    final scheme = Theme.of(context).colorScheme;
+    final selected = await showAveraActionSheet<bool>(
+      context: context,
+      title: 'Invoice Actions',
+      description: invoice.number,
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(Icons.block_outlined, color: scheme.error),
+            title: Text(
+              'Void Invoice',
+              style: TextStyle(
+                color: scheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: const Text(
+              'Remove this invoice from active billing and revenue.',
+            ),
+            onTap: () => Navigator.pop(sheetContext, true),
+          ),
+          ListTile(
+            leading: const Icon(Icons.close_rounded),
+            title: const Text('Cancel'),
+            onTap: () => Navigator.pop(sheetContext),
+          ),
+        ],
+      ),
+    );
+    if (selected != true || !mounted) return;
+    final reason = await _voidReason(invoice.number);
+    if (reason == null || !mounted) return;
+    try {
+      await ref
+          .read(clinicalRemoteDataSourceProvider)
+          .voidInvoice(invoiceId: invoice.id, reason: reason);
+      _message('Invoice voided and moved to Records Archive.');
+      _reload();
+    } catch (error) {
+      _message('The invoice could not be voided. $error');
+    }
+  }
+
+  Future<String?> _voidReason(String reference) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Void invoice?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$reference will be excluded from active billing and revenue. If it affected stock, that movement will be reversed.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(labelText: 'Reason'),
+              maxLength: 500,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Void'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
   Future<void> _print(InvoicePresentation invoice) async {
     try {
       final bytes = await const InvoicePdfService().build(invoice);
@@ -402,17 +492,20 @@ class _RemoteInvoiceCard extends StatelessWidget {
     required this.invoice,
     required this.currency,
     required this.onTap,
+    this.onLongPress,
   });
 
   final _RemoteInvoiceSummary invoice;
   final String currency;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) => AveraSurfaceCard(
     padding: EdgeInsets.zero,
     child: InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.all(AveraSpacing.cardPadding),
         child: Row(

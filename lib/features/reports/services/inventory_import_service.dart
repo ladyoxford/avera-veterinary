@@ -480,23 +480,34 @@ class InventoryImportParser {
       String? reason;
       final sku = _normal(candidate.sku ?? '');
       final barcode = _normal(candidate.barcode ?? '');
-      for (final item in existing) {
-        if (sku.isNotEmpty && sku == _normal(item.sku ?? '')) {
-          match = item;
-          reason = 'Exact SKU match';
-          break;
-        }
-        if (barcode.isNotEmpty && barcode == _normal(item.barcode ?? '')) {
-          match = item;
-          reason = 'Exact barcode match';
-          break;
-        }
-        if (_normal(candidate.name) == _normal(item.name) &&
-            candidate.categoryId == item.categoryId) {
-          match = item;
-          reason = 'Same product name and category';
-          break;
-        }
+      final existingItems = existing.toList(growable: false);
+      if (sku.isNotEmpty) {
+        match = existingItems.cast<InventoryExistingProduct?>().firstWhere(
+          (item) => item != null && sku == _normal(item.sku ?? ''),
+          orElse: () => null,
+        );
+        if (match != null) reason = 'Exact SKU match';
+      }
+      if (match == null && barcode.isNotEmpty) {
+        match = existingItems.cast<InventoryExistingProduct?>().firstWhere(
+          (item) => item != null && barcode == _normal(item.barcode ?? ''),
+          orElse: () => null,
+        );
+        if (match != null) reason = 'Exact barcode match';
+      }
+      if (match == null) {
+        final candidateCategory = InventoryCategories.canonicalId(
+          candidate.categoryId,
+        );
+        match = existingItems.cast<InventoryExistingProduct?>().firstWhere(
+          (item) =>
+              item != null &&
+              _normal(candidate.name) == _normal(item.name) &&
+              candidateCategory ==
+                  InventoryCategories.canonicalId(item.categoryId),
+          orElse: () => null,
+        );
+        if (match != null) reason = 'Same product name and category';
       }
       if (match != null) {
         matches.add(

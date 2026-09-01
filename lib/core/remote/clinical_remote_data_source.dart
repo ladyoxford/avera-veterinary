@@ -1084,6 +1084,27 @@ class ClinicalRemoteDataSource {
     );
   }
 
+  Future<RemoteInventoryItem> archiveInventoryItem({
+    required String inventoryProductId,
+    required String reason,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/inventory/products/$inventoryProductId/archive',
+      body: {'reason': reason},
+      authenticated: true,
+    );
+    return RemoteInventoryItem.fromJson(
+      Map<String, dynamic>.from(response['item'] as Map),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> archivedInventory() async {
+    final response = await _client.get('/api/v1/inventory/archive');
+    return (response['items'] as List<dynamic>? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
   Future<RemoteInventoryItem> addInventoryStock({
     required String inventoryProductId,
     required int quantityToAdd,
@@ -1257,6 +1278,23 @@ class ClinicalRemoteDataSource {
       authenticated: true,
     ),
   );
+  Future<Map<String, dynamic>> voidInvoice({
+    required String invoiceId,
+    required String reason,
+  }) async => Map<String, dynamic>.from(
+    await _client.post(
+      '/api/v1/invoices/$invoiceId/void',
+      body: {'reason': reason},
+      authenticated: true,
+    ),
+  );
+  Future<List<Map<String, dynamic>>> archivedInvoices() async {
+    final response = await _client.get('/api/v1/invoices/archive');
+    return (response['items'] as List<dynamic>? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
   Future<RemotePage<Map<String, dynamic>>> payments({
     int page = 1,
     String? search,

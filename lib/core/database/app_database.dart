@@ -1218,7 +1218,7 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
-  static const currentSchemaVersion = 33;
+  static const currentSchemaVersion = 34;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -1965,6 +1965,17 @@ class AppDatabase extends _$AppDatabase {
           "('medical equipment & instruments', 'laboratory equipment', "
           "'office & administrative supplies')",
         );
+      }
+      if (from < 34) {
+        if (!await _hasColumn('invoices', 'voided_at')) {
+          await m.addColumn(invoices, invoices.voidedAt);
+        }
+        if (!await _hasColumn('invoices', 'voided_by_user_id')) {
+          await m.addColumn(invoices, invoices.voidedByUserId);
+        }
+        if (!await _hasColumn('invoices', 'void_reason')) {
+          await m.addColumn(invoices, invoices.voidReason);
+        }
       }
     },
   );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
@@ -145,7 +146,6 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
                       'Partially paid',
                       'Paid',
                       'Refunded',
-                      'Voided',
                     ])
                       Padding(
                         padding: const EdgeInsets.only(right: 8),
@@ -195,6 +195,13 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
                   entry: entry,
                   currency: session.clinic.currency,
                   onTap: () => _openInvoice(entry.invoice.id, session),
+                  onLongPress: session.can(Permissions.billingVoid)
+                      ? () => _showInvoiceActions(
+                          entry.invoice.id,
+                          entry.invoice.reference,
+                          session,
+                        )
+                      : null,
                 ),
                 const SizedBox(height: AveraSpacing.cardGap),
               ],
@@ -448,6 +455,46 @@ class _BillingHistoryScreenState extends ConsumerState<BillingHistoryScreen> {
     }
   }
 
+  Future<void> _showInvoiceActions(
+    int invoiceId,
+    String reference,
+    UserSession session,
+  ) async {
+    await HapticFeedback.selectionClick();
+    if (!mounted) return;
+    final scheme = Theme.of(context).colorScheme;
+    final selected = await showAveraActionSheet<bool>(
+      context: context,
+      title: 'Invoice Actions',
+      description: reference,
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(Icons.block_outlined, color: scheme.error),
+            title: Text(
+              'Void Invoice',
+              style: TextStyle(
+                color: scheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: const Text(
+              'Remove this invoice from active billing and revenue.',
+            ),
+            onTap: () => Navigator.pop(sheetContext, true),
+          ),
+          ListTile(
+            leading: const Icon(Icons.close_rounded),
+            title: const Text('Cancel'),
+            onTap: () => Navigator.pop(sheetContext),
+          ),
+        ],
+      ),
+    );
+    if (selected == true && mounted) await _void(invoiceId, session);
+  }
+
   Future<void> _print(InvoicePresentation presentation) async {
     final bytes = await const InvoicePdfService().build(presentation);
     await Printing.layoutPdf(onLayout: (_) async => bytes);
@@ -474,17 +521,20 @@ class _InvoiceHistoryCard extends StatelessWidget {
     required this.entry,
     required this.currency,
     required this.onTap,
+    this.onLongPress,
   });
 
   final BillingHistoryEntry entry;
   final String currency;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
     child: InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
       child: Padding(
         padding: const EdgeInsets.all(AveraSpacing.cardPadding),

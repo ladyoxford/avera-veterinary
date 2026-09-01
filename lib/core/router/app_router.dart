@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/animals/screens/animal_registration_screen.dart';
 import '../../features/animals/screens/animal_search_screen.dart';
 import '../../features/animals/screens/archived_animals_screen.dart';
+import '../../features/animals/screens/records_archive_screen.dart';
 import '../../features/animals/screens/medical_file_hub_screen.dart';
 import '../database/app_database.dart';
 import '../models/inventory_catalog.dart';
@@ -347,6 +348,18 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/animals/archived',
           builder: (context, state) => const ArchivedAnimalsScreen(),
+        ),
+        GoRoute(
+          path: '/records-archive',
+          builder: (context, state) => const RecordsArchiveScreen(),
+        ),
+        GoRoute(
+          path: '/records-archive/animals',
+          builder: (context, state) => const ArchivedAnimalsScreen(),
+        ),
+        GoRoute(
+          path: '/records-archive/business',
+          builder: (context, state) => const BusinessRecordsArchiveScreen(),
         ),
         GoRoute(
           path: '/animals/new',

@@ -568,6 +568,14 @@ export const updateInventoryItemSchema = z.object({
   revision: z.number().int().min(1).optional(),
 });
 
+const archiveInventoryItemSchema = z.object({
+  reason: z.enum(['Retired', 'OutOfStock']),
+}).strict();
+
+const voidInvoiceSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+}).strict();
+
 const inventoryPhotoSchema = z.object({
   contentType: z.enum(['image/jpeg', 'image/png']),
   data: z.string().min(4).max(1400000),
@@ -937,7 +945,7 @@ const invoiceList = {
               FROM invoice_line_items linked
              WHERE linked.clinic_id=i.clinic_id AND linked.invoice_id=i.invoice_id
                AND linked.patient_id IS NOT NULL) AS patient_count`,
-  where: `i.clinic_id = $1 AND ($2::text IS NULL OR i.invoice_number ILIKE $3 OR p.name ILIKE $3 OR o.full_name ILIKE $3 OR f.name ILIKE $3 OR i.client_name_snapshot ILIKE $3 OR EXISTS (
+  where: `i.clinic_id = $1 AND i.status <> 'Voided' AND ($2::text IS NULL OR i.invoice_number ILIKE $3 OR p.name ILIKE $3 OR o.full_name ILIKE $3 OR f.name ILIKE $3 OR i.client_name_snapshot ILIKE $3 OR EXISTS (
             SELECT 1 FROM invoice_line_items linked_search
             JOIN patients linked_patient ON linked_patient.patient_id=linked_search.patient_id
             WHERE linked_search.clinic_id=i.clinic_id AND linked_search.invoice_id=i.invoice_id
@@ -1252,7 +1260,7 @@ async function deductInvoiceInventory(client, clinicId, invoiceId) {
 const paymentList = {
   from: 'payments p JOIN invoices i ON i.invoice_id = p.invoice_id',
   select: 'p.payment_id, p.invoice_id, p.paid_at, p.amount, p.method, i.invoice_number, i.status AS invoice_status',
-  where: `p.clinic_id = $1 AND ($2::text IS NULL OR i.invoice_number ILIKE $3 OR p.method ILIKE $3) AND ($4::timestamptz IS NULL OR p.paid_at >= $4) AND ($5::timestamptz IS NULL OR p.paid_at <= $5)`,
+  where: `p.clinic_id = $1 AND i.status <> 'Voided' AND ($2::text IS NULL OR i.invoice_number ILIKE $3 OR p.method ILIKE $3) AND ($4::timestamptz IS NULL OR p.paid_at >= $4) AND ($5::timestamptz IS NULL OR p.paid_at <= $5)`,
   values: (query, auth) => [auth.clinicId, query.search ?? null, `%${query.search ?? ''}%`, query.from ?? null, query.to ?? null],
   order: (query) => orderBy(query.sort, query.direction, { date: 'p.paid_at', amount: 'p.amount' }, 'p.paid_at'),
 };
@@ -3076,6 +3084,64 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.post('/api/v1/inventory/products/:inventoryProductId/archive', {
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = inventoryUuidSchema.safeParse(request.params);
+    const parsed = archiveInventoryItemSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Choose a valid inventory archive action.' });
+    }
+    const permission = parsed.data.reason === 'OutOfStock'
+      ? permissions.inventoryAdjust
+      : permissions.inventoryEdit;
+    if (!hasPermission(request, permission)) {
+      return reply.code(403).send({ error: 'forbidden', message: 'You do not have permission to archive this inventory item.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT * FROM inventory_products
+          WHERE clinic_id=$1 AND inventory_product_id=$2 AND deleted_at IS NULL
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.inventoryProductId],
+      );
+      const product = current.rows[0];
+      if (!product) return reply.code(404).send({ error: 'not_found', message: 'The inventory item was not found in this clinic.' });
+      if (product.is_archived) return { item: await inventoryResponseWithPhoto(app, product), alreadyArchived: true };
+      const quantityAfter = parsed.data.reason === 'OutOfStock' ? 0 : Number(product.quantity);
+      if (quantityAfter !== Number(product.quantity)) {
+        await client.query(
+          `INSERT INTO stock_movements
+             (clinic_id, inventory_product_id, occurred_at, movement_type, quantity_delta, reference)
+           VALUES ($1,$2,now(),'Archive Out Of Stock',$3,'Inventory archived')`,
+          [request.auth.clinicId, product.inventory_product_id, -Number(product.quantity)],
+        );
+      }
+      const updated = await client.query(
+        `UPDATE inventory_products
+            SET quantity=$3, status=$4, is_archived=true, archived_at=now(),
+                archived_by=$5, archive_reason=$6, updated_at=now(), revision=revision+1
+          WHERE clinic_id=$1 AND inventory_product_id=$2
+          RETURNING *`,
+        [request.auth.clinicId, product.inventory_product_id, quantityAfter,
+          parsed.data.reason === 'OutOfStock' ? 'Out of Stock' : 'Retired',
+          request.auth.userId, parsed.data.reason],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'InventoryProduct',
+        targetId: product.inventory_product_id,
+        action: parsed.data.reason === 'OutOfStock' ? 'inventory.out_of_stock' : 'inventory.retired',
+        previousSummary: { status: product.status, quantity: Number(product.quantity), isArchived: false },
+        newSummary: { status: updated.rows[0].status, quantity: quantityAfter, isArchived: true },
+        sessionId: request.auth.sessionId,
+      });
+      return { item: await inventoryResponseWithPhoto(app, updated.rows[0]) };
+    });
+  });
+
   app.post('/api/v1/inventory/products/:inventoryProductId/add-stock', { preHandler: [authenticate, requirePermission(permissions.inventoryAdjust)] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     const params = inventoryUuidSchema.safeParse(request.params);
@@ -3441,6 +3507,18 @@ export async function clinicalRoutes(app) {
       ),
     };
   });
+  app.get('/api/v1/inventory/archive', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    return withTenantTransaction(app.pool, request.auth, async (client) => ({
+      items: (await client.query(
+        `SELECT ${inventoryList.select}, i.archived_at, i.archived_by, i.archive_reason
+           FROM inventory_products i
+          WHERE i.clinic_id=$1 AND i.deleted_at IS NULL AND i.is_archived=true
+          ORDER BY i.archived_at DESC NULLS LAST, i.name`,
+        [request.auth.clinicId],
+      )).rows,
+    }));
+  });
   app.get('/api/v1/inventory/movements', { preHandler: [authenticate, requirePermission(permissions.inventoryView)] }, tenantList(movementsList));
   app.get('/api/v1/billing/revenue-summary', {
     preHandler: [authenticate, requirePermission(permissions.billingHistory)],
@@ -3482,6 +3560,82 @@ export async function clinicalRoutes(app) {
       }));
   });
   app.get('/api/v1/invoices', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, tenantList(invoiceList));
+  app.get('/api/v1/invoices/archive', { preHandler: [authenticate, requirePermission(permissions.billingHistory)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    return withTenantTransaction(app.pool, request.auth, async (client) => ({
+      items: (await client.query(
+        `SELECT i.invoice_id, i.invoice_number, i.status, i.total, i.amount_paid,
+                i.balance, i.issued_at, i.context_type, i.client_name_snapshot,
+                i.voided_at, i.voided_by, i.void_reason,
+                p.name AS patient_name, o.full_name AS owner_name, f.name AS farm_name
+           FROM invoices i
+           LEFT JOIN patients p ON p.patient_id=i.patient_id AND p.clinic_id=i.clinic_id
+           LEFT JOIN owners o ON o.owner_id=i.owner_id AND o.clinic_id=i.clinic_id
+           LEFT JOIN farms f ON f.farm_id=i.farm_id AND f.clinic_id=i.clinic_id
+          WHERE i.clinic_id=$1 AND i.status='Voided'
+          ORDER BY i.voided_at DESC NULLS LAST, i.issued_at DESC`,
+        [request.auth.clinicId],
+      )).rows,
+    }));
+  });
+  app.post('/api/v1/invoices/:invoiceId/void', { preHandler: [authenticate, requirePermission(permissions.billingVoid)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = z.object({ invoiceId: z.string().uuid() }).safeParse(request.params);
+    const parsed = voidInvoiceSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Enter a reason before voiding this invoice.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = await client.query(
+        `SELECT * FROM invoices WHERE clinic_id=$1 AND invoice_id=$2 FOR UPDATE`,
+        [request.auth.clinicId, params.data.invoiceId],
+      );
+      const invoice = current.rows[0];
+      if (!invoice) return reply.code(404).send({ error: 'not_found', message: 'The invoice was not found in this clinic.' });
+      if (invoice.status === 'Voided') {
+        return reply.code(409).send({ error: 'already_voided', message: 'This invoice is already voided.' });
+      }
+      if (invoice.inventory_deducted_at) {
+        const quantities = await client.query(
+          `SELECT inventory_product_id, sum(base_quantity_snapshot)::int AS quantity
+             FROM invoice_line_items
+            WHERE clinic_id=$1 AND invoice_id=$2 AND inventory_product_id IS NOT NULL
+            GROUP BY inventory_product_id ORDER BY inventory_product_id`,
+          [request.auth.clinicId, invoice.invoice_id],
+        );
+        for (const row of quantities.rows) {
+          await client.query(
+            `UPDATE inventory_products SET quantity=quantity+$3, revision=revision+1, updated_at=now()
+              WHERE clinic_id=$1 AND inventory_product_id=$2`,
+            [request.auth.clinicId, row.inventory_product_id, Number(row.quantity)],
+          );
+          await client.query(
+            `INSERT INTO stock_movements
+               (clinic_id, inventory_product_id, occurred_at, movement_type, quantity_delta, reference)
+             VALUES ($1,$2,now(),'Invoice Void Reversal',$3,$4)`,
+            [request.auth.clinicId, row.inventory_product_id, Number(row.quantity), `Voided invoice ${invoice.invoice_number}`],
+          );
+        }
+      }
+      const updated = await client.query(
+        `UPDATE invoices SET status='Voided', voided_at=now(), voided_by=$3,
+                void_reason=$4, inventory_deducted_at=NULL
+          WHERE clinic_id=$1 AND invoice_id=$2 RETURNING *`,
+        [request.auth.clinicId, invoice.invoice_id, request.auth.userId, parsed.data.reason],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Invoice',
+        targetId: invoice.invoice_id,
+        action: 'invoice.voided',
+        previousSummary: { status: invoice.status, amountPaid: Number(invoice.amount_paid) },
+        newSummary: { status: 'Voided', reason: parsed.data.reason },
+        sessionId: request.auth.sessionId,
+      });
+      return { invoice: updated.rows[0] };
+    });
+  });
   app.get('/api/v1/payments', { preHandler: [authenticate, requirePermission(permissions.billingView)] }, tenantList(paymentList));
   app.get('/api/v1/media', { preHandler: [authenticate, requirePermission(permissions.mediaView)] }, tenantList(mediaList));
 
@@ -3631,15 +3785,15 @@ export async function clinicalRoutes(app) {
         (SELECT count(*)::int FROM schedule_entries WHERE clinic_id=$1 AND scheduled_at >= date_trunc('day', now()) AND scheduled_at < date_trunc('day', now()) + interval '1 day') AS todays_schedule,
         (SELECT count(*)::int FROM consultations WHERE clinic_id=$1 AND status IN ('In Progress','Open')) AS active_consultations,
         (SELECT count(*)::int FROM vaccinations WHERE clinic_id=$1 AND next_due_at <= now() AND status <> 'Completed') AS vaccinations_due,
-        (SELECT coalesce(sum(amount),0) FROM payments WHERE clinic_id=$1 AND paid_at >= date_trunc('month', now())) AS current_revenue,
-        (SELECT count(*)::int FROM inventory_products WHERE clinic_id=$1 AND quantity <= reorder_level) AS low_stock,
-        (SELECT count(*)::int FROM inventory_products WHERE clinic_id=$1 AND expiry_date < current_date) AS expired_products,
+        (SELECT coalesce(sum(p.amount),0) FROM payments p JOIN invoices i ON i.invoice_id=p.invoice_id AND i.clinic_id=p.clinic_id WHERE p.clinic_id=$1 AND i.status <> 'Voided' AND p.paid_at >= date_trunc('month', now())) AS current_revenue,
+        (SELECT count(*)::int FROM inventory_products WHERE clinic_id=$1 AND is_archived=false AND quantity <= reorder_level) AS low_stock,
+        (SELECT count(*)::int FROM inventory_products WHERE clinic_id=$1 AND is_archived=false AND expiry_date < current_date) AS expired_products,
         (SELECT count(*)::int FROM hospitalizations WHERE clinic_id=$1 AND discharged_at IS NULL) AS active_hospitalizations,
         (SELECT count(*)::int FROM laboratory_reports WHERE clinic_id=$1 AND status NOT IN ('Reviewed','Cancelled')) AS pending_laboratory_reports,
-        (SELECT coalesce(sum(balance),0) FROM invoices WHERE clinic_id=$1 AND balance > 0) AS outstanding_invoices`, [clinicId]);
+        (SELECT coalesce(sum(balance),0) FROM invoices WHERE clinic_id=$1 AND status <> 'Voided' AND balance > 0) AS outstanding_invoices`, [clinicId]);
       const [species, revenue, activity] = await Promise.all([
         client.query('SELECT species, count(*)::int AS count FROM patients WHERE clinic_id=$1 AND deleted_at IS NULL GROUP BY species ORDER BY count DESC LIMIT 8', [clinicId]),
-        client.query(`SELECT to_char(date_trunc('month', paid_at), 'YYYY-MM') AS month, coalesce(sum(amount),0) AS revenue FROM payments WHERE clinic_id=$1 AND paid_at >= now() - interval '6 months' GROUP BY 1 ORDER BY 1`, [clinicId]),
+        client.query(`SELECT to_char(date_trunc('month', p.paid_at), 'YYYY-MM') AS month, coalesce(sum(p.amount),0) AS revenue FROM payments p JOIN invoices i ON i.invoice_id=p.invoice_id AND i.clinic_id=p.clinic_id WHERE p.clinic_id=$1 AND i.status <> 'Voided' AND p.paid_at >= now() - interval '6 months' GROUP BY 1 ORDER BY 1`, [clinicId]),
         client.query(
           `SELECT type, module, related_entity_type, record_id, patient_id,
                   occurred_at, title, summary

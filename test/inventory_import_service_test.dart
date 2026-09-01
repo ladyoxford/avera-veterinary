@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:avera/features/reports/services/inventory_import_service.dart';
+import 'package:avera/features/reports/services/inventory_export_service.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -283,6 +284,115 @@ void main() {
         matches.last.withAction(InventoryDuplicateAction.importAsNew).action,
         InventoryDuplicateAction.importAsNew,
       );
+    });
+
+    test('exported XLSX round trip defaults all seven products to skip', () {
+      const export = InventoryExportService();
+      const records = [
+        InventoryExportRecord(
+          name: 'Biocan R',
+          category: 'Clinical Consumables',
+          quantity: 3,
+          sellingPrice: 5000,
+          costPrice: 2500,
+          baseUnit: 'piece',
+          status: 'Active',
+          sku: 'VAC-001',
+          batchNumber: 'B1',
+          expiryDate: null,
+        ),
+        InventoryExportRecord(
+          name: 'Digital Scale',
+          category: 'Medical Equipment & Instruments',
+          quantity: 1,
+          sellingPrice: 90000,
+          costPrice: 70000,
+          baseUnit: 'piece',
+          status: 'Active',
+          barcode: '123456789',
+        ),
+        InventoryExportRecord(
+          name: ' Dog   Collar ',
+          category: 'Pet Accessories & Retail',
+          quantity: 4,
+          sellingPrice: 2500,
+          costPrice: 1000,
+          baseUnit: 'piece',
+          status: 'Active',
+        ),
+        InventoryExportRecord(
+          name: 'Donated Gloves',
+          category: 'Medical Equipment & Instruments',
+          quantity: 20,
+          sellingPrice: 100,
+          costPrice: 0,
+          baseUnit: 'piece',
+          status: 'Active',
+        ),
+        InventoryExportRecord(
+          name: 'Unknown Cost Syringe',
+          category: 'Medical Equipment & Instruments',
+          quantity: 10,
+          sellingPrice: 300,
+          costPrice: null,
+          baseUnit: 'piece',
+          status: 'Active',
+        ),
+        InventoryExportRecord(
+          name: 'Office Paper',
+          category: 'Office & Administrative Supplies',
+          quantity: 6,
+          sellingPrice: 1500,
+          costPrice: 900,
+          baseUnit: 'pack',
+          status: 'Active',
+          sku: 'OFF-1',
+        ),
+        InventoryExportRecord(
+          name: 'Feed Scoop',
+          category: 'Farm & Livestock Supplies',
+          quantity: 2,
+          sellingPrice: 3500,
+          costPrice: 1800,
+          baseUnit: 'piece',
+          status: 'Active',
+          barcode: 'SCOOP-7',
+        ),
+      ];
+      final document = parser.parse(
+        filename: 'inventory.xlsx',
+        bytes: export.excelBytes(records),
+      );
+      final validation = parser.validate(document);
+      expect(validation.validRows, hasLength(7));
+      final existing = records
+          .map(
+            (item) => InventoryExistingProduct(
+              id: item.name,
+              name: item.name.trim(),
+              categoryId: item.category,
+              sku: item.sku,
+              barcode: item.barcode,
+            ),
+          )
+          .toList();
+      final duplicates = parser.findDuplicates(
+        validation.validRows.map((row) => row.candidate!),
+        existing,
+      );
+      expect(existing, hasLength(7));
+      expect(duplicates, hasLength(7));
+      expect(
+        duplicates.where(
+          (item) => item.action == InventoryDuplicateAction.skip,
+        ),
+        hasLength(7),
+      );
+      expect(validation.validRows.length - duplicates.length, 0);
+      expect(existing.length, 7);
+      final costs = validation.validRows.map((row) => row.candidate!.costPrice);
+      expect(costs, contains(null));
+      expect(costs, contains(0));
     });
   });
 }

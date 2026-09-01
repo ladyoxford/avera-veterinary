@@ -479,6 +479,26 @@ class RemoteInventoryListController
     return item;
   }
 
+  Future<void> archive({required String itemId, required String reason}) async {
+    final session = await _session();
+    final permission = reason == 'OutOfStock'
+        ? Permissions.inventoryAdjust
+        : Permissions.inventoryEdit;
+    if (!session.can(permission)) {
+      throw StateError('You do not have permission to archive this item.');
+    }
+    await _source.archiveInventoryItem(
+      inventoryProductId: itemId,
+      reason: reason,
+    );
+    if (mounted) {
+      state = RemoteInventoryListState(
+        items: state.items.where((item) => item.id != itemId).toList(),
+      );
+      unawaited(refresh());
+    }
+  }
+
   Future<RemoteInventoryItem> addStock({
     required String itemId,
     required int quantityToAdd,

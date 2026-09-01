@@ -28,6 +28,7 @@ export const reportCte = `
       LEFT JOIN farms f
         ON f.farm_id=i.farm_id AND f.clinic_id=i.clinic_id
      WHERE p.clinic_id=$1
+       AND i.status <> 'Voided'
        AND ($2::timestamptz IS NULL OR p.paid_at >= $2)
        AND ($3::timestamptz IS NULL OR p.paid_at < $3)
   ),

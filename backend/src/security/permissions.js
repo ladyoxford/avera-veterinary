@@ -31,6 +31,7 @@ export const permissions = {
   billingView: 'billing.view', billingCreate: 'billing.create', billingManage: 'billing.manage',
   billingHistory: 'billing.history',
   billingRecordPayment: 'billing.record_payment',
+  billingVoid: 'billing.void',
   mediaView: 'media.view',
   clinicSettingsView: 'clinic_settings.view', clinicSettingsEdit: 'clinic_settings.edit',
   clinicWorkHoursManage: 'clinic.work_hours.manage',

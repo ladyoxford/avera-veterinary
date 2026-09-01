@@ -8579,16 +8579,104 @@ class ClinicRepository {
   Future<void> archiveInventoryItem({
     required UserSession session,
     required int itemId,
+    String reason = 'Retired',
   }) async {
-    _requireInventoryPermission(session, Permissions.inventoryEdit);
-    final item = await _inventoryItemForSession(itemId, session);
-    await (db.update(db.inventoryItems)..where((i) => i.id.equals(item.id)))
-        .write(InventoryItemsCompanion(isArchived: const Value(true)));
-    await _writeInventoryAudit(
-      session: session,
-      action: 'inventory.item_archived',
-      itemId: itemId,
-      details: const {},
+    final normalizedReason = reason == 'OutOfStock' ? 'OutOfStock' : 'Retired';
+    _requireInventoryPermission(
+      session,
+      normalizedReason == 'OutOfStock'
+          ? Permissions.inventoryAdjust
+          : Permissions.inventoryEdit,
+    );
+    await db.transaction(() async {
+      final item = await _inventoryItemForSession(itemId, session);
+      if (item.isArchived) return;
+      final now = _clock.nowForClinic(session.clinic);
+      final quantityAfter = normalizedReason == 'OutOfStock'
+          ? 0
+          : item.quantity;
+      await (db.update(
+        db.inventoryItems,
+      )..where((i) => i.id.equals(item.id))).write(
+        InventoryItemsCompanion(
+          isArchived: const Value(true),
+          quantity: Value(quantityAfter),
+          updatedAt: Value(now),
+        ),
+      );
+      await db
+          .into(db.inventoryStockMovements)
+          .insert(
+            InventoryStockMovementsCompanion.insert(
+              clinicId: session.clinic.clinicId,
+              inventoryItemId: item.id,
+              movementType: normalizedReason,
+              quantityChange: quantityAfter - item.quantity,
+              quantityBefore: item.quantity,
+              quantityAfter: quantityAfter,
+              performedByUserId: session.user.userId,
+              reason: Value(normalizedReason),
+              createdAt: now,
+            ),
+          );
+      await _writeInventoryAudit(
+        session: session,
+        action: normalizedReason == 'OutOfStock'
+            ? 'inventory.out_of_stock'
+            : 'inventory.retired',
+        itemId: itemId,
+        details: {
+          'previousStatus': 'Active',
+          'newStatus': normalizedReason,
+          'quantityBefore': item.quantity,
+          'quantityAfter': quantityAfter,
+        },
+      );
+    });
+  }
+
+  Stream<List<InventoryItem>> watchArchivedInventory(UserSession session) {
+    _requireInventoryPermission(session, Permissions.inventoryView);
+    return (db.select(db.inventoryItems)
+          ..where(
+            (item) =>
+                item.clinicId.equals(session.clinic.clinicId) &
+                item.isArchived.equals(true),
+          )
+          ..orderBy([(item) => OrderingTerm.desc(item.updatedAt)]))
+        .watch();
+  }
+
+  Future<InventoryStockMovement?> archivedInventoryMovement(
+    UserSession session,
+    int itemId,
+  ) async {
+    _requireInventoryPermission(session, Permissions.inventoryView);
+    return (db.select(db.inventoryStockMovements)
+          ..where(
+            (movement) =>
+                movement.clinicId.equals(session.clinic.clinicId) &
+                movement.inventoryItemId.equals(itemId) &
+                movement.movementType.isIn(['Retired', 'OutOfStock']),
+          )
+          ..orderBy([(movement) => OrderingTerm.desc(movement.createdAt)]))
+        .getSingleOrNull();
+  }
+
+  Stream<List<BillingHistoryEntry>> watchVoidedInvoices(UserSession session) {
+    _requireBillingPermission(session, Permissions.billingHistory);
+    return _billingHistoryQuery(session, voided: true).watch().map(
+      (rows) => rows
+          .map(
+            (row) => BillingHistoryEntry(
+              invoice: row.readTable(db.invoices),
+              animal: row.readTableOrNull(db.animals),
+              owner: row.readTableOrNull(db.owners),
+              farm: row.readTableOrNull(db.farms),
+              processedBy: row.readTableOrNull(db.appUsers),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -8948,18 +9036,7 @@ class ClinicRepository {
         !session.can(Permissions.billingHistory)) {
       throw StateError('You do not have permission to view billing history.');
     }
-    final query = db.select(db.invoices).join([
-      leftOuterJoin(db.animals, db.animals.id.equalsExp(db.invoices.animalId)),
-      leftOuterJoin(db.owners, db.owners.id.equalsExp(db.animals.ownerId)),
-      leftOuterJoin(db.farms, db.farms.id.equalsExp(db.invoices.farmId)),
-      leftOuterJoin(
-        db.appUsers,
-        db.appUsers.userId.equalsExp(db.invoices.paidByUserId),
-      ),
-    ]);
-    query.where(db.invoices.clinicId.equals(activeClinicId));
-    query.orderBy([OrderingTerm.desc(db.invoices.createdAt)]);
-    return query.watch().map(
+    return _billingHistoryQuery(session, voided: false).watch().map(
       (rows) => rows
           .map(
             (row) => BillingHistoryEntry(
@@ -8972,6 +9049,29 @@ class ClinicRepository {
           )
           .toList(),
     );
+  }
+
+  JoinedSelectStatement<HasResultSet, dynamic> _billingHistoryQuery(
+    UserSession session, {
+    required bool voided,
+  }) {
+    final query = db.select(db.invoices).join([
+      leftOuterJoin(db.animals, db.animals.id.equalsExp(db.invoices.animalId)),
+      leftOuterJoin(db.owners, db.owners.id.equalsExp(db.animals.ownerId)),
+      leftOuterJoin(db.farms, db.farms.id.equalsExp(db.invoices.farmId)),
+      leftOuterJoin(
+        db.appUsers,
+        db.appUsers.userId.equalsExp(db.invoices.paidByUserId),
+      ),
+    ]);
+    query.where(
+      db.invoices.clinicId.equals(session.clinic.clinicId) &
+          (voided
+              ? db.invoices.status.equals('Voided')
+              : db.invoices.status.equals('Voided').not()),
+    );
+    query.orderBy([OrderingTerm.desc(db.invoices.createdAt)]);
+    return query;
   }
 
   Future<RevenueProfitSummary> getRevenueProfitSummary({
@@ -9003,16 +9103,19 @@ class ClinicRepository {
     final invoices =
         await (db.select(db.invoices)..where(
               (row) =>
-                  row.clinicId.equals(activeClinicId) & row.id.isIn(invoiceIds),
+                  row.clinicId.equals(activeClinicId) &
+                  row.id.isIn(invoiceIds) &
+                  row.status.equals('Voided').not(),
             ))
             .get();
     final invoiceById = {for (final invoice in invoices) invoice.id: invoice};
+    final activeInvoiceIds = invoiceById.keys.toSet();
     final productLines = await (db.select(
       db.invoiceProductLines,
-    )..where((row) => row.invoiceId.isIn(invoiceIds))).get();
+    )..where((row) => row.invoiceId.isIn(activeInvoiceIds))).get();
     final serviceLines = await (db.select(
       db.invoiceServiceLines,
-    )..where((row) => row.invoiceId.isIn(invoiceIds))).get();
+    )..where((row) => row.invoiceId.isIn(activeInvoiceIds))).get();
     final costByInvoice = <int, double>{};
     var missingCostLines = 0;
     for (final line in productLines) {
@@ -9077,7 +9180,9 @@ class ClinicRepository {
       cost: cost,
       clinicRevenue: clinicRevenue,
       farmRevenue: farmRevenue,
-      transactionCount: payments.length,
+      transactionCount: payments
+          .where((payment) => invoiceById.containsKey(payment.invoiceId))
+          .length,
       missingCostLines: missingCostLines,
     );
   }
@@ -9280,16 +9385,32 @@ class ClinicRepository {
         throw StateError('This invoice is already voided.');
       }
       final now = _clock.nowForClinic(session.clinic);
-      final products = await (db.select(
-        db.invoiceProductLines,
-      )..where((line) => line.invoiceId.equals(invoiceId))).get();
-      for (final line
-          in invoice.amountPaid > 0 ? products : const <InvoiceProductLine>[]) {
+      final saleMovements =
+          await (db.select(db.inventoryStockMovements)..where(
+                (movement) =>
+                    movement.clinicId.equals(session.clinic.clinicId) &
+                    movement.invoiceId.equals(invoiceId) &
+                    movement.movementType.equals('Sale'),
+              ))
+              .get();
+      final existingReversal =
+          await (db.select(db.inventoryStockMovements)..where(
+                (movement) =>
+                    movement.clinicId.equals(session.clinic.clinicId) &
+                    movement.invoiceId.equals(invoiceId) &
+                    movement.movementType.equals('Sale reversal'),
+              ))
+              .getSingleOrNull();
+      for (final movement
+          in existingReversal == null
+              ? saleMovements
+              : const <InventoryStockMovement>[]) {
         final item = await _inventoryItemForSession(
-          line.inventoryItemId,
+          movement.inventoryItemId,
           session,
         );
-        final after = item.quantity + line.quantity;
+        final returnedQuantity = -movement.quantityChange;
+        final after = item.quantity + returnedQuantity;
         await (db.update(
           db.inventoryItems,
         )..where((row) => row.id.equals(item.id))).write(
@@ -9305,7 +9426,7 @@ class ClinicRepository {
                 clinicId: session.clinic.clinicId,
                 inventoryItemId: item.id,
                 movementType: 'Sale reversal',
-                quantityChange: line.quantity,
+                quantityChange: returnedQuantity,
                 quantityBefore: item.quantity,
                 quantityAfter: after,
                 invoiceId: Value(invoiceId),

@@ -984,7 +984,85 @@ void main() {
       database.inventoryItems,
     )..where((row) => row.id.equals(item.id))).getSingle();
     expect(restoredItem.quantity, originalQuantity);
+    expect(
+      (await database.select(database.inventoryStockMovements).get()).where(
+        (movement) => movement.movementType == 'Sale reversal',
+      ),
+      hasLength(1),
+    );
+    expect(
+      (await repository.watchBillingHistory(session).first).where(
+        (entry) => entry.invoice.id == draft.invoice.id,
+      ),
+      isEmpty,
+    );
+    expect(
+      (await repository.watchVoidedInvoices(session).first).where(
+        (entry) => entry.invoice.id == draft.invoice.id,
+      ),
+      hasLength(1),
+    );
+    final revenue = await repository.getRevenueProfitSummary(session: session);
+    expect(revenue.revenue, 0);
+    expect(revenue.cost, 0);
+    expect(revenue.transactionCount, 0);
+    expect(
+      () => repository.voidInvoice(
+        session: session,
+        invoiceId: draft.invoice.id,
+        reason: 'Repeat attempt',
+      ),
+      throwsA(isA<StateError>()),
+    );
   });
+
+  test(
+    'inventory retirement and out-of-stock archive preserve stock history',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final items = await database.select(database.inventoryItems).get();
+      await repository.archiveInventoryItem(
+        session: session,
+        itemId: items[0].id,
+        reason: 'Retired',
+      );
+      await repository.archiveInventoryItem(
+        session: session,
+        itemId: items[1].id,
+        reason: 'OutOfStock',
+      );
+      final active = await repository.readPermittedInventory(session);
+      expect(active.map((item) => item.id), isNot(contains(items[0].id)));
+      expect(active.map((item) => item.id), isNot(contains(items[1].id)));
+      final archived = await repository.watchArchivedInventory(session).first;
+      expect(
+        archived.map((item) => item.id),
+        containsAll([items[0].id, items[1].id]),
+      );
+      expect(
+        archived.singleWhere((item) => item.id == items[0].id).quantity,
+        items[0].quantity,
+      );
+      expect(
+        archived.singleWhere((item) => item.id == items[1].id).quantity,
+        0,
+      );
+      final movements = await database
+          .select(database.inventoryStockMovements)
+          .get();
+      expect(
+        movements.map((item) => item.movementType),
+        containsAll(['Retired', 'OutOfStock']),
+      );
+    },
+  );
 
   test('billing history reconciles partial payments and refunds', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());

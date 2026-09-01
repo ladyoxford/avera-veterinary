@@ -232,9 +232,9 @@ class SettingsScreen extends ConsumerWidget {
       ],
       AveraSettingsRow(
         icon: Iconsax.archive_book,
-        title: 'Archived Animals',
-        subtitle: 'Deceased and relocated patients',
-        onTap: () => context.push('/animals/archived'),
+        title: 'Records Archive',
+        subtitle: 'Review records removed from active clinic operations',
+        onTap: () => context.push('/records-archive'),
       ),
     ];
   }

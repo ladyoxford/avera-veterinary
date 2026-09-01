@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -273,6 +274,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 child: _InventoryCard(
                   item: item,
                   canSeeCost: session.can(Permissions.inventoryCostView),
+                  onLongPress:
+                      session.can(Permissions.inventoryEdit) ||
+                          session.can(Permissions.inventoryAdjust)
+                      ? () => _showInventoryActions(context, ref, session, item)
+                      : null,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => _InventoryProductDetailsScreen(
@@ -300,6 +306,124 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _showInventoryActions(
+    BuildContext context,
+    WidgetRef ref,
+    UserSession session,
+    _InventoryDisplayItem item,
+  ) async {
+    await HapticFeedback.selectionClick();
+    if (!context.mounted) return;
+    final scheme = Theme.of(context).colorScheme;
+    final selected = await showAveraActionSheet<String>(
+      context: context,
+      title: 'Inventory Actions',
+      description: item.name,
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (session.can(Permissions.inventoryEdit))
+            ListTile(
+              leading: Icon(Icons.archive_outlined, color: scheme.error),
+              title: Text(
+                'Retire Item',
+                style: TextStyle(
+                  color: scheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text(
+                'Move this product out of active inventory.',
+              ),
+              onTap: () => Navigator.pop(sheetContext, 'Retired'),
+            ),
+          if (session.can(Permissions.inventoryAdjust))
+            ListTile(
+              leading: const Icon(
+                Icons.inventory_2_outlined,
+                color: Colors.amber,
+              ),
+              title: const Text(
+                'Mark Out of Stock',
+                style: TextStyle(
+                  color: Colors.amber,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text(
+                'Adjust available stock to zero and archive it.',
+              ),
+              onTap: () => Navigator.pop(sheetContext, 'OutOfStock'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.close_rounded),
+            title: const Text('Cancel'),
+            onTap: () => Navigator.pop(sheetContext),
+          ),
+        ],
+      ),
+    );
+    if (selected == null || !context.mounted) return;
+    final retired = selected == 'Retired';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          retired ? 'Retire inventory item?' : 'Mark item out of stock?',
+        ),
+        content: Text(
+          retired
+              ? 'This removes the item from active inventory and moves it to Records Archive. Historical records will be preserved.'
+              : 'Available quantity will be adjusted to zero and the item will move to Records Archive.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: retired
+                ? FilledButton.styleFrom(backgroundColor: scheme.error)
+                : null,
+            child: Text(retired ? 'Retire' : 'Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      if (item.remote case final remote?) {
+        await ref
+            .read(remoteInventoryListProvider.notifier)
+            .archive(itemId: remote.id, reason: selected);
+      } else {
+        await ref
+            .read(clinicRepositoryProvider)
+            .archiveInventoryItem(
+              session: session,
+              itemId: item.localId!,
+              reason: selected,
+            );
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${item.name} moved to Records Archive.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'The inventory action could not be completed. $error',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _selectCategory(
@@ -1016,10 +1140,12 @@ class _InventoryCard extends StatelessWidget {
     required this.item,
     required this.canSeeCost,
     this.onTap,
+    this.onLongPress,
   });
   final _InventoryDisplayItem item;
   final bool canSeeCost;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   @override
   Widget build(BuildContext context) {
     final expired = item.expiryDate?.isBefore(DateTime.now()) ?? false;
@@ -1036,6 +1162,7 @@ class _InventoryCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(AveraSpacing.cardPadding),
           child: Row(

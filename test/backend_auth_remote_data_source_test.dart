@@ -668,6 +668,53 @@ void main() {
   });
 
   test(
+    'password recovery uses public request and completion endpoints',
+    () async {
+      final requests = <http.Request>[];
+      final source = BackendAuthRemoteDataSource(
+        ApiClient(
+          baseUrl: 'https://api.avera.test',
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: MockClient((request) async {
+            requests.add(request);
+            return http.Response(
+              jsonEncode(
+                request.url.path.endsWith('/forgot-password')
+                    ? {'accepted': true}
+                    : {'reset': true},
+              ),
+              request.url.path.endsWith('/forgot-password') ? 202 : 200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      await source.requestPasswordReset(' OWNER@AVERA.TEST ');
+      await source.resetPassword(
+        token: 'opaque-password-reset-token',
+        password: 'NewSecure!Password234',
+        confirmPassword: 'NewSecure!Password234',
+      );
+
+      expect(requests.map((request) => request.url.path), [
+        '/api/v1/auth/forgot-password',
+        '/api/v1/auth/reset-password',
+      ]);
+      expect(jsonDecode(requests.first.body), {'email': 'owner@avera.test'});
+      expect(jsonDecode(requests.last.body), {
+        'token': 'opaque-password-reset-token',
+        'password': 'NewSecure!Password234',
+        'confirmPassword': 'NewSecure!Password234',
+      });
+      expect(
+        requests.every((request) => request.headers['authorization'] == null),
+        isTrue,
+      );
+    },
+  );
+
+  test(
     'sign-in returns a typed MFA challenge without parsing session tokens',
     () async {
       final client = MockClient(

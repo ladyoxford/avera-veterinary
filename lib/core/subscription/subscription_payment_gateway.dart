@@ -33,6 +33,7 @@ class SubscriptionBillingPlan {
     required this.annualAmountMinor,
     required this.monthlyCheckoutConfigured,
     required this.annualCheckoutConfigured,
+    this.requiresPayment = true,
   });
 
   final SubscriptionPlan plan;
@@ -43,6 +44,7 @@ class SubscriptionBillingPlan {
   final int? annualAmountMinor;
   final bool monthlyCheckoutConfigured;
   final bool annualCheckoutConfigured;
+  final bool requiresPayment;
 
   int? amountFor(SubscriptionBillingCycle cycle) =>
       cycle == SubscriptionBillingCycle.monthly
@@ -56,6 +58,8 @@ class SubscriptionBillingPlan {
 
   factory SubscriptionBillingPlan.fromJson(Map<String, dynamic> json) {
     final plan = SubscriptionPlan.fromStorage(json['code'] as String? ?? '');
+    final monthlyAmountMinor = (json['monthlyAmountMinor'] as num?)?.toInt();
+    final annualAmountMinor = (json['annualAmountMinor'] as num?)?.toInt();
     return SubscriptionBillingPlan(
       plan: plan,
       name: json['name'] as String? ?? plan.label,
@@ -63,12 +67,15 @@ class SubscriptionBillingPlan {
           json['tagline'] as String? ??
           SubscriptionPlanCatalogue.plan(plan).tagline,
       currency: json['currency'] as String? ?? 'NGN',
-      monthlyAmountMinor: (json['monthlyAmountMinor'] as num?)?.toInt(),
-      annualAmountMinor: (json['annualAmountMinor'] as num?)?.toInt(),
+      monthlyAmountMinor: monthlyAmountMinor,
+      annualAmountMinor: annualAmountMinor,
       monthlyCheckoutConfigured:
           json['monthlyCheckoutConfigured'] as bool? ?? false,
       annualCheckoutConfigured:
           json['annualCheckoutConfigured'] as bool? ?? false,
+      requiresPayment:
+          json['requiresPayment'] as bool? ??
+          !(monthlyAmountMinor == 0 && annualAmountMinor == 0),
     );
   }
 }
@@ -217,6 +224,27 @@ class SubscriptionPaymentVerification {
   }
 }
 
+class FreeRegistrationApproval {
+  const FreeRegistrationApproval({
+    required this.applicationApproved,
+    required this.paymentStatus,
+    this.activationDeliveryMethod,
+  });
+
+  final bool applicationApproved;
+  final String paymentStatus;
+  final String? activationDeliveryMethod;
+
+  factory FreeRegistrationApproval.fromJson(Map<String, dynamic> json) =>
+      FreeRegistrationApproval(
+        applicationApproved: json['applicationApproved'] as bool? ?? false,
+        paymentStatus: json['paymentStatus'] as String? ?? 'NotRequired',
+        activationDeliveryMethod:
+            (json['activation'] as Map<String, dynamic>?)?['deliveryMethod']
+                as String?,
+      );
+}
+
 class SubscriptionCheckoutSession {
   const SubscriptionCheckoutSession({
     required this.authorizationUrl,
@@ -244,6 +272,10 @@ class SubscriptionBillingSnapshot {
 abstract interface class SubscriptionPaymentGateway {
   Future<List<SubscriptionBillingPlan>> loadPlans();
   Future<SubscriptionBillingPlan> loadRegistrationPaymentPlan({
+    required String applicationId,
+    required String accessToken,
+  });
+  Future<FreeRegistrationApproval> continueFreeRegistration({
     required String applicationId,
     required String accessToken,
   });
@@ -298,6 +330,18 @@ class PaystackSubscriptionGateway implements SubscriptionPaymentGateway {
     return SubscriptionBillingPlan.fromJson(
       response['plan'] as Map<String, dynamic>,
     );
+  }
+
+  @override
+  Future<FreeRegistrationApproval> continueFreeRegistration({
+    required String applicationId,
+    required String accessToken,
+  }) async {
+    final response = await _client.post(
+      '/api/v1/clinic-applications/${Uri.encodeComponent(applicationId)}/free-plan/continue',
+      body: {'accessToken': accessToken},
+    );
+    return FreeRegistrationApproval.fromJson(response);
   }
 
   @override
@@ -431,12 +475,19 @@ class UnconfiguredSubscriptionPaymentGateway
           annualAmountMinor: null,
           monthlyCheckoutConfigured: false,
           annualCheckoutConfigured: false,
+          requiresPayment: plan != SubscriptionPlan.starter,
         ),
       )
       .toList(growable: false);
 
   @override
   Future<SubscriptionBillingPlan> loadRegistrationPaymentPlan({
+    required String applicationId,
+    required String accessToken,
+  }) async => _unavailable();
+
+  @override
+  Future<FreeRegistrationApproval> continueFreeRegistration({
     required String applicationId,
     required String accessToken,
   }) async => _unavailable();

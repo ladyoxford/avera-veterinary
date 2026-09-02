@@ -329,25 +329,47 @@ export async function platformRoutes(app) {
             : 'Your clinic application is already in the approval workflow.',
         });
       }
+      let freePlanApproval = null;
+      let paymentRequired = true;
+      if (input.subscriptionPlan === 'Starter') {
+        const plan = await app.subscriptionService.getApplicationPaymentPlan({
+          applicationId: application.application_id,
+          clinicId: application.clinic_id,
+        });
+        paymentRequired = plan.requiresPayment !== false;
+        if (!paymentRequired) {
+          freePlanApproval = await app.activationService.approveFreeApplication({
+            applicationId: application.application_id,
+            clinicId: application.clinic_id,
+            ipAddress: request.ip,
+          });
+        }
+      }
       return reply.code(application.created ? 201 : 200).send({
         application: {
           applicationId: application.application_id,
           clinicId: application.clinic_id,
           reference: application.application_reference,
           selectedPlan: input.subscriptionPlan,
-          status: 'AwaitingPayment',
-          paymentStatus: application.payment_status ?? 'Pending',
-          paymentAccessToken: createClinicApplicationPaymentToken(app, {
-            applicationId: application.application_id,
-            clinicId: application.clinic_id,
-            selectedPlan: input.subscriptionPlan,
-          }),
+          status: freePlanApproval?.approved ? 'Approved' : 'AwaitingPayment',
+          paymentStatus: freePlanApproval?.approved
+            ? 'NotRequired'
+            : application.payment_status ?? 'Pending',
+          paymentRequired,
+          paymentAccessToken: paymentRequired
+            ? createClinicApplicationPaymentToken(app, {
+                applicationId: application.application_id,
+                clinicId: application.clinic_id,
+                selectedPlan: input.subscriptionPlan,
+              })
+            : null,
           draftAccessToken: createClinicApplicationDraftToken(app, {
             applicationId: application.application_id,
             clinicId: application.clinic_id,
             accountEmail: input.accountEmail,
           }),
           submittedAt: application.submitted_at,
+          activation: freePlanApproval?.activation ?? null,
         },
       });
     },
@@ -371,6 +393,44 @@ export async function platformRoutes(app) {
           clinicId: access.clinicId,
         }),
       }));
+    },
+  );
+
+  app.post(
+    '/api/v1/clinic-applications/:applicationId/free-plan/continue',
+    { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } },
+    async (request, reply) => {
+      const parsed = registrationPaymentPlanSchema.safeParse(request.body);
+      if (!parsed.success) return registrationPaymentValidationError(reply);
+      const access = verifyClinicApplicationPaymentToken(
+        app,
+        parsed.data.accessToken,
+        request.params.applicationId,
+      );
+      if (!access) return registrationPaymentForbidden(reply);
+      return handleRegistrationPayment(reply, async () => {
+        const plan = await app.subscriptionService.getApplicationPaymentPlan({
+          applicationId: access.applicationId,
+          clinicId: access.clinicId,
+        });
+        if (plan.requiresPayment !== false) {
+          const error = new Error('The selected plan requires verified payment.');
+          error.code = 'payment_required';
+          error.statusCode = 409;
+          throw error;
+        }
+        const result = await app.activationService.approveFreeApplication({
+          applicationId: access.applicationId,
+          clinicId: access.clinicId,
+          ipAddress: request.ip,
+        });
+        return {
+          applicationApproved: result.approved === true,
+          paymentRequired: false,
+          paymentStatus: 'NotRequired',
+          activation: result.activation,
+        };
+      });
     },
   );
 
@@ -473,10 +533,7 @@ export async function platformRoutes(app) {
           )
         ).rows[0];
         const recent = await queryPlatformClinics(client, { limit: 5 });
-        const emailConfigured = Boolean(
-          app.environment.RESEND_API_KEY &&
-          app.environment.ACTIVATION_EMAIL_FROM,
-        );
+        const emailConfigured = app.emailDeliveryService.configured;
         const storageConfigured = Boolean(
           app.environment.SUPABASE_URL &&
           app.environment.SUPABASE_SERVICE_ROLE_KEY,
@@ -588,10 +645,7 @@ export async function platformRoutes(app) {
         queryPlatformOperations,
       );
       const databaseLatencyMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
-      const emailConfigured = Boolean(
-        app.environment.RESEND_API_KEY &&
-        app.environment.ACTIVATION_EMAIL_FROM,
-      );
+      const emailConfigured = app.emailDeliveryService.configured;
       const storageConfigured = Boolean(
         app.environment.SUPABASE_URL &&
         app.environment.SUPABASE_SERVICE_ROLE_KEY,
@@ -611,7 +665,7 @@ export async function platformRoutes(app) {
           checkedAt,
         },
         email: {
-          provider: 'Resend',
+          provider: app.emailDeliveryService.providerLabel,
           configured: emailConfigured,
           status: platformEmailStatus({
             configured: emailConfigured,

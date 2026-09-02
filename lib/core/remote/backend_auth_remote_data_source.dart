@@ -95,6 +95,30 @@ class BackendAuthRemoteDataSource implements AuthRemoteDataSource {
   }
 
   @override
+  Future<void> requestPasswordReset(String email) async {
+    await _client.post(
+      '/api/v1/auth/forgot-password',
+      body: {'email': email.trim().toLowerCase()},
+    );
+  }
+
+  @override
+  Future<void> resetPassword({
+    required String token,
+    required String password,
+    required String confirmPassword,
+  }) async {
+    await _client.post(
+      '/api/v1/auth/reset-password',
+      body: {
+        'token': token,
+        'password': password,
+        'confirmPassword': confirmPassword,
+      },
+    );
+  }
+
+  @override
   Future<RemoteClinicAdministratorActivation>
   inspectClinicAdministratorActivation(String token) async {
     final response = await _client.post(

@@ -37,6 +37,7 @@ class _ClinicRegistrationPaymentScreenState
   String? _error;
   String? _planError;
   SubscriptionPaymentVerification? _verification;
+  FreeRegistrationApproval? _freeApproval;
   bool _loadingPlan = true;
   bool _working = false;
 
@@ -214,16 +215,61 @@ class _ClinicRegistrationPaymentScreenState
     }
   }
 
+  Future<void> _continueFreePlan() async {
+    if (_working) return;
+    final applicationId = widget.application.applicationId;
+    final accessToken = widget.application.paymentAccessToken;
+    if (applicationId == null || accessToken == null) {
+      setState(() {
+        _error =
+            'This Starter registration session is unavailable. Contact AVERA support to finish activation.';
+      });
+      return;
+    }
+    setState(() {
+      _working = true;
+      _error = null;
+    });
+    try {
+      final approval = await ref
+          .read(subscriptionPaymentGatewayProvider)
+          .continueFreeRegistration(
+            applicationId: applicationId,
+            accessToken: accessToken,
+          );
+      if (!approval.applicationApproved) {
+        throw const ApiException(
+          'free_plan_activation_pending',
+          'The Starter registration could not be activated yet.',
+        );
+      }
+      await ref.read(registrationPaymentSessionStoreProvider).clear();
+      await ref.read(clinicRegistrationDraftStoreProvider).clear();
+      if (mounted) setState(() => _freeApproval = approval);
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _error = _paymentError(error));
+    } catch (_) {
+      if (mounted) setState(() => _error = _unexpectedPaymentError);
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final verified = _verification != null;
+    final freeApproved = _freeApproval != null;
+    final completed = verified || freeApproved;
+    final freePlan = _billingPlan?.requiresPayment == false;
     final amount = _billingPlan?.amountFor(_billingCycle);
     final checkoutConfigured =
         _billingPlan?.checkoutConfiguredFor(_billingCycle) == true;
     return Theme(
       data: AppTheme.dark(),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Complete Payment')),
+        appBar: AppBar(
+          title: Text(freePlan ? 'Activate Starter' : 'Complete Payment'),
+        ),
         body: SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(
@@ -233,16 +279,22 @@ class _ClinicRegistrationPaymentScreenState
               40,
             ),
             children: [
-              if (verified)
+              if (completed)
                 AveraPageHeader(
-                  title: 'Payment confirmed',
-                  subtitle: _verification!.applicationApproved
+                  title: freeApproved
+                      ? 'Starter plan activated'
+                      : 'Payment confirmed',
+                  subtitle: freeApproved
+                      ? 'Your clinic is active. Check the administrator email for the activation link.'
+                      : _verification!.applicationApproved
                       ? 'Your clinic has been approved. Check the administrator email for the activation link.'
                       : 'Your clinic application is awaiting approval.',
                 )
               else
                 Text(
-                  'Complete the payment step for your submitted clinic application.',
+                  freePlan
+                      ? 'Finish activating the free Starter plan for your submitted clinic application.'
+                      : 'Complete the payment step for your submitted clinic application.',
                   style: averaText(context).listItemSubtitle,
                 ),
               const SizedBox(height: AveraSpacing.subtitleToContentGap),
@@ -262,37 +314,13 @@ class _ClinicRegistrationPaymentScreenState
                     const SizedBox(height: 12),
                     _SummaryLine(
                       label: 'Approval status',
-                      value: _verification?.applicationApproved == true
-                          ? 'Approved'
-                          : 'Pending approval',
+                      value: completed ? 'Approved' : 'Pending approval',
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: AveraSpacing.sectionGap),
-              if (!verified) ...[
-                const AveraSectionHeader(title: 'Billing cycle'),
-                const SizedBox(height: AveraSpacing.cardGap),
-                SegmentedButton<SubscriptionBillingCycle>(
-                  segments: const [
-                    ButtonSegment(
-                      value: SubscriptionBillingCycle.monthly,
-                      label: Text('Monthly'),
-                    ),
-                    ButtonSegment(
-                      value: SubscriptionBillingCycle.annual,
-                      label: Text('Annual'),
-                    ),
-                  ],
-                  selected: {_billingCycle},
-                  onSelectionChanged: _paymentReference == null && !_working
-                      ? (value) => setState(() {
-                          _billingCycle = value.single;
-                          _error = null;
-                        })
-                      : null,
-                ),
-                const SizedBox(height: AveraSpacing.cardGap),
+              if (!completed) ...[
                 if (_loadingPlan)
                   const AveraSurfaceCard(
                     child: Row(
@@ -302,7 +330,7 @@ class _ClinicRegistrationPaymentScreenState
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                         SizedBox(width: 12),
-                        Expanded(child: Text('Loading secure plan pricing…')),
+                        Expanded(child: Text('Loading secure plan details…')),
                       ],
                     ),
                   )
@@ -320,54 +348,102 @@ class _ClinicRegistrationPaymentScreenState
                         TextButton.icon(
                           onPressed: _loadPaymentPlan,
                           icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Retry pricing'),
+                          label: const Text('Retry plan details'),
                         ),
                       ],
                     ),
                   )
-                else if (amount != null)
+                else if (freePlan)
                   AveraSurfaceCard(
-                    key: const Key('registration-selected-price'),
+                    key: const Key('registration-free-plan-summary'),
                     child: Row(
                       children: [
+                        const Icon(Icons.check_circle_outline_rounded),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${_billingPlan!.name} ${_billingCycle == SubscriptionBillingCycle.monthly ? 'Monthly' : 'Annual'}',
+                                '${_billingPlan!.name} is free',
                                 style: averaText(context).listItemTitle,
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _billingCycle ==
-                                        SubscriptionBillingCycle.monthly
-                                    ? 'Billed monthly'
-                                    : 'Billed annually',
+                                'No card, billing cycle, or Paystack checkout is required.',
                                 style: averaText(context).caption,
                               ),
                             ],
                           ),
                         ),
-                        Text(
-                          formatSubscriptionAmount(
-                            amountMinor: amount,
-                            currency: _billingPlan!.currency,
-                          ),
-                          style: averaText(context).sectionTitle,
-                        ),
                       ],
                     ),
+                  )
+                else ...[
+                  const AveraSectionHeader(title: 'Billing cycle'),
+                  const SizedBox(height: AveraSpacing.cardGap),
+                  SegmentedButton<SubscriptionBillingCycle>(
+                    segments: const [
+                      ButtonSegment(
+                        value: SubscriptionBillingCycle.monthly,
+                        label: Text('Monthly'),
+                      ),
+                      ButtonSegment(
+                        value: SubscriptionBillingCycle.annual,
+                        label: Text('Annual'),
+                      ),
+                    ],
+                    selected: {_billingCycle},
+                    onSelectionChanged: _paymentReference == null && !_working
+                        ? (value) => setState(() {
+                            _billingCycle = value.single;
+                            _error = null;
+                          })
+                        : null,
                   ),
-                if (!_loadingPlan &&
-                    _planError == null &&
-                    !checkoutConfigured) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_billingPlan?.name ?? widget.application.subscriptionPlan} ${_billingCycle.apiValue} billing is not available for online payment.',
-                    textAlign: TextAlign.center,
-                    style: averaText(context).caption,
-                  ),
+                  const SizedBox(height: AveraSpacing.cardGap),
+                  if (amount != null)
+                    AveraSurfaceCard(
+                      key: const Key('registration-selected-price'),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${_billingPlan!.name} ${_billingCycle == SubscriptionBillingCycle.monthly ? 'Monthly' : 'Annual'}',
+                                  style: averaText(context).listItemTitle,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _billingCycle ==
+                                          SubscriptionBillingCycle.monthly
+                                      ? 'Billed monthly'
+                                      : 'Billed annually',
+                                  style: averaText(context).caption,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            formatSubscriptionAmount(
+                              amountMinor: amount,
+                              currency: _billingPlan!.currency,
+                            ),
+                            style: averaText(context).sectionTitle,
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (!checkoutConfigured) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '${_billingPlan?.name ?? widget.application.subscriptionPlan} ${_billingCycle.apiValue} billing is not available for online payment.',
+                      textAlign: TextAlign.center,
+                      style: averaText(context).caption,
+                    ),
+                  ],
                 ],
                 const SizedBox(height: AveraSpacing.sectionGap),
               ],
@@ -381,6 +457,16 @@ class _ClinicRegistrationPaymentScreenState
                     style: averaText(context).sectionTitle,
                   ),
                 ),
+              if (_freeApproval != null)
+                AveraSurfaceCard(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.45),
+                  child: Text(
+                    _freePlanApprovalMessage(_freeApproval!),
+                    style: averaText(context).sectionTitle,
+                  ),
+                ),
               if (_error != null) ...[
                 AveraSurfaceCard(
                   outlined: true,
@@ -391,7 +477,15 @@ class _ClinicRegistrationPaymentScreenState
                 ),
                 const SizedBox(height: AveraSpacing.cardGap),
               ],
-              if (!verified && _paymentReference == null)
+              if (!completed && freePlan && !_loadingPlan && _planError == null)
+                AveraPrimaryActionButton(
+                  key: const Key('registration-activate-free-plan'),
+                  label: 'Activate Starter Plan',
+                  icon: Icons.check_circle_outline_rounded,
+                  loading: _working,
+                  onPressed: _continueFreePlan,
+                ),
+              if (!completed && !freePlan && _paymentReference == null)
                 AveraPrimaryActionButton(
                   key: const Key('registration-continue-to-paystack'),
                   label: 'Continue to Paystack',
@@ -399,7 +493,7 @@ class _ClinicRegistrationPaymentScreenState
                   loading: _working,
                   onPressed: checkoutConfigured ? _startCheckout : null,
                 ),
-              if (!verified && _paymentReference != null) ...[
+              if (!completed && !freePlan && _paymentReference != null) ...[
                 AveraPrimaryActionButton(
                   key: const Key('registration-check-payment'),
                   label: 'Check Payment Status',
@@ -417,7 +511,7 @@ class _ClinicRegistrationPaymentScreenState
                   label: const Text('Retry Payment'),
                 ),
               ],
-              if (verified) ...[
+              if (completed) ...[
                 const SizedBox(height: AveraSpacing.cardGap),
                 FilledButton(
                   onPressed: () => context.go(
@@ -432,9 +526,11 @@ class _ClinicRegistrationPaymentScreenState
                 ),
               ],
               const SizedBox(height: 14),
-              if (!verified)
+              if (!completed)
                 Text(
-                  'A verified payment automatically approves the clinic and sends the administrator activation email.',
+                  freePlan
+                      ? 'Starter is activated by the AVERA backend without creating a payment transaction.'
+                      : 'A verified payment automatically approves the clinic and sends the administrator activation email.',
                   style: averaText(context).caption,
                   textAlign: TextAlign.center,
                 ),
@@ -463,6 +559,19 @@ class _SummaryLine extends StatelessWidget {
   );
 }
 
+String _freePlanApprovalMessage(
+  FreeRegistrationApproval approval,
+) => switch (approval.activationDeliveryMethod) {
+  'email_submitted' || 'email' =>
+    'Starter is active. The administrator activation email was submitted to the email provider.',
+  'email_failed' =>
+    'Starter is active, but the activation email could not be submitted. Contact AVERA support to resend it.',
+  'manual' =>
+    'Starter is active. Email delivery is not configured, so contact AVERA support for the activation link.',
+  _ =>
+    'Starter is active. Check the Account Email for the administrator activation link.',
+};
+
 String _paymentError(ApiException error) => switch (error.code) {
   'payment_pending' =>
     'Payment is still pending. Complete Paystack checkout, then try again.',
@@ -471,6 +580,8 @@ String _paymentError(ApiException error) => switch (error.code) {
   'payment_not_successful' => 'Paystack did not confirm a successful payment.',
   'registration_payment_access_denied' =>
     'This payment session has expired. Your clinic application remains submitted.',
+  'payment_required' =>
+    'This plan requires verified payment and cannot use the free activation path.',
   _ => error.message,
 };
 

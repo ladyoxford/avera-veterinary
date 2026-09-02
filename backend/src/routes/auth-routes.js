@@ -4,6 +4,14 @@ import { authenticate } from '../middleware/auth.js';
 export const signInSchema = z.object({ email: z.string().email(), password: z.string().min(1), deviceName: z.string().max(120).optional(), platform: z.string().max(60).optional() });
 const refreshSchema = z.object({ refreshToken: z.string().min(40) });
 const passwordSchema = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(12) });
+const passwordResetRequestSchema = z.object({
+  email: z.string().trim().email().max(254),
+});
+const passwordResetSchema = z.object({
+  token: z.string().min(32).max(512),
+  password: z.string().min(12).max(256),
+  confirmPassword: z.string().min(12).max(256),
+});
 const activationTokenSchema = z.object({ token: z.string().min(32).max(512) });
 const activationSchema = activationTokenSchema.extend({
   password: z.string().min(12).max(256),
@@ -27,6 +35,59 @@ export async function authRoutes(app) {
       return reply.code(result.status).send({ error: result.code, message: result.message });
     }
     return reply.code(200).send(result.session);
+  });
+
+  app.post('/api/v1/auth/forgot-password', {
+    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+  }, async (request, reply) => {
+    const parsed = passwordResetRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'validation_error',
+        message: 'Provide a valid account email.',
+      });
+    }
+    try {
+      await app.passwordResetService.request({
+        email: parsed.data.email,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
+      return reply.code(202).send({
+        accepted: true,
+        message: 'If an eligible AVERA account uses that email, a reset link has been sent.',
+      });
+    } catch (error) {
+      return reply.code(error.statusCode ?? 503).send({
+        error: error.code ?? 'password_reset_unavailable',
+        message: error.message,
+      });
+    }
+  });
+
+  app.post('/api/v1/auth/reset-password', {
+    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+  }, async (request, reply) => {
+    const parsed = passwordResetSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'validation_error',
+        message: 'Provide a valid reset token and matching strong passwords.',
+      });
+    }
+    try {
+      return await app.passwordResetService.reset({
+        rawToken: parsed.data.token,
+        password: parsed.data.password,
+        confirmPassword: parsed.data.confirmPassword,
+        ipAddress: request.ip,
+      });
+    } catch (error) {
+      return reply.code(error.statusCode ?? 400).send({
+        error: error.code ?? 'password_reset_failed',
+        message: error.message,
+      });
+    }
   });
 
   app.post('/api/v1/auth/clinic-administrator-activation/status', {

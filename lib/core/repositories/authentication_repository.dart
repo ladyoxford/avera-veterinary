@@ -53,6 +53,19 @@ class AuthenticationRepository {
   inspectClinicAdministratorActivation(String token) =>
       _remote.inspectClinicAdministratorActivation(token);
 
+  Future<void> requestPasswordReset(String email) =>
+      _remote.requestPasswordReset(email);
+
+  Future<void> resetPassword({
+    required String token,
+    required String password,
+    required String confirmPassword,
+  }) => _remote.resetPassword(
+    token: token,
+    password: password,
+    confirmPassword: confirmPassword,
+  );
+
   Future<RemoteClinicAdministratorActivationResult>
   activateClinicAdministrator({
     required String token,

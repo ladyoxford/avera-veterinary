@@ -24,6 +24,7 @@ import { publicAccountRoutes } from './routes/public-account-routes.js';
 import { requestLogSerializer } from './config/request-logging.js';
 import { ProfilePhotoStorageService } from './services/profile-photo-storage-service.js';
 import { ClinicDeletionService } from './services/clinic-deletion-service.js';
+import { PasswordResetService } from './services/password-reset-service.js';
 
 export async function buildApp({
   environment = loadEnvironment(),
@@ -68,6 +69,15 @@ export async function buildApp({
   const activationDeliveryService = new ActivationEmailDeliveryService({
     environment,
   });
+  app.decorate('emailDeliveryService', activationDeliveryService);
+  app.decorate(
+    'passwordResetService',
+    new PasswordResetService({
+      pool: databasePool,
+      environment,
+      deliveryService: activationDeliveryService,
+    }),
+  );
   const activationService = new ClinicAdministratorActivationService({
     pool: databasePool,
     environment,

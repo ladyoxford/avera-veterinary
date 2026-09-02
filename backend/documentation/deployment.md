@@ -15,23 +15,52 @@ run the API as a non-owner PostgreSQL role so Row Level Security applies.
 7. Repeat for production only after staging authentication, RLS, and audit-log
    tests pass.
 
-## Clinic Administrator activation
+## Account email and password recovery
 
-Set `ACTIVATION_TOKEN_TTL_MINUTES` and `AVERA_ACTIVATION_BASE_URL` in Render.
-Use the verified Android App Link:
-`https://accounts.averavet.sbs/activate-clinic-admin`. For email delivery, also
-set `RESEND_API_KEY` and a verified `ACTIVATION_EMAIL_FROM` sender. Secrets and
-activation links must not be placed in build logs.
+AVERA uses one account-email transport for clinic administrator activation,
+staff invitations, mutual-deletion confirmation, and password recovery. For a
+Hostinger Email mailbox, create the mailbox in hPanel and configure these
+secrets on the API service:
+
+```dotenv
+EMAIL_TRANSPORT=smtp
+EMAIL_FROM=AVERA <accounts@averavet.sbs>
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=accounts@averavet.sbs
+SMTP_PASSWORD=<the Hostinger mailbox password>
+```
+
+`SMTP_USER` must be the complete mailbox address. If the deployment provider
+cannot establish an SSL connection on port 465, use port 587 with
+`SMTP_SECURE=false` so Nodemailer upgrades the connection with STARTTLS. Never
+commit the mailbox password or place reset and activation links in build logs.
+
+Set the account-link configuration on the same API service:
+
+```dotenv
+ACTIVATION_TOKEN_TTL_MINUTES=2880
+PASSWORD_RESET_TOKEN_TTL_MINUTES=30
+AVERA_ACTIVATION_BASE_URL=https://accounts.averavet.sbs/activate-clinic-admin
+AVERA_STAFF_ACTIVATION_BASE_URL=https://accounts.averavet.sbs/activate-staff
+AVERA_PASSWORD_RESET_BASE_URL=https://accounts.averavet.sbs/reset-password
+```
+
+`EMAIL_TRANSPORT=auto` may be used when SMTP should be preferred with Resend as
+a configured fallback. For Resend-only delivery, set `EMAIL_TRANSPORT=resend`,
+`RESEND_API_KEY`, and a verified `EMAIL_FROM` sender.
 
 Point the DNS `accounts` CNAME at the Render service hostname and add
 `accounts.averavet.sbs` as a custom domain on that service. The same Fastify
 service hosts `/.well-known/assetlinks.json` and the token-safe fallback page.
 
-If the email variables are absent, approval and resend return the plaintext
-activation link once to the authenticated Platform Owner response. The
-Platform Owner Console labels this as temporary manual delivery and never
-loads that link again from activation status. Configure email delivery before
-removing the temporary UI path.
+After saving the secrets, restart the API and verify Platform Owner system
+health reports the expected provider. Request a reset for a test account and
+complete the link once; a second use must be rejected. Administrator approval
+and resend retain their temporary manual-delivery fallback when email is not
+configured, but password recovery deliberately remains unavailable until a
+transport is configured.
 
 After deploying code, run the migration as a Render Shell one-off command:
 

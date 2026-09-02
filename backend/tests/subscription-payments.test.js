@@ -17,6 +17,10 @@ const migration = fs.readFileSync(
   new URL('../migrations/006_subscription_payments.sql', import.meta.url),
   'utf8',
 );
+const freeStarterMigration = fs.readFileSync(
+  new URL('../migrations/033_free_starter_plan.sql', import.meta.url),
+  'utf8',
+);
 
 test('subscription payment migration enforces unique references and webhook identities', () => {
   assert.match(migration, /reference TEXT NOT NULL UNIQUE/);
@@ -79,6 +83,12 @@ test('payment verification rejects status, amount, currency, and reference misma
     validateVerifiedPayment(expected, { ...valid, reference: 'OTHER' }),
     'payment_reference_mismatch',
   );
+});
+
+test('Starter pricing migration uses explicit zero values for the payment-free plan', () => {
+  assert.match(freeStarterMigration, /monthly_amount_minor\s*=\s*0/);
+  assert.match(freeStarterMigration, /annual_amount_minor\s*=\s*0/);
+  assert.match(freeStarterMigration, /WHERE plan_key = 'Starter'/);
 });
 
 test('Paystack mode accepts test and live but rejects arbitrary values', () => {
@@ -386,6 +396,106 @@ test('clinic application returns a scoped payment capability that cannot cross a
   });
   assert.equal(expired.statusCode, 403);
   assert.equal(calls.length, 1);
+});
+
+test('Starter registration activates without Paystack and legacy sessions can reconcile', async (context) => {
+  const client = transactionClient((sql) => {
+    if (
+      sql.includes('FROM clinic_applications') &&
+      (sql.includes('lower(administrator_email::text)') ||
+        sql.includes('WHERE application_id = $1'))
+    ) {
+      return { rows: [] };
+    }
+    if (sql.includes('INSERT INTO clinic_applications')) {
+      return {
+        rows: [{
+          application_id: 'starter-application-1',
+          application_reference: 'AVR-20260902-FREE01',
+          status: 'AwaitingPayment',
+          payment_status: 'Pending',
+          submitted_at: new Date('2026-09-02T08:00:00Z'),
+        }],
+      };
+    }
+    return { rows: [] };
+  });
+  const app = await buildApp({
+    environment: testEnvironment(),
+    pool: transactionPool(client),
+  });
+  context.after(() => app.close());
+  const planCalls = [];
+  const approvalCalls = [];
+  app.subscriptionService.getApplicationPaymentPlan = async (input) => {
+    planCalls.push(input);
+    return {
+      code: 'Starter',
+      name: 'Starter',
+      monthlyAmountMinor: 0,
+      annualAmountMinor: 0,
+      currency: 'NGN',
+      requiresPayment: false,
+      monthlyCheckoutConfigured: false,
+      annualCheckoutConfigured: false,
+    };
+  };
+  app.activationService.approveFreeApplication = async (input) => {
+    approvalCalls.push(input);
+    return {
+      approved: true,
+      activation: {
+        deliveryMethod: 'email_submitted',
+        emailState: 'Submitted',
+      },
+    };
+  };
+
+  const registration = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications',
+    payload: {
+      clinicName: 'Starter Veterinary Clinic',
+      accountEmail: 'starter@clinic.test',
+      phoneNumber: '+2348000000000',
+      address: '1 Free Plan Street',
+      city: 'Lagos',
+      country: 'Nigeria',
+      administratorName: 'Starter Administrator',
+      administratorPhone: '+2348111111111',
+      professionalTitle: 'Veterinarian',
+      subscriptionPlan: 'Starter',
+      timeZone: 'Africa/Lagos',
+    },
+  });
+
+  assert.equal(registration.statusCode, 201);
+  const application = registration.json().application;
+  assert.equal(application.status, 'Approved');
+  assert.equal(application.paymentStatus, 'NotRequired');
+  assert.equal(application.paymentRequired, false);
+  assert.equal(application.paymentAccessToken, null);
+  assert.equal(application.activation.deliveryMethod, 'email_submitted');
+  assert.equal(planCalls.length, 1);
+  assert.equal(approvalCalls.length, 1);
+
+  const legacyToken = app.jwt.sign({
+    scope: 'clinic-application-payment',
+    applicationId: 'starter-application-1',
+    clinicId: application.clinicId,
+    selectedPlan: 'Starter',
+  });
+  const reconciled = await app.inject({
+    method: 'POST',
+    url: '/api/v1/clinic-applications/starter-application-1/free-plan/continue',
+    payload: { accessToken: legacyToken },
+  });
+  assert.equal(reconciled.statusCode, 200);
+  assert.equal(reconciled.json().applicationApproved, true);
+  assert.equal(reconciled.json().paymentRequired, false);
+  assert.equal(reconciled.json().paymentStatus, 'NotRequired');
+  assert.equal(planCalls.length, 2);
+  assert.equal(approvalCalls.length, 2);
 });
 
 test('unpaid clinic registration edits reuse one draft and do not provision a user', async (context) => {
@@ -743,6 +853,61 @@ for (const missing of ['price', 'plan code']) {
     );
   });
 }
+
+test('Starter cannot initialize a Paystack checkout when both canonical prices are zero', async () => {
+  let gatewayCalls = 0;
+  const application = {
+    application_id: 'starter-application-1',
+    clinic_id: 'starter-clinic-1',
+    status: 'Pending',
+    selected_plan: 'Starter',
+    payment_status: 'Pending',
+    payment_reference: null,
+    administrator_email: 'starter@clinic.test',
+    application_reference: 'AVR-20260902-FREE01',
+  };
+  const client = transactionClient((sql) => {
+    if (sql.includes('FROM clinic_applications') && sql.includes('FOR UPDATE')) {
+      return { rows: [application] };
+    }
+    if (sql.includes('FROM plans')) {
+      return {
+        rows: [{
+          plan_key: 'Starter',
+          display_name: 'Starter',
+          monthly_amount_minor: 0,
+          annual_amount_minor: 0,
+          currency: 'NGN',
+        }],
+      };
+    }
+    return { rows: [] };
+  });
+  const service = new SubscriptionService({
+    pool: transactionPool(client),
+    environment: {
+      PAYSTACK_MODE: 'test',
+      PAYSTACK_CURRENCY: 'NGN',
+      PAYSTACK_STARTER_MONTHLY_PLAN_CODE: 'PLN_starter_monthly_test',
+    },
+    gateway: {
+      configured: true,
+      async initializeCheckout() {
+        gatewayCalls += 1;
+      },
+    },
+  });
+
+  await assert.rejects(
+    service.initializeApplicationCheckout({
+      applicationId: application.application_id,
+      clinicId: application.clinic_id,
+      billingCycle: 'monthly',
+    }),
+    (error) => error.code === 'payment_not_required',
+  );
+  assert.equal(gatewayCalls, 0);
+});
 
 test('application checkout uses the persisted plan and applicant email', async () => {
   const gatewayCalls = [];

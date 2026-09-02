@@ -3,7 +3,7 @@ enum RevenuePeriod {
   threeDays('3d', '3D', '3 Days'),
   sevenDays('7d', '7D', '7 Days'),
   oneWeek('1w', '1W', 'This Week'),
-  oneMonth('1m', '1M', 'This Month'),
+  oneMonth('1m', '1M', 'Last 30 Days'),
   threeMonths('3m', '3M', '3 Months'),
   sixMonths('6m', '6M', '6 Months'),
   oneYear('1y', '1Y', 'This Year'),
@@ -18,17 +18,18 @@ enum RevenuePeriod {
   final String title;
 
   RevenueDateRange rangeAt(DateTime now) {
-    final end = now.add(const Duration(microseconds: 1));
+    final today = DateTime(now.year, now.month, now.day);
+    final end = today.add(const Duration(days: 1));
     final start = switch (this) {
-      RevenuePeriod.oneDay => DateTime(now.year, now.month, now.day),
-      RevenuePeriod.threeDays => now.subtract(const Duration(days: 3)),
-      RevenuePeriod.sevenDays => now.subtract(const Duration(days: 7)),
+      RevenuePeriod.oneDay => today,
+      RevenuePeriod.threeDays => today.subtract(const Duration(days: 2)),
+      RevenuePeriod.sevenDays => today.subtract(const Duration(days: 6)),
       RevenuePeriod.oneWeek => DateTime(
         now.year,
         now.month,
         now.day - (now.weekday - DateTime.monday),
       ),
-      RevenuePeriod.oneMonth => DateTime(now.year, now.month),
+      RevenuePeriod.oneMonth => today.subtract(const Duration(days: 29)),
       RevenuePeriod.threeMonths => DateTime(now.year, now.month - 2),
       RevenuePeriod.sixMonths => DateTime(now.year, now.month - 5),
       RevenuePeriod.oneYear => DateTime(now.year),

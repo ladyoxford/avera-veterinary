@@ -611,6 +611,7 @@ class ClinicApplication {
     this.paymentAccessToken,
     this.draftAccessToken,
     this.status,
+    this.paymentRequired = true,
   }) : accountEmail = accountEmail ?? administratorEmail ?? clinicEmail ?? '';
 
   final String clinicName;
@@ -631,14 +632,21 @@ class ClinicApplication {
   final String? paymentAccessToken;
   final String? draftAccessToken;
   final String? status;
+  final bool paymentRequired;
 
   String get clinicEmail => accountEmail;
   String get administratorEmail => accountEmail;
 
   bool get canContinueToPayment =>
+      paymentRequired &&
       applicationId?.isNotEmpty == true &&
       clinicId?.isNotEmpty == true &&
       paymentAccessToken?.isNotEmpty == true;
+
+  bool get isFreePlanActive =>
+      !paymentRequired &&
+      status == 'Approved' &&
+      paymentStatus == 'NotRequired';
 
   ClinicApplication copyWith({
     String? clinicName,
@@ -659,6 +667,7 @@ class ClinicApplication {
     String? paymentAccessToken,
     String? draftAccessToken,
     String? status,
+    bool? paymentRequired,
   }) => ClinicApplication(
     clinicName: clinicName ?? this.clinicName,
     accountEmail: accountEmail ?? this.accountEmail,
@@ -678,6 +687,7 @@ class ClinicApplication {
     paymentAccessToken: paymentAccessToken ?? this.paymentAccessToken,
     draftAccessToken: draftAccessToken ?? this.draftAccessToken,
     status: status ?? this.status,
+    paymentRequired: paymentRequired ?? this.paymentRequired,
   );
 }
 
@@ -882,6 +892,7 @@ class ClinicRepository {
         paymentAccessToken: remote['paymentAccessToken'] as String?,
         draftAccessToken: remote['draftAccessToken'] as String?,
         status: remote['status'] as String? ?? 'AwaitingPayment',
+        paymentRequired: remote['paymentRequired'] as bool? ?? true,
       );
       try {
         await db
@@ -897,7 +908,9 @@ class ClinicRepository {
                 email: Value(application.clinicEmail.trim().toLowerCase()),
                 timeZone: Value(application.timeZone),
                 subscriptionPlan: Value(application.subscriptionPlan),
-                clinicStatus: const Value('Pending'),
+                clinicStatus: Value(
+                  remote['status'] == 'Approved' ? 'Active' : 'Pending',
+                ),
                 dateRegistered:
                     DateTime.tryParse(remote['submittedAt'] as String? ?? '') ??
                     DateTime.now(),

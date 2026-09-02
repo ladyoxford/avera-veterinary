@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import nodemailer from 'nodemailer';
 import { writeAudit } from '../audit/audit-service.js';
 import { withTenantTransaction } from '../database/pool.js';
 import { hashPassword, validatePassword } from '../security/passwords.js';
@@ -18,6 +19,160 @@ export class ClinicAdministratorActivationService {
     this.pool = pool;
     this.environment = environment;
     this.deliveryService = deliveryService;
+  }
+
+  async approveFreeApplication(context) {
+    const result = await withTenantTransaction(
+      this.pool,
+      { isPlatformOwner: true },
+      async (client) => {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+          `clinic-free-approval:${context.applicationId}`,
+        ]);
+        const target = (
+          await client.query(
+            `SELECT a.application_id, a.clinic_id,
+                    a.status AS application_status, a.payment_status,
+                    a.selected_plan, c.name AS clinic_name,
+                    c.status AS clinic_status, p.monthly_amount_minor,
+                    p.annual_amount_minor
+               FROM clinic_applications a
+               JOIN clinics c ON c.clinic_id = a.clinic_id
+               JOIN plans p ON p.plan_key = a.selected_plan AND p.active = true
+              WHERE a.application_id = $1 AND a.clinic_id = $2
+              FOR UPDATE OF a, c, p`,
+            [context.applicationId, context.clinicId],
+          )
+        ).rows[0];
+        if (!target) {
+          throw serviceError(
+            'clinic_application_not_found',
+            'The clinic application could not be found.',
+            404,
+          );
+        }
+        const isFreePlan =
+          target.monthly_amount_minor != null &&
+          target.annual_amount_minor != null &&
+          Number(target.monthly_amount_minor) === 0 &&
+          Number(target.annual_amount_minor) === 0;
+        if (!isFreePlan) {
+          throw serviceError(
+            'payment_required',
+            'The selected plan requires verified payment.',
+            409,
+          );
+        }
+        const alreadyApproved =
+          target.clinic_status === 'Active' &&
+          target.application_status === 'Approved' &&
+          target.payment_status === 'NotRequired';
+        if (
+          !alreadyApproved &&
+          (
+            !['RegistrationDraft', 'Pending', 'PendingApproval'].includes(
+              target.clinic_status,
+            ) ||
+            !['AwaitingPayment', 'Pending', 'PendingApproval'].includes(
+              target.application_status,
+            )
+          )
+        ) {
+          throw serviceError(
+            'automatic_approval_not_allowed',
+            'This clinic requires Platform Owner review before its status can change.',
+            409,
+          );
+        }
+
+        if (!alreadyApproved) {
+          await client.query(
+            `UPDATE clinics
+                SET status = 'Active', subscription_plan = $2,
+                    updated_at = now(), revision = revision + 1
+              WHERE clinic_id = $1`,
+            [context.clinicId, target.selected_plan],
+          );
+          await client.query(
+            `UPDATE clinic_applications
+                SET payment_status = 'NotRequired', payment_reference = NULL,
+                    status = 'Pending', updated_at = now()
+              WHERE application_id = $1`,
+            [context.applicationId],
+          );
+        }
+
+        const currentSubscription = (
+          await client.query(
+            `SELECT subscription_id
+               FROM subscriptions
+              WHERE clinic_id = $1
+                AND status IN ('Trial', 'Pending Payment', 'Active',
+                               'Past Due', 'Non-renewing')
+              ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`,
+            [context.clinicId],
+          )
+        ).rows[0];
+        if (currentSubscription) {
+          await client.query(
+            `UPDATE subscriptions
+                SET plan = $2, status = 'Active', billing_cycle = 'monthly',
+                    gateway = NULL, gateway_customer_code = NULL,
+                    gateway_subscription_code = NULL,
+                    gateway_email_token = NULL,
+                    current_period_start = COALESCE(current_period_start, now()),
+                    current_period_ends_at = NULL, next_billing_date = NULL,
+                    cancel_at_period_end = false, cancelled_at = NULL,
+                    updated_at = now()
+              WHERE subscription_id = $1`,
+            [currentSubscription.subscription_id, target.selected_plan],
+          );
+        } else {
+          await client.query(
+            `INSERT INTO subscriptions
+               (clinic_id, plan, status, billing_cycle, gateway,
+                current_period_start, current_period_ends_at,
+                next_billing_date, cancel_at_period_end)
+             VALUES ($1, $2, 'Active', 'monthly', NULL, now(), NULL, NULL, false)`,
+            [context.clinicId, target.selected_plan],
+          );
+        }
+
+        const administrator = await this.provisionOnApproval(client, {
+          clinicId: context.clinicId,
+          clinicName: target.clinic_name,
+          actorUserId: null,
+          sessionId: null,
+          ipAddress: context.ipAddress,
+        });
+        await writeAudit(client, {
+          clinicId: context.clinicId,
+          actingUserId: null,
+          targetType: 'Clinic',
+          targetId: context.clinicId,
+          action: alreadyApproved
+            ? 'clinic.free_plan_activation_reconciled'
+            : 'clinic.free_plan_activated',
+          previousSummary: {
+            clinicStatus: target.clinic_status,
+            applicationStatus: target.application_status,
+            paymentStatus: target.payment_status,
+          },
+          newSummary: {
+            clinicStatus: 'Active',
+            applicationStatus: 'Approved',
+            paymentStatus: 'NotRequired',
+            plan: target.selected_plan,
+          },
+          ipAddress: context.ipAddress,
+        });
+        return { approved: true, issued: administrator.issued };
+      },
+    );
+    const activation = result.issued
+      ? await this.deliverIssuedToken(result.issued)
+      : await this.activationStatus(context.clinicId);
+    return { approved: result.approved, activation };
   }
 
   async approveAfterVerifiedPayment(context) {
@@ -405,13 +560,19 @@ export class ClinicAdministratorActivationService {
         await client.query(
           `UPDATE activation_tokens
               SET delivery_method = $2, delivered_at = $3,
-                  delivery_reference = $4
+                  delivery_reference = $4,
+                  metadata = metadata || jsonb_strip_nulls(jsonb_build_object(
+                    'emailProvider', $5::text,
+                    'emailFailureCode', $6::text
+                  ))
             WHERE token_id = $1`,
           [
             issued.tokenId,
             deliveryMethod,
             submitted ? delivery.submittedAt : null,
             submitted ? delivery.providerMessageId : null,
+            delivery.provider ?? null,
+            submitted ? null : delivery.failureCode ?? null,
           ],
         );
         await writeAudit(client, {
@@ -448,12 +609,12 @@ export class ClinicAdministratorActivationService {
       async (client) => {
         const result = await client.query(
           `SELECT u.user_id, u.full_name, u.email, u.status,
-                  t.expires_at, t.used_at, t.revoked_at, t.delivery_method,
-                  t.delivered_at, t.delivery_reference
+                   t.expires_at, t.used_at, t.revoked_at, t.delivery_method,
+                   t.delivered_at, t.delivery_reference, t.metadata
              FROM users u
              LEFT JOIN LATERAL (
-               SELECT expires_at, used_at, revoked_at, delivery_method,
-                      delivered_at, delivery_reference
+                SELECT expires_at, used_at, revoked_at, delivery_method,
+                       delivered_at, delivery_reference, metadata
                  FROM activation_tokens
                 WHERE user_id = u.user_id AND purpose = $2
                 ORDER BY created_at DESC LIMIT 1
@@ -1067,16 +1228,51 @@ export class ClinicAdministratorActivationService {
 }
 
 export class ActivationEmailDeliveryService {
-  constructor({ environment, fetchImpl = globalThis.fetch }) {
+  constructor({
+    environment,
+    fetchImpl = globalThis.fetch,
+    smtpTransport = null,
+  }) {
     this.environment = environment;
     this.fetchImpl = fetchImpl;
+    this.smtpTransport = smtpTransport;
   }
 
   get configured() {
-    return Boolean(
-      this.environment.RESEND_API_KEY &&
-      this.environment.ACTIVATION_EMAIL_FROM,
+    return this.provider != null;
+  }
+
+  get provider() {
+    const requested = this.environment.EMAIL_TRANSPORT ?? 'auto';
+    const smtpConfigured = Boolean(
+      this.environment.SMTP_HOST &&
+      this.environment.SMTP_USER &&
+      this.environment.SMTP_PASSWORD &&
+      this.#fromAddress,
     );
+    const resendConfigured = Boolean(
+      this.environment.RESEND_API_KEY && this.#fromAddress,
+    );
+    if (requested === 'smtp') return smtpConfigured ? 'smtp' : null;
+    if (requested === 'resend') return resendConfigured ? 'resend' : null;
+    if (smtpConfigured) return 'smtp';
+    if (resendConfigured) return 'resend';
+    return null;
+  }
+
+  get providerLabel() {
+    return this.provider === 'smtp'
+      ? 'SMTP'
+      : this.provider === 'resend'
+        ? 'Resend'
+        : 'Not configured';
+  }
+
+  get #fromAddress() {
+    return this.environment.emailFrom ??
+      this.environment.EMAIL_FROM ??
+      this.environment.ACTIVATION_EMAIL_FROM ??
+      null;
   }
 
   async sendClinicAdministratorActivation(message) {
@@ -1106,13 +1302,73 @@ export class ActivationEmailDeliveryService {
     });
   }
 
+  async sendPasswordReset(message) {
+    return this.#submit({
+      to: message.to,
+      subject: 'Reset your AVERA password',
+      text: passwordResetEmailText(message),
+      idempotencyKey: message.idempotencyKey,
+    });
+  }
+
   async #submit({ to, subject, text, idempotencyKey }) {
-    if (!this.configured) {
+    const provider = this.provider;
+    if (!provider) {
       return emailSubmissionFailure(
         'email_transport_unconfigured',
         'Email submission is not configured.',
+        null,
       );
     }
+    if (provider === 'smtp') {
+      return this.#submitSmtp({ to, subject, text });
+    }
+    return this.#submitResend({ to, subject, text, idempotencyKey });
+  }
+
+  async #submitSmtp({ to, subject, text }) {
+    try {
+      this.smtpTransport ??= nodemailer.createTransport({
+        host: this.environment.SMTP_HOST,
+        port: Number(this.environment.SMTP_PORT ?? 465),
+        secure:
+          this.environment.smtpSecure ??
+          String(this.environment.SMTP_SECURE ?? 'true') === 'true',
+        auth: {
+          user: this.environment.SMTP_USER,
+          pass: this.environment.SMTP_PASSWORD,
+        },
+      });
+      const result = await this.smtpTransport.sendMail({
+        from: this.#fromAddress,
+        to,
+        subject,
+        text,
+      });
+      const providerMessageId = typeof result?.messageId === 'string'
+        ? result.messageId.trim()
+        : '';
+      const rejected = Array.isArray(result?.rejected)
+        ? result.rejected.map(String)
+        : [];
+      if (!providerMessageId || rejected.includes(String(to))) {
+        return emailSubmissionFailure(
+          'email_provider_rejected',
+          'The SMTP provider did not accept the submission.',
+          'smtp',
+        );
+      }
+      return acceptedEmailSubmission('smtp', providerMessageId);
+    } catch (_) {
+      return emailSubmissionFailure(
+        'email_provider_unavailable',
+        'The SMTP provider could not be reached.',
+        'smtp',
+      );
+    }
+  }
+
+  async #submitResend({ to, subject, text, idempotencyKey }) {
     let response;
     try {
       response = await this.fetchImpl('https://api.resend.com/emails', {
@@ -1124,7 +1380,7 @@ export class ActivationEmailDeliveryService {
           'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify({
-          from: this.environment.ACTIVATION_EMAIL_FROM,
+          from: this.#fromAddress,
           to: [to],
           subject,
           text,
@@ -1134,6 +1390,7 @@ export class ActivationEmailDeliveryService {
       return emailSubmissionFailure(
         'email_provider_unavailable',
         'The email provider could not be reached.',
+        'resend',
       );
     }
     let body;
@@ -1143,12 +1400,14 @@ export class ActivationEmailDeliveryService {
       return emailSubmissionFailure(
         'email_provider_invalid_response',
         'The email provider returned an invalid response.',
+        'resend',
       );
     }
     if (!response.ok) {
       return emailSubmissionFailure(
         'email_provider_rejected',
         'The email provider rejected the submission.',
+        'resend',
       );
     }
     const providerMessageId = typeof body?.id === 'string'
@@ -1158,25 +1417,29 @@ export class ActivationEmailDeliveryService {
       return emailSubmissionFailure(
         'email_provider_missing_message_id',
         'The email provider did not confirm the submission.',
+        'resend',
       );
     }
-    const submittedAt = new Date().toISOString();
-    return {
-      accepted: true,
-      provider: 'resend',
-      providerMessageId,
-      reference: providerMessageId,
-      submittedAt,
-      failureCode: null,
-      failureReason: null,
-    };
+    return acceptedEmailSubmission('resend', providerMessageId);
   }
 }
 
-function emailSubmissionFailure(failureCode, failureReason) {
+function acceptedEmailSubmission(provider, providerMessageId) {
+  return {
+    accepted: true,
+    provider,
+    providerMessageId,
+    reference: providerMessageId,
+    submittedAt: new Date().toISOString(),
+    failureCode: null,
+    failureReason: null,
+  };
+}
+
+function emailSubmissionFailure(failureCode, failureReason, provider = null) {
   return {
     accepted: false,
-    provider: 'resend',
+    provider,
     providerMessageId: null,
     reference: null,
     submittedAt: null,
@@ -1244,6 +1507,19 @@ function clinicDeletionEmailText(message) {
   ].filter(Boolean).join('\n');
 }
 
+function passwordResetEmailText(message) {
+  return [
+    `Hello ${message.fullName},`,
+    '',
+    'A password reset was requested for your AVERA account.',
+    'Choose a new password using this secure single-use link:',
+    message.resetUrl,
+    '',
+    `This link expires at ${new Date(message.expiresAt).toISOString()}.`,
+    'If you did not request this reset, ignore this email. Your password remains unchanged.',
+  ].join('\n');
+}
+
 function mapActivationStatus(row) {
   let status = row.status;
   if (row.status === 'PendingActivation') {
@@ -1265,7 +1541,9 @@ function mapActivationStatus(row) {
     deliveryMethod: row.delivery_method === 'email'
       ? 'email_submitted'
       : row.delivery_method,
-    provider: row.delivery_reference ? 'resend' : null,
+    provider:
+      row.metadata?.emailProvider ??
+      (row.delivery_reference ? 'resend' : null),
     providerMessageId: row.delivery_reference ?? null,
     emailState: row.delivery_method === 'email' ||
         row.delivery_method === 'email_submitted'

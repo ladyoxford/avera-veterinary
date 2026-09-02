@@ -317,6 +317,50 @@ test('Resend acceptance requires a non-empty provider message ID', async () => {
   assert.ok(Date.parse(result.submittedAt));
 });
 
+test('SMTP transport submits account email through the configured Hostinger mailbox', async () => {
+  let submitted;
+  const provider = new ActivationEmailDeliveryService({
+    environment: {
+      ...environment,
+      EMAIL_TRANSPORT: 'smtp',
+      EMAIL_FROM: 'AVERA <accounts@avera.test>',
+      SMTP_HOST: 'smtp.hostinger.com',
+      SMTP_PORT: 465,
+      SMTP_SECURE: 'true',
+      SMTP_USER: 'accounts@avera.test',
+      SMTP_PASSWORD: 'secret-from-environment',
+    },
+    smtpTransport: {
+      async sendMail(message) {
+        submitted = message;
+        return {
+          messageId: '<smtp-message-1@avera.test>',
+          accepted: [message.to],
+          rejected: [],
+        };
+      },
+    },
+  });
+
+  const result = await provider.sendPasswordReset({
+    to: 'owner@avera.test',
+    fullName: 'AVERA Platform Owner',
+    resetUrl: 'https://accounts.averavet.sbs/reset-password?token=opaque',
+    expiresAt: new Date(Date.now() + 60_000),
+    idempotencyKey: 'password-reset-1',
+  });
+
+  assert.equal(provider.provider, 'smtp');
+  assert.equal(provider.providerLabel, 'SMTP');
+  assert.equal(result.accepted, true);
+  assert.equal(result.provider, 'smtp');
+  assert.equal(result.providerMessageId, '<smtp-message-1@avera.test>');
+  assert.equal(submitted.from, 'AVERA <accounts@avera.test>');
+  assert.equal(submitted.to, 'owner@avera.test');
+  assert.match(submitted.text, /reset-password\?token=opaque/);
+  assert.equal(submitted.text.includes('secret-from-environment'), false);
+});
+
 test('empty, rejected, and unavailable provider responses are never successful', async () => {
   const configuredEnvironment = {
     ...environment,
@@ -407,6 +451,113 @@ test('administrator email outcomes distinguish Submitted, DeliveryFailed, and Ma
   assert.equal(
     new URL(manual.activationUrl).searchParams.get('token'),
     issuedAdministratorToken().rawToken,
+  );
+});
+
+test('free application approval requires explicit zero prices and creates no payment ledger entry', async () => {
+  const calls = [];
+  const client = {
+    async query(sql, parameters = []) {
+      calls.push({ sql, parameters });
+      if (
+        ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql) ||
+        sql.includes("set_config('avera.")
+      ) {
+        return { rows: [] };
+      }
+      if (sql.includes('pg_advisory_xact_lock')) return { rows: [] };
+      if (sql.includes('JOIN plans p') && sql.includes('FOR UPDATE OF a, c, p')) {
+        return {
+          rows: [{
+            application_id: 'application-free-1',
+            clinic_id: 'clinic-free-1',
+            application_status: 'AwaitingPayment',
+            payment_status: 'Pending',
+            selected_plan: 'Starter',
+            clinic_name: 'Free Veterinary Clinic',
+            clinic_status: 'RegistrationDraft',
+            monthly_amount_minor: 0,
+            annual_amount_minor: 0,
+          }],
+        };
+      }
+      if (sql.includes('SELECT subscription_id') && sql.includes('FROM subscriptions')) {
+        return { rows: [] };
+      }
+      if (
+        sql.includes('UPDATE clinics') ||
+        sql.includes('UPDATE clinic_applications') ||
+        sql.includes('INSERT INTO subscriptions') ||
+        sql.includes('INSERT INTO audit_logs')
+      ) {
+        return { rows: [] };
+      }
+      throw new Error(`Unexpected free approval query: ${sql}`);
+    },
+    release() {},
+  };
+  const activation = service({ connect: async () => client });
+  activation.provisionOnApproval = async () => ({ issued: null });
+  activation.activationStatus = async () => ({
+    status: 'PendingActivation',
+    deliveryMethod: 'email_submitted',
+  });
+
+  const result = await activation.approveFreeApplication({
+    applicationId: 'application-free-1',
+    clinicId: 'clinic-free-1',
+    ipAddress: '127.0.0.1',
+  });
+
+  assert.equal(result.approved, true);
+  assert.equal(
+    calls.some(({ sql }) => sql.includes('INSERT INTO subscriptions')),
+    true,
+  );
+  assert.equal(
+    calls.some(({ sql }) =>
+      sql.includes('subscription_payment_transactions') ||
+      sql.includes('paystack')),
+    false,
+  );
+});
+
+test('free application approval rejects null pricing as unconfigured rather than free', async () => {
+  const client = {
+    async query(sql) {
+      if (
+        ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql) ||
+        sql.includes("set_config('avera.") ||
+        sql.includes('pg_advisory_xact_lock')
+      ) {
+        return { rows: [] };
+      }
+      if (sql.includes('JOIN plans p') && sql.includes('FOR UPDATE OF a, c, p')) {
+        return {
+          rows: [{
+            application_id: 'application-unconfigured-1',
+            clinic_id: 'clinic-unconfigured-1',
+            application_status: 'AwaitingPayment',
+            payment_status: 'Pending',
+            selected_plan: 'Starter',
+            clinic_name: 'Unconfigured Clinic',
+            clinic_status: 'RegistrationDraft',
+            monthly_amount_minor: null,
+            annual_amount_minor: null,
+          }],
+        };
+      }
+      throw new Error(`Unexpected unconfigured free approval query: ${sql}`);
+    },
+    release() {},
+  };
+
+  await assert.rejects(
+    service({ connect: async () => client }).approveFreeApplication({
+      applicationId: 'application-unconfigured-1',
+      clinicId: 'clinic-unconfigured-1',
+    }),
+    (error) => error.code === 'payment_required',
   );
 });
 

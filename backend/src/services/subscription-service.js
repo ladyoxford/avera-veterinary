@@ -253,6 +253,13 @@ export class SubscriptionService {
             400,
           );
         }
+        if (isPaymentFreePlan(plan)) {
+          throw serviceError(
+            'payment_not_required',
+            'The selected plan does not require payment.',
+            409,
+          );
+        }
         if (
           String(plan.currency).toUpperCase() !==
           String(this.environment.PAYSTACK_CURRENCY ?? 'NGN').toUpperCase()
@@ -1031,16 +1038,28 @@ export class SubscriptionService {
       monthlyAmountMinor: toOptionalNumber(row.monthly_amount_minor),
       annualAmountMinor: toOptionalNumber(row.annual_amount_minor),
       currency: row.currency,
+      requiresPayment: !isPaymentFreePlan(row),
       monthlyCheckoutConfigured: Boolean(
-        row.monthly_amount_minor != null && monthlyPlanCode && this.gateway.configured,
+        Number(row.monthly_amount_minor) > 0 &&
+          monthlyPlanCode &&
+          this.gateway.configured,
       ),
       annualCheckoutConfigured: Boolean(
-        row.annual_amount_minor != null && annualPlanCode && this.gateway.configured,
+        Number(row.annual_amount_minor) > 0 &&
+          annualPlanCode &&
+          this.gateway.configured,
       ),
       isRecommended: row.is_recommended,
       entitlements: row.entitlements,
     };
   }
+}
+
+export function isPaymentFreePlan(plan) {
+  return plan?.monthly_amount_minor != null &&
+    plan?.annual_amount_minor != null &&
+    Number(plan.monthly_amount_minor) === 0 &&
+    Number(plan.annual_amount_minor) === 0;
 }
 
 function safeActivationSummary(activation) {

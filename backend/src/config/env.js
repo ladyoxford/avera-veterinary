@@ -32,6 +32,15 @@ const schema = z.object({
   ACTIVATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(1440),
   AVERA_ACTIVATION_BASE_URL: z.string().min(1).default('https://accounts.averavet.sbs/activate-clinic-admin'),
   AVERA_STAFF_ACTIVATION_BASE_URL: z.string().min(1).default('https://accounts.averavet.sbs/activate-staff'),
+  PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(30),
+  AVERA_PASSWORD_RESET_BASE_URL: z.string().min(1).default('https://accounts.averavet.sbs/reset-password'),
+  EMAIL_TRANSPORT: z.enum(['auto', 'smtp', 'resend']).default('auto'),
+  EMAIL_FROM: z.string().min(3).optional(),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(465),
+  SMTP_SECURE: z.enum(['true', 'false']).default('true'),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASSWORD: z.string().min(1).optional(),
   RESEND_API_KEY: z.string().min(1).optional(),
   ACTIVATION_EMAIL_FROM: z.string().min(3).optional(),
   SUPABASE_URL: z.string().url().optional(),
@@ -53,8 +62,10 @@ export function loadEnvironment(raw = process.env) {
   }
   try {
     new URL(environment.AVERA_ACTIVATION_BASE_URL);
+    new URL(environment.AVERA_STAFF_ACTIVATION_BASE_URL);
+    new URL(environment.AVERA_PASSWORD_RESET_BASE_URL);
   } catch (_) {
-    throw new Error('AVERA_ACTIVATION_BASE_URL must be a valid HTTPS or application deep-link URL.');
+    throw new Error('AVERA account-action URLs must be valid HTTPS or application deep-link URLs.');
   }
   return {
     ...environment,
@@ -70,5 +81,7 @@ export function loadEnvironment(raw = process.env) {
     registrationPaymentCallbackUrl:
       environment.APP_REGISTRATION_PAYMENT_CALLBACK_URL ??
       `${environment.APP_DEEP_LINK_SCHEME}://app/payments/registration-callback`,
+    emailFrom: environment.EMAIL_FROM ?? environment.ACTIVATION_EMAIL_FROM,
+    smtpSecure: environment.SMTP_SECURE === 'true',
   };
 }

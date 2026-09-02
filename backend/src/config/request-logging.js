@@ -1,9 +1,13 @@
-const activationPath = '/activate-clinic-admin';
+const sensitiveAccountPaths = [
+  '/activate-clinic-admin',
+  '/activate-staff',
+  '/reset-password',
+];
 
 export function sanitizeRequestUrl(value) {
   const url = String(value ?? '');
-  if (!url.startsWith(activationPath)) return url;
-  return activationPath;
+  const sensitivePath = sensitiveAccountPaths.find((path) => url.startsWith(path));
+  return sensitivePath ?? url;
 }
 
 export function requestLogSerializer(request) {

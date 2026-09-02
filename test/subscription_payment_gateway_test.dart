@@ -548,6 +548,92 @@ void main() {
   );
 
   testWidgets(
+    'free Starter registration activates without billing or Paystack',
+    (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      const store = RegistrationPaymentSessionStore(FlutterSecureStorage());
+      final gateway = _FakeSubscriptionPaymentGateway(
+        SubscriptionPaymentVerification.fromJson({
+          'verified': false,
+          'mode': 'live',
+          'subscriptionApplied': false,
+        }),
+        registrationPlan: const SubscriptionBillingPlan(
+          plan: SubscriptionPlan.starter,
+          name: 'Starter',
+          tagline: 'Essential tools for a growing clinic.',
+          currency: 'NGN',
+          monthlyAmountMinor: 0,
+          annualAmountMinor: 0,
+          monthlyCheckoutConfigured: false,
+          annualCheckoutConfigured: false,
+          requiresPayment: false,
+        ),
+        freeApproval: const FreeRegistrationApproval(
+          applicationApproved: true,
+          paymentStatus: 'NotRequired',
+          activationDeliveryMethod: 'Email',
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subscriptionPaymentGatewayProvider.overrideWithValue(gateway),
+            registrationPaymentSessionStoreProvider.overrideWithValue(store),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: const ClinicRegistrationPaymentScreen(
+              application: ClinicApplication(
+                clinicName: 'Starter Veterinary Clinic',
+                clinicEmail: 'hello@starter.test',
+                phoneNumber: '+2348000000000',
+                address: '1 Starter Way',
+                city: 'Abuja',
+                country: 'Nigeria',
+                administratorName: 'Starter Administrator',
+                administratorEmail: 'administrator@starter.test',
+                administratorPhone: '+2348111111111',
+                professionalTitle: 'Veterinarian',
+                subscriptionPlan: 'Starter',
+                applicationId: 'starter-application-1',
+                clinicId: 'starter-clinic-1',
+                reference: 'AVR-STARTER-1',
+                paymentStatus: 'NotRequired',
+                paymentAccessToken: 'starter-registration-capability',
+                paymentRequired: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Activate Starter'), findsOneWidget);
+      expect(find.text('Starter is free'), findsOneWidget);
+      expect(find.text('Billing cycle'), findsNothing);
+      expect(find.text('Continue to Paystack'), findsNothing);
+
+      await tester.tap(
+        find.byKey(const Key('registration-activate-free-plan')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(gateway.freeRegistrationCalls, [
+        {
+          'applicationId': 'starter-application-1',
+          'accessToken': 'starter-registration-capability',
+        },
+      ]);
+      expect(gateway.registrationInitializationCalls, isEmpty);
+      expect(find.text('Starter plan activated'), findsOneWidget);
+      expect(find.text('Go to Sign In'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'registration callback verifies from secure state and clears the capability',
     (tester) async {
       FlutterSecureStorage.setMockInitialValues({});
@@ -680,24 +766,29 @@ class _FakeSubscriptionPaymentGateway implements SubscriptionPaymentGateway {
   _FakeSubscriptionPaymentGateway(
     this.verification, {
     this.registrationCheckout,
-  });
+    SubscriptionBillingPlan? registrationPlan,
+    this.freeApproval,
+  }) : registrationPlan =
+           registrationPlan ??
+           const SubscriptionBillingPlan(
+             plan: SubscriptionPlan.enterprise,
+             name: 'Enterprise',
+             tagline: 'AI-powered veterinary hospital operating system.',
+             currency: 'NGN',
+             monthlyAmountMinor: 1000000,
+             annualAmountMinor: 10000000,
+             monthlyCheckoutConfigured: true,
+             annualCheckoutConfigured: true,
+           );
 
   final SubscriptionPaymentVerification verification;
   final SubscriptionCheckoutSession? registrationCheckout;
-  final SubscriptionBillingPlan registrationPlan =
-      const SubscriptionBillingPlan(
-        plan: SubscriptionPlan.enterprise,
-        name: 'Enterprise',
-        tagline: 'AI-powered veterinary hospital operating system.',
-        currency: 'NGN',
-        monthlyAmountMinor: 1000000,
-        annualAmountMinor: 10000000,
-        monthlyCheckoutConfigured: true,
-        annualCheckoutConfigured: true,
-      );
+  final SubscriptionBillingPlan registrationPlan;
+  final FreeRegistrationApproval? freeApproval;
   final List<String> verifiedReferences = [];
   final List<Map<String, Object?>> registrationInitializationCalls = [];
   final List<Map<String, String>> registrationVerificationCalls = [];
+  final List<Map<String, String>> freeRegistrationCalls = [];
 
   @override
   Future<SubscriptionPaymentVerification> verifyPayment(
@@ -716,6 +807,18 @@ class _FakeSubscriptionPaymentGateway implements SubscriptionPaymentGateway {
     required String applicationId,
     required String accessToken,
   }) async => registrationPlan;
+
+  @override
+  Future<FreeRegistrationApproval> continueFreeRegistration({
+    required String applicationId,
+    required String accessToken,
+  }) async {
+    freeRegistrationCalls.add({
+      'applicationId': applicationId,
+      'accessToken': accessToken,
+    });
+    return freeApproval ?? (throw UnimplementedError());
+  }
 
   @override
   Future<ServerClinicSubscription?> loadSubscription(String clinicId) =>

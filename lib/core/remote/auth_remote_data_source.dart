@@ -10,6 +10,12 @@ abstract class AuthRemoteDataSource {
   });
 
   Future<RemoteAuthSession> refresh(String refreshToken);
+  Future<void> requestPasswordReset(String email);
+  Future<void> resetPassword({
+    required String token,
+    required String password,
+    required String confirmPassword,
+  });
   Future<RemoteClinicAdministratorActivation>
   inspectClinicAdministratorActivation(String token);
   Future<RemoteClinicAdministratorActivationResult>

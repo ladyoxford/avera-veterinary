@@ -76,7 +76,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  'If an eligible AVERA account uses that address, a secure reset link has been sent. Check spam or junk folders too.',
+                  'If this email is registered, a password reset link has been sent.',
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 18),
@@ -95,7 +95,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Enter the email used for your clinic or Platform Owner account.',
+                    'Enter the email used for registering your clinic.',
                   ),
                   const SizedBox(height: 22),
                   const AveraFormLabel('Email Address'),

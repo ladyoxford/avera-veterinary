@@ -449,6 +449,7 @@ class _RemoteInvoiceSummary {
   final String? farmName;
 
   bool get isFarm => contextType == 'farm_visit';
+  bool get isRetail => contextType == 'retail_sale';
 
   String get searchable =>
       '$number $ownerName $ownerPhone $patientNames ${farmName ?? ''} ${state.label}'
@@ -461,7 +462,8 @@ class _RemoteInvoiceSummary {
     return _RemoteInvoiceSummary(
       id: '${json['invoice_id'] ?? ''}',
       number: '${json['invoice_number'] ?? 'Invoice'}',
-      ownerName: '${json['owner_name'] ?? 'Client'}',
+      ownerName:
+          '${json['owner_name'] ?? json['farm_client_name'] ?? (json['context_type'] == 'retail_sale' ? 'Walk-in customer' : 'Client')}',
       ownerPhone: '${json['owner_phone'] ?? ''}',
       patientNames:
           '${json['patient_names'] ?? json['patient_name'] ?? 'General / Shared'}',
@@ -538,6 +540,8 @@ class _RemoteInvoiceCard extends StatelessWidget {
                   Text(
                     invoice.isFarm
                         ? (invoice.farmName ?? invoice.ownerName)
+                        : invoice.isRetail
+                        ? 'Retail product sale'
                         : invoice.patientNames,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

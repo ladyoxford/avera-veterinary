@@ -564,7 +564,9 @@ class _InvoiceHistoryCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    entry.farm != null
+                    entry.invoice.contextType == 'retail_sale'
+                        ? 'Retail product sale'
+                        : entry.farm != null
                         ? '${entry.farm!.name} - Farm visit'
                         : '${entry.animal?.animalName ?? 'Patient'} - '
                               '${entry.animal?.hospitalNumber ?? 'No hospital number'}',
@@ -573,7 +575,9 @@ class _InvoiceHistoryCard extends StatelessWidget {
                   Text(
                     entry.owner?.fullName ??
                         entry.invoice.clientNameSnapshot ??
-                        'Farm client',
+                        (entry.invoice.contextType == 'retail_sale'
+                            ? 'Walk-in customer'
+                            : 'Farm client'),
                     style: averaText(context).caption,
                   ),
                   const SizedBox(height: 8),

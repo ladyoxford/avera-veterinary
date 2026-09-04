@@ -58,7 +58,9 @@ class InvoicePresentationFactory {
           entry.owner?.fullName ??
           detail.invoice.clientNameSnapshot ??
           entry.farm?.name ??
-          'Farm client',
+          (detail.invoice.contextType == 'retail_sale'
+              ? 'Walk-in customer'
+              : 'Farm client'),
       clientPhone: entry.owner?.phone ?? detail.invoice.clientPhoneSnapshot,
       branding: branding(session),
       lines: lines,
@@ -71,6 +73,9 @@ class InvoicePresentationFactory {
         amountPaid: detail.invoice.amountPaid,
         balance: detail.invoice.balance,
       ),
+      sharedSectionTitle: detail.invoice.contextType == 'retail_sale'
+          ? 'Retail Products'
+          : 'General / Shared',
       payments: [
         for (final payment in detail.payments)
           if (payment.transactionType == 'Payment')
@@ -102,8 +107,10 @@ class InvoicePresentationFactory {
       issuedAt:
           DateTime.tryParse('${invoice['issued_at'] ?? ''}')?.toLocal() ??
           DateTime.now(),
-      clientName: '${invoice['owner_name'] ?? 'Client'}',
-      clientPhone: invoice['owner_phone']?.toString(),
+      clientName:
+          '${invoice['owner_name'] ?? invoice['farm_client_name'] ?? (invoice['context_type'] == 'retail_sale' ? 'Walk-in customer' : 'Client')}',
+      clientPhone: (invoice['owner_phone'] ?? invoice['farm_client_phone'])
+          ?.toString(),
       branding: branding(session),
       lines: [
         for (final line in lineItems)
@@ -128,6 +135,9 @@ class InvoicePresentationFactory {
         amountPaid: amountPaid,
         balance: balance,
       ),
+      sharedSectionTitle: invoice['context_type'] == 'retail_sale'
+          ? 'Retail Products'
+          : 'General / Shared',
       payments: [
         for (final payment in payments)
           InvoicePaymentPresentation(

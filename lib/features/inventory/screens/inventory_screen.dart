@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -19,6 +20,7 @@ import '../../shared/widgets/avera_ui.dart';
 import '../../shared/widgets/catalogue_selector.dart';
 import '../../shared/widgets/identity_avatar_image.dart';
 import '../widgets/inventory_item_dialog.dart';
+import '../state/retail_cart.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key, this.initialStatusFilter});
@@ -70,6 +72,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final remoteState = BackendConfiguration.isConfigured
         ? ref.watch(remoteInventoryListProvider)
         : null;
+    final cartScope = RetailCartScope(
+      clinicId: session.clinic.clinicId,
+      userId: session.user.userId,
+      sessionEpoch: session.user.lastLogin?.microsecondsSinceEpoch,
+    );
+    final cart = ref.watch(retailCartProvider(cartScope));
     return Scaffold(
       floatingActionButton: session.can(Permissions.inventoryCreate)
           ? FloatingActionButton.extended(
@@ -108,6 +116,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               fromCache: remoteState.fromCache,
               onRetry: () =>
                   ref.read(remoteInventoryListProvider.notifier).refresh(),
+            ),
+      bottomNavigationBar: cart.isEmpty
+          ? null
+          : _RetailCartSummaryBar(
+              cart: cart,
+              onViewCart: () => context.push('/inventory/cart'),
             ),
     );
   }
@@ -189,6 +203,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   .contains(normalizedQuery),
         )
         .toList(growable: false);
+    final cartScope = RetailCartScope(
+      clinicId: session.clinic.clinicId,
+      userId: session.user.userId,
+      sessionEpoch: session.user.lastLogin?.microsecondsSinceEpoch,
+    );
+    final cart = ref.watch(retailCartProvider(cartScope));
+    final cartController = ref.read(retailCartProvider(cartScope).notifier);
+    final canSell =
+        session.can(Permissions.inventorySell) &&
+        session.can(Permissions.billingCreate);
     return RefreshIndicator(
       onRefresh: onRetry ?? () async {},
       child: ListView(
@@ -260,6 +284,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ? null
                 : () => _selectStatusFilter(InventoryStatusFilter.all),
           ),
+          if (canSell && visibleItems.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Tap the cart icon to sell a product directly.',
+                style: averaText(context).caption,
+              ),
+            ),
           const SizedBox(height: 12),
           if (visibleItems.isEmpty)
             _InventoryMessage(
@@ -274,6 +306,25 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 child: _InventoryCard(
                   item: item,
                   canSeeCost: session.can(Permissions.inventoryCostView),
+                  cartQuantity:
+                      cart.lines[item.toCartProduct().key]?.quantity ?? 0,
+                  onAdd: canSell && item.isAvailableForSale
+                      ? () {
+                          final added = cartController.add(
+                            item.toCartProduct(),
+                          );
+                          if (!added) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Only ${item.quantity} ${item.baseUnitLabel}${item.quantity == 1 ? '' : 's'} '
+                                  'of ${item.name} ${item.quantity == 1 ? 'is' : 'are'} currently available.',
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      : null,
                   onLongPress:
                       session.can(Permissions.inventoryEdit) ||
                           session.can(Permissions.inventoryAdjust)
@@ -964,6 +1015,7 @@ class _InventoryDisplayItem {
     required this.buyingPrice,
     required this.sellingPrice,
     required this.isSellable,
+    this.isArchived = false,
     this.batchNumber,
     this.expiryDate,
     this.remote,
@@ -1005,6 +1057,7 @@ class _InventoryDisplayItem {
   final double buyingPrice;
   final double sellingPrice;
   final bool isSellable;
+  final bool isArchived;
   final String? batchNumber;
   final DateTime? expiryDate;
   final RemoteInventoryItem? remote;
@@ -1056,6 +1109,7 @@ class _InventoryDisplayItem {
         buyingPrice: item.buyingPrice,
         sellingPrice: item.sellingPrice,
         isSellable: item.isSellable,
+        isArchived: item.isArchived,
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
         localId: item.id,
@@ -1105,6 +1159,7 @@ class _InventoryDisplayItem {
         buyingPrice: item.purchasePrice?.toDouble() ?? 0,
         sellingPrice: item.sellingPrice.toDouble(),
         isSellable: item.isSellable,
+        isArchived: item.isArchived,
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
         genericName: item.genericName,
@@ -1133,19 +1188,46 @@ class _InventoryDisplayItem {
         imagePath: item.imageUrl,
         remote: item,
       );
+
+  bool get isAvailableForSale {
+    final expired = expiryDate != null && !expiryDate!.isAfter(DateTime.now());
+    return isSellable && !isArchived && quantity > 0 && !expired;
+  }
+
+  RetailCartProduct toCartProduct() {
+    final baseUnit = remote?.productUnits.cast<RemoteProductUnit?>().firstWhere(
+      (unit) => unit?.isBaseUnit == true,
+      orElse: () => null,
+    );
+    return RetailCartProduct(
+      productId: remote?.id ?? 'local:$localId',
+      localProductId: localId,
+      unitId: baseUnit?.id,
+      name: name,
+      unitLabel: baseUnit?.label ?? baseUnitLabel,
+      unitPrice: (baseUnit?.sellingPrice ?? sellingPrice).toDouble(),
+      availableBaseQuantity: quantity,
+      conversionToBase: baseUnit?.conversionToBase ?? 1,
+      imageReference: imagePath,
+    );
+  }
 }
 
 class _InventoryCard extends StatelessWidget {
   const _InventoryCard({
     required this.item,
     required this.canSeeCost,
+    required this.cartQuantity,
     this.onTap,
     this.onLongPress,
+    this.onAdd,
   });
   final _InventoryDisplayItem item;
   final bool canSeeCost;
+  final int cartQuantity;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onAdd;
   @override
   Widget build(BuildContext context) {
     final expired = item.expiryDate?.isBefore(DateTime.now()) ?? false;
@@ -1224,17 +1306,100 @@ class _InventoryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onTap != null)
-                const Padding(
-                  padding: EdgeInsets.only(left: 8),
-                  child: Icon(Icons.chevron_right_rounded),
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Column(
+                  children: [
+                    Badge(
+                      isLabelVisible: cartQuantity > 0,
+                      label: Text('$cartQuantity'),
+                      backgroundColor: Colors.amber.shade800,
+                      child: IconButton.filledTonal(
+                        key: Key(
+                          'inventory-cart-${item.remote?.id ?? item.localId}',
+                        ),
+                        onPressed: onAdd,
+                        tooltip: onAdd == null
+                            ? 'Product unavailable for retail sale'
+                            : 'Add to retail cart',
+                        style: IconButton.styleFrom(
+                          backgroundColor: cartQuantity > 0
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                          foregroundColor: cartQuantity > 0
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : Theme.of(context).colorScheme.primary,
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        icon: const Icon(Icons.shopping_cart_outlined),
+                      ),
+                    ),
+                    Text('Add', style: averaText(context).caption),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _RetailCartSummaryBar extends StatelessWidget {
+  const _RetailCartSummaryBar({required this.cart, required this.onViewCart});
+
+  final RetailCartState cart;
+  final VoidCallback onViewCart;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: Material(
+      elevation: 8,
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Badge(
+              label: Text('${cart.itemCount}'),
+              backgroundColor: Colors.amber.shade800,
+              child: CircleAvatar(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                child: const Icon(Icons.shopping_cart_outlined),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${cart.itemCount} item${cart.itemCount == 1 ? '' : 's'} in cart',
+                    style: averaText(context).caption,
+                  ),
+                  Text(
+                    formatNaira(cart.total),
+                    style: averaText(context).listItemTitle,
+                  ),
+                ],
+              ),
+            ),
+            FilledButton(
+              key: const Key('inventory-view-cart'),
+              onPressed: onViewCart,
+              child: const Text('View Cart'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _InventoryBadge extends StatelessWidget {

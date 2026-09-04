@@ -34,6 +34,7 @@ import '../../features/consultation/screens/consultation_screen.dart';
 import '../../features/consultation/screens/cloud_consultation_detail_screen.dart';
 import '../../features/consultation/screens/cloud_consultation_edit_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
+import '../../features/inventory/screens/retail_cart_screen.dart';
 import '../../features/farm/widgets/farm_back_navigation.dart';
 import '../../features/reports/screens/reports_screen.dart';
 import '../../features/reports/screens/inventory_transfer_screens.dart';
@@ -517,6 +518,10 @@ final appRouter = GoRouter(
           builder: (context, state) => const ClinicInformationScreen(),
         ),
         GoRoute(
+          path: '/settings/clinic-logo',
+          builder: (context, state) => const ClinicLogoScreen(),
+        ),
+        GoRoute(
           path: '/settings/about',
           builder: (context, state) => const AboutAveraScreen(),
         ),
@@ -545,6 +550,10 @@ final appRouter = GoRouter(
               _ => InventoryStatusFilter.all,
             },
           ),
+        ),
+        GoRoute(
+          path: '/inventory/cart',
+          builder: (context, state) => const RetailCartScreen(),
         ),
         GoRoute(
           path: '/billing',

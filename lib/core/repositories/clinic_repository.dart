@@ -3149,6 +3149,23 @@ class ClinicRepository {
       try {
         final response = await _apiClient.get('/api/v1/clinic/settings');
         final value = response['clinic'] as Map<String, dynamic>;
+        final cached = await (db.select(
+          db.clinics,
+        )..where((clinic) => clinic.clinicId.equals(activeClinicId))).getSingle();
+        var logo = cached.logo;
+        final logoUrl = value['logoUrl']?.toString();
+        if (logoUrl?.isNotEmpty == true) {
+          try {
+            logo = await _cacheClinicLogoFromUrl(
+              clinicId: activeClinicId,
+              url: logoUrl!,
+              durableIdentity:
+                  value['logoReference']?.toString() ?? logoUrl,
+            );
+          } catch (_) {
+            // A signing or download outage must not erase the durable cache.
+          }
+        }
         await (db.update(
           db.clinics,
         )..where((clinic) => clinic.clinicId.equals(activeClinicId))).write(
@@ -3160,9 +3177,20 @@ class ClinicRepository {
             city: Value(value['city'] as String?),
             country: Value(value['country'] as String?),
             timeZone: Value(value['timeZone'] as String? ?? 'Africa/Lagos'),
-            logo: Value(value['logoUrl'] as String?),
-            banner: Value(value['bannerUrl'] as String?),
+            logo: Value(logo),
             themeColor: Value(value['themeColor'] as String? ?? '#087F7B'),
+            patientNumberPrefix: Value(
+              value['patientNumberPrefix']?.toString(),
+            ),
+            patientNumberSequenceLength: Value(
+              (value['patientNumberSequenceLength'] as num?)?.toInt() ?? 5,
+            ),
+            patientNumberResetYearly: Value(
+              value['patientNumberResetYearly'] as bool? ?? true,
+            ),
+            patientNumberPrefixReviewed: Value(
+              value['patientNumberPrefixReviewed'] as bool? ?? false,
+            ),
           ),
         );
       } on ApiException {
@@ -3236,22 +3264,81 @@ class ClinicRepository {
     if (!session.can(Permissions.clinicSettingsEdit)) {
       throw StateError('You do not have permission to edit clinic branding.');
     }
-    String reference = localPath;
+    if (session.clinic.clinicId != activeClinicId) {
+      throw StateError('Clinic branding can only be changed in this clinic.');
+    }
+    final bytes = base64Decode(base64Data);
+    Map<String, dynamic>? response;
     if (_apiClient != null) {
-      final response = await _apiClient.post(
+      response = await _apiClient.post(
         '/api/v1/clinic/branding',
         authenticated: true,
         body: {'kind': kind, 'contentType': contentType, 'data': base64Data},
       );
-      reference = response['url'] as String? ?? '';
-      if (reference.isEmpty) {
+      if ((response['reference']?.toString().isEmpty ?? true) &&
+          (response['url']?.toString().isEmpty ?? true)) {
         throw StateError('The clinic image could not be uploaded.');
       }
     }
+    final reference = kind == 'logo'
+        ? await _persistClinicLogoBytes(
+            clinicId: session.clinic.clinicId,
+            bytes: bytes,
+            durableIdentity:
+                response?['reference']?.toString() ??
+                '${DateTime.now().microsecondsSinceEpoch}:$localPath',
+          )
+        : localPath;
     await updateClinicBranding(
       logo: kind == 'logo' ? reference : null,
       banner: kind == 'banner' ? reference : null,
     );
+  }
+
+  Future<String> _cacheClinicLogoFromUrl({
+    required String clinicId,
+    required String url,
+    required String durableIdentity,
+  }) async {
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(Uri.parse(url));
+      final response = await request.close();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw StateError('The clinic logo could not be downloaded.');
+      }
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      if (bytes.isEmpty) {
+        throw StateError('The clinic logo was empty.');
+      }
+      return _persistClinicLogoBytes(
+        clinicId: clinicId,
+        bytes: bytes,
+        durableIdentity: durableIdentity,
+      );
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<String> _persistClinicLogoBytes({
+    required String clinicId,
+    required List<int> bytes,
+    required String durableIdentity,
+  }) async {
+    final documents = await getApplicationDocumentsDirectory();
+    final directory = Directory(
+      p.join(documents.path, 'clinic_branding', clinicId),
+    );
+    if (!await directory.exists()) await directory.create(recursive: true);
+    final digest = sha256.convert(utf8.encode(durableIdentity)).toString();
+    final destination = File(p.join(directory.path, 'logo-$digest.img'));
+    if (!await destination.exists()) {
+      final temporary = File('${destination.path}.tmp-${_uuid.v4()}');
+      await temporary.writeAsBytes(bytes, flush: true);
+      await temporary.rename(destination.path);
+    }
+    return destination.path;
   }
 
   Future<void> updateClinicThemeColor({
@@ -7663,6 +7750,17 @@ class ClinicRepository {
     final normalizedPrefix = normalizeHospitalNumberPrefix(prefix);
     final current = await _clinicForNumbering(activeClinicId);
     final now = _clock.nowForClinic(current);
+    if (_apiClient != null) {
+      await _apiClient.put(
+        '/api/v1/patients/numbering-settings',
+        authenticated: true,
+        body: {
+          'prefix': normalizedPrefix,
+          'sequenceLength': sequenceLength,
+          'resetYearly': resetYearly,
+        },
+      );
+    }
     await (db.update(
       db.clinics,
     )..where((clinic) => clinic.clinicId.equals(activeClinicId))).write(
@@ -8904,6 +9002,124 @@ class ClinicRepository {
     });
   }
 
+  Future<InvoiceDetail> createRetailInvoice({
+    required UserSession session,
+    required List<InvoiceProductDraft> products,
+    String? customerName,
+    String? customerPhone,
+  }) async {
+    _requireBillingPermission(session, Permissions.billingCreate);
+    _requireInventoryPermission(session, Permissions.inventorySell);
+    await _requireActiveFeature(AveraFeature.billing);
+    if (products.isEmpty) {
+      throw StateError('Add at least one product to the cart.');
+    }
+    final now = _clock.nowForClinic(session.clinic);
+    return db.transaction(() async {
+      final resolved = <(InvoiceProductDraft, InventoryItem)>[];
+      for (final product in products) {
+        if (product.quantity <= 0) {
+          throw StateError('Product quantities must be greater than zero.');
+        }
+        final item = await _inventoryItemForSession(
+          product.inventoryItemId,
+          session,
+        );
+        final categoryId = InventoryCategories.canonicalId(
+          item.categoryId ?? item.category,
+        );
+        if (item.isArchived ||
+            !item.isSellable ||
+            !canSellInventoryCategory(session, categoryId)) {
+          throw StateError('${item.drugName} is not available for sale.');
+        }
+        if (item.expiryDate != null && !item.expiryDate!.isAfter(now)) {
+          throw StateError('${item.drugName} is expired and cannot be sold.');
+        }
+        if (product.quantity > item.quantity) {
+          throw StateError(
+            'Only ${item.quantity} ${item.baseUnitLabel}${item.quantity == 1 ? '' : 's'} '
+            'of ${item.drugName} ${item.quantity == 1 ? 'is' : 'are'} currently available.',
+          );
+        }
+        resolved.add((product, item));
+      }
+
+      final invoiceId = await db
+          .into(db.invoices)
+          .insert(
+            InvoicesCompanion.insert(
+              clinicId: session.clinic.clinicId,
+              animalId: const Value(null),
+              farmId: const Value(null),
+              clientNameSnapshot: Value(_nullIfBlank(customerName)),
+              clientPhoneSnapshot: Value(_nullIfBlank(customerPhone)),
+              reference: 'PENDING-${_uuid.v4()}',
+              status: const Value('Unpaid'),
+              contextType: const Value('retail_sale'),
+              clinicNameSnapshot: session.clinic.clinicName,
+              clinicAddressSnapshot: Value(session.clinic.address),
+              clinicPhoneSnapshot: Value(session.clinic.phoneNumber),
+              clinicEmailSnapshot: Value(session.clinic.email),
+              createdByUserId: session.user.userId,
+              createdAt: now,
+              updatedAt: Value(now),
+            ),
+          );
+      final reference =
+          'INV-${now.year}-${invoiceId.toString().padLeft(5, '0')}';
+      var productsTotal = 0.0;
+      for (final entry in resolved) {
+        final product = entry.$1;
+        final item = entry.$2;
+        final lineTotal = item.sellingPrice * product.quantity;
+        productsTotal += lineTotal;
+        await db
+            .into(db.invoiceProductLines)
+            .insert(
+              InvoiceProductLinesCompanion.insert(
+                invoiceId: invoiceId,
+                inventoryItemId: item.id,
+                animalId: const Value(null),
+                farmUnitId: const Value(null),
+                productNameSnapshot: item.drugName,
+                categoryNameSnapshot: item.category,
+                batchNumberSnapshot: Value(item.batchNumber),
+                quantity: product.quantity,
+                unitPrice: item.sellingPrice,
+                unitCostSnapshot: Value(item.buyingPrice),
+                lineTotal: lineTotal,
+              ),
+            );
+      }
+      await (db.update(
+        db.invoices,
+      )..where((row) => row.id.equals(invoiceId))).write(
+        InvoicesCompanion(
+          reference: Value(reference),
+          productsSubtotal: Value(productsTotal),
+          total: Value(productsTotal),
+          balance: Value(productsTotal),
+          updatedAt: Value(now),
+        ),
+      );
+      final invoice = await _invoiceForSession(invoiceId, session);
+      await _deductInvoiceStock(invoice: invoice, session: session, now: now);
+      await _writeInvoiceAudit(
+        session: session,
+        invoiceId: invoiceId,
+        action: 'invoice.issued',
+        details: {
+          'contextType': 'retail_sale',
+          'total': productsTotal,
+          'lineCount': resolved.length,
+          'status': 'Unpaid',
+        },
+      );
+      return _invoiceDetailForSession(invoiceId, session);
+    });
+  }
+
   Future<InvoiceDetail> payInvoice({
     required UserSession session,
     required int invoiceId,
@@ -9591,6 +9807,17 @@ class ClinicRepository {
     required UserSession session,
     required DateTime now,
   }) async {
+    final existingDeduction =
+        await (db.select(db.inventoryStockMovements)
+              ..where(
+                (movement) =>
+                    movement.clinicId.equals(session.clinic.clinicId) &
+                    movement.invoiceId.equals(invoice.id) &
+                    movement.movementType.equals('Sale'),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (existingDeduction != null) return;
     final lines = await (db.select(
       db.invoiceProductLines,
     )..where((line) => line.invoiceId.equals(invoice.id))).get();

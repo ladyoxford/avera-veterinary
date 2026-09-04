@@ -150,6 +150,12 @@ export const patientStatusSchema = z.object({
   reason: z.string().trim().max(500).nullish(),
 });
 
+export const patientNumberingSettingsSchema = z.object({
+  prefix: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,8}$/),
+  sequenceLength: z.number().int().min(4).max(10),
+  resetYearly: z.boolean(),
+}).strict();
+
 export const createConsultationSchema = z.object({
   submissionId: z.string().uuid(),
   patientId: z.string().uuid(),
@@ -264,9 +270,11 @@ export const farmContextSchema = z.object({
 
 export const createInvoiceSchema = z.object({
   submissionId: z.string().uuid(),
-  contextType: z.enum(['patient', 'farm_visit']).default('patient'),
+  contextType: z.enum(['patient', 'farm_visit', 'retail_sale']).default('patient'),
   patientId: z.string().uuid().nullable().optional(),
   patientIds: z.array(z.string().uuid()).max(100).default([]),
+  clientName: z.string().trim().max(240).nullish(),
+  clientPhone: z.string().trim().max(80).nullish(),
   status: z.enum(['Draft', 'Unpaid', 'Paid']),
   subtotal: z.number().min(0).max(1000000000000),
   total: z.number().min(0).max(1000000000000),
@@ -296,6 +304,17 @@ export const createInvoiceSchema = z.object({
   }
   if (input.contextType === 'farm_visit' && !input.farm) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['farm'], message: 'Farm context is required.' });
+  }
+  if (input.contextType === 'retail_sale') {
+    if (input.products.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['products'], message: 'Add at least one retail product.' });
+    }
+    if (input.services.length > 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['services'], message: 'Retail sales can contain products only.' });
+    }
+    if (input.patientId || input.patientIds.length > 0 || input.farm) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['contextType'], message: 'Retail sales cannot be linked to a patient or farm.' });
+    }
   }
 });
 
@@ -1139,7 +1158,7 @@ export async function readFarmContext(client, clinicId, farmId) {
   };
 }
 
-async function prepareProductLines(client, clinicId, products) {
+export async function prepareProductLines(client, clinicId, products) {
   const lines = [];
   for (const requested of products) {
     const result = await client.query(
@@ -1196,7 +1215,7 @@ async function prepareProductLines(client, clinicId, products) {
   return { lines };
 }
 
-async function deductInvoiceInventory(client, clinicId, invoiceId) {
+export async function deductInvoiceInventory(client, clinicId, invoiceId) {
   const invoice = await client.query(
     `SELECT inventory_deducted_at FROM invoices
       WHERE clinic_id=$1 AND invoice_id=$2 FOR UPDATE`,
@@ -1216,7 +1235,7 @@ async function deductInvoiceInventory(client, clinicId, invoiceId) {
   const rows = [];
   for (const quantity of quantities.rows) {
     const product = await client.query(
-      `SELECT inventory_product_id, quantity, name
+      `SELECT inventory_product_id, quantity, name, base_unit_label
          FROM inventory_products
         WHERE clinic_id=$1 AND inventory_product_id=$2
         FOR UPDATE`,
@@ -1231,7 +1250,10 @@ async function deductInvoiceInventory(client, clinicId, invoiceId) {
   }
   for (const row of rows) {
     if (Number(row.quantity) < Number(row.base_quantity)) {
-      const error = new Error(`Insufficient stock for ${row.name}.`);
+      const unit = String(row.base_unit_label || 'base unit');
+      const error = new Error(
+        `Only ${row.quantity} ${unit}${Number(row.quantity) === 1 ? '' : 's'} of ${row.name} ${Number(row.quantity) === 1 ? 'is' : 'are'} currently available.`,
+      );
       error.code = 'insufficient_stock';
       throw error;
     }
@@ -1332,6 +1354,61 @@ export async function clinicalRoutes(app) {
         prefixRequiresReview: !clinic.patient_number_prefix_reviewed,
         hospitalNumber: formatPatientHospitalNumber(clinic.patient_number_prefix, clinic.registration_year, nextSequence, clinic.patient_number_sequence_length),
       };
+    });
+  });
+
+  app.put('/api/v1/patients/numbering-settings', {
+    preHandler: [authenticate, requirePermission(permissions.patientsNumberingManage)],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const parsed = patientNumberingSettingsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'invalid_patient_numbering',
+        message: 'Use a 2-8 character prefix and a sequence length from 4 to 10.',
+      });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const previous = (await client.query(
+        `SELECT patient_number_prefix, patient_number_sequence_length,
+                patient_number_reset_yearly
+           FROM clinics
+          WHERE clinic_id=$1 AND deleted_at IS NULL
+          FOR UPDATE`,
+        [request.auth.clinicId],
+      )).rows[0];
+      if (!previous) {
+        return reply.code(404).send({
+          error: 'clinic_not_found',
+          message: 'The active clinic was not found.',
+        });
+      }
+      const value = parsed.data;
+      await client.query(
+        `UPDATE clinics
+            SET patient_number_prefix=$1,
+                patient_number_sequence_length=$2,
+                patient_number_reset_yearly=$3,
+                patient_number_prefix_reviewed=true,
+                patient_number_last_changed_at=now(),
+                patient_number_last_changed_by=$4,
+                updated_at=now(), revision=revision+1
+          WHERE clinic_id=$5`,
+        [value.prefix, value.sequenceLength, value.resetYearly,
+          request.auth.userId, request.auth.clinicId],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'ClinicPatientNumbering',
+        targetId: request.auth.clinicId,
+        action: 'hospital_number.settings_changed',
+        previousSummary: previous,
+        newSummary: value,
+        sessionId: request.auth.sessionId,
+        ipAddress: request.ip,
+      });
+      return { numbering: value };
     });
   });
 
@@ -2463,6 +2540,13 @@ export async function clinicalRoutes(app) {
     if (!requireClinic(request, reply)) return undefined;
     const parsed = createInvoiceSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', message: 'Please review the invoice information.' });
+    if (parsed.data.products.length > 0
+        && !hasPermission(request, permissions.inventorySell)) {
+      return reply.code(403).send({
+        error: 'permission_required',
+        message: 'You do not have permission to sell inventory.',
+      });
+    }
     try {
       return await withTenantTransaction(app.pool, request.auth, async (client) => {
       const input = parsed.data;
@@ -2567,7 +2651,7 @@ export async function clinicalRoutes(app) {
           return reply.code(409).send({ error: 'invoice_owner_mismatch', message: 'All animals on one invoice must belong to the same client.' });
         }
         ownerId = patients.rows.find((row) => row.patient_id === input.patientId)?.owner_id ?? null;
-      } else {
+      } else if (input.contextType === 'farm_visit') {
         const validFarm = await upsertFarmInvoiceContext(
           client,
           request.auth.clinicId,
@@ -2644,13 +2728,13 @@ export async function clinicalRoutes(app) {
         ...preparedProducts.lines.map((line) => ({ ...line, lineType: 'Product' })),
       ];
       const itemizedTotal = Number(lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
-      if (itemizedTotal > input.total + 0.01) {
+      if (input.contextType !== 'retail_sale' && itemizedTotal > input.total + 0.01) {
         return reply.code(400).send({ error: 'invoice_total_mismatch', message: 'Invoice items exceed the submitted total.' });
       }
       // Older app releases submitted consultation/home fees only in the total.
       // Preserve that compatibility as one general line while new clients send
       // every charge explicitly.
-      if (input.total - itemizedTotal > 0.01) {
+      if (input.contextType !== 'retail_sale' && input.total - itemizedTotal > 0.01) {
         lines.push({
           description: 'General clinic services', patientId: null,
           quantity: 1, unitPrice: Number((input.total - itemizedTotal).toFixed(2)),
@@ -2676,7 +2760,12 @@ export async function clinicalRoutes(app) {
           invoiceNumber, input.status, authoritativeTotal, authoritativeTotal, paid,
           authoritativeTotal - paid, input.submissionId, input.contextType,
           input.farm?.farmId ?? null, input.farm?.visitDate ?? null,
-          input.farm?.clientName ?? null, input.farm?.clientPhone ?? null],
+          input.contextType === 'retail_sale'
+            ? input.clientName ?? null
+            : input.farm?.clientName ?? null,
+          input.contextType === 'retail_sale'
+            ? input.clientPhone ?? null
+            : input.farm?.clientPhone ?? null],
       );
       for (const line of lines) {
         await client.query(

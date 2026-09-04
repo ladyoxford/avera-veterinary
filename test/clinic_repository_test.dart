@@ -1017,6 +1017,138 @@ void main() {
   });
 
   test(
+    'retail invoice has no entity links, deducts atomically, and uses normal billing',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final item = (await database.select(database.inventoryItems).get()).first;
+      final originalQuantity = item.quantity;
+      await (database.update(
+        database.inventoryItems,
+      )..where((row) => row.id.equals(item.id))).write(
+        const InventoryItemsCompanion(
+          buyingPrice: Value(1000),
+          sellingPrice: Value(2500),
+        ),
+      );
+
+      final retail = await repository.createRetailInvoice(
+        session: session,
+        products: [InvoiceProductDraft(inventoryItemId: item.id, quantity: 2)],
+      );
+      expect(retail.invoice.contextType, 'retail_sale');
+      expect(retail.invoice.animalId, equals(null));
+      expect(retail.invoice.farmId, equals(null));
+      expect(retail.invoice.clientNameSnapshot, equals(null));
+      expect(retail.products.single.animalId, equals(null));
+      expect(retail.products.single.farmUnitId, equals(null));
+      expect(retail.products.single.unitPrice, 2500);
+      expect(retail.products.single.unitCostSnapshot, 1000);
+      expect(retail.invoice.status, 'Unpaid');
+      expect(retail.invoice.total, 5000);
+      expect(
+        (await (database.select(
+          database.inventoryItems,
+        )..where((row) => row.id.equals(item.id))).getSingle()).quantity,
+        originalQuantity - 2,
+      );
+      expect(
+        (await database.select(database.inventoryStockMovements).get()).where(
+          (movement) => movement.invoiceId == retail.invoice.id,
+        ),
+        hasLength(1),
+      );
+
+      await repository.recordInvoicePayment(
+        session: session,
+        invoiceId: retail.invoice.id,
+        amount: 5000,
+        paymentMethod: 'Cash',
+      );
+      final revenue = await repository.getRevenueProfitSummary(
+        session: session,
+      );
+      expect(revenue.revenue, 5000);
+      expect(revenue.clinicRevenue, 5000);
+      expect(revenue.cost, 2000);
+      expect(revenue.profit, 3000);
+
+      await repository.voidInvoice(
+        session: session,
+        invoiceId: retail.invoice.id,
+        reason: 'Retail sale cancelled',
+      );
+      expect(
+        (await (database.select(
+          database.inventoryItems,
+        )..where((row) => row.id.equals(item.id))).getSingle()).quantity,
+        originalQuantity,
+      );
+      expect(
+        (await database.select(database.inventoryStockMovements).get()).where(
+          (movement) =>
+              movement.invoiceId == retail.invoice.id &&
+              movement.movementType == 'Sale reversal',
+        ),
+        hasLength(1),
+      );
+      final afterVoid = await repository.getRevenueProfitSummary(
+        session: session,
+      );
+      expect(afterVoid.revenue, 0);
+      expect(afterVoid.cost, 0);
+    },
+  );
+
+  test(
+    'failed multi-line retail invoice leaves every stock level unchanged',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final items = await database.select(database.inventoryItems).get();
+      final first = items[0];
+      final second = items[1];
+      final before = {first.id: first.quantity, second.id: second.quantity};
+
+      await expectLater(
+        repository.createRetailInvoice(
+          session: session,
+          products: [
+            InvoiceProductDraft(inventoryItemId: first.id, quantity: 1),
+            InvoiceProductDraft(
+              inventoryItemId: second.id,
+              quantity: second.quantity + 1,
+            ),
+          ],
+        ),
+        throwsA(isA<StateError>()),
+      );
+      final after = await (database.select(
+        database.inventoryItems,
+      )..where((row) => row.id.isIn(before.keys))).get();
+      expect({for (final item in after) item.id: item.quantity}, before);
+      expect(
+        (await database.select(database.invoices).get()).where(
+          (invoice) => invoice.contextType == 'retail_sale',
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
     'inventory retirement and out-of-stock archive preserve stock history',
     () async {
       final database = AppDatabase.forTesting(NativeDatabase.memory());

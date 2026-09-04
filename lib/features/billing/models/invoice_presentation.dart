@@ -115,7 +115,8 @@ class InvoicePresentation {
     this.discount = 0,
     this.tax = 0,
     this.payments = const [],
-  }) : sections = _group(lines);
+    this.sharedSectionTitle = 'General / Shared',
+  }) : sections = _group(lines, sharedSectionTitle);
 
   final String invoiceId;
   final String invoiceNumber;
@@ -132,6 +133,7 @@ class InvoicePresentation {
   final double balance;
   final InvoicePaymentState paymentState;
   final List<InvoicePaymentPresentation> payments;
+  final String sharedSectionTitle;
 
   double get subtotal =>
       sections.fold(0, (sum, section) => sum + section.subtotal);
@@ -141,6 +143,7 @@ class InvoicePresentation {
 
   static List<InvoicePresentationSection> _group(
     List<InvoicePresentationLine> lines,
+    String sharedSectionTitle,
   ) {
     final patientGroups = <String, List<InvoicePresentationLine>>{};
     final shared = <InvoicePresentationLine>[];
@@ -163,7 +166,7 @@ class InvoicePresentation {
         ),
       if (shared.isNotEmpty)
         InvoicePresentationSection(
-          title: 'General / Shared',
+          title: sharedSectionTitle,
           lines: List.unmodifiable(shared),
         ),
     ];

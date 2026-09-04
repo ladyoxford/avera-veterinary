@@ -316,6 +316,47 @@ void main() {
     expect(presentation.payments.single.method, 'Transfer');
     expect(presentation.clientPhone, '+2348091234567');
   });
+
+  test(
+    'retail invoice presentation uses optional customer and builds PDF',
+    () async {
+      final presentation = InvoicePresentationFactory.remote(
+        session: _session,
+        payload: {
+          'invoice': {
+            'invoice_id': 'retail-invoice-1',
+            'invoice_number': 'INV-RET-12345',
+            'issued_at': '2026-09-02T10:00:00.000Z',
+            'context_type': 'retail_sale',
+            'farm_client_name': 'Counter Customer',
+            'farm_client_phone': '08010000000',
+            'status': 'Unpaid',
+            'total': '4000.00',
+            'amount_paid': '0.00',
+            'balance': '4000.00',
+          },
+          'lineItems': [
+            {
+              'description': 'Balance Chicken Dinner',
+              'quantity': 2,
+              'unit_price': '2000.00',
+              'line_total': '4000.00',
+              'patient_id': null,
+            },
+          ],
+          'payments': const [],
+        },
+      );
+
+      expect(presentation.clientName, 'Counter Customer');
+      expect(presentation.clientPhone, '08010000000');
+      expect(presentation.sections.single.title, 'Retail Products');
+      expect(presentation.sections.single.patientId, equals(null));
+      final bytes = await const InvoicePdfService().build(presentation);
+      expect(bytes, isNotEmpty);
+      expect(String.fromCharCodes(bytes.take(4)), '%PDF');
+    },
+  );
 }
 
 final _session = UserSession(

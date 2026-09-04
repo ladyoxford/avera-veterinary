@@ -518,10 +518,6 @@ final appRouter = GoRouter(
           builder: (context, state) => const ClinicInformationScreen(),
         ),
         GoRoute(
-          path: '/settings/clinic-logo',
-          builder: (context, state) => const ClinicLogoScreen(),
-        ),
-        GoRoute(
           path: '/settings/about',
           builder: (context, state) => const AboutAveraScreen(),
         ),

@@ -320,7 +320,11 @@ test('clinical mutation routes remain permission guarded and clinic scoped', () 
     routes.match(/ON CONFLICT \(clinic_id, submission_id\)/g)?.length,
     4,
   );
-  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 15);
+  assert.equal(routes.match(/duplicateSubmission: true/g)?.length, 16);
+  assert.match(
+    routes,
+    /app\.post\('\/api\/v1\/farms\/:farmId\/population-movements'[\s\S]*duplicateSubmission: true/,
+  );
   assert.match(
     routes,
     /app\.post\('\/api\/v1\/invoices\/:invoiceId\/payments'[\s\S]*permissions\.billingRecordPayment[\s\S]*duplicateSubmission: true/,

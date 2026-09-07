@@ -736,100 +736,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   }
 
   Future<void> _addService() async {
-    final description = TextEditingController();
-    final quantity = TextEditingController(text: '1');
-    final unit = TextEditingController(text: 'service');
-    final unitPrice = TextEditingController();
-    final notes = TextEditingController();
-    final result = await showDialog<_ServiceDraftResult>(
+    final result = await showAveraActionSheet<ServiceDraftResult>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Service'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: description,
-                decoration: const InputDecoration(
-                  labelText: 'Service / description',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: quantity,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Quantity'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: unit,
-                decoration: const InputDecoration(
-                  labelText: 'Unit / basis (animal, visit, whole farm)',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: unitPrice,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Unit price (NGN)',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: notes,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Notes (optional)',
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final count = double.tryParse(quantity.text);
-              final price = double.tryParse(unitPrice.text);
-              if (description.text.trim().isEmpty ||
-                  count == null ||
-                  count <= 0 ||
-                  price == null ||
-                  price < 0) {
-                return;
-              }
-              Navigator.pop(
-                context,
-                _ServiceDraftResult(
-                  description: description.text.trim(),
-                  quantity: count,
-                  unitLabel: unit.text.trim().isEmpty
-                      ? 'service'
-                      : unit.text.trim(),
-                  unitPrice: price,
-                  notes: notes.text.trim(),
-                ),
-              );
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+      title: 'Add Service',
+      description: 'Add a clinic or farm service to this invoice.',
+      builder: (_) => const AddServiceSheet(),
     );
-    description.dispose();
-    quantity.dispose();
-    unit.dispose();
-    unitPrice.dispose();
-    notes.dispose();
     if (result == null || !mounted) return;
     final target = await _selectChargeTarget();
     if (target != null && mounted) {
@@ -1563,8 +1475,8 @@ class _ServiceCharge {
   double get amount => quantity * unitPrice;
 }
 
-class _ServiceDraftResult {
-  const _ServiceDraftResult({
+class ServiceDraftResult {
+  const ServiceDraftResult({
     required this.description,
     required this.quantity,
     required this.unitLabel,
@@ -1577,6 +1489,152 @@ class _ServiceDraftResult {
   final String unitLabel;
   final double unitPrice;
   final String notes;
+
+  double get lineTotal => quantity * unitPrice;
+}
+
+class AddServiceSheet extends StatefulWidget {
+  const AddServiceSheet({super.key});
+
+  @override
+  State<AddServiceSheet> createState() => _AddServiceSheetState();
+}
+
+class _AddServiceSheetState extends State<AddServiceSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _quantity = TextEditingController(text: '1');
+  final _price = TextEditingController();
+  final _notes = TextEditingController();
+  String _appliesTo = 'service';
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _quantity.dispose();
+    _price.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AveraLabeledTextField(
+              label: 'Service name',
+              controller: _name,
+              hintText: 'e.g. Consultation',
+              textInputAction: TextInputAction.next,
+              validator: (value) => value?.trim().isEmpty ?? true
+                  ? 'Enter the service name.'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            AveraLabeledTextField(
+              label: 'Quantity',
+              controller: _quantity,
+              hintText: '1',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              textInputAction: TextInputAction.next,
+              validator: (value) {
+                final parsed = double.tryParse(value?.trim() ?? '');
+                return parsed == null || parsed <= 0
+                    ? 'Enter a quantity greater than zero.'
+                    : null;
+              },
+            ),
+            const SizedBox(height: 12),
+            AveraLabeledDropdownField<String>(
+              label: 'Charge applies to',
+              hintText: 'Select how this service is charged',
+              value: _appliesTo,
+              items: const [
+                DropdownMenuItem(value: 'animal', child: Text('Animal')),
+                DropdownMenuItem(value: 'visit', child: Text('Visit')),
+                DropdownMenuItem(
+                  value: 'whole farm',
+                  child: Text('Whole Farm'),
+                ),
+                DropdownMenuItem(value: 'service', child: Text('Service')),
+              ],
+              onChanged: _submitting
+                  ? null
+                  : (value) => setState(() => _appliesTo = value ?? 'service'),
+            ),
+            const SizedBox(height: 12),
+            AveraLabeledTextField(
+              label: 'Price per unit (NGN)',
+              controller: _price,
+              hintText: '0',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              textInputAction: TextInputAction.next,
+              validator: (value) {
+                final parsed = double.tryParse(value?.trim() ?? '');
+                return parsed == null || parsed < 0
+                    ? 'Enter a valid price.'
+                    : null;
+              },
+            ),
+            const SizedBox(height: 12),
+            AveraLabeledTextField(
+              label: 'Notes (optional)',
+              controller: _notes,
+              hintText: 'Additional details',
+              maxLines: 3,
+              textInputAction: TextInputAction.done,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _submitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    key: const Key('add-service-submit'),
+                    onPressed: _submitting ? null : _submit,
+                    child: const Text('Add Service'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false) || _submitting) return;
+    setState(() => _submitting = true);
+    Navigator.of(context).pop(
+      ServiceDraftResult(
+        description: _name.text.trim(),
+        quantity: double.parse(_quantity.text.trim()),
+        unitLabel: _appliesTo,
+        unitPrice: double.parse(_price.text.trim()),
+        notes: _notes.text.trim(),
+      ),
+    );
+  }
 }
 
 class _InvoiceContextSelector extends StatelessWidget {

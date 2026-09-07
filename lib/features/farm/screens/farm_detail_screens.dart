@@ -471,10 +471,15 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
       farmId: widget.farmId,
       unitId: widget.unitId,
     );
+    final populationMovements = await repository.getFarmUnitPopulationMovements(
+      farmId: widget.farmId,
+      unitId: widget.unitId,
+    );
     return _FarmUnitTreatmentData(
       unit: unit,
       populations: populations,
       treatments: treatments,
+      populationMovements: populationMovements,
     );
   }
 
@@ -542,6 +547,40 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
               ),
               const SizedBox(height: AveraSpacing.subtitleToContentGap),
               FarmUnitSummaryCard(unit: unit, populations: data.populations),
+              if (session?.can(Permissions.farmMortalityRecord) == true ||
+                  session?.can(Permissions.farmUnitsManage) == true) ...[
+                const SizedBox(height: AveraSpacing.cardGap),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    if (session?.can(Permissions.farmMortalityRecord) == true)
+                      FilledButton.icon(
+                        key: const Key('record-farm-mortality'),
+                        onPressed: () => _recordPopulationMovement(
+                          unit,
+                          data.populations,
+                          session!,
+                          FarmPopulationMovementType.mortality,
+                        ),
+                        icon: const Icon(Icons.remove_circle_outline),
+                        label: const Text('Record Mortality'),
+                      ),
+                    if (session?.can(Permissions.farmUnitsManage) == true)
+                      OutlinedButton.icon(
+                        key: const Key('record-animal-purchase'),
+                        onPressed: () => _recordPopulationMovement(
+                          unit,
+                          data.populations,
+                          session!,
+                          FarmPopulationMovementType.purchase,
+                        ),
+                        icon: const Icon(Icons.add_circle_outline),
+                        label: const Text('Add Purchased Animals'),
+                      ),
+                  ],
+                ),
+              ],
               if (unit.notes?.trim().isNotEmpty == true) ...[
                 const SizedBox(height: AveraSpacing.cardGap),
                 AveraLabeledFieldCard(
@@ -572,6 +611,50 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
                 const SizedBox(height: AveraSpacing.cardGap),
               ],
               FarmTreatmentOverviewGrid(treatments: data.treatments),
+              const SizedBox(height: AveraSpacing.sectionGap),
+              const AveraSectionHeader(title: 'Population History'),
+              const SizedBox(height: AveraSpacing.cardGap),
+              if (data.populationMovements.isEmpty)
+                const _DetailMessage(
+                  title: 'No population movements',
+                  message: 'Mortality and animal purchases will appear here.',
+                )
+              else
+                AveraSurfaceCard(
+                  child: Column(
+                    children: [
+                      for (
+                        var index = 0;
+                        index < data.populationMovements.length;
+                        index++
+                      ) ...[
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            data.populationMovements[index].eventType ==
+                                    'Population mortality'
+                                ? Icons.remove_circle_outline
+                                : Icons.add_circle_outline,
+                          ),
+                          title: Text(
+                            data.populationMovements[index].eventType,
+                          ),
+                          subtitle: Text(
+                            data.populationMovements[index].description ??
+                                'No details recorded',
+                          ),
+                          trailing: Text(
+                            DateFormat.yMMMd().format(
+                              data.populationMovements[index].occurredAt,
+                            ),
+                          ),
+                        ),
+                        if (index != data.populationMovements.length - 1)
+                          const Divider(),
+                      ],
+                    ],
+                  ),
+                ),
               const SizedBox(height: AveraSpacing.sectionGap),
               const AveraSectionHeader(title: 'Recent Treatments'),
               const SizedBox(height: AveraSpacing.cardGap),
@@ -611,6 +694,28 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
         unit: unit,
         populations: populations,
         session: session,
+      ),
+    );
+    if (saved == true && mounted) setState(_reload);
+  }
+
+  Future<void> _recordPopulationMovement(
+    FarmUnit unit,
+    List<FarmUnitPopulation> populations,
+    UserSession session,
+    FarmPopulationMovementType type,
+  ) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _PopulationMovementSheet(
+        farmId: widget.farmId,
+        unit: unit,
+        populations: populations,
+        session: session,
+        type: type,
       ),
     );
     if (saved == true && mounted) setState(_reload);
@@ -667,10 +772,258 @@ class _FarmUnitTreatmentData {
     required this.unit,
     required this.populations,
     required this.treatments,
+    required this.populationMovements,
   });
   final FarmUnit unit;
   final List<FarmUnitPopulation> populations;
   final List<FarmHealthRecord> treatments;
+  final List<FarmEvent> populationMovements;
+}
+
+class _PopulationMovementSheet extends ConsumerStatefulWidget {
+  const _PopulationMovementSheet({
+    required this.farmId,
+    required this.unit,
+    required this.populations,
+    required this.session,
+    required this.type,
+  });
+
+  final String farmId;
+  final FarmUnit unit;
+  final List<FarmUnitPopulation> populations;
+  final UserSession session;
+  final FarmPopulationMovementType type;
+
+  @override
+  ConsumerState<_PopulationMovementSheet> createState() =>
+      _PopulationMovementSheetState();
+}
+
+class _PopulationMovementSheetState
+    extends ConsumerState<_PopulationMovementSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _quantity = TextEditingController(text: '1');
+  final _source = TextEditingController();
+  final _notes = TextEditingController();
+  late int? _populationId;
+  FarmPopulationSex _sex = FarmPopulationSex.unknown;
+  DateTime _date = DateTime.now();
+  bool _saving = false;
+
+  bool get _isMortality => widget.type == FarmPopulationMovementType.mortality;
+
+  @override
+  void initState() {
+    super.initState();
+    _populationId = widget.populations.firstOrNull?.id;
+  }
+
+  @override
+  void dispose() {
+    _quantity.dispose();
+    _source.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _isMortality ? 'Record Mortality' : 'Add Purchased Animals',
+              style: averaText(context).sectionTitle,
+            ),
+            const SizedBox(height: 4),
+            Text(widget.unit.name, style: averaText(context).sectionSubtitle),
+            const SizedBox(height: 20),
+            if (widget.populations.isEmpty)
+              const Text('This unit does not have a population group.')
+            else ...[
+              AveraLabeledDropdownField<int>(
+                label: 'Animal group',
+                hintText: 'Select the population group',
+                value: _populationId,
+                items: [
+                  for (final population in widget.populations)
+                    DropdownMenuItem(
+                      value: population.id,
+                      child: Text(
+                        '${_speciesName(population.speciesId)}${population.breedId == null ? '' : ' - ${_breedName(population.breedId)}'}',
+                      ),
+                    ),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() => _populationId = value),
+                validator: (value) =>
+                    value == null ? 'Select an animal group.' : null,
+              ),
+              const SizedBox(height: 12),
+              AveraLabeledTextField(
+                label: 'Quantity',
+                controller: _quantity,
+                hintText: 'Number of animals',
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  final parsed = int.tryParse(value?.trim() ?? '');
+                  if (parsed == null || parsed <= 0) {
+                    return 'Enter a quantity greater than zero.';
+                  }
+                  final population = widget.populations
+                      .where((item) => item.id == _populationId)
+                      .firstOrNull;
+                  final available = switch (_sex) {
+                    FarmPopulationSex.male => population?.maleCount ?? 0,
+                    FarmPopulationSex.female => population?.femaleCount ?? 0,
+                    FarmPopulationSex.unknown => population?.unknownCount ?? 0,
+                  };
+                  if (_isMortality && parsed > available) {
+                    return 'Only $available animals are available.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              AveraLabeledDropdownField<FarmPopulationSex>(
+                label: 'Sex',
+                hintText: 'Select sex',
+                value: _sex,
+                items: const [
+                  DropdownMenuItem(
+                    value: FarmPopulationSex.male,
+                    child: Text('Male'),
+                  ),
+                  DropdownMenuItem(
+                    value: FarmPopulationSex.female,
+                    child: Text('Female'),
+                  ),
+                  DropdownMenuItem(
+                    value: FarmPopulationSex.unknown,
+                    child: Text('Unknown'),
+                  ),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(
+                        () => _sex = value ?? FarmPopulationSex.unknown,
+                      ),
+              ),
+              const SizedBox(height: 12),
+              AveraLabeledFieldCard(
+                label: 'Date',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(DateFormat.yMMMMd().format(_date)),
+                  trailing: const Icon(Icons.edit_calendar_outlined),
+                  onTap: _saving ? null : _chooseDate,
+                ),
+              ),
+              if (!_isMortality) ...[
+                const SizedBox(height: 12),
+                AveraLabeledTextField(
+                  label: 'Source / seller (optional)',
+                  controller: _source,
+                  hintText: 'Where the animals came from',
+                ),
+              ],
+              const SizedBox(height: 12),
+              AveraLabeledTextField(
+                label: _isMortality
+                    ? 'Notes / cause of death (optional)'
+                    : 'Notes (optional)',
+                controller: _notes,
+                hintText: 'Additional details',
+                maxLines: 3,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _saving ? null : _save,
+                      child: _saving
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              _isMortality ? 'Record Mortality' : 'Add Animals',
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _chooseDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (selected != null && mounted) setState(() => _date = selected);
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false) ||
+        _populationId == null ||
+        _saving) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(clinicRepositoryProvider)
+          .recordFarmPopulationMovement(
+            session: widget.session,
+            input: FarmPopulationMovementInput(
+              farmId: widget.farmId,
+              farmUnitId: widget.unit.id,
+              populationId: _populationId!,
+              type: widget.type,
+              sex: _sex,
+              quantity: int.parse(_quantity.text.trim()),
+              occurredAt: _date,
+              source: _source.text,
+              notes: _notes.text,
+            ),
+          );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Bad state: ', '')),
+          ),
+        );
+        setState(() => _saving = false);
+      }
+    }
+  }
 }
 
 class FarmUnitSummaryCard extends StatelessWidget {

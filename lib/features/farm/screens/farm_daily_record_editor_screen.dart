@@ -395,12 +395,18 @@ class _SpeciesMovementEditor extends StatelessWidget {
             'Closing population: ${controllers.closing}',
             style: averaText(context).sectionSubtitle,
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Purchases and deaths are updated from the Farm Unit population actions.',
+            style: averaText(context).caption,
+          ),
           const SizedBox(height: AveraSpacing.cardGap),
           for (final field in fields) ...[
             Text(field.$1, style: averaText(context).sectionLabel),
             const SizedBox(height: 6),
             TextFormField(
               controller: field.$2,
+              readOnly: field.$1 == 'Purchases' || field.$1 == 'Deaths',
               keyboardType: TextInputType.number,
               onChanged: (_) => onChanged(),
               validator: _nonNegativeWholeNumber,

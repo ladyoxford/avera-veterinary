@@ -49,7 +49,7 @@ const clinicWorkHoursSchema = z.object({
   days: z.array(workDaySchema).length(7).refine((days) => new Set(days.map((day) => day.weekday)).size === 7),
 });
 const clinicBrandAssetSchema = z.object({
-  kind: z.enum(['logo', 'banner']),
+  kind: z.literal('logo'),
   contentType: z.enum(['image/jpeg', 'image/png']),
   data: z.string().min(1),
 });
@@ -206,7 +206,11 @@ export async function clinicRoutes(app) {
         `SELECT c.clinic_id AS "clinicId", c.name, c.email, c.phone, c.address,
                 c.city, c.country, c.time_zone AS "timeZone",
                 coalesce(cb.primary_color, '#087F7B') AS "themeColor",
-                cb.logo_path AS "logoPath", cb.banner_path AS "bannerPath"
+                cb.logo_path AS "logoPath",
+                c.patient_number_prefix AS "patientNumberPrefix",
+                c.patient_number_sequence_length AS "patientNumberSequenceLength",
+                c.patient_number_reset_yearly AS "patientNumberResetYearly",
+                c.patient_number_prefix_reviewed AS "patientNumberPrefixReviewed"
            FROM clinics c
            LEFT JOIN clinic_branding cb ON cb.clinic_id = c.clinic_id
           WHERE c.clinic_id = $1 AND c.deleted_at IS NULL`,
@@ -215,8 +219,8 @@ export async function clinicRoutes(app) {
       if (!clinic) return reply.code(404).send({ error: 'clinic_not_found', message: 'The active clinic was not found.' });
       return { clinic: {
         ...clinic,
+        logoReference: clinic.logoPath,
         logoUrl: await app.profilePhotoStorage.signedUrl(clinic.logoPath),
-        bannerUrl: await app.profilePhotoStorage.signedUrl(clinic.bannerPath),
       } };
     });
   });
@@ -284,7 +288,7 @@ export async function clinicRoutes(app) {
     try {
       const bytes = Buffer.from(parsed.data.data, 'base64');
       const path = await app.profilePhotoStorage.uploadBrandAsset({ clinicId: request.auth.clinicId, kind: parsed.data.kind, contentType: parsed.data.contentType, bytes });
-      const column = parsed.data.kind === 'logo' ? 'logo_path' : 'banner_path';
+      const column = 'logo_path';
       const previous = await withTenantTransaction(app.pool, request.auth, async (client) => {
         const oldPath = (await client.query(`SELECT ${column} AS path FROM clinic_branding WHERE clinic_id=$1`, [request.auth.clinicId])).rows[0]?.path;
         await client.query(
@@ -296,7 +300,7 @@ export async function clinicRoutes(app) {
         return oldPath;
       });
       if (previous && previous !== path) await app.profilePhotoStorage.remove(previous);
-      return { url: await app.profilePhotoStorage.signedUrl(path) };
+      return { reference: path, url: await app.profilePhotoStorage.signedUrl(path) };
     } catch (error) {
       return reply.code(error.statusCode ?? 500).send({ error: error.code ?? 'clinic_branding_upload_failed', message: error.statusCode ? error.message : 'The clinic image could not be uploaded.' });
     }

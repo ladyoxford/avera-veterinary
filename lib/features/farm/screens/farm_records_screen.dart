@@ -491,11 +491,16 @@ class _FarmDailyRecordScreenState extends ConsumerState<FarmDailyRecordScreen> {
           const SizedBox(height: AveraSpacing.sectionGap),
           const AveraSectionHeader(title: 'Population Movement'),
           const SizedBox(height: 12),
+          Text(
+            'Use Farm Unit actions to record purchases and mortality. Those totals are reconciled here automatically.',
+            style: averaText(context).caption,
+          ),
+          const SizedBox(height: 12),
           _numberField('Opening Population', _opening),
           _numberField('Births', _births),
-          _numberField('Purchases', _purchases),
+          _numberField('Purchases', _purchases, readOnly: true),
           _numberField('Transfers In', _transfersIn),
-          _numberField('Mortality', _mortality),
+          _numberField('Mortality', _mortality, readOnly: true),
           _numberField('Sales', _sales),
           _numberField('Transfers Out', _transfersOut),
           AveraSurfaceCard(
@@ -557,22 +562,26 @@ class _FarmDailyRecordScreenState extends ConsumerState<FarmDailyRecordScreen> {
     ),
   );
 
-  Widget _numberField(String label, TextEditingController controller) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: AveraSpacing.cardGap),
-        child: AveraLabeledFieldCard(
-          label: label,
-          child: TextFormField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(hintText: '0'),
-            validator: (value) => (int.tryParse(value ?? '') ?? -1) < 0
-                ? 'Enter zero or a positive number.'
-                : null,
-            onChanged: (_) => setState(() {}),
-          ),
-        ),
-      );
+  Widget _numberField(
+    String label,
+    TextEditingController controller, {
+    bool readOnly = false,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: AveraSpacing.cardGap),
+    child: AveraLabeledFieldCard(
+      label: label,
+      child: TextFormField(
+        controller: controller,
+        readOnly: readOnly,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(hintText: '0'),
+        validator: (value) => (int.tryParse(value ?? '') ?? -1) < 0
+            ? 'Enter zero or a positive number.'
+            : null,
+        onChanged: (_) => setState(() {}),
+      ),
+    ),
+  );
   Widget _decimalField(String label, TextEditingController controller) =>
       AveraLabeledFieldCard(
         label: label,

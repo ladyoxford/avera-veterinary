@@ -15,6 +15,7 @@ import '../../../core/security/access_control.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_controller.dart';
 import '../widgets/avera_ui.dart';
+import '../widgets/identity_avatar.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -213,13 +214,13 @@ class SettingsScreen extends ConsumerWidget {
           icon: Iconsax.gallery_add,
           title: 'Clinic Logo',
           subtitle: 'Shown on invoices, reports and the sign-in screen',
-          onTap: () => _pickBrandAsset(context, ref, session!, kind: 'logo'),
-        ),
-        AveraSettingsRow(
-          icon: Iconsax.image,
-          title: 'Clinic Banner',
-          subtitle: 'Cover image for the dashboard header',
-          onTap: () => _pickBrandAsset(context, ref, session!, kind: 'banner'),
+          trailing: AveraIdentityAvatar(
+            name: clinic.clinicName,
+            photoReference: clinic.logo,
+            size: 42,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          onTap: () => context.push('/settings/clinic-logo'),
         ),
         AveraSettingsRow(
           icon: Iconsax.color_swatch,
@@ -240,6 +241,136 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
+class ClinicLogoScreen extends ConsumerStatefulWidget {
+  const ClinicLogoScreen({super.key});
+
+  @override
+  ConsumerState<ClinicLogoScreen> createState() => _ClinicLogoScreenState();
+}
+
+class _ClinicLogoScreenState extends ConsumerState<ClinicLogoScreen> {
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = ref.watch(clinicSettingsProvider);
+    final session = ref.watch(userSessionProvider).valueOrNull;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Clinic Logo')),
+      body: settings.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(child: Text(_friendlySettingsError(error))),
+        data: (clinic) => ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.pageTopPadding,
+            AveraSpacing.pageHorizontalPadding,
+            AveraSpacing.bottomContentClearance,
+          ),
+          children: [
+            const AveraPageHeader(
+              title: 'Clinic Logo',
+              subtitle: 'Used on invoices, receipts and clinic reports.',
+            ),
+            const SizedBox(height: AveraSpacing.subtitleToContentGap),
+            AveraSurfaceCard(
+              child: Column(
+                children: [
+                  AveraIdentityAvatar(
+                    key: const Key('clinic-logo-preview'),
+                    name: clinic.clinicName,
+                    photoReference: clinic.logo,
+                    size: 168,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    clinic.logo?.trim().isNotEmpty == true
+                        ? 'Current clinic logo'
+                        : 'No clinic logo uploaded',
+                    style: averaText(context).fieldValue,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AveraSpacing.cardGap),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const Key('change-clinic-logo'),
+                onPressed:
+                    _saving ||
+                        session == null ||
+                        !session.can(Permissions.clinicSettingsEdit)
+                    ? null
+                    : () => _selectLogo(session),
+                icon: _saving
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.image_outlined),
+                label: Text(
+                  _saving
+                      ? 'Saving logo'
+                      : clinic.logo?.trim().isNotEmpty == true
+                      ? 'Change Logo'
+                      : 'Upload Logo',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectLogo(UserSession session) async {
+    if (_saving) return;
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    final file = result?.files.single;
+    if (file == null || !mounted) return;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      _message('The selected image could not be read.');
+      return;
+    }
+    final extension = file.extension?.toLowerCase();
+    if (extension != 'jpg' && extension != 'jpeg' && extension != 'png') {
+      _message('Choose a JPEG or PNG image.');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(clinicRepositoryProvider)
+          .updateClinicBrandAsset(
+            session: session,
+            kind: 'logo',
+            localPath: file.path ?? file.name,
+            contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+            base64Data: base64Encode(bytes),
+          );
+      ref.invalidate(clinicSettingsProvider);
+      ref.invalidate(userSessionProvider);
+      _message('Clinic logo updated.');
+    } catch (error) {
+      _message(_friendlySettingsError(error));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+}
+
 String formatClinicLocation(Clinic? clinic) {
   if (clinic == null) return 'Clinic details';
   final parts = <String>[];
@@ -257,59 +388,6 @@ String formatClinicLocation(Clinic? clinic) {
   add(clinic.state);
   add(clinic.country);
   return parts.isEmpty ? 'Clinic details' : parts.join(', ');
-}
-
-Future<void> _pickBrandAsset(
-  BuildContext context,
-  WidgetRef ref,
-  UserSession session, {
-  required String kind,
-}) async {
-  final result = await FilePicker.pickFiles(
-    type: FileType.image,
-    withData: true,
-  );
-  final file = result?.files.single;
-  if (file == null) return;
-  final bytes = file.bytes;
-  if (bytes == null) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('The selected image could not be read.')),
-      );
-    }
-    return;
-  }
-  final extension = file.extension?.toLowerCase();
-  final contentType = extension == 'png' ? 'image/png' : 'image/jpeg';
-  try {
-    await ref
-        .read(clinicRepositoryProvider)
-        .updateClinicBrandAsset(
-          session: session,
-          kind: kind,
-          localPath: file.path ?? file.name,
-          contentType: contentType,
-          base64Data: base64Encode(bytes),
-        );
-    ref.invalidate(clinicSettingsProvider);
-    ref.invalidate(userSessionProvider);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Clinic ${kind == 'logo' ? 'logo' : 'banner'} updated.',
-          ),
-        ),
-      );
-    }
-  } catch (error) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_friendlySettingsError(error))));
-    }
-  }
 }
 
 Future<void> _chooseThemeColor(

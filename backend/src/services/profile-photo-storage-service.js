@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 const supportedTypes = new Set(['image/jpeg', 'image/png']);
 
 export class ProfilePhotoStorageService {
@@ -36,7 +38,7 @@ export class ProfilePhotoStorageService {
 
   brandObjectPath({ clinicId, kind, contentType }) {
     const extension = contentType === 'image/png' ? 'png' : 'jpg';
-    return `${clinicId}/branding/${kind}.${extension}`;
+    return `${clinicId}/branding/${kind}/${randomUUID()}.${extension}`;
   }
 
   patientObjectPath({ clinicId, patientId, contentType }) {

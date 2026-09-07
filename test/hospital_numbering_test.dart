@@ -170,7 +170,35 @@ void main() {
         sequenceLength: 6,
         resetYearly: false,
       );
-      expect((await repository.previewHospitalNumber()).prefix, 'CREST');
+      final preview = await repository.previewHospitalNumber();
+      expect(preview.prefix, 'CREST');
+      expect(preview.sequenceLength, 6);
+      final first = await _register(
+        repository,
+        session: session,
+        submissionId: 'configured-number-one',
+        animalName: 'Configured Patient',
+      );
+      expect(first.hospitalNumber, 'CREST-${DateTime.now().year}-000001');
+      expect(
+        (await repository.previewHospitalNumber()).sequence,
+        preview.sequence + 1,
+      );
+      final existing = (await database.select(database.animals).get()).first;
+      final existingNumber = existing.hospitalNumber;
+      await repository.updatePatientNumberingSettings(
+        session: session,
+        prefix: 'NEW',
+        sequenceLength: 4,
+        resetYearly: true,
+      );
+      expect(
+        (await (database.select(
+              database.animals,
+            )..where((row) => row.id.equals(existing.id))).getSingle())
+            .hospitalNumber,
+        existingNumber,
+      );
       expect(
         repository.updatePatientNumberingSettings(
           session: UserSession(

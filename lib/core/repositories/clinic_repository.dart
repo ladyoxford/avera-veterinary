@@ -247,6 +247,36 @@ class FarmUnitPopulationInput {
   int get total => maleCount + femaleCount + unknownCount;
 }
 
+enum FarmPopulationMovementType { mortality, purchase }
+
+enum FarmPopulationSex { male, female, unknown }
+
+class FarmPopulationMovementInput {
+  const FarmPopulationMovementInput({
+    required this.farmId,
+    required this.farmUnitId,
+    required this.populationId,
+    required this.type,
+    required this.sex,
+    required this.quantity,
+    required this.occurredAt,
+    this.source,
+    this.notes,
+    this.submissionId,
+  });
+
+  final String farmId;
+  final int farmUnitId;
+  final int populationId;
+  final FarmPopulationMovementType type;
+  final FarmPopulationSex sex;
+  final int quantity;
+  final DateTime occurredAt;
+  final String? source;
+  final String? notes;
+  final String? submissionId;
+}
+
 class FarmSpeciesMovementInput {
   const FarmSpeciesMovementInput({
     required this.speciesId,
@@ -3149,9 +3179,10 @@ class ClinicRepository {
       try {
         final response = await _apiClient.get('/api/v1/clinic/settings');
         final value = response['clinic'] as Map<String, dynamic>;
-        final cached = await (db.select(
-          db.clinics,
-        )..where((clinic) => clinic.clinicId.equals(activeClinicId))).getSingle();
+        final cached =
+            await (db.select(db.clinics)
+                  ..where((clinic) => clinic.clinicId.equals(activeClinicId)))
+                .getSingle();
         var logo = cached.logo;
         final logoUrl = value['logoUrl']?.toString();
         if (logoUrl?.isNotEmpty == true) {
@@ -3159,8 +3190,7 @@ class ClinicRepository {
             logo = await _cacheClinicLogoFromUrl(
               clinicId: activeClinicId,
               url: logoUrl!,
-              durableIdentity:
-                  value['logoReference']?.toString() ?? logoUrl,
+              durableIdentity: value['logoReference']?.toString() ?? logoUrl,
             );
           } catch (_) {
             // A signing or download outage must not erase the durable cache.
@@ -5653,6 +5683,309 @@ class ClinicRepository {
               row.clinicId.equals(activeClinicId),
         ))
         .getSingleOrNull();
+  }
+
+  Future<List<FarmEvent>> getFarmUnitPopulationMovements({
+    required String farmId,
+    required int unitId,
+  }) =>
+      (db.select(db.farmEvents)
+            ..where(
+              (row) =>
+                  row.clinicId.equals(activeClinicId) &
+                  row.farmId.equals(farmId) &
+                  row.farmUnitId.equals(unitId) &
+                  row.eventType.isIn([
+                    'Population mortality',
+                    'Animal purchase',
+                  ]),
+            )
+            ..orderBy([(row) => OrderingTerm.desc(row.occurredAt)]))
+          .get();
+
+  Future<void> recordFarmPopulationMovement({
+    required UserSession session,
+    required FarmPopulationMovementInput input,
+  }) async {
+    final permission = input.type == FarmPopulationMovementType.mortality
+        ? Permissions.farmMortalityRecord
+        : Permissions.farmUnitsManage;
+    _requireFarmPermission(session, permission);
+    if (input.quantity <= 0) {
+      throw StateError('Enter a quantity greater than zero.');
+    }
+    final farm = await _farmForSession(input.farmId, session);
+    final unit = await getFarmUnit(input.farmId, input.farmUnitId);
+    final population =
+        await (db.select(db.farmUnitPopulations)..where(
+              (row) =>
+                  row.id.equals(input.populationId) &
+                  row.clinicId.equals(session.clinic.clinicId) &
+                  row.farmId.equals(input.farmId) &
+                  row.farmUnitId.equals(input.farmUnitId),
+            ))
+            .getSingleOrNull();
+    if (unit == null || population == null) {
+      throw StateError('The selected farm population is no longer available.');
+    }
+    int selectedCount(FarmUnitPopulation value) => switch (input.sex) {
+      FarmPopulationSex.male => value.maleCount,
+      FarmPopulationSex.female => value.femaleCount,
+      FarmPopulationSex.unknown => value.unknownCount,
+    };
+
+    if (input.type == FarmPopulationMovementType.mortality &&
+        input.quantity > selectedCount(population)) {
+      throw StateError(
+        'Only ${selectedCount(population)} animals are available in that sex group.',
+      );
+    }
+    if (input.type == FarmPopulationMovementType.purchase &&
+        unit.capacity != null &&
+        unit.maleCount + unit.femaleCount + unit.unknownCount + input.quantity >
+            unit.capacity!) {
+      throw StateError('This purchase would exceed the unit capacity.');
+    }
+    final localDate = DateTime(
+      input.occurredAt.year,
+      input.occurredAt.month,
+      input.occurredAt.day,
+    );
+    final existingDaily = await getFarmDailyRecordForDate(farm.id, localDate);
+    if (existingDaily?.status == 'Finalized') {
+      throw StateError(
+        'Amend the finalized daily record before changing population.',
+      );
+    }
+
+    final submissionId = input.submissionId ?? _uuid.v4();
+    Map<String, dynamic>? remotePopulation;
+    if (_apiClient != null) {
+      final remoteUnitId = _uuid.v5(
+        Namespace.url.value,
+        'avera:${farm.id}:farm-unit:${unit.id}',
+      );
+      final remotePopulationId = _uuid.v5(
+        Namespace.url.value,
+        'avera:${farm.id}:farm-population:${population.id}',
+      );
+      final response = await _apiClient.post(
+        '/api/v1/farms/${farm.id}/population-movements',
+        authenticated: true,
+        body: {
+          'submissionId': submissionId,
+          'farmId': farm.id,
+          'farmName': farm.name,
+          'farmUnitId': remoteUnitId,
+          'farmUnitName': unit.name,
+          'farmUnitType': unit.unitType,
+          'farmUnitPopulationId': remotePopulationId,
+          'speciesId': population.speciesId,
+          'breedId': population.breedId,
+          'baselineMaleCount': population.maleCount,
+          'baselineFemaleCount': population.femaleCount,
+          'baselineUnknownCount': population.unknownCount,
+          'movementType': input.type.name,
+          'sex': input.sex.name,
+          'quantity': input.quantity,
+          'occurredAt': input.occurredAt.toUtc().toIso8601String(),
+          'source': _nullIfBlank(input.source),
+          'notes': _nullIfBlank(input.notes),
+        },
+      );
+      remotePopulation = response['population'] is Map
+          ? Map<String, dynamic>.from(response['population'] as Map)
+          : null;
+      if (remotePopulation == null) {
+        throw StateError('The server did not return the updated population.');
+      }
+    }
+
+    final now = _clock.nowForClinic(session.clinic);
+    await db.transaction(() async {
+      final current =
+          await (db.select(db.farmUnitPopulations)..where(
+                (row) =>
+                    row.id.equals(input.populationId) &
+                    row.clinicId.equals(session.clinic.clinicId) &
+                    row.farmId.equals(input.farmId) &
+                    row.farmUnitId.equals(input.farmUnitId),
+              ))
+              .getSingle();
+      final delta = input.type == FarmPopulationMovementType.mortality
+          ? -input.quantity
+          : input.quantity;
+      final male = remotePopulation == null
+          ? current.maleCount +
+                (input.sex == FarmPopulationSex.male ? delta : 0)
+          : (remotePopulation['male_count'] as num).toInt();
+      final female = remotePopulation == null
+          ? current.femaleCount +
+                (input.sex == FarmPopulationSex.female ? delta : 0)
+          : (remotePopulation['female_count'] as num).toInt();
+      final unknown = remotePopulation == null
+          ? current.unknownCount +
+                (input.sex == FarmPopulationSex.unknown ? delta : 0)
+          : (remotePopulation['unknown_count'] as num).toInt();
+      if ([male, female, unknown].any((value) => value < 0)) {
+        throw StateError('A farm population cannot become negative.');
+      }
+      await (db.update(
+        db.farmUnitPopulations,
+      )..where((row) => row.id.equals(current.id))).write(
+        FarmUnitPopulationsCompanion(
+          maleCount: Value(male),
+          femaleCount: Value(female),
+          unknownCount: Value(unknown),
+          updatedAt: Value(now),
+        ),
+      );
+      final groups =
+          await (db.select(db.farmUnitPopulations)..where(
+                (row) =>
+                    row.clinicId.equals(session.clinic.clinicId) &
+                    row.farmId.equals(farm.id) &
+                    row.farmUnitId.equals(unit.id),
+              ))
+              .get();
+      await (db.update(db.farmUnits)..where(
+            (row) =>
+                row.id.equals(unit.id) &
+                row.clinicId.equals(session.clinic.clinicId),
+          ))
+          .write(
+            FarmUnitsCompanion(
+              maleCount: Value(
+                groups.fold<int>(0, (sum, item) => sum + item.maleCount),
+              ),
+              femaleCount: Value(
+                groups.fold<int>(0, (sum, item) => sum + item.femaleCount),
+              ),
+              unknownCount: Value(
+                groups.fold<int>(0, (sum, item) => sum + item.unknownCount),
+              ),
+              updatedAt: Value(now),
+            ),
+          );
+
+      final daily =
+          await (db.select(db.farmDailyRecords)..where(
+                (row) =>
+                    row.clinicId.equals(session.clinic.clinicId) &
+                    row.farmId.equals(farm.id) &
+                    row.recordDate.equals(localDate),
+              ))
+              .getSingleOrNull();
+      late final String dailyRecordId;
+      if (daily == null) {
+        final activeUnits =
+            await (db.select(db.farmUnits)..where(
+                  (row) =>
+                      row.clinicId.equals(session.clinic.clinicId) &
+                      row.farmId.equals(farm.id) &
+                      row.status.equals('Active'),
+                ))
+                .get();
+        final closing = activeUnits.fold<int>(
+          0,
+          (sum, item) =>
+              sum + item.maleCount + item.femaleCount + item.unknownCount,
+        );
+        final opening = closing - delta;
+        dailyRecordId = _uuid.v4();
+        await db
+            .into(db.farmDailyRecords)
+            .insert(
+              FarmDailyRecordsCompanion.insert(
+                id: dailyRecordId,
+                clinicId: session.clinic.clinicId,
+                farmId: farm.id,
+                recordDate: localDate,
+                openingPopulation: Value(opening),
+                purchases: Value(
+                  input.type == FarmPopulationMovementType.purchase
+                      ? input.quantity
+                      : 0,
+                ),
+                mortality: Value(
+                  input.type == FarmPopulationMovementType.mortality
+                      ? input.quantity
+                      : 0,
+                ),
+                closingPopulation: Value(closing),
+                createdAt: now,
+                createdByUserId: session.user.userId,
+                updatedAt: now,
+              ),
+            );
+      } else {
+        dailyRecordId = daily.id;
+        await (db.update(
+          db.farmDailyRecords,
+        )..where((row) => row.id.equals(daily.id))).write(
+          FarmDailyRecordsCompanion(
+            purchases: Value(
+              daily.purchases +
+                  (input.type == FarmPopulationMovementType.purchase
+                      ? input.quantity
+                      : 0),
+            ),
+            mortality: Value(
+              daily.mortality +
+                  (input.type == FarmPopulationMovementType.mortality
+                      ? input.quantity
+                      : 0),
+            ),
+            closingPopulation: Value(daily.closingPopulation + delta),
+            updatedAt: Value(now),
+            lastEditedByUserId: Value(session.user.userId),
+          ),
+        );
+      }
+      final label = input.type == FarmPopulationMovementType.mortality
+          ? 'Population mortality'
+          : 'Animal purchase';
+      final detail = input.type == FarmPopulationMovementType.mortality
+          ? '${input.quantity} ${input.sex.name} animal(s) recorded dead.'
+          : '${input.quantity} ${input.sex.name} animal(s) added.';
+      await db
+          .into(db.farmEvents)
+          .insert(
+            FarmEventsCompanion.insert(
+              clinicId: session.clinic.clinicId,
+              farmId: farm.id,
+              dailyRecordId: dailyRecordId,
+              farmUnitId: Value(unit.id),
+              occurredAt: input.occurredAt,
+              eventType: label,
+              description: Value(
+                [
+                  detail,
+                  if (_nullIfBlank(input.source) != null)
+                    'Source: ${_nullIfBlank(input.source)}.',
+                  if (_nullIfBlank(input.notes) != null)
+                    _nullIfBlank(input.notes)!,
+                ].join(' '),
+              ),
+              responsibleUserId: Value(session.user.userId),
+              createdByUserId: session.user.userId,
+            ),
+          );
+      await _writeFarmAudit(
+        session: session,
+        action: 'farm.population_${input.type.name}_recorded',
+        farmId: farm.id,
+        details: {
+          'submissionId': submissionId,
+          'unitId': unit.id,
+          'populationId': current.id,
+          'quantity': input.quantity,
+          'sex': input.sex.name,
+          'occurredAt': input.occurredAt.toIso8601String(),
+        },
+        createdAt: now,
+      );
+    });
   }
 
   Future<List<FarmHealthRecord>> getFarmUnitTreatments({

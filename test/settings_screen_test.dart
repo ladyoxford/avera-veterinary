@@ -88,7 +88,7 @@ void main() {
         expect(find.text('Light'), findsOneWidget);
         expect(find.text('Dark'), findsOneWidget);
         expect(find.text('Clinic Logo'), findsOneWidget);
-        expect(find.text('Clinic Banner'), findsOneWidget);
+        expect(find.text('Clinic Banner'), findsNothing);
         expect(find.text('Theme Color'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, 'Logo'), findsNothing);
         expect(find.widgetWithText(OutlinedButton, 'Banner'), findsNothing);
@@ -234,7 +234,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('branded app bar reads the active clinic banner', (tester) async {
+  testWidgets('branded app bar ignores dormant clinic banner data', (
+    tester,
+  ) async {
     final bannerSession = UserSession(
       user: session.user,
       clinic: session.clinic.copyWith(
@@ -257,7 +259,28 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('clinic-dashboard-banner')), findsOneWidget);
+    expect(find.byKey(const Key('clinic-dashboard-banner')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('clinic logo screen shows the persisted logo preview', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: providerOverrides,
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const ClinicLogoScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('clinic-logo-preview')), findsOneWidget);
+    expect(find.byKey(const Key('change-clinic-logo')), findsOneWidget);
+    expect(find.text('Clinic Banner'), findsNothing);
+    expect(find.text('No clinic logo uploaded'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

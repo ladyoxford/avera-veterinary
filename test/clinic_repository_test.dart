@@ -415,6 +415,134 @@ void main() {
   );
 
   test(
+    'farm population movements atomically reconcile unit, farm, daily record and history',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = ClinicRepository(database);
+      await repository.seedSampleData();
+      final session = (await repository.authenticateUser(
+        username: 'admin@avera.test',
+        password: 'admin123',
+      ))!;
+      final farm = await repository.createFarm(
+        session: session,
+        name: 'Population Ledger Farm',
+        speciesIds: const ['species_goat'],
+      );
+      final unit = await repository.createFarmUnit(
+        session: session,
+        farmId: farm.id,
+        name: 'Goat Pen',
+        unitType: 'Pen',
+        speciesId: 'species_goat',
+        capacity: 8,
+        maleCount: 7,
+        femaleCount: 1,
+      );
+      final population = (await repository.getFarmUnitPopulations(
+        farmId: farm.id,
+        unitId: unit.id,
+      )).single;
+      final date = DateTime(2026, 9, 7);
+
+      await repository.recordFarmPopulationMovement(
+        session: session,
+        input: FarmPopulationMovementInput(
+          farmId: farm.id,
+          farmUnitId: unit.id,
+          populationId: population.id,
+          type: FarmPopulationMovementType.mortality,
+          sex: FarmPopulationSex.male,
+          quantity: 1,
+          occurredAt: date,
+          notes: 'Natural cause',
+        ),
+      );
+      var updated = (await repository.getFarmUnitPopulations(
+        farmId: farm.id,
+        unitId: unit.id,
+      )).single;
+      var updatedUnit = (await repository.getFarmUnit(farm.id, unit.id))!;
+      expect(updated.maleCount, 6);
+      expect(updated.femaleCount, 1);
+      expect(updated.total, 7);
+      expect(
+        updatedUnit.maleCount +
+            updatedUnit.femaleCount +
+            updatedUnit.unknownCount,
+        7,
+      );
+
+      await expectLater(
+        repository.recordFarmPopulationMovement(
+          session: session,
+          input: FarmPopulationMovementInput(
+            farmId: farm.id,
+            farmUnitId: unit.id,
+            populationId: population.id,
+            type: FarmPopulationMovementType.mortality,
+            sex: FarmPopulationSex.female,
+            quantity: 2,
+            occurredAt: date,
+          ),
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      await repository.recordFarmPopulationMovement(
+        session: session,
+        input: FarmPopulationMovementInput(
+          farmId: farm.id,
+          farmUnitId: unit.id,
+          populationId: population.id,
+          type: FarmPopulationMovementType.purchase,
+          sex: FarmPopulationSex.female,
+          quantity: 1,
+          occurredAt: date,
+          source: 'Community breeder',
+        ),
+      );
+      updated = (await repository.getFarmUnitPopulations(
+        farmId: farm.id,
+        unitId: unit.id,
+      )).single;
+      updatedUnit = (await repository.getFarmUnit(farm.id, unit.id))!;
+      expect(updated.maleCount, 6);
+      expect(updated.femaleCount, 2);
+      expect(updated.total, 8);
+      expect(
+        updatedUnit.maleCount +
+            updatedUnit.femaleCount +
+            updatedUnit.unknownCount,
+        updated.total,
+      );
+
+      final daily = await repository.getFarmDailyRecordForDate(farm.id, date);
+      expect(daily?.openingPopulation, 8);
+      expect(daily?.mortality, 1);
+      expect(daily?.purchases, 1);
+      expect(daily?.closingPopulation, 8);
+      final history = await repository.getFarmUnitPopulationMovements(
+        farmId: farm.id,
+        unitId: unit.id,
+      );
+      expect(history, hasLength(2));
+      expect(
+        history.map((item) => item.eventType),
+        containsAll(['Population mortality', 'Animal purchase']),
+      );
+      final dashboard = await repository.getFarmDashboard(farm.id);
+      expect(dashboard?.currentPopulation, 8);
+      final audit = await repository.watchClinicAuditLogs(session).first;
+      expect(
+        audit.where((item) => item.action.startsWith('farm.population_')),
+        hasLength(2),
+      );
+    },
+  );
+
+  test(
     'mixed farm unit populations aggregate and treatments target selected groups',
     () async {
       final database = AppDatabase.forTesting(NativeDatabase.memory());

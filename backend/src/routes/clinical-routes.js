@@ -268,6 +268,27 @@ export const farmContextSchema = z.object({
   treatments: z.array(farmTreatmentSchema).max(200).default([]),
 }).strict();
 
+export const farmPopulationMovementSchema = z.object({
+  submissionId: z.string().uuid(),
+  farmId: z.string().uuid(),
+  farmName: z.string().trim().min(1).max(240),
+  farmUnitId: z.string().uuid(),
+  farmUnitName: z.string().trim().min(1).max(240),
+  farmUnitType: z.string().trim().max(120).nullish(),
+  farmUnitPopulationId: z.string().uuid(),
+  speciesId: z.string().trim().min(1).max(120),
+  breedId: z.string().trim().max(160).nullish(),
+  baselineMaleCount: z.number().int().min(0).max(1000000000),
+  baselineFemaleCount: z.number().int().min(0).max(1000000000),
+  baselineUnknownCount: z.number().int().min(0).max(1000000000),
+  movementType: z.enum(['mortality', 'purchase']),
+  sex: z.enum(['male', 'female', 'unknown']),
+  quantity: z.number().int().positive().max(1000000000),
+  occurredAt: z.string().datetime(),
+  source: z.string().trim().max(240).nullish(),
+  notes: z.string().trim().max(4000).nullish(),
+}).strict();
+
 export const createInvoiceSchema = z.object({
   submissionId: z.string().uuid(),
   contextType: z.enum(['patient', 'farm_visit', 'retail_sale']).default('patient'),
@@ -1156,6 +1177,99 @@ export async function readFarmContext(client, clinicId, farmId) {
     })),
     treatments,
   };
+}
+
+export async function recordFarmPopulationMovement(client, context, input) {
+  await client.query(
+    `INSERT INTO farms (farm_id, clinic_id, name)
+     VALUES ($1,$2,$3) ON CONFLICT (farm_id) DO NOTHING`,
+    [input.farmId, context.clinicId, input.farmName],
+  );
+  const farm = await client.query(
+    'SELECT farm_id FROM farms WHERE clinic_id=$1 AND farm_id=$2',
+    [context.clinicId, input.farmId],
+  );
+  if (!farm.rows[0]) return { error: 'farm_mismatch' };
+
+  await client.query(
+    `INSERT INTO farm_units
+       (farm_unit_id, clinic_id, farm_id, name, unit_type, species, breed)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (farm_unit_id) DO NOTHING`,
+    [input.farmUnitId, context.clinicId, input.farmId, input.farmUnitName,
+      input.farmUnitType ?? null, input.speciesId, input.breedId ?? null],
+  );
+  const unit = await client.query(
+    `SELECT farm_unit_id FROM farm_units
+      WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3`,
+    [context.clinicId, input.farmId, input.farmUnitId],
+  );
+  if (!unit.rows[0]) return { error: 'farm_unit_mismatch' };
+
+  await client.query(
+    `INSERT INTO farm_unit_populations
+       (farm_unit_population_id, clinic_id, farm_id, farm_unit_id,
+        species_id, breed_id, male_count, female_count, unknown_count)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     ON CONFLICT (farm_unit_population_id) DO NOTHING`,
+    [input.farmUnitPopulationId, context.clinicId, input.farmId,
+      input.farmUnitId, input.speciesId, input.breedId ?? null,
+      input.baselineMaleCount, input.baselineFemaleCount,
+      input.baselineUnknownCount],
+  );
+
+  const population = await client.query(
+    `SELECT farm_unit_population_id, male_count, female_count, unknown_count
+       FROM farm_unit_populations
+      WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3
+        AND farm_unit_population_id=$4
+      FOR UPDATE`,
+    [context.clinicId, input.farmId, input.farmUnitId,
+      input.farmUnitPopulationId],
+  );
+  const current = population.rows[0];
+  if (!current) return { error: 'farm_population_mismatch' };
+  // The population row serializes competing deltas. Re-check idempotency only
+  // after acquiring that lock so concurrent retries observe the committed event.
+  const existing = await client.query(
+    `SELECT movement_type, sex, quantity
+       FROM farm_population_movements
+      WHERE clinic_id=$1 AND submission_id=$2`,
+    [context.clinicId, input.submissionId],
+  );
+  if (existing.rows[0]) return { population: current, duplicateSubmission: true };
+
+  const column = `${input.sex}_count`;
+  const available = Number(current[column]);
+  if (input.movementType === 'mortality' && input.quantity > available) {
+    return { error: 'insufficient_population', available };
+  }
+  const delta = input.movementType === 'mortality'
+    ? -input.quantity
+    : input.quantity;
+  const updated = (
+    await client.query(
+      `UPDATE farm_unit_populations
+          SET ${column}=${column}+$1, updated_at=now()
+        WHERE clinic_id=$2 AND farm_id=$3 AND farm_unit_id=$4
+          AND farm_unit_population_id=$5
+      RETURNING farm_unit_population_id, male_count, female_count, unknown_count`,
+      [delta, context.clinicId, input.farmId, input.farmUnitId,
+        input.farmUnitPopulationId],
+    )
+  ).rows[0];
+  await client.query(
+    `INSERT INTO farm_population_movements
+       (clinic_id, farm_id, farm_unit_id, farm_unit_population_id,
+        submission_id, movement_type, sex, quantity, occurred_at,
+        source, notes, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [context.clinicId, input.farmId, input.farmUnitId,
+      input.farmUnitPopulationId, input.submissionId, input.movementType,
+      input.sex, input.quantity, input.occurredAt, input.source ?? null,
+      input.notes ?? null, context.actorUserId],
+  );
+  return { population: updated, duplicateSubmission: false };
 }
 
 export async function prepareProductLines(client, clinicId, products) {
@@ -2534,6 +2648,90 @@ export async function clinicalRoutes(app) {
       }
       throw error;
     }
+  });
+
+  app.post('/api/v1/farms/:farmId/population-movements', {
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = farmUuidSchema.safeParse(request.params);
+    const body = farmPopulationMovementSchema.safeParse(request.body);
+    if (!params.success || !body.success || params.data.farmId !== body.data.farmId) {
+      return reply.code(400).send({
+        error: 'validation_error',
+        message: 'Please review the population movement.',
+      });
+    }
+    const permission = body.data.movementType === 'mortality'
+      ? permissions.farmMortalityRecord
+      : permissions.farmUnitsManage;
+    if (!hasPermission(request, permission)) {
+      return reply.code(403).send({
+        error: 'permission_required',
+        message: 'You do not have permission to change farm populations.',
+      });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const result = await recordFarmPopulationMovement(client, {
+        clinicId: request.auth.clinicId,
+        actorUserId: request.auth.userId,
+      }, body.data);
+      if (result.error) {
+        const statusCode = result.error === 'insufficient_population' ? 409 : 404;
+        return reply.code(statusCode).send({
+          error: result.error,
+          available: result.available,
+          message: result.error === 'insufficient_population'
+            ? `Only ${result.available} animals are available in that sex group.`
+            : 'The selected farm population is not available in this clinic.',
+        });
+      }
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'FarmPopulation',
+        targetId: body.data.farmUnitPopulationId,
+        action: `farm.population_${body.data.movementType}_recorded`,
+        newSummary: {
+          farmId: body.data.farmId,
+          farmUnitId: body.data.farmUnitId,
+          movementType: body.data.movementType,
+          sex: body.data.sex,
+          quantity: body.data.quantity,
+          occurredAt: body.data.occurredAt,
+        },
+        sessionId: request.auth.sessionId,
+        ipAddress: request.ip,
+      });
+      reply.code(result.duplicateSubmission ? 200 : 201);
+      return result;
+    });
+  });
+
+  app.get('/api/v1/farms/:farmId/population-movements', {
+    preHandler: [authenticate, requirePermission(permissions.farmsView)],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = farmUuidSchema.safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'The farm identifier is invalid.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const rows = (await client.query(
+        `SELECT farm_population_movement_id AS "id", farm_id AS "farmId",
+                farm_unit_id AS "farmUnitId",
+                farm_unit_population_id AS "farmUnitPopulationId",
+                movement_type AS "movementType", sex, quantity,
+                occurred_at AS "occurredAt", source, notes,
+                created_by AS "createdBy", created_at AS "createdAt"
+           FROM farm_population_movements
+          WHERE clinic_id=$1 AND farm_id=$2
+          ORDER BY occurred_at DESC, created_at DESC
+          LIMIT 500`,
+        [request.auth.clinicId, params.data.farmId],
+      )).rows;
+      return { items: rows };
+    });
   });
 
   app.post('/api/v1/invoices', { preHandler: [authenticate, requirePermission(permissions.billingCreate)] }, async (request, reply) => {

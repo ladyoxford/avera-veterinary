@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import test from 'node:test';
 import {
   farmContextSchema,
+  farmPopulationMovementSchema,
+  recordFarmPopulationMovement,
   readFarmContext,
   upsertFarmInvoiceContext,
 } from '../src/routes/clinical-routes.js';
@@ -83,6 +85,147 @@ test('migration 025 preserves legacy units and defaults old treatments to Entire
   assert.match(sql, /target_population_ids UUID\[\] NOT NULL DEFAULT '\{\}'::uuid\[\]/);
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
   assert.doesNotMatch(sql, /DELETE FROM farm_units|DROP TABLE farm_units/);
+});
+
+test('migration 034 adds an idempotent tenant-scoped population movement ledger', () => {
+  const sql = fs.readFileSync(
+    new URL('../migrations/034_farm_population_movements.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS farm_population_movements/);
+  assert.match(sql, /UNIQUE \(clinic_id, submission_id\)/);
+  assert.match(sql, /movement_type IN \('mortality', 'purchase'\)/);
+  assert.match(sql, /quantity INTEGER NOT NULL CHECK \(quantity > 0\)/);
+  assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
+  assert.doesNotMatch(sql, /UPDATE farm_unit_populations|DELETE FROM|DROP TABLE/i);
+});
+
+test('population movement validation requires positive canonical deltas', () => {
+  const valid = {
+    submissionId: '99999999-9999-4999-8999-999999999999',
+    farmId,
+    farmName: 'Mixed Unit Farm',
+    farmUnitId: unitId,
+    farmUnitName: 'Mixed Pen',
+    farmUnitType: 'Pen',
+    farmUnitPopulationId: goatGroupId,
+    speciesId: 'species_goat',
+    breedId: null,
+    baselineMaleCount: 3,
+    baselineFemaleCount: 10,
+    baselineUnknownCount: 0,
+    movementType: 'mortality',
+    sex: 'male',
+    quantity: 1,
+    occurredAt: '2026-09-07T10:00:00.000Z',
+  };
+  assert.equal(farmPopulationMovementSchema.safeParse(valid).success, true);
+  assert.equal(farmPopulationMovementSchema.safeParse({ ...valid, quantity: 0 }).success, false);
+  assert.equal(farmPopulationMovementSchema.safeParse({ ...valid, sex: 'bull' }).success, false);
+});
+
+function movementClient({ ownedClinicId = clinicId } = {}) {
+  const state = { male_count: 3, female_count: 10, unknown_count: 1 };
+  const movements = new Map();
+  const calls = [];
+  return {
+    calls,
+    state,
+    async query(sql, values) {
+      calls.push({ sql, values });
+      if (sql.includes('SELECT farm_id FROM farms')) {
+        return { rows: values[0] === ownedClinicId ? [{ farm_id: farmId }] : [] };
+      }
+      if (sql.includes('SELECT farm_unit_id FROM farm_units')) {
+        return { rows: values[0] === ownedClinicId ? [{ farm_unit_id: unitId }] : [] };
+      }
+      if (sql.includes('FROM farm_population_movements') && sql.includes('submission_id')) {
+        return { rows: movements.has(values[1]) ? [movements.get(values[1])] : [] };
+      }
+      if (sql.includes('FROM farm_unit_populations') && sql.includes('FOR UPDATE')) {
+        return { rows: values[0] === ownedClinicId ? [{ farm_unit_population_id: goatGroupId, ...state }] : [] };
+      }
+      if (sql.includes('UPDATE farm_unit_populations')) {
+        const column = sql.match(/SET (male_count|female_count|unknown_count)=/)[1];
+        state[column] += values[0];
+        return { rows: [{ farm_unit_population_id: goatGroupId, ...state }] };
+      }
+      if (sql.includes('INSERT INTO farm_population_movements')) {
+        movements.set(values[4], {
+          movement_type: values[5], sex: values[6], quantity: values[7],
+        });
+      }
+      return { rows: [] };
+    },
+  };
+}
+
+function movement(overrides = {}) {
+  return {
+    submissionId: '99999999-9999-4999-8999-999999999999',
+    farmId,
+    farmName: 'Mixed Unit Farm',
+    farmUnitId: unitId,
+    farmUnitName: 'Mixed Pen',
+    farmUnitType: 'Pen',
+    farmUnitPopulationId: goatGroupId,
+    speciesId: 'species_goat',
+    breedId: null,
+    baselineMaleCount: 3,
+    baselineFemaleCount: 10,
+    baselineUnknownCount: 1,
+    movementType: 'mortality',
+    sex: 'male',
+    quantity: 1,
+    occurredAt: '2026-09-07T10:00:00.000Z',
+    source: null,
+    notes: null,
+    ...overrides,
+  };
+}
+
+test('mortality decrements only the selected sex and duplicate submission is idempotent', async () => {
+  const client = movementClient();
+  const context = { clinicId, actorUserId: userId };
+  const first = await recordFarmPopulationMovement(client, context, movement());
+  assert.deepEqual(first.population, {
+    farm_unit_population_id: goatGroupId,
+    male_count: 2,
+    female_count: 10,
+    unknown_count: 1,
+  });
+  const duplicate = await recordFarmPopulationMovement(client, context, movement());
+  assert.equal(duplicate.duplicateSubmission, true);
+  assert.equal(client.state.male_count, 2);
+});
+
+test('purchase increments selected sex and mortality cannot exceed the locked count', async () => {
+  const client = movementClient();
+  const context = { clinicId, actorUserId: userId };
+  const purchase = await recordFarmPopulationMovement(client, context, movement({
+    submissionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    movementType: 'purchase',
+    sex: 'female',
+    quantity: 2,
+  }));
+  assert.equal(purchase.population.female_count, 12);
+  const rejected = await recordFarmPopulationMovement(client, context, movement({
+    submissionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    quantity: 4,
+  }));
+  assert.deepEqual(rejected, { error: 'insufficient_population', available: 3 });
+  assert.equal(client.state.male_count, 3);
+});
+
+test('cross-clinic population movement cannot reach another tenant records', async () => {
+  const client = movementClient();
+  const result = await recordFarmPopulationMovement(
+    client,
+    { clinicId: otherClinicId, actorUserId: userId },
+    movement(),
+  );
+  assert.deepEqual(result, { error: 'farm_mismatch' });
+  assert.equal(client.state.male_count, 3);
 });
 
 test('farm context accepts mixed population groups and defaults legacy treatment targeting', () => {

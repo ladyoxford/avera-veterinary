@@ -70,6 +70,44 @@ test('inventory images are scoped by clinic and canonical product identifiers', 
   );
 });
 
+test('clinic logo replacements use versioned tenant-scoped object paths', () => {
+  const storage = new ProfilePhotoStorageService({ environment });
+  const first = storage.brandObjectPath({
+    clinicId: 'clinic-a',
+    kind: 'logo',
+    contentType: 'image/png',
+  });
+  const replacement = storage.brandObjectPath({
+    clinicId: 'clinic-a',
+    kind: 'logo',
+    contentType: 'image/png',
+  });
+  const otherClinic = storage.brandObjectPath({
+    clinicId: 'clinic-b',
+    kind: 'logo',
+    contentType: 'image/png',
+  });
+  assert.match(first, /^clinic-a\/branding\/logo\/[0-9a-f-]+\.png$/);
+  assert.notEqual(first, replacement);
+  assert.match(otherClinic, /^clinic-b\/branding\/logo\//);
+});
+
+test('clinic settings expose a durable logo reference and no active banner', async () => {
+  const source = await readFile(new URL('../src/routes/clinic-routes.js', import.meta.url), 'utf8');
+  const settings = source.slice(
+    source.indexOf("app.get('/api/v1/clinic/settings'"),
+    source.indexOf("app.patch('/api/v1/clinic/settings'"),
+  );
+  const branding = source.slice(
+    source.indexOf("app.post('/api/v1/clinic/branding'"),
+    source.indexOf("app.patch('/api/v1/clinic/theme-color'"),
+  );
+  assert.match(settings, /logoReference: clinic\.logoPath/);
+  assert.doesNotMatch(settings, /bannerUrl/);
+  assert.match(branding, /return \{ reference: path, url:/);
+  assert.match(branding, /requirePermission\(permissions\.clinicSettingsEdit\)/);
+});
+
 test('patient photo route requires edit permission and tenant-scoped UUID lookup', async () => {
   const source = await readFile(new URL('../src/routes/clinical-routes.js', import.meta.url), 'utf8');
   const start = source.indexOf("app.post('/api/v1/patients/:patientId/profile-photo'");

@@ -8,7 +8,6 @@ import '../../../core/remote/api_client.dart';
 import '../../../core/remote/cloud_clinical_state.dart';
 import 'avera_logo.dart';
 import 'identity_avatar.dart';
-import 'identity_avatar_image.dart';
 
 String accountMenuRoleLabel(String roleName, String clinicName) =>
     '$roleName  |  $clinicName';
@@ -32,8 +31,6 @@ class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ? ref.watch(remoteNotificationsProvider)
         : null;
     final compact = MediaQuery.sizeOf(context).width < 620;
-    final banner = session.valueOrNull?.clinic.banner?.trim();
-    final hasBanner = banner?.isNotEmpty == true;
     final unreadCount = BackendConfiguration.isConfigured
         ? remoteNotifications?.valueOrNull
                   ?.where((item) => !item.isRead)
@@ -53,13 +50,6 @@ class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
     return AppBar(
       toolbarHeight: 84,
-      foregroundColor: hasBanner ? Colors.white : null,
-      flexibleSpace: hasBanner
-          ? _ClinicBanner(
-              key: const Key('clinic-dashboard-banner'),
-              reference: banner!,
-            )
-          : null,
       titleSpacing: compact ? 16 : 24,
       title: session.when(
         loading: () => const _BrandTitle(clinicName: 'Loading clinic'),
@@ -68,12 +58,7 @@ class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
           children: [
             const AveraCompactLogo(size: 44),
             const SizedBox(width: 12),
-            Expanded(
-              child: _BrandTitle(
-                clinicName: data.clinic.clinicName,
-                onBanner: hasBanner,
-              ),
-            ),
+            Expanded(child: _BrandTitle(clinicName: data.clinic.clinicName)),
           ],
         ),
       ),
@@ -106,9 +91,8 @@ class BrandedAppBar extends ConsumerWidget implements PreferredSizeWidget {
 }
 
 class _BrandTitle extends StatelessWidget {
-  const _BrandTitle({required this.clinicName, this.onBanner = false});
+  const _BrandTitle({required this.clinicName});
   final String clinicName;
-  final bool onBanner;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -117,9 +101,7 @@ class _BrandTitle extends StatelessWidget {
     children: [
       Text(
         'AVERA',
-        style: Theme.of(
-          context,
-        ).textTheme.titleLarge?.copyWith(color: onBanner ? Colors.white : null),
+        style: Theme.of(context).textTheme.titleLarge,
         overflow: TextOverflow.ellipsis,
       ),
       const SizedBox(height: 2),
@@ -127,37 +109,10 @@ class _BrandTitle extends StatelessWidget {
         clinicName,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: onBanner ? Colors.white.withValues(alpha: .9) : null,
-        ),
+        style: Theme.of(context).textTheme.labelMedium,
       ),
     ],
   );
-}
-
-class _ClinicBanner extends StatelessWidget {
-  const _ClinicBanner({super.key, required this.reference});
-
-  final String reference;
-
-  @override
-  Widget build(BuildContext context) {
-    final image = reference.startsWith('http')
-        ? NetworkImage(reference) as ImageProvider<Object>
-        : localIdentityImage(reference);
-    if (image == null) return const SizedBox.shrink();
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image(
-          image: image,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-        ),
-        ColoredBox(color: Colors.black.withValues(alpha: .58)),
-      ],
-    );
-  }
 }
 
 class _UserAvatarButton extends StatelessWidget {

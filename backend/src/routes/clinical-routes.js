@@ -159,6 +159,7 @@ export const patientNumberingSettingsSchema = z.object({
 export const createConsultationSchema = z.object({
   submissionId: z.string().uuid(),
   patientId: z.string().uuid(),
+  appointmentId: z.string().uuid().nullish(),
   chiefComplaint: z.string().trim().min(1).max(4000),
   history: z.string().trim().max(8000).nullish(),
   examination: z.string().trim().max(8000).nullish(),
@@ -181,6 +182,7 @@ export const updateConsultationSchema = z.object({
 export const createVaccinationSchema = z.object({
   submissionId: z.string().uuid(),
   patientId: z.string().uuid(),
+  scheduledVaccinationId: z.string().uuid().nullish(),
   vaccineName: z.string().trim().min(1).max(240),
   administeredAt: z.string().datetime(),
   nextDueAt: z.string().datetime().nullish(),
@@ -211,6 +213,20 @@ export const updateAppointmentSchema = z.object({
 export const cancelAppointmentSchema = z.object({
   revision: z.number().int().min(1),
 }).strict();
+
+export const updateVaccinationReminderSchema = z.object({
+  revision: z.number().int().min(1),
+  status: z.enum(['Pending', 'Completed', 'Cancelled']),
+  nextDueAt: z.string().datetime().nullish(),
+}).strict().superRefine((value, context) => {
+  if (value.status === 'Pending' && !value.nextDueAt) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['nextDueAt'],
+      message: 'A rescheduled reminder requires a due date.',
+    });
+  }
+});
 
 const farmUnitPopulationSchema = z.object({
   farmUnitPopulationId: z.string().uuid(),
@@ -438,11 +454,13 @@ function reminderSelectSql(request) {
      WHERE v.clinic_id=$1 AND v.next_due_at IS NOT NULL
        AND v.next_due_at >= now() - interval '30 days'
        AND lower(v.status) NOT IN ('cancelled','archived')
+       AND lower(coalesce(v.reminder_status, 'pending')) NOT IN ('completed','cancelled')
        AND NOT EXISTS (
          SELECT 1 FROM vaccinations newer
           WHERE newer.clinic_id=v.clinic_id AND newer.patient_id=v.patient_id
-            AND lower(newer.vaccine_name)=lower(v.vaccine_name)
+            AND lower(trim(newer.vaccine_name))=lower(trim(v.vaccine_name))
             AND newer.administered_at > v.administered_at
+            AND newer.administered_at >= v.next_due_at
        )`);
   for (const [type, permission] of [
     ['Surgery', permissions.surgeryView], ['Treatment', permissions.treatmentBoardView],
@@ -916,7 +934,21 @@ function clinicalList({ table, alias, id, permission, select, dateColumn, search
 
 const lists = {
   consultations: clinicalList({ table: 'consultations', alias: 'c', id: 'consultation_id', permission: permissions.consultationsView, dateColumn: 'occurred_at', select: 'c.occurred_at, c.status, c.chief_complaint, c.final_diagnosis, c.treatment, c.clinician_name_snapshot, c.charge, c.revision', searchColumns: ['p.name', 'c.final_diagnosis', 'c.chief_complaint'] }),
-  vaccinations: clinicalList({ table: 'vaccinations', alias: 'v', id: 'vaccination_id', permission: permissions.vaccinationsView, dateColumn: 'administered_at', select: 'v.vaccine_name, v.status, v.administered_at, v.next_due_at, v.manufacturer, v.batch_number, v.certificate_number, p.species, p.breed', searchColumns: ['p.name', 'v.vaccine_name'] }),
+  vaccinations: clinicalList({ table: 'vaccinations', alias: 'v', id: 'vaccination_id', permission: permissions.vaccinationsView, dateColumn: 'administered_at', select: `v.vaccine_name, v.status, v.administered_at, v.next_due_at,
+      CASE
+        WHEN lower(coalesce(v.reminder_status, 'pending')) IN ('completed','cancelled')
+          THEN initcap(lower(v.reminder_status))
+        WHEN v.next_due_at IS NOT NULL AND EXISTS (
+          SELECT 1 FROM vaccinations newer
+           WHERE newer.clinic_id=v.clinic_id AND newer.patient_id=v.patient_id
+             AND lower(trim(newer.vaccine_name))=lower(trim(v.vaccine_name))
+             AND newer.administered_at > v.administered_at
+             AND newer.administered_at >= v.next_due_at
+        ) THEN 'Completed'
+        ELSE coalesce(v.reminder_status, 'Pending')
+      END AS reminder_status,
+      v.manufacturer, v.batch_number, v.certificate_number, v.revision,
+      p.species, p.breed`, searchColumns: ['p.name', 'v.vaccine_name'] }),
   laboratory: clinicalList({ table: 'laboratory_reports', alias: 'l', id: 'laboratory_report_id', permission: permissions.laboratoryView, dateColumn: 'requested_at', select: 'l.test_type, l.status, l.requested_at, l.reported_at, l.result_summary, l.result_values, l.cost', searchColumns: ['p.name', 'l.test_type', 'l.result_summary'] }),
   hospitalizations: clinicalList({ table: 'hospitalizations', alias: 'h', id: 'hospitalization_id', permission: permissions.hospitalizationView, dateColumn: 'admitted_at', select: 'h.admitted_at, h.discharged_at, h.ward, h.cage_or_pen, h.reason, h.diagnosis, h.outcome, h.cost', searchColumns: ['p.name', 'h.diagnosis', 'h.reason'], statusColumn: 'outcome' }),
   surgeries: clinicalList({ table: 'surgeries', alias: 's', id: 'surgery_id', permission: permissions.surgeryView, dateColumn: 'performed_at', select: 's.performed_at, s.procedure_name, s.anaesthesia_protocol, s.complication_notes, s.recovery_notes, s.follow_up_at, s.cost', searchColumns: ['p.name', 's.procedure_name'], statusColumn: null }),
@@ -1679,6 +1711,28 @@ export async function clinicalRoutes(app) {
       if (patient.rows[0].status !== 'Active') {
         return reply.code(409).send({ error: 'patient_inactive', message: 'Restore this patient to Active before creating a consultation.' });
       }
+      let appointment = null;
+      if (input.appointmentId) {
+        appointment = (await client.query(
+          `SELECT schedule_entry_id, patient_id, status
+             FROM schedule_entries
+            WHERE clinic_id=$1 AND schedule_entry_id=$2
+            FOR UPDATE`,
+          [request.auth.clinicId, input.appointmentId],
+        )).rows[0];
+        if (!appointment || appointment.patient_id !== input.patientId) {
+          return reply.code(409).send({
+            error: 'appointment_mismatch',
+            message: 'The selected appointment does not belong to this patient.',
+          });
+        }
+        if (String(appointment.status).toLowerCase() === 'cancelled') {
+          return reply.code(409).send({
+            error: 'appointment_cancelled',
+            message: 'A cancelled appointment cannot start a consultation.',
+          });
+        }
+      }
       const inserted = await client.query(
         `INSERT INTO consultations
            (clinic_id, patient_id, clinician_id, occurred_at, chief_complaint,
@@ -1711,6 +1765,14 @@ export async function clinicalRoutes(app) {
           submissionId: input.submissionId,
           duplicateSubmission: true,
         };
+      }
+      if (appointment && String(appointment.status).toLowerCase() !== 'completed') {
+        await client.query(
+          `UPDATE schedule_entries
+              SET status='Completed', updated_at=now(), revision=revision+1
+            WHERE clinic_id=$1 AND schedule_entry_id=$2`,
+          [request.auth.clinicId, input.appointmentId],
+        );
       }
       await writeAudit(client, {
         clinicId: request.auth.clinicId,
@@ -2165,6 +2227,54 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.post('/api/v1/schedule/:appointmentId/complete', { preHandler: [authenticate, requirePermission(permissions.appointmentsEdit)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = appointmentUuidSchema.safeParse(request.params);
+    const parsed = cancelAppointmentSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'The appointment completion request is invalid.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = (await client.query(
+        `SELECT schedule_entry_id, patient_id, scheduled_at, visit_type,
+                status, revision
+           FROM schedule_entries
+          WHERE clinic_id=$1 AND schedule_entry_id=$2
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.appointmentId],
+      )).rows[0];
+      if (!current) return reply.code(404).send({ error: 'not_found', message: 'The appointment was not found in this clinic.' });
+      if (Number(current.revision) !== parsed.data.revision) {
+        return reply.code(409).send({ error: 'revision_conflict', message: 'This appointment was updated elsewhere. Reload it before completing.' });
+      }
+      if (String(current.status).toLowerCase() === 'completed') {
+        return { appointment: current, alreadyCompleted: true };
+      }
+      if (String(current.status).toLowerCase() === 'cancelled') {
+        return reply.code(409).send({ error: 'appointment_cancelled', message: 'A cancelled appointment cannot be completed.' });
+      }
+      const updated = (await client.query(
+        `UPDATE schedule_entries
+            SET status='Completed', updated_at=now(), revision=revision+1
+          WHERE clinic_id=$1 AND schedule_entry_id=$2
+          RETURNING schedule_entry_id, patient_id, scheduled_at, visit_type,
+                    status, notes, assigned_staff_id, revision, updated_at`,
+        [request.auth.clinicId, params.data.appointmentId],
+      )).rows[0];
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Appointment',
+        targetId: params.data.appointmentId,
+        action: 'appointment.completed',
+        previousSummary: { status: current.status, revision: current.revision },
+        newSummary: { status: updated.status, revision: updated.revision },
+        sessionId: request.auth.sessionId,
+      });
+      return { appointment: updated, alreadyCompleted: false };
+    });
+  });
+
   app.get('/api/v1/clinical-operations', { preHandler: [authenticate] }, async (request, reply) => {
     if (!requireClinic(request, reply)) return undefined;
     const query = parsePage(request, reply);
@@ -2410,7 +2520,7 @@ export async function clinicalRoutes(app) {
       const record = await client.query(
         `SELECT v.vaccination_id, v.patient_id, v.vaccine_name, v.manufacturer,
                 v.batch_number, v.route, v.dose, v.administered_at,
-                v.next_due_at, v.status, v.notes, v.revision,
+                v.next_due_at, v.status, v.reminder_status, v.notes, v.revision,
                 p.name AS patient_name, p.hospital_number, p.species, p.breed,
                 p.date_of_birth, p.is_date_of_birth_estimated,
                 o.full_name AS owner_name, o.phone AS owner_phone,
@@ -2427,7 +2537,8 @@ export async function clinicalRoutes(app) {
       const history = await client.query(
         `SELECT v.vaccination_id, v.patient_id, v.vaccine_name, v.manufacturer,
                 v.batch_number, v.route, v.dose, v.administered_at,
-                v.next_due_at, v.status, u.full_name AS administered_by_name
+                v.next_due_at, v.status, v.reminder_status, v.revision,
+                u.full_name AS administered_by_name
            FROM vaccinations v
            LEFT JOIN users u ON u.user_id=v.administered_by
           WHERE v.clinic_id=$1 AND v.patient_id=$2
@@ -2458,6 +2569,42 @@ export async function clinicalRoutes(app) {
         [request.auth.clinicId, input.patientId, 'active'],
       );
       if (!patient.rows[0]) return reply.code(404).send({ error: 'patient_not_found', message: 'The selected active patient was not found in this clinic.' });
+      let scheduledVaccinationId = input.scheduledVaccinationId ?? null;
+      if (scheduledVaccinationId) {
+        const scheduled = (await client.query(
+          `SELECT vaccination_id, vaccine_name, reminder_status
+             FROM vaccinations
+            WHERE clinic_id=$1 AND patient_id=$2 AND vaccination_id=$3
+            FOR UPDATE`,
+          [request.auth.clinicId, input.patientId, scheduledVaccinationId],
+        )).rows[0];
+        if (!scheduled || scheduled.vaccine_name.trim().toLowerCase() !== input.vaccineName.trim().toLowerCase()) {
+          return reply.code(409).send({
+            error: 'vaccination_schedule_mismatch',
+            message: 'The selected vaccination reminder is no longer available for this patient.',
+          });
+        }
+        if (['completed', 'cancelled'].includes(String(scheduled.reminder_status ?? '').toLowerCase())) {
+          return reply.code(409).send({
+            error: 'vaccination_schedule_closed',
+            message: 'This vaccination reminder has already been completed or cancelled.',
+          });
+        }
+      } else {
+        scheduledVaccinationId = (await client.query(
+          `SELECT vaccination_id
+             FROM vaccinations
+            WHERE clinic_id=$1 AND patient_id=$2
+              AND lower(trim(vaccine_name))=lower(trim($3))
+              AND next_due_at IS NOT NULL AND next_due_at <= $4::timestamptz
+              AND administered_at < $4::timestamptz
+              AND lower(coalesce(reminder_status, 'pending')) NOT IN ('completed','cancelled')
+            ORDER BY next_due_at DESC, administered_at DESC
+            LIMIT 1
+            FOR UPDATE`,
+          [request.auth.clinicId, input.patientId, input.vaccineName, input.administeredAt],
+        )).rows[0]?.vaccination_id ?? null;
+      }
       const inserted = await client.query(
         `INSERT INTO vaccinations
            (clinic_id, patient_id, vaccine_name, manufacturer, batch_number,
@@ -2483,6 +2630,14 @@ export async function clinicalRoutes(app) {
         );
         return { vaccination: duplicate.rows[0], submissionId: input.submissionId, duplicateSubmission: true };
       }
+      if (scheduledVaccinationId) {
+        await client.query(
+          `UPDATE vaccinations
+              SET reminder_status='Completed', updated_at=now(), revision=revision+1
+            WHERE clinic_id=$1 AND vaccination_id=$2`,
+          [request.auth.clinicId, scheduledVaccinationId],
+        );
+      }
       await writeAudit(client, {
         clinicId: request.auth.clinicId,
         actingUserId: request.auth.userId,
@@ -2494,6 +2649,51 @@ export async function clinicalRoutes(app) {
       });
       reply.code(201);
       return { vaccination: inserted.rows[0], submissionId: input.submissionId, duplicateSubmission: false };
+    });
+  });
+
+  app.patch('/api/v1/vaccinations/:vaccinationId/reminder', { preHandler: [authenticate, requirePermission(permissions.vaccinationsAdd)] }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = vaccinationUuidSchema.safeParse(request.params);
+    const parsed = updateVaccinationReminderSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the reminder update.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const current = (await client.query(
+        `SELECT vaccination_id, patient_id, vaccine_name, reminder_status,
+                next_due_at, revision
+           FROM vaccinations
+          WHERE clinic_id=$1 AND vaccination_id=$2
+          FOR UPDATE`,
+        [request.auth.clinicId, params.data.vaccinationId],
+      )).rows[0];
+      if (!current) return reply.code(404).send({ error: 'not_found', message: 'The vaccination reminder was not found in this clinic.' });
+      if (Number(current.revision) !== parsed.data.revision) {
+        return reply.code(409).send({ error: 'revision_conflict', message: 'This vaccination reminder changed elsewhere. Reload it before saving.' });
+      }
+      const updated = (await client.query(
+        `UPDATE vaccinations
+            SET reminder_status=$3,
+                next_due_at=CASE WHEN $3='Pending' THEN $4::timestamptz ELSE next_due_at END,
+                updated_at=now(), revision=revision+1
+          WHERE clinic_id=$1 AND vaccination_id=$2
+          RETURNING vaccination_id, patient_id, vaccine_name, status,
+                    reminder_status, administered_at, next_due_at, revision`,
+        [request.auth.clinicId, params.data.vaccinationId, parsed.data.status,
+          parsed.data.nextDueAt ?? null],
+      )).rows[0];
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'Vaccination',
+        targetId: params.data.vaccinationId,
+        action: 'vaccination.reminder_updated',
+        previousSummary: { status: current.reminder_status, nextDueAt: current.next_due_at, revision: current.revision },
+        newSummary: { status: updated.reminder_status, nextDueAt: updated.next_due_at, revision: updated.revision },
+        sessionId: request.auth.sessionId,
+      });
+      return { vaccination: updated };
     });
   });
 
@@ -4069,9 +4269,9 @@ export async function clinicalRoutes(app) {
       const clinicId = request.auth.clinicId;
       const result = await client.query(`SELECT
         (SELECT count(*)::int FROM patients WHERE clinic_id=$1 AND deleted_at IS NULL) AS registered_patients,
-        (SELECT count(*)::int FROM schedule_entries WHERE clinic_id=$1 AND scheduled_at >= date_trunc('day', now()) AND scheduled_at < date_trunc('day', now()) + interval '1 day') AS todays_schedule,
+        (SELECT count(*)::int FROM schedule_entries WHERE clinic_id=$1 AND scheduled_at >= date_trunc('day', now()) AND scheduled_at < date_trunc('day', now()) + interval '1 day' AND lower(status) NOT IN ('cancelled','completed','missed')) AS todays_schedule,
         (SELECT count(*)::int FROM consultations WHERE clinic_id=$1 AND status IN ('In Progress','Open')) AS active_consultations,
-        (SELECT count(*)::int FROM vaccinations WHERE clinic_id=$1 AND next_due_at <= now() AND status <> 'Completed') AS vaccinations_due,
+        (SELECT count(*)::int FROM vaccinations v WHERE clinic_id=$1 AND next_due_at <= now() AND lower(coalesce(reminder_status, 'pending')) NOT IN ('completed','cancelled') AND NOT EXISTS (SELECT 1 FROM vaccinations newer WHERE newer.clinic_id=v.clinic_id AND newer.patient_id=v.patient_id AND lower(trim(newer.vaccine_name))=lower(trim(v.vaccine_name)) AND newer.administered_at > v.administered_at AND newer.administered_at >= v.next_due_at)) AS vaccinations_due,
         (SELECT coalesce(sum(p.amount),0) FROM payments p JOIN invoices i ON i.invoice_id=p.invoice_id AND i.clinic_id=p.clinic_id WHERE p.clinic_id=$1 AND i.status <> 'Voided' AND p.paid_at >= date_trunc('month', now())) AS current_revenue,
         (SELECT count(*)::int FROM inventory_products WHERE clinic_id=$1 AND is_archived=false AND quantity <= reorder_level) AS low_stock,
         (SELECT count(*)::int FROM inventory_products WHERE clinic_id=$1 AND is_archived=false AND expiry_date < current_date) AS expired_products,

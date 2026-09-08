@@ -29,6 +29,7 @@ class ConsultationScreen extends ConsumerStatefulWidget {
     this.initialAnimalId,
     this.initialRemotePatientId,
     this.initialAppointmentId,
+    this.remoteAppointmentId,
     this.initialComplaint,
     this.initialVeterinarian,
   }) : assert(
@@ -41,6 +42,7 @@ class ConsultationScreen extends ConsumerStatefulWidget {
   final int? initialAnimalId;
   final String? initialRemotePatientId;
   final int? initialAppointmentId;
+  final String? remoteAppointmentId;
   final String? initialComplaint;
   final String? initialVeterinarian;
 
@@ -277,6 +279,8 @@ class _ConsultationScreenState extends ConsumerState<ConsultationScreen> {
             .create({
               'submissionId': _submissionId,
               'patientId': patientId,
+              if (widget.remoteAppointmentId?.trim().isNotEmpty == true)
+                'appointmentId': widget.remoteAppointmentId,
               'chiefComplaint': complaint.text.trim(),
               'history': history.text.trim(),
               'examination': signs.text.trim(),

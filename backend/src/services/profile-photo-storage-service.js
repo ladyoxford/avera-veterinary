@@ -136,7 +136,17 @@ export class ProfilePhotoStorageService {
 
   async remove(path) {
     if (!path || !this.configured) return;
-    await this.fetch(this.#objectUrl(path), { method: 'DELETE', headers: this.#headers() });
+    const response = await this.fetch(this.#objectUrl(path), {
+      method: 'DELETE',
+      headers: this.#headers(),
+    });
+    if (!response.ok && response.status !== 404) {
+      throw storageError(
+        502,
+        'profile_photo_delete_failed',
+        'The stored profile photo could not be deleted.',
+      );
+    }
   }
 
   #objectUrl(path) {

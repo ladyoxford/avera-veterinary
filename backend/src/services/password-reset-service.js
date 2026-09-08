@@ -7,10 +7,11 @@ import { hashToken } from '../security/tokens.js';
 const purpose = 'PasswordReset';
 
 export class PasswordResetService {
-  constructor({ pool, environment, deliveryService }) {
+  constructor({ pool, environment, deliveryService, logger = null }) {
     this.pool = pool;
     this.environment = environment;
     this.deliveryService = deliveryService;
+    this.logger = logger;
   }
 
   async request({ email, ipAddress, userAgent }) {
@@ -210,10 +211,22 @@ export class PasswordResetService {
         failureCode: 'email_provider_exception',
       };
     }
-    const accepted = delivery?.accepted === true && delivery.providerMessageId;
-    const client = await this.pool.connect();
+    const providerMessageId = typeof delivery?.providerMessageId === 'string'
+      ? delivery.providerMessageId.trim()
+      : '';
+    const accepted = delivery?.accepted === true && providerMessageId.length > 0;
+    const submittedAt = accepted
+      ? delivery.submittedAt ?? new Date().toISOString()
+      : null;
+    let client;
+    let transactionOpen = false;
+    let bookkeepingStage = 'connect';
     try {
+      client = await this.pool.connect();
+      bookkeepingStage = 'begin';
       await client.query('BEGIN');
+      transactionOpen = true;
+      bookkeepingStage = 'delivery_metadata';
       await client.query(
         `UPDATE activation_tokens
             SET delivery_method = $2, delivered_at = $3,
@@ -226,12 +239,13 @@ export class PasswordResetService {
         [
           issued.tokenId,
           accepted ? 'email_submitted' : 'email_failed',
-          accepted ? delivery.submittedAt : null,
-          accepted ? delivery.providerMessageId : null,
+          submittedAt,
+          accepted ? providerMessageId : null,
           delivery?.provider ?? null,
           accepted ? null : delivery?.failureCode ?? 'email_provider_invalid_result',
         ],
       );
+      bookkeepingStage = 'audit';
       await writeAudit(client, {
         clinicId: issued.clinicId,
         actingUserId: null,
@@ -242,18 +256,70 @@ export class PasswordResetService {
           : 'password.reset_email_submission_failed',
         newSummary: {
           provider: delivery?.provider ?? null,
-          providerMessageId: accepted ? delivery.providerMessageId : null,
+          providerMessageId: accepted ? providerMessageId : null,
           failureCategory: accepted ? null : delivery?.failureCode ?? null,
         },
         ipAddress: issued.ipAddress,
         success: accepted,
       });
+      bookkeepingStage = 'commit';
       await client.query('COMMIT');
+      transactionOpen = false;
     } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
+      if (transactionOpen && client) {
+        try {
+          await client.query('ROLLBACK');
+        } catch (rollbackError) {
+          this.#logBookkeepingFailure(rollbackError, {
+            accepted,
+            provider: delivery?.provider ?? null,
+            stage: 'rollback',
+          });
+        }
+      }
+      this.#logBookkeepingFailure(error, {
+        accepted,
+        provider: delivery?.provider ?? null,
+        stage: bookkeepingStage,
+      });
     } finally {
-      client.release();
+      if (client) {
+        try {
+          client.release();
+        } catch (error) {
+          this.#logBookkeepingFailure(error, {
+            accepted,
+            provider: delivery?.provider ?? null,
+            stage: 'release',
+          });
+        }
+      }
+    }
+
+    if (!accepted) {
+      throw serviceError(
+        'password_reset_delivery_failed',
+        'The password reset email could not be sent. Please try again.',
+        503,
+      );
+    }
+  }
+
+  #logBookkeepingFailure(error, { accepted, provider, stage }) {
+    try {
+      this.logger?.error?.(
+        {
+          event: 'password_reset_delivery_bookkeeping_failed',
+          providerAccepted: accepted,
+          provider,
+          stage,
+          errorName: error?.name ?? 'Error',
+          errorCode: error?.code ?? null,
+        },
+        'Password reset delivery bookkeeping failed',
+      );
+    } catch (_) {
+      // Logging must never change the user-facing delivery result.
     }
   }
 }

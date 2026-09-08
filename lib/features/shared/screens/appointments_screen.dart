@@ -104,6 +104,39 @@ class AppointmentsScreen extends ConsumerWidget {
                               onTap: () => context.push(
                                 '/appointments/${appointments[index].id}',
                               ),
+                              onLongPress:
+                                  session != null &&
+                                      ![
+                                        AppointmentStatuses.cancelled,
+                                        AppointmentStatuses.completed,
+                                      ].contains(
+                                        AppointmentStatuses.normalize(
+                                          appointments[index].status,
+                                        ),
+                                      ) &&
+                                      (session.can(
+                                            Permissions
+                                                .appointmentsStartConsultation,
+                                          ) ||
+                                          session.can(
+                                            Permissions.appointmentsEdit,
+                                          ) ||
+                                          session.can(
+                                            Permissions.appointmentsCancel,
+                                          ))
+                                  ? () {
+                                      unawaited(
+                                        HapticFeedback.selectionClick(),
+                                      );
+                                      unawaited(
+                                        _showLocalAppointmentActions(
+                                          context,
+                                          ref,
+                                          appointments[index],
+                                        ),
+                                      );
+                                    }
+                                  : null,
                             ),
                             if (index != appointments.length - 1)
                               const Divider(height: 1, indent: 84),
@@ -233,6 +266,9 @@ class RemoteAppointmentScheduleRow extends ConsumerWidget {
         '${appointment['visit_type'] ?? 'Visit'} | ${_remoteAppointmentDate(appointment['scheduled_at'])}',
         style: averaText(context).listItemSubtitle,
       ),
+      trailing: appointment['status']?.toString().toLowerCase() == 'completed'
+          ? const _AppointmentStatusBadge(status: 'Completed')
+          : null,
       onTap: appointmentId?.isNotEmpty == true
           ? () => context.push('/appointments/$appointmentId')
           : null,
@@ -402,6 +438,17 @@ class _RemoteAppointmentDetailBody extends ConsumerWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () =>
+                    _completeRemoteAppointment(context, ref, detail),
+                icon: const Icon(Icons.check_circle_outline_rounded),
+                label: const Text('Mark Completed'),
+              ),
+            ),
+          if (canEdit) const SizedBox(height: 12),
+          if (canEdit)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () =>
                     _rescheduleRemoteAppointment(context, ref, detail),
                 icon: const Icon(Icons.edit_calendar_rounded),
                 label: const Text('Reschedule'),
@@ -515,6 +562,7 @@ Future<void> _showRemoteAppointmentActions(
       patientAvailable &&
       session?.can(Permissions.appointmentsStartConsultation) == true;
   final canEdit = open && session?.can(Permissions.appointmentsEdit) == true;
+  final canComplete = canEdit;
   final canCancel =
       open && session?.can(Permissions.appointmentsCancel) == true;
   final parentContext = context;
@@ -534,28 +582,20 @@ Future<void> _showRemoteAppointmentActions(
     if (detail != null && parentContext.mounted) await action(detail);
   }
 
-  await showModalBottomSheet<void>(
+  await showAveraActionSheet<void>(
     context: context,
-    useSafeArea: true,
-    showDragHandle: true,
-    builder: (sheetContext) => SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      child: Column(
+    title: appointment['patient_name']?.toString().trim().isNotEmpty == true
+        ? 'Manage ${appointment['patient_name']}'
+        : 'Manage Appointment',
+    description:
+        '${appointment['visit_type'] ?? 'Visit'} | ${_remoteAppointmentDate(appointment['scheduled_at'])}',
+    builder: (sheetContext) {
+      final semantic = Theme.of(sheetContext).extension<AppSemanticColors>()!;
+      final primary = Theme.of(sheetContext).colorScheme.primary;
+      return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            appointment['patient_name']?.toString().trim().isNotEmpty == true
-                ? appointment['patient_name'].toString()
-                : 'Patient record unavailable',
-            style: averaText(sheetContext).sectionTitle,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${appointment['visit_type'] ?? 'Visit'} • ${_remoteAppointmentDate(appointment['scheduled_at'])}',
-            style: averaText(sheetContext).sectionSubtitle,
-          ),
-          const SizedBox(height: 16),
           if (!patientAvailable)
             const _MessageCard(
               icon: Icons.person_off_outlined,
@@ -564,8 +604,11 @@ Future<void> _showRemoteAppointmentActions(
             ),
           if (canStart)
             ListTile(
-              leading: const Icon(Icons.medical_services_outlined),
-              title: const Text('Start New Consultation'),
+              leading: Icon(Icons.medical_services_outlined, color: primary),
+              title: Text(
+                'Start New Consultation',
+                style: TextStyle(color: primary, fontWeight: FontWeight.w600),
+              ),
               subtitle: const Text('Open a consultation for this patient.'),
               onTap: () => run(
                 sheetContext,
@@ -573,10 +616,39 @@ Future<void> _showRemoteAppointmentActions(
                     _startRemoteConsultation(parentContext, ref, detail),
               ),
             ),
+          if (canComplete)
+            ListTile(
+              leading: Icon(
+                Icons.check_circle_outline_rounded,
+                color: semantic.success,
+              ),
+              title: Text(
+                'Completed',
+                style: TextStyle(
+                  color: semantic.success,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text('Close this visit and its reminders.'),
+              onTap: () => run(
+                sheetContext,
+                (detail) =>
+                    _completeRemoteAppointment(parentContext, ref, detail),
+              ),
+            ),
           if (canEdit)
             ListTile(
-              leading: const Icon(Icons.edit_calendar_rounded),
-              title: const Text('Reschedule'),
+              leading: Icon(
+                Icons.edit_calendar_rounded,
+                color: semantic.warning,
+              ),
+              title: Text(
+                'Reschedule',
+                style: TextStyle(
+                  color: semantic.warning,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               subtitle: const Text('Update this appointment date or details.'),
               onTap: () => run(
                 sheetContext,
@@ -586,10 +658,14 @@ Future<void> _showRemoteAppointmentActions(
             ),
           if (canCancel)
             ListTile(
-              iconColor: Theme.of(sheetContext).colorScheme.error,
-              textColor: Theme.of(sheetContext).colorScheme.error,
-              leading: const Icon(Icons.event_busy_rounded),
-              title: const Text('Cancel Visit'),
+              leading: Icon(Icons.event_busy_rounded, color: semantic.danger),
+              title: Text(
+                'Cancel Visit',
+                style: TextStyle(
+                  color: semantic.danger,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               subtitle: const Text(
                 'Cancel this appointment after confirmation.',
               ),
@@ -605,9 +681,14 @@ Future<void> _showRemoteAppointmentActions(
               title: 'No appointment actions available',
               message: 'Your clinic role does not allow changes to this visit.',
             ),
+          ListTile(
+            leading: const Icon(Icons.close_rounded),
+            title: const Text('Close'),
+            onTap: () => Navigator.of(sheetContext).pop(),
+          ),
         ],
-      ),
-    ),
+      );
+    },
   );
 }
 
@@ -712,6 +793,32 @@ Future<void> _cancelRemoteAppointment(
       ..invalidate(remoteReminderFeedProvider)
       ..invalidate(remoteNotificationsProvider);
     if (context.mounted) _showMessage(context, 'Visit cancelled.');
+  } catch (error) {
+    if (context.mounted) {
+      _showMessage(context, _appointmentActionErrorMessage(error));
+    }
+  }
+}
+
+Future<void> _completeRemoteAppointment(
+  BuildContext context,
+  WidgetRef ref,
+  RemoteAppointmentDetail detail,
+) async {
+  try {
+    await ref
+        .read(clinicalRemoteDataSourceProvider)
+        .completeAppointment(
+          appointmentId: detail.id,
+          revision: detail.revision,
+        );
+    ref
+      ..invalidate(remoteAppointmentDetailProvider(detail.id))
+      ..invalidate(remoteAppointmentScheduleProvider)
+      ..invalidate(remoteDashboardProvider)
+      ..invalidate(remoteReminderFeedProvider)
+      ..invalidate(remoteNotificationsProvider);
+    if (context.mounted) _showMessage(context, 'Appointment completed.');
   } catch (error) {
     if (context.mounted) {
       _showMessage(context, _appointmentActionErrorMessage(error));
@@ -1216,6 +1323,16 @@ class _AppointmentDetailBody extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
+                onPressed: () => _complete(context, ref, detail),
+                icon: const Icon(Icons.check_circle_outline_rounded),
+                label: const Text('Mark Completed'),
+              ),
+            ),
+          if (canEdit) const SizedBox(height: 12),
+          if (canEdit)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
                 onPressed: () => _reschedule(context, ref, detail),
                 icon: const Icon(Icons.edit_calendar_rounded),
                 label: const Text('Reschedule'),
@@ -1294,6 +1411,29 @@ class _AppointmentDetailBody extends ConsumerWidget {
           .cancelReminders(current.reminders);
       ref.invalidate(appointmentDetailProvider(current.appointment.id));
       if (context.mounted) _showMessage(context, 'Visit cancelled.');
+    } catch (error) {
+      if (context.mounted) _showMessage(context, '$error');
+    }
+  }
+
+  Future<void> _complete(
+    BuildContext context,
+    WidgetRef ref,
+    AppointmentDetail current,
+  ) async {
+    try {
+      final session = await ref.read(userSessionProvider.future);
+      await ref
+          .read(clinicRepositoryProvider)
+          .completeAppointment(
+            session: session,
+            appointmentId: current.appointment.id,
+          );
+      await ref
+          .read(appointmentNotificationServiceProvider)
+          .cancelReminders(current.reminders);
+      ref.invalidate(appointmentDetailProvider(current.appointment.id));
+      if (context.mounted) _showMessage(context, 'Appointment completed.');
     } catch (error) {
       if (context.mounted) _showMessage(context, '$error');
     }
@@ -2046,19 +2186,198 @@ class _PatientPickerSheetState extends ConsumerState<_PatientPickerSheet> {
   }
 }
 
+Future<void> _showLocalAppointmentActions(
+  BuildContext context,
+  WidgetRef ref,
+  Appointment appointment,
+) async {
+  if (AppointmentStatuses.normalize(appointment.status) ==
+      AppointmentStatuses.completed) {
+    _showMessage(context, 'This appointment is already completed.');
+    return;
+  }
+  final session = await ref.read(userSessionProvider.future);
+  final detail = await ref
+      .read(clinicRepositoryProvider)
+      .getAppointmentDetail(appointment.id);
+  if (!context.mounted) return;
+  if (detail == null) {
+    _showMessage(context, 'This appointment is no longer available.');
+    return;
+  }
+  final canStart =
+      session.can(Permissions.appointmentsStartConsultation) &&
+      detail.appointment.consultationId == null;
+  final canEdit = session.can(Permissions.appointmentsEdit);
+  final canCancel = session.can(Permissions.appointmentsCancel);
+  final action = await showAveraActionSheet<String>(
+    context: context,
+    title: 'Manage ${detail.animal.animalName}',
+    description:
+        '${detail.appointment.purpose} | ${DateFormat.yMMMd().add_jm().format(detail.appointment.appointmentDate)}',
+    builder: (sheetContext) {
+      final semantic = Theme.of(sheetContext).extension<AppSemanticColors>()!;
+      final primary = Theme.of(sheetContext).colorScheme.primary;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (canStart)
+            ListTile(
+              leading: Icon(Icons.medical_services_outlined, color: primary),
+              title: Text(
+                'Start New Consultation',
+                style: TextStyle(color: primary, fontWeight: FontWeight.w600),
+              ),
+              subtitle: const Text('Open a consultation for this patient.'),
+              onTap: () => Navigator.of(sheetContext).pop('start'),
+            ),
+          if (canEdit)
+            ListTile(
+              leading: Icon(
+                Icons.check_circle_outline_rounded,
+                color: semantic.success,
+              ),
+              title: Text(
+                'Completed',
+                style: TextStyle(
+                  color: semantic.success,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text('Close this visit and its reminders.'),
+              onTap: () => Navigator.of(sheetContext).pop('complete'),
+            ),
+          if (canEdit)
+            ListTile(
+              leading: Icon(
+                Icons.edit_calendar_rounded,
+                color: semantic.warning,
+              ),
+              title: Text(
+                'Reschedule',
+                style: TextStyle(
+                  color: semantic.warning,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text('Update this appointment date or details.'),
+              onTap: () => Navigator.of(sheetContext).pop('reschedule'),
+            ),
+          if (canCancel)
+            ListTile(
+              leading: Icon(Icons.event_busy_rounded, color: semantic.danger),
+              title: Text(
+                'Cancel Visit',
+                style: TextStyle(
+                  color: semantic.danger,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text(
+                'Cancel this appointment after confirmation.',
+              ),
+              onTap: () => Navigator.of(sheetContext).pop('cancel'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.close_rounded),
+            title: const Text('Close'),
+            onTap: () => Navigator.of(sheetContext).pop(),
+          ),
+        ],
+      );
+    },
+  );
+  if (!context.mounted || action == null) return;
+  if (action == 'start') {
+    context.push(
+      '/consultations/new?animalId=${detail.animal.id}&appointmentId=${detail.appointment.id}&complaint=${Uri.encodeQueryComponent(detail.appointment.purpose)}&veterinarian=${Uri.encodeQueryComponent(detail.assignedStaff?.fullName ?? '')}',
+    );
+    return;
+  }
+  if (action == 'reschedule') {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _RescheduleAppointmentSheet(detail: detail),
+    );
+    if (changed == true) {
+      ref.invalidate(appointmentDetailProvider(appointment.id));
+      if (context.mounted) {
+        _showMessage(context, 'Appointment rescheduled successfully.');
+      }
+    }
+    return;
+  }
+  if (action == 'cancel') {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel Visit?'),
+        content: const Text(
+          'Are you sure you want to cancel this appointment?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep Appointment'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Cancel Visit'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref
+          .read(clinicRepositoryProvider)
+          .cancelAppointment(session: session, appointmentId: appointment.id);
+      await ref
+          .read(appointmentNotificationServiceProvider)
+          .cancelReminders(detail.reminders);
+      ref
+        ..invalidate(appointmentDetailProvider(appointment.id))
+        ..invalidate(dashboardStatsProvider);
+      if (context.mounted) _showMessage(context, 'Visit cancelled.');
+    } catch (error) {
+      if (context.mounted) _showMessage(context, '$error');
+    }
+    return;
+  }
+  try {
+    await ref
+        .read(clinicRepositoryProvider)
+        .completeAppointment(session: session, appointmentId: appointment.id);
+    await ref
+        .read(appointmentNotificationServiceProvider)
+        .cancelReminders(detail.reminders);
+    ref
+      ..invalidate(appointmentDetailProvider(appointment.id))
+      ..invalidate(dashboardStatsProvider);
+    if (context.mounted) _showMessage(context, 'Appointment completed.');
+  } catch (error) {
+    if (context.mounted) _showMessage(context, '$error');
+  }
+}
+
 class _ScheduleRow extends StatelessWidget {
   const _ScheduleRow({
     required this.appointment,
     required this.patient,
     required this.onTap,
+    this.onLongPress,
   });
   final Appointment appointment;
   final Animal? patient;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
+    onLongPress: onLongPress,
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
@@ -2133,7 +2452,7 @@ class _AppointmentStatusBadge extends StatelessWidget {
     final color = switch (normalized) {
       AppointmentStatuses.cancelled ||
       AppointmentStatuses.noShow => semantic.danger,
-      AppointmentStatuses.completed => semantic.info,
+      AppointmentStatuses.completed => semantic.success,
       AppointmentStatuses.pending => semantic.warning,
       _ => semantic.success,
     };
@@ -2271,7 +2590,7 @@ class _StatusChip extends StatelessWidget {
     final colors = Theme.of(context).extension<AppSemanticColors>()!;
     final color = switch (status) {
       AppointmentStatuses.confirmed => colors.success,
-      AppointmentStatuses.completed => colors.info,
+      AppointmentStatuses.completed => colors.success,
       AppointmentStatuses.cancelled ||
       AppointmentStatuses.noShow => colors.danger,
       _ => colors.warning,

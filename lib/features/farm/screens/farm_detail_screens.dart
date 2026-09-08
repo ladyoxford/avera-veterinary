@@ -547,6 +547,14 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
               ),
               const SizedBox(height: AveraSpacing.subtitleToContentGap),
               FarmUnitSummaryCard(unit: unit, populations: data.populations),
+              if (unit.capacity != null && total > unit.capacity!) ...[
+                const SizedBox(height: AveraSpacing.cardGap),
+                _DetailMessage(
+                  title: 'Unit above stated capacity',
+                  message:
+                      '$total animals are recorded in a unit with capacity ${unit.capacity}. Review housing and update the capacity when appropriate.',
+                ),
+              ],
               if (session?.can(Permissions.farmMortalityRecord) == true ||
                   session?.can(Permissions.farmUnitsManage) == true) ...[
                 const SizedBox(height: AveraSpacing.cardGap),
@@ -873,6 +881,7 @@ class _PopulationMovementSheetState
                 controller: _quantity,
                 hintText: 'Number of animals',
                 keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
                 validator: (value) {
                   final parsed = int.tryParse(value?.trim() ?? '');
                   if (parsed == null || parsed <= 0) {
@@ -892,6 +901,27 @@ class _PopulationMovementSheetState
                   return null;
                 },
               ),
+              if (!_isMortality && _purchaseExceedsCapacity) ...[
+                const SizedBox(height: 12),
+                AveraSurfaceCard(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'This purchase will put the unit above its stated capacity. You can continue, but review housing and capacity after saving.',
+                          style: averaText(context).listItemSubtitle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               AveraLabeledDropdownField<FarmPopulationSex>(
                 label: 'Sex',
@@ -986,6 +1016,17 @@ class _PopulationMovementSheetState
       lastDate: DateTime.now(),
     );
     if (selected != null && mounted) setState(() => _date = selected);
+  }
+
+  bool get _purchaseExceedsCapacity {
+    final capacity = widget.unit.capacity;
+    final quantity = int.tryParse(_quantity.text.trim());
+    if (capacity == null || quantity == null || quantity <= 0) return false;
+    final current =
+        widget.unit.maleCount +
+        widget.unit.femaleCount +
+        widget.unit.unknownCount;
+    return current + quantity > capacity;
   }
 
   Future<void> _save() async {

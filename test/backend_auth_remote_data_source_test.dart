@@ -396,6 +396,7 @@ void main() {
     final consultation = await source.createConsultation(const {
       'submissionId': 'c0205ff9-bc94-4bfa-aa05-a3527760f488',
       'patientId': 'cb159739-c0cb-4503-a069-9d64563f47bc',
+      'appointmentId': '92a4ce80-f37d-4d87-9293-5525fcc46493',
       'chiefComplaint': 'Reduced appetite',
     });
     final createdInventory = await source.createInventoryItem(const {
@@ -412,6 +413,10 @@ void main() {
     expect(consultation.patientId, patient.id);
     expect(createdInventory.revision, 1);
     expect(updatedInventory.revision, 2);
+    expect(
+      jsonDecode(requests[1].body),
+      containsPair('appointmentId', '92a4ce80-f37d-4d87-9293-5525fcc46493'),
+    );
     expect(requests.map((request) => '${request.method} ${request.url.path}'), [
       'PATCH /api/v1/patients/${patient.id}/status',
       'POST /api/v1/consultations',
@@ -439,6 +444,8 @@ void main() {
               'owner_name': 'Luna Owner',
               'vaccine_name': 'Rabies',
               'status': 'Completed',
+              'reminder_status': 'Completed',
+              'revision': '3',
               'administered_at': '2026-08-06T10:00:00.000Z',
               'next_due_at': '2027-08-06T10:00:00.000Z',
             },
@@ -466,6 +473,8 @@ void main() {
     expect(page.items.single.patientName, 'Luna');
     expect(page.items.single.vaccineName, 'Rabies');
     expect(page.items.single.nextDueAt, DateTime.utc(2027, 8, 6, 10));
+    expect(page.items.single.reminderStatus, 'Completed');
+    expect(page.items.single.revision, 3);
   });
 
   test(
@@ -547,6 +556,84 @@ void main() {
       );
       expect(jsonDecode(requests[1].body), containsPair('revision', 1));
       expect(jsonDecode(requests[2].body), {'revision': 2});
+    },
+  );
+
+  test(
+    'reminder and appointment completion use revision-safe UUID contracts',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'avera_access_token': 'production-access-token',
+      });
+      const vaccinationId = '0715d24f-4c3d-4ebd-b617-f3c7a99ef415';
+      const appointmentId = '92a4ce80-f37d-4d87-9293-5525fcc46493';
+      const patientId = 'cb159739-c0cb-4503-a069-9d64563f47bc';
+      final requests = <http.Request>[];
+      final source = ClinicalRemoteDataSource(
+        ApiClient(
+          baseUrl: BackendConfiguration.productionApiBaseUrl,
+          tokens: const TokenStore(FlutterSecureStorage()),
+          client: MockClient((request) async {
+            requests.add(request);
+            expect(
+              request.headers['authorization'],
+              'Bearer production-access-token',
+            );
+            if (request.url.path.contains('/vaccinations/')) {
+              return http.Response(
+                jsonEncode({
+                  'vaccination': {
+                    'vaccination_id': vaccinationId,
+                    'reminder_status': 'Completed',
+                    'revision': 5,
+                  },
+                }),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            return http.Response(
+              jsonEncode({
+                'appointment': {
+                  'schedule_entry_id': appointmentId,
+                  'patient_id': patientId,
+                  'scheduled_at': '2026-08-12T09:30:00.000Z',
+                  'visit_type': 'Grooming',
+                  'status': 'Completed',
+                  'revision': 4,
+                },
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      await source.updateVaccinationReminder(
+        vaccinationId: vaccinationId,
+        revision: 4,
+        status: 'Completed',
+      );
+      final completed = await source.completeAppointment(
+        appointmentId: appointmentId,
+        revision: 3,
+      );
+
+      expect(completed.status, 'Completed');
+      expect(completed.revision, 4);
+      expect(
+        requests.map((request) => '${request.method} ${request.url.path}'),
+        [
+          'PATCH /api/v1/vaccinations/$vaccinationId/reminder',
+          'POST /api/v1/schedule/$appointmentId/complete',
+        ],
+      );
+      expect(jsonDecode(requests[0].body), {
+        'revision': 4,
+        'status': 'Completed',
+      });
+      expect(jsonDecode(requests[1].body), {'revision': 3});
     },
   );
 

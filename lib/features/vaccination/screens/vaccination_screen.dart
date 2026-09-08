@@ -178,7 +178,17 @@ class _VaccineScheduleScreenState extends ConsumerState<VaccineScheduleScreen> {
                   )
                 else
                   for (final record in records) ...[
-                    _VaccineScheduleCard(record: record, today: today),
+                    _VaccineScheduleCard(
+                      record: record,
+                      today: today,
+                      onLongPress:
+                          session.can(Permissions.vaccinationsAdd) &&
+                              !['completed', 'cancelled'].contains(
+                                record.vaccination.reminderStatus.toLowerCase(),
+                              )
+                          ? () => _showLocalReminderActions(session, record)
+                          : null,
+                    ),
                     const SizedBox(height: 12),
                   ],
               ],
@@ -285,7 +295,18 @@ class _VaccineScheduleScreenState extends ConsumerState<VaccineScheduleScreen> {
                   _ScheduleEmpty(filter: _filter, hasSearch: query.isNotEmpty)
                 else
                   for (final record in records) ...[
-                    _RemoteVaccineScheduleCard(record: record, today: today),
+                    _RemoteVaccineScheduleCard(
+                      record: record,
+                      today: today,
+                      onLongPress:
+                          session.can(Permissions.vaccinationsAdd) &&
+                              ![
+                                'completed',
+                                'cancelled',
+                              ].contains(record.reminderStatus.toLowerCase())
+                          ? () => _showRemoteReminderActions(record)
+                          : null,
+                    ),
                     const SizedBox(height: 12),
                   ],
               ],
@@ -295,6 +316,156 @@ class _VaccineScheduleScreenState extends ConsumerState<VaccineScheduleScreen> {
       ),
     );
   }
+
+  Future<void> _showLocalReminderActions(
+    UserSession session,
+    ClinicVaccinationRecord record,
+  ) async {
+    final choice = await showAveraActionSheet<String>(
+      context: context,
+      title: 'Manage ${record.vaccination.vaccine}',
+      description: record.animal.animalName,
+      builder: _vaccinationReminderActions,
+    );
+    if (!mounted || choice == null) return;
+    DateTime? nextDueAt;
+    if (choice == 'reschedule') {
+      nextDueAt = await showDatePicker(
+        context: context,
+        initialDate: record.vaccination.nextDueDate ?? DateTime.now(),
+        firstDate: DateTime.now(),
+        lastDate: DateTime(2100),
+      );
+      if (nextDueAt == null) return;
+    }
+    try {
+      await ref
+          .read(clinicRepositoryProvider)
+          .updateVaccinationReminder(
+            session: session,
+            vaccinationId: record.vaccination.id,
+            status: choice == 'complete'
+                ? 'Completed'
+                : choice == 'cancel'
+                ? 'Cancelled'
+                : 'Pending',
+            nextDueDate: nextDueAt,
+          );
+      if (mounted) _message('Vaccination reminder updated.');
+    } catch (error) {
+      if (mounted) _message(error.toString().replaceFirst('Bad state: ', ''));
+    }
+  }
+
+  Future<void> _showRemoteReminderActions(
+    RemoteVaccinationRecord record,
+  ) async {
+    final choice = await showAveraActionSheet<String>(
+      context: context,
+      title: 'Manage ${record.vaccineName}',
+      description: record.patientName,
+      builder: _vaccinationReminderActions,
+    );
+    if (!mounted || choice == null) return;
+    DateTime? nextDueAt;
+    if (choice == 'reschedule') {
+      nextDueAt = await showDatePicker(
+        context: context,
+        initialDate: record.nextDueAt?.toLocal() ?? DateTime.now(),
+        firstDate: DateTime.now(),
+        lastDate: DateTime(2100),
+      );
+      if (nextDueAt == null) return;
+    }
+    try {
+      await ref
+          .read(clinicalRemoteDataSourceProvider)
+          .updateVaccinationReminder(
+            vaccinationId: record.id,
+            revision: record.revision,
+            status: choice == 'complete'
+                ? 'Completed'
+                : choice == 'cancel'
+                ? 'Cancelled'
+                : 'Pending',
+            nextDueAt: nextDueAt,
+          );
+      ref
+        ..invalidate(remoteVaccinationScheduleProvider)
+        ..invalidate(remoteDashboardProvider)
+        ..invalidate(remoteReminderFeedProvider)
+        ..invalidate(remoteNotificationsProvider);
+      if (mounted) _message('Vaccination reminder updated.');
+    } catch (error) {
+      if (mounted) {
+        _message(error.toString().replaceFirst('ApiException: ', ''));
+      }
+    }
+  }
+
+  Widget _vaccinationReminderActions(BuildContext sheetContext) {
+    final semantic = Theme.of(sheetContext).extension<AppSemanticColors>()!;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          leading: Icon(
+            Icons.check_circle_outline_rounded,
+            color: semantic.success,
+          ),
+          title: Text(
+            'Completed',
+            style: TextStyle(
+              color: semantic.success,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: const Text(
+            'Close the reminder without recording a vaccine dose.',
+          ),
+          onTap: () => Navigator.of(sheetContext).pop('complete'),
+        ),
+        ListTile(
+          leading: Icon(Icons.edit_calendar_outlined, color: semantic.warning),
+          title: Text(
+            'Reschedule',
+            style: TextStyle(
+              color: semantic.warning,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: const Text('Choose a new due date.'),
+          onTap: () => Navigator.of(sheetContext).pop('reschedule'),
+        ),
+        ListTile(
+          leading: Icon(
+            Icons.notifications_off_outlined,
+            color: semantic.danger,
+          ),
+          title: Text(
+            'Cancel Reminder',
+            style: TextStyle(
+              color: semantic.danger,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: const Text(
+            'Keep the clinical history and stop this reminder.',
+          ),
+          onTap: () => Navigator.of(sheetContext).pop('cancel'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.close_rounded),
+          title: const Text('Close'),
+          onTap: () => Navigator.of(sheetContext).pop(),
+        ),
+      ],
+    );
+  }
+
+  void _message(String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
 }
 
 class VaccinationDetailScreen extends ConsumerWidget {
@@ -942,9 +1113,12 @@ class _RecordVaccinationScreenState
     setState(() => _saving = true);
     try {
       if (BackendConfiguration.isConfigured) {
+        final remoteScheduledId = widget.args.remoteVaccinationId;
         await ref.read(clinicalRemoteDataSourceProvider).createVaccination({
           'submissionId': _submissionId,
           'patientId': _remotePatient!.id,
+          if (remoteScheduledId != null)
+            'scheduledVaccinationId': remoteScheduledId,
           'vaccineName': _protocol!.name,
           'administeredAt': _dateGiven.toUtc().toIso8601String(),
           'nextDueAt': _dueDate!.toUtc().toIso8601String(),
@@ -1249,9 +1423,14 @@ Future<void> _openVaccinationPatientFile(
 }
 
 class _VaccineScheduleCard extends StatelessWidget {
-  const _VaccineScheduleCard({required this.record, required this.today});
+  const _VaccineScheduleCard({
+    required this.record,
+    required this.today,
+    this.onLongPress,
+  });
   final ClinicVaccinationRecord record;
   final DateTime today;
+  final VoidCallback? onLongPress;
   @override
   Widget build(BuildContext context) {
     final status = _statusFor(record.vaccination, today);
@@ -1269,6 +1448,7 @@ class _VaccineScheduleCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
         onTap: () => context.push('/vaccinations/${record.vaccination.id}'),
+        onLongPress: onLongPress,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1335,10 +1515,15 @@ class _VaccineScheduleCard extends StatelessWidget {
 }
 
 class _RemoteVaccineScheduleCard extends StatelessWidget {
-  const _RemoteVaccineScheduleCard({required this.record, required this.today});
+  const _RemoteVaccineScheduleCard({
+    required this.record,
+    required this.today,
+    this.onLongPress,
+  });
 
   final RemoteVaccinationRecord record;
   final DateTime today;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -1358,6 +1543,7 @@ class _RemoteVaccineScheduleCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
         onTap: () =>
             context.push('/vaccinations/${Uri.encodeComponent(record.id)}'),
+        onLongPress: onLongPress,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1553,7 +1739,22 @@ class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.status});
   final String status;
   @override
-  Widget build(BuildContext context) => Chip(label: Text(status));
+  Widget build(BuildContext context) {
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
+    final color = switch (status) {
+      'Completed' => semantic.success,
+      'Cancelled' || 'Overdue' => semantic.danger,
+      'Due Today' => semantic.warning,
+      _ => semantic.info,
+    };
+    return Chip(
+      avatar: Icon(Icons.circle, size: 10, color: color),
+      label: Text(status),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600),
+      backgroundColor: color.withValues(alpha: .12),
+      side: BorderSide(color: color.withValues(alpha: .45)),
+    );
+  }
 }
 
 class _CompatibilityWarning extends StatelessWidget {
@@ -1628,16 +1829,11 @@ String _statusFor(Vaccination vaccination, DateTime now) {
   if (vaccination.status.toLowerCase() == 'scheduled dose recorded') {
     return 'Completed';
   }
-  if (vaccination.status.toLowerCase() == 'completed' &&
-      vaccination.nextDueDate == null) {
-    return 'Completed';
-  }
-  final due = vaccination.nextDueDate;
-  final start = DateTime(now.year, now.month, now.day);
-  if (due == null) return 'Completed';
-  if (due.isBefore(start)) return 'Overdue';
-  if (due.isBefore(start.add(const Duration(days: 1)))) return 'Due Today';
-  return 'Upcoming';
+  return vaccinationReminderDisplayStatus(
+    reminderStatus: vaccination.reminderStatus,
+    dueDate: vaccination.nextDueDate,
+    now: now,
+  );
 }
 
 bool _matchesFilter(
@@ -1648,18 +1844,16 @@ bool _matchesFilter(
   final status = _statusFor(vaccination, now);
   return switch (filter) {
     VaccineScheduleFilter.all => true,
-    VaccineScheduleFilter.dueNow => isVaccinationActionRequired(
-      vaccination.status,
-      vaccination.nextDueDate,
-      now,
-    ),
+    VaccineScheduleFilter.dueNow =>
+      status == 'Overdue' || status == 'Due Today',
     VaccineScheduleFilter.dueToday => status == 'Due Today',
     VaccineScheduleFilter.upcoming => status == 'Upcoming',
     VaccineScheduleFilter.overdue => status == 'Overdue',
     VaccineScheduleFilter.followUp =>
       vaccination.nextDueDate != null &&
           status != 'Overdue' &&
-          status != 'Completed',
+          status != 'Completed' &&
+          status != 'Cancelled',
     VaccineScheduleFilter.completed => status == 'Completed',
   };
 }
@@ -1668,12 +1862,11 @@ String _remoteVaccinationStatus(
   RemoteVaccinationRecord vaccination,
   DateTime now,
 ) {
-  final due = vaccination.nextDueAt?.toLocal();
-  final start = DateTime(now.year, now.month, now.day);
-  if (due == null) return 'Completed';
-  if (due.isBefore(start)) return 'Overdue';
-  if (due.isBefore(start.add(const Duration(days: 1)))) return 'Due Today';
-  return 'Upcoming';
+  return vaccinationReminderDisplayStatus(
+    reminderStatus: vaccination.reminderStatus,
+    dueDate: vaccination.nextDueAt?.toLocal(),
+    now: now,
+  );
 }
 
 bool _matchesRemoteFilter(
@@ -1690,7 +1883,9 @@ bool _matchesRemoteFilter(
     VaccineScheduleFilter.upcoming => status == 'Upcoming',
     VaccineScheduleFilter.overdue => status == 'Overdue',
     VaccineScheduleFilter.followUp =>
-      vaccination.nextDueAt != null && status != 'Completed',
+      vaccination.nextDueAt != null &&
+          status != 'Completed' &&
+          status != 'Cancelled',
     VaccineScheduleFilter.completed => status == 'Completed',
   };
 }

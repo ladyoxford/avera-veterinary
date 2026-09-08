@@ -76,6 +76,7 @@ export async function buildApp({
       pool: databasePool,
       environment,
       deliveryService: activationDeliveryService,
+      logger: app.log,
     }),
   );
   const activationService = new ClinicAdministratorActivationService({

@@ -10,22 +10,40 @@ enum VaccineScheduleFilter {
   completed,
 }
 
-/// The dashboard and the Vaccine Schedule use this same predicate. A completed
-/// dose can still require a future booster, so `Completed` is not excluded.
+/// The dashboard and the Vaccine Schedule use this same reminder predicate.
+/// A completed dose that has a future booster carries a new pending reminder;
+/// the completed source reminder itself is never actionable again.
 bool isVaccinationActionRequired(
-  String status,
+  String reminderStatus,
   DateTime? dueDate,
   DateTime now,
 ) {
   if (dueDate == null) return false;
-  final normalized = status.trim().toLowerCase();
-  if (normalized == 'cancelled' || normalized == 'deferred') return false;
+  if (reminderStatus.trim().toLowerCase() != 'pending') return false;
   final endOfToday = DateTime(
     now.year,
     now.month,
     now.day,
   ).add(const Duration(days: 1));
   return dueDate.isBefore(endOfToday);
+}
+
+String vaccinationReminderDisplayStatus({
+  required String reminderStatus,
+  required DateTime? dueDate,
+  required DateTime now,
+}) {
+  final normalized = reminderStatus.trim().toLowerCase();
+  if (normalized == 'cancelled') return 'Cancelled';
+  if (normalized == 'completed') return 'Completed';
+  if (dueDate == null) return 'Completed';
+
+  final startOfToday = DateTime(now.year, now.month, now.day);
+  if (dueDate.isBefore(startOfToday)) return 'Overdue';
+  if (dueDate.isBefore(startOfToday.add(const Duration(days: 1)))) {
+    return 'Due Today';
+  }
+  return 'Upcoming';
 }
 
 enum VaccineRoute {

@@ -30,6 +30,23 @@ test('profile photos are scoped by clinic and authenticated user identifiers', (
   );
 });
 
+test('profile photo object removal accepts missing objects and reports cleanup failures', async () => {
+  const missing = new ProfilePhotoStorageService({
+    environment,
+    fetchImpl: async () => ({ ok: false, status: 404 }),
+  });
+  await assert.doesNotReject(() => missing.remove('clinic-a/user-a/avatar.jpg'));
+
+  const failed = new ProfilePhotoStorageService({
+    environment,
+    fetchImpl: async () => ({ ok: false, status: 500 }),
+  });
+  await assert.rejects(
+    () => failed.remove('clinic-a/user-a/avatar.jpg'),
+    (error) => error.code === 'profile_photo_delete_failed' && error.statusCode === 502,
+  );
+});
+
 test('patient profile photos are scoped by clinic and canonical patient identifiers', () => {
   const storage = new ProfilePhotoStorageService({ environment });
   assert.equal(
@@ -146,6 +163,13 @@ test('self profile routes never accept a target user id', async () => {
   const selfSection = source.slice(source.indexOf("app.get('/api/v1/me/profile'"), source.indexOf("app.post('/api/v1/users/invitations'"));
   assert.match(selfSection, /request\.auth\.userId/);
   assert.doesNotMatch(selfSection, /request\.params\.userId/);
+  const removal = selfSection.slice(
+    selfSection.indexOf("app.delete('/api/v1/me/profile-photo'"),
+  );
+  assert.match(removal, /withTenantTransaction/);
+  assert.match(removal, /profile\.photo_removed/);
+  assert.match(removal, /catch \(error\)[\s\S]*request\.log\.warn/);
+  assert.match(removal, /reply\.code\(204\)\.send\(\)/);
 });
 
 test('clinic staff routes await tenant queries before reading rows', async () => {

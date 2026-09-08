@@ -372,11 +372,38 @@ export async function clinicRoutes(app) {
     }
   });
 
-  app.delete('/api/v1/me/profile-photo', { preHandler: [authenticate] }, async (request) => {
-    const current = (await app.pool.query('SELECT profile_photo_path FROM staff_profiles WHERE user_id = $1', [request.auth.userId])).rows[0]?.profile_photo_path;
-    await app.pool.query('UPDATE staff_profiles SET profile_photo_path = NULL, updated_at = now() WHERE user_id = $1', [request.auth.userId]);
-    await app.profilePhotoStorage.remove(current);
-    return {};
+  app.delete('/api/v1/me/profile-photo', { preHandler: [authenticate] }, async (request, reply) => {
+    const current = await withTenantTransaction(app.pool, request.auth, async (client) => {
+      const profile = (await client.query(
+        'SELECT profile_photo_path FROM staff_profiles WHERE user_id = $1 FOR UPDATE',
+        [request.auth.userId],
+      )).rows[0];
+      await client.query(
+        'UPDATE staff_profiles SET profile_photo_path = NULL, updated_at = now() WHERE user_id = $1',
+        [request.auth.userId],
+      );
+      await writeAudit(client, {
+        clinicId: request.auth.clinicId,
+        actingUserId: request.auth.userId,
+        targetType: 'User',
+        targetId: request.auth.userId,
+        action: 'profile.photo_removed',
+        previousSummary: { hadPhoto: Boolean(profile?.profile_photo_path) },
+        newSummary: { hasPhoto: false },
+        sessionId: request.auth.sessionId,
+        ipAddress: request.ip,
+      });
+      return profile?.profile_photo_path;
+    });
+    try {
+      await app.profilePhotoStorage.remove(current);
+    } catch (error) {
+      request.log.warn(
+        { err: error, userId: request.auth.userId },
+        'Profile photo reference cleared; object cleanup will need retrying.',
+      );
+    }
+    return reply.code(204).send();
   });
   app.post('/api/v1/users/invitations', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } }, preHandler: [authenticate, requirePermission(permissions.usersCreate)] }, async (request, reply) => {
     if (!request.auth.clinicId) return clinicContextRequired(reply);

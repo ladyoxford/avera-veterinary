@@ -4970,7 +4970,11 @@ class ClinicRepository {
                 (item) =>
                     item.clinicId.equals(activeClinicId) &
                     item.appointmentDate.isBiggerThanValue(DateTime.now()) &
-                    item.status.equals(AppointmentStatuses.cancelled).not(),
+                    item.status.isNotIn([
+                      AppointmentStatuses.cancelled,
+                      AppointmentStatuses.completed,
+                      AppointmentStatuses.noShow,
+                    ]),
               )
               ..orderBy([(item) => OrderingTerm.asc(item.appointmentDate)]))
             .get();
@@ -5376,6 +5380,45 @@ class ClinicRepository {
     });
   }
 
+  Future<void> completeAppointment({
+    required UserSession session,
+    required int appointmentId,
+  }) async {
+    _requireAppointmentPermission(session, Permissions.appointmentsEdit);
+    final now = _clock.nowForClinic(session.clinic);
+    await db.transaction(() async {
+      final appointment = await _appointmentForSession(appointmentId, session);
+      final status = AppointmentStatuses.normalize(appointment.status);
+      if (status == AppointmentStatuses.cancelled) {
+        throw StateError('A cancelled appointment cannot be completed.');
+      }
+      if (status == AppointmentStatuses.completed) return;
+      await (db.update(db.appointments)..where(
+            (item) =>
+                item.id.equals(appointmentId) &
+                item.clinicId.equals(session.clinic.clinicId),
+          ))
+          .write(
+            AppointmentsCompanion(
+              status: const Value(AppointmentStatuses.completed),
+              updatedAt: Value(now),
+            ),
+          );
+      await (db.update(
+        db.appointmentReminders,
+      )..where((item) => item.appointmentId.equals(appointmentId))).write(
+        const AppointmentRemindersCompanion(scheduledFor: Value(null)),
+      );
+      await _writeAppointmentAudit(
+        session: session,
+        appointmentId: appointmentId,
+        action: 'appointment.completed',
+        details: const {},
+        createdAt: now,
+      );
+    });
+  }
+
   Future<void> linkAppointmentConsultation({
     required UserSession session,
     required int appointmentId,
@@ -5739,12 +5782,6 @@ class ClinicRepository {
       throw StateError(
         'Only ${selectedCount(population)} animals are available in that sex group.',
       );
-    }
-    if (input.type == FarmPopulationMovementType.purchase &&
-        unit.capacity != null &&
-        unit.maleCount + unit.femaleCount + unit.unknownCount + input.quantity >
-            unit.capacity!) {
-      throw StateError('This purchase would exceed the unit capacity.');
     }
     final localDate = DateTime(
       input.occurredAt.year,
@@ -7205,8 +7242,8 @@ class ClinicRepository {
           ])
           ..where(db.vaccinations.clinicId.equals(activeClinicId))
           ..orderBy([OrderingTerm.desc(db.vaccinations.nextDueDate)]);
-    return query.watch().map(
-      (rows) => rows
+    return query.watch().map((rows) {
+      final records = rows
           .map(
             (row) => ClinicVaccinationRecord(
               vaccination: row.readTable(db.vaccinations),
@@ -7214,8 +7251,32 @@ class ClinicRepository {
               owner: row.readTable(db.owners),
             ),
           )
-          .toList(),
-    );
+          .toList();
+      return records.map((record) {
+        final vaccination = record.vaccination;
+        final due = vaccination.nextDueDate;
+        final superseded =
+            due != null &&
+            vaccination.reminderStatus.toLowerCase() == 'pending' &&
+            records.any(
+              (candidate) =>
+                  candidate.vaccination.id != vaccination.id &&
+                  candidate.vaccination.animalId == vaccination.animalId &&
+                  candidate.vaccination.vaccine.trim().toLowerCase() ==
+                      vaccination.vaccine.trim().toLowerCase() &&
+                  candidate.vaccination.dateGiven.isAfter(
+                    vaccination.dateGiven,
+                  ) &&
+                  !candidate.vaccination.dateGiven.isBefore(due),
+            );
+        if (!superseded) return record;
+        return ClinicVaccinationRecord(
+          vaccination: vaccination.copyWith(reminderStatus: 'Completed'),
+          animal: record.animal,
+          owner: record.owner,
+        );
+      }).toList();
+    });
   }
 
   Future<int> recordVaccination({
@@ -7272,11 +7333,30 @@ class ClinicRepository {
       throw StateError('Suggested due date cannot be before the date given.');
     }
     return db.transaction(() async {
-      if (scheduledVaccinationId != null) {
+      var effectiveScheduledVaccinationId = scheduledVaccinationId;
+      if (effectiveScheduledVaccinationId == null) {
+        final candidates =
+            await (db.select(db.vaccinations)
+                  ..where(
+                    (row) =>
+                        row.clinicId.equals(session.clinic.clinicId) &
+                        row.animalId.equals(animalId) &
+                        row.vaccine.equals(protocol.name) &
+                        row.nextDueDate.isNotNull() &
+                        row.nextDueDate.isSmallerOrEqualValue(dateGiven) &
+                        row.dateGiven.isSmallerThanValue(dateGiven) &
+                        row.reminderStatus.isNotIn(['Completed', 'Cancelled']),
+                  )
+                  ..orderBy([(row) => OrderingTerm.desc(row.nextDueDate)])
+                  ..limit(1))
+                .get();
+        effectiveScheduledVaccinationId = candidates.firstOrNull?.id;
+      }
+      if (effectiveScheduledVaccinationId != null) {
         final scheduled =
             await (db.select(db.vaccinations)..where(
                   (row) =>
-                      row.id.equals(scheduledVaccinationId) &
+                      row.id.equals(effectiveScheduledVaccinationId!) &
                       row.clinicId.equals(session.clinic.clinicId) &
                       row.animalId.equals(animalId),
                 ))
@@ -7288,8 +7368,9 @@ class ClinicRepository {
         }
         final existingDose =
             await (db.select(db.vaccinations)..where(
-                  (row) =>
-                      row.sourceVaccinationId.equals(scheduledVaccinationId),
+                  (row) => row.sourceVaccinationId.equals(
+                    effectiveScheduledVaccinationId!,
+                  ),
                 ))
                 .getSingleOrNull();
         if (existingDose != null) {
@@ -7316,14 +7397,19 @@ class ClinicRepository {
               notes: Value(_nullIfBlank(notes)),
               reminderStatus: const Value('Pending'),
               status: const Value('Completed'),
-              sourceVaccinationId: Value(scheduledVaccinationId),
+              sourceVaccinationId: Value(effectiveScheduledVaccinationId),
             ),
           );
-      if (scheduledVaccinationId != null) {
-        await (db.update(
-          db.vaccinations,
-        )..where((row) => row.id.equals(scheduledVaccinationId))).write(
-          const VaccinationsCompanion(status: Value('Scheduled Dose Recorded')),
+      if (effectiveScheduledVaccinationId != null) {
+        await (db.update(db.vaccinations)
+              ..where((row) => row.id.equals(effectiveScheduledVaccinationId!)))
+            .write(
+              const VaccinationsCompanion(reminderStatus: Value('Completed')),
+            );
+        await _dismissVaccinationReminderNotifications(
+          clinicId: session.clinic.clinicId,
+          vaccinationId: effectiveScheduledVaccinationId,
+          dismissedAt: now,
         );
       }
       await db
@@ -7342,7 +7428,7 @@ class ClinicRepository {
                   'speciesId': species.id,
                   'route': route.label,
                   'nextDueDate': nextDueDate.toIso8601String(),
-                  'scheduledVaccinationId': scheduledVaccinationId,
+                  'scheduledVaccinationId': effectiveScheduledVaccinationId,
                 }),
               ),
               createdAt: now,
@@ -7356,7 +7442,7 @@ class ClinicRepository {
               clinicId: session.clinic.clinicId,
               type: 'vaccinationRecorded',
               title: '${protocol.name} recorded for ${animal.animalName}',
-              description: scheduledVaccinationId == null
+              description: effectiveScheduledVaccinationId == null
                   ? '${session.user.fullName} recorded ${protocol.name}.'
                   : '${session.user.fullName} administered the scheduled dose.',
               occurredAt: now,
@@ -7368,13 +7454,104 @@ class ClinicRepository {
               metadata: Value(
                 jsonEncode({
                   'vaccine': protocol.name,
-                  'scheduledVaccinationId': scheduledVaccinationId,
+                  'scheduledVaccinationId': effectiveScheduledVaccinationId,
                 }),
               ),
             ),
           );
       return id;
     });
+  }
+
+  Future<void> updateVaccinationReminder({
+    required UserSession session,
+    required int vaccinationId,
+    required String status,
+    DateTime? nextDueDate,
+  }) async {
+    if (!session.can(Permissions.vaccinationsAdd)) {
+      throw StateError('You do not have permission to update reminders.');
+    }
+    if (status == 'Pending' && nextDueDate == null) {
+      throw StateError('Choose a new due date.');
+    }
+    final current =
+        await (db.select(db.vaccinations)..where(
+              (row) =>
+                  row.id.equals(vaccinationId) &
+                  row.clinicId.equals(session.clinic.clinicId),
+            ))
+            .getSingleOrNull();
+    if (current == null) {
+      throw StateError('This vaccination reminder is no longer available.');
+    }
+    final now = _clock.nowForClinic(session.clinic);
+    await db.transaction(() async {
+      await (db.update(db.vaccinations)..where(
+            (row) =>
+                row.id.equals(vaccinationId) &
+                row.clinicId.equals(session.clinic.clinicId),
+          ))
+          .write(
+            VaccinationsCompanion(
+              reminderStatus: Value(status),
+              nextDueDate: status == 'Pending'
+                  ? Value(nextDueDate)
+                  : const Value.absent(),
+            ),
+          );
+      if (status != 'Pending') {
+        await _dismissVaccinationReminderNotifications(
+          clinicId: session.clinic.clinicId,
+          vaccinationId: vaccinationId,
+          dismissedAt: now,
+        );
+      }
+      await db
+          .into(db.auditLogs)
+          .insert(
+            AuditLogsCompanion.insert(
+              clinicId: Value(session.clinic.clinicId),
+              userId: Value(session.user.userId),
+              action: 'vaccination.reminder_updated',
+              entityType: const Value('Vaccination'),
+              entityId: Value(vaccinationId.toString()),
+              details: Value(
+                jsonEncode({
+                  'previousStatus': current.reminderStatus,
+                  'status': status,
+                  'nextDueDate': nextDueDate?.toIso8601String(),
+                }),
+              ),
+              createdAt: now,
+            ),
+          );
+    });
+  }
+
+  Future<void> _dismissVaccinationReminderNotifications({
+    required String clinicId,
+    required int vaccinationId,
+    required DateTime dismissedAt,
+  }) async {
+    await (db.update(db.notifications)..where(
+          (notification) =>
+              notification.clinicId.equals(clinicId) &
+              notification.destinationType.equals(
+                AlertDestinationType.vaccinationRecord.storageValue,
+              ) &
+              notification.destinationEntityId.equals(vaccinationId) &
+              notification.status.isNotValue(
+                InAppNotificationStatus.dismissed.storageValue,
+              ),
+        ))
+        .write(
+          NotificationsCompanion(
+            isRead: const Value(true),
+            status: Value(InAppNotificationStatus.dismissed.storageValue),
+            dismissedAt: Value(dismissedAt),
+          ),
+        );
   }
 
   Stream<List<Notification>> watchNotifications() =>
@@ -7798,11 +7975,34 @@ class ClinicRepository {
     return DashboardStats(
       totalAnimals: animalsCount,
       todaysConsultations: todaysVisits.length,
-      appointmentsToday: appointmentsToday.length,
+      appointmentsToday: appointmentsToday
+          .where(
+            (item) => ![
+              AppointmentStatuses.cancelled,
+              AppointmentStatuses.completed,
+              AppointmentStatuses.noShow,
+            ].contains(AppointmentStatuses.normalize(item.status)),
+          )
+          .length,
       vaccinationsDue: vaccinationsDue
           .where(
             (item) =>
-                isVaccinationActionRequired(item.status, item.nextDueDate, now),
+                item.reminderStatus.toLowerCase() == 'pending' &&
+                isVaccinationActionRequired(
+                  item.reminderStatus,
+                  item.nextDueDate,
+                  now,
+                ) &&
+                !vaccinationsDue.any(
+                  (candidate) =>
+                      candidate.id != item.id &&
+                      candidate.animalId == item.animalId &&
+                      candidate.vaccine.trim().toLowerCase() ==
+                          item.vaccine.trim().toLowerCase() &&
+                      candidate.dateGiven.isAfter(item.dateGiven) &&
+                      item.nextDueDate != null &&
+                      !candidate.dateGiven.isBefore(item.nextDueDate!),
+                ),
           )
           .length,
       lowStock: inventory
@@ -10496,7 +10696,21 @@ class ClinicRepository {
                   ),
             ))
             .get();
-    for (final vaccine in dueVaccines.take(12)) {
+    final actionableVaccines = dueVaccines.where(
+      (vaccine) =>
+          vaccine.reminderStatus.toLowerCase() == 'pending' &&
+          !dueVaccines.any(
+            (candidate) =>
+                candidate.id != vaccine.id &&
+                candidate.animalId == vaccine.animalId &&
+                candidate.vaccine.trim().toLowerCase() ==
+                    vaccine.vaccine.trim().toLowerCase() &&
+                candidate.dateGiven.isAfter(vaccine.dateGiven) &&
+                vaccine.nextDueDate != null &&
+                !candidate.dateGiven.isBefore(vaccine.nextDueDate!),
+          ),
+    );
+    for (final vaccine in actionableVaccines.take(12)) {
       await db
           .into(db.notifications)
           .insert(

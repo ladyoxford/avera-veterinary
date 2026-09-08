@@ -55,12 +55,23 @@ export async function authRoutes(app) {
       });
       return reply.code(202).send({
         accepted: true,
-        message: 'If an eligible AVERA account uses that email, a reset link has been sent.',
+        message: 'If this email is registered, a password reset link has been sent.',
       });
     } catch (error) {
-      return reply.code(error.statusCode ?? 503).send({
-        error: error.code ?? 'password_reset_unavailable',
-        message: error.message,
+      const statusCode = error?.statusCode ?? 503;
+      request.log.error(
+        {
+          errorName: error?.name ?? 'Error',
+          errorCode: error?.code ?? null,
+          statusCode,
+        },
+        'Password reset request failed',
+      );
+      return reply.code(statusCode).send({
+        error: error?.code ?? 'password_reset_unavailable',
+        message: error?.statusCode
+          ? error.message
+          : 'Password recovery is temporarily unavailable. Please try again.',
       });
     }
   });

@@ -129,6 +129,33 @@ void main() {
         ),
         AppointmentStatuses.cancelled,
       );
+
+      final completable = await repository.createAppointment(
+        session: session,
+        animalId: patient.id,
+        scheduledAt: DateTime.now().add(const Duration(days: 20)),
+        appointmentType: 'Follow-up',
+        enabledReminderDays: const {7, 3, 1},
+      );
+      await repository.completeAppointment(
+        session: session,
+        appointmentId: completable.id,
+      );
+      final completed = await repository.getAppointmentDetail(completable.id);
+      expect(
+        AppointmentStatuses.normalize(completed!.appointment.status),
+        AppointmentStatuses.completed,
+      );
+      expect(
+        completed.reminders.every((item) => item.scheduledFor == null),
+        isTrue,
+      );
+      expect(
+        (await repository.upcomingAppointmentDetails()).map(
+          (item) => item.appointment.id,
+        ),
+        isNot(contains(completable.id)),
+      );
     },
   );
 
@@ -498,7 +525,7 @@ void main() {
           populationId: population.id,
           type: FarmPopulationMovementType.purchase,
           sex: FarmPopulationSex.female,
-          quantity: 1,
+          quantity: 2,
           occurredAt: date,
           source: 'Community breeder',
         ),
@@ -509,8 +536,8 @@ void main() {
       )).single;
       updatedUnit = (await repository.getFarmUnit(farm.id, unit.id))!;
       expect(updated.maleCount, 6);
-      expect(updated.femaleCount, 2);
-      expect(updated.total, 8);
+      expect(updated.femaleCount, 3);
+      expect(updated.total, 9);
       expect(
         updatedUnit.maleCount +
             updatedUnit.femaleCount +
@@ -521,8 +548,8 @@ void main() {
       final daily = await repository.getFarmDailyRecordForDate(farm.id, date);
       expect(daily?.openingPopulation, 8);
       expect(daily?.mortality, 1);
-      expect(daily?.purchases, 1);
-      expect(daily?.closingPopulation, 8);
+      expect(daily?.purchases, 2);
+      expect(daily?.closingPopulation, 9);
       final history = await repository.getFarmUnitPopulationMovements(
         farmId: farm.id,
         unitId: unit.id,
@@ -533,7 +560,7 @@ void main() {
         containsAll(['Population mortality', 'Animal purchase']),
       );
       final dashboard = await repository.getFarmDashboard(farm.id);
-      expect(dashboard?.currentPopulation, 8);
+      expect(dashboard?.currentPopulation, 9);
       final audit = await repository.watchClinicAuditLogs(session).first;
       expect(
         audit.where((item) => item.action.startsWith('farm.population_')),
@@ -2111,6 +2138,7 @@ void main() {
         password: 'admin123',
       );
       expect(session, isNot(equals(null)));
+      final administrator = session!;
 
       Vaccination? schedule;
       VaccineProtocolDefinition? protocol;
@@ -2134,10 +2162,25 @@ void main() {
       expect(protocol, isNot(equals(null)));
       final scheduledVaccination = schedule!;
       final matchedProtocol = protocol!;
+      final reminderNotificationId = await database
+          .into(database.notifications)
+          .insert(
+            NotificationsCompanion.insert(
+              clinicId: Value(administrator.clinic.clinicId),
+              type: 'Vaccination Due',
+              title: '${scheduledVaccination.vaccine} due',
+              message: 'Scheduled vaccination reminder.',
+              animalId: Value(scheduledVaccination.animalId),
+              dueDate: Value(scheduledVaccination.nextDueDate),
+              destinationType: const Value('vaccinationRecord'),
+              destinationEntityId: Value(scheduledVaccination.id),
+              createdAt: DateTime.now(),
+            ),
+          );
 
       final dateGiven = DateTime.now().subtract(const Duration(minutes: 1));
       final recordedDoseId = await repository.recordVaccination(
-        session: session!,
+        session: administrator,
         animalId: scheduledVaccination.animalId,
         protocolId: matchedProtocol.id,
         dateGiven: dateGiven,
@@ -2156,11 +2199,21 @@ void main() {
       final updatedSchedule = await (database.select(
         database.vaccinations,
       )..where((row) => row.id.equals(scheduledVaccination.id))).getSingle();
-      expect(updatedSchedule.status, 'Scheduled Dose Recorded');
+      expect(updatedSchedule.status, 'Completed');
+      expect(updatedSchedule.reminderStatus, 'Completed');
+      final reminderNotification = await (database.select(
+        database.notifications,
+      )..where((row) => row.id.equals(reminderNotificationId))).getSingle();
+      expect(
+        reminderNotification.status,
+        InAppNotificationStatus.dismissed.storageValue,
+      );
+      expect(reminderNotification.isRead, isTrue);
+      expect(reminderNotification.dismissedAt, isNot(equals(null)));
 
       await expectLater(
         repository.recordVaccination(
-          session: session,
+          session: administrator,
           animalId: scheduledVaccination.animalId,
           protocolId: matchedProtocol.id,
           dateGiven: dateGiven,

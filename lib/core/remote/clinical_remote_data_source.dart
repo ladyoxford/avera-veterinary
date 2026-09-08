@@ -505,6 +505,8 @@ class RemoteVaccinationRecord {
     required this.hospitalNumber,
     required this.vaccineName,
     required this.status,
+    this.reminderStatus = 'Pending',
+    this.revision = 1,
     required this.administeredAt,
     this.nextDueAt,
     this.species,
@@ -521,6 +523,8 @@ class RemoteVaccinationRecord {
   final String hospitalNumber;
   final String vaccineName;
   final String status;
+  final String reminderStatus;
+  final int revision;
   final DateTime administeredAt;
   final DateTime? nextDueAt;
   final String? species;
@@ -538,6 +542,8 @@ class RemoteVaccinationRecord {
         hospitalNumber: value['hospital_number']?.toString() ?? '',
         vaccineName: value['vaccine_name']?.toString() ?? 'Vaccination',
         status: value['status']?.toString() ?? 'Completed',
+        reminderStatus: value['reminder_status']?.toString() ?? 'Pending',
+        revision: _int(value['revision']),
         administeredAt:
             _date(value['administered_at']) ??
             DateTime.fromMillisecondsSinceEpoch(0),
@@ -557,6 +563,8 @@ class RemoteVaccinationRecord {
     'hospital_number': hospitalNumber,
     'vaccine_name': vaccineName,
     'status': status,
+    'reminder_status': reminderStatus,
+    'revision': revision,
     'administered_at': administeredAt.toIso8601String(),
     'next_due_at': nextDueAt?.toIso8601String(),
     'species': species,
@@ -980,6 +988,22 @@ class ClinicalRemoteDataSource {
       Map<String, dynamic>.from(
         await _client.get('/api/v1/vaccinations/$vaccinationId'),
       );
+
+  Future<Map<String, dynamic>> updateVaccinationReminder({
+    required String vaccinationId,
+    required int revision,
+    required String status,
+    DateTime? nextDueAt,
+  }) async => Map<String, dynamic>.from(
+    await _client.patch(
+      '/api/v1/vaccinations/$vaccinationId/reminder',
+      body: {
+        'revision': revision,
+        'status': status,
+        if (nextDueAt != null) 'nextDueAt': nextDueAt.toUtc().toIso8601String(),
+      },
+    ),
+  );
   Future<RemotePage<Map<String, dynamic>>> laboratory({
     int page = 1,
     String? search,
@@ -1220,6 +1244,17 @@ class ClinicalRemoteDataSource {
   }) async => RemoteAppointmentDetail.fromJson(
     await _client.post(
       '/api/v1/schedule/$appointmentId/cancel',
+      body: {'revision': revision},
+      authenticated: true,
+    ),
+  );
+
+  Future<RemoteAppointmentDetail> completeAppointment({
+    required String appointmentId,
+    required int revision,
+  }) async => RemoteAppointmentDetail.fromJson(
+    await _client.post(
+      '/api/v1/schedule/$appointmentId/complete',
       body: {'revision': revision},
       authenticated: true,
     ),

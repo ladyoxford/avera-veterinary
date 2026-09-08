@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:avera/core/config/app_providers.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
 import 'package:avera/core/theme/app_theme.dart';
@@ -131,6 +134,94 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  test('removing a local profile photo persists', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = ClinicRepository(database);
+    await repository.seedSampleData();
+    final original = (await repository.authenticateUser(
+      username: 'admin@avera.test',
+      password: 'admin123',
+    ))!;
+    final temporaryDirectory = await Directory.systemTemp.createTemp(
+      'avera-profile-photo-test',
+    );
+    addTearDown(() => temporaryDirectory.delete(recursive: true));
+    final photo = File('${temporaryDirectory.path}/profile.png');
+    await photo.writeAsBytes(
+      base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      ),
+    );
+    await (database.update(database.appUsers)
+          ..where((row) => row.userId.equals(original.user.userId)))
+        .write(AppUsersCompanion(profilePhoto: Value(photo.path)));
+
+    final sessionWithPhoto = (await repository.restoreUserSession(
+      userId: original.user.userId,
+      clinicId: original.clinic.clinicId,
+    ))!;
+    await repository.removeOwnProfilePhoto(sessionWithPhoto);
+
+    final stored = await (database.select(
+      database.appUsers,
+    )..where((row) => row.userId.equals(original.user.userId))).getSingle();
+    final restored = await repository.restoreUserSession(
+      userId: original.user.userId,
+      clinicId: original.clinic.clinicId,
+    );
+    expect(stored.profilePhoto, isNull);
+    expect(restored?.user.profilePhoto, isNull);
+  });
+
+  testWidgets('removing a profile photo requires confirmation', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = ClinicRepository(database);
+    await repository.seedSampleData();
+    final original = (await repository.authenticateUser(
+      username: 'admin@avera.test',
+      password: 'admin123',
+    ))!;
+    final sessionWithPhoto = UserSession(
+      user: original.user.copyWith(
+        profilePhoto: const Value('profile-photo.jpg'),
+      ),
+      clinic: original.clinic,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          clinicRepositoryProvider.overrideWithValue(repository),
+          userSessionProvider.overrideWith((ref) async => sessionWithPhoto),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const MyProfileScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('profile-avatar')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove photo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Remove profile photo?'), findsOneWidget);
+    expect(find.text('Keep Photo'), findsOneWidget);
+    expect(find.text('Remove Photo'), findsOneWidget);
+    await tester.tap(find.text('Keep Photo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove profile photo?'), findsNothing);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });

@@ -391,6 +391,9 @@ final appRouter = GoRouter(
             initialAppointmentId: int.tryParse(
               state.uri.queryParameters['appointmentId'] ?? '',
             ),
+            remoteAppointmentId: BackendConfiguration.isConfigured
+                ? state.uri.queryParameters['appointmentId']
+                : null,
             initialComplaint: state.uri.queryParameters['complaint'],
             initialVeterinarian: state.uri.queryParameters['veterinarian'],
           ),

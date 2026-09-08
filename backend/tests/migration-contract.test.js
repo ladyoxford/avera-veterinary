@@ -21,6 +21,7 @@ import {
   updateAppointmentSchema,
   updateInventoryItemSchema,
   updateConsultationSchema,
+  updateVaccinationReminderSchema,
 } from '../src/routes/clinical-routes.js';
 import {
   clinicAdministratorPermissionKeys,
@@ -479,6 +480,38 @@ test('sign-in validation accepts omitted optional fields but rejects null values
   assert.equal(signInSchema.safeParse({ email: 'admin@avera.test', password: '' }).success, false);
 });
 
+test('vaccination reminder lifecycle is explicit and appointment completion is tenant scoped', () => {
+  assert.equal(updateVaccinationReminderSchema.safeParse({
+    revision: 2,
+    status: 'Completed',
+  }).success, true);
+  assert.equal(updateVaccinationReminderSchema.safeParse({
+    revision: 2,
+    status: 'Pending',
+  }).success, false);
+  assert.equal(updateVaccinationReminderSchema.safeParse({
+    revision: 2,
+    status: 'Pending',
+    nextDueAt: '2026-09-30T09:00:00.000Z',
+  }).success, true);
+
+  const routes = fs.readFileSync(
+    new URL('../src/routes/clinical-routes.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(
+    routes,
+    /app\.patch\('\/api\/v1\/vaccinations\/:vaccinationId\/reminder'[\s\S]*permissions\.vaccinationsAdd[\s\S]*WHERE clinic_id=\$1 AND vaccination_id=\$2/,
+  );
+  assert.match(routes, /scheduledVaccinationId[\s\S]*reminder_status='Completed'/);
+  assert.match(
+    routes,
+    /app\.post\('\/api\/v1\/schedule\/:appointmentId\/complete'[\s\S]*permissions\.appointmentsEdit[\s\S]*WHERE clinic_id=\$1 AND schedule_entry_id=\$2/,
+  );
+  assert.match(routes, /appointment\.completed/);
+  assert.match(routes, /input\.appointmentId[\s\S]*status='Completed'/);
+});
+
 test('multi-patient invoices accept attributed and shared lines', () => {
   const patientId = 'a6c10dd9-2501-43db-b083-b613faaf8ea4';
   const secondPatientId = 'b6c10dd9-2501-43db-b083-b613faaf8ea5';
@@ -606,6 +639,14 @@ test('production reminders are durable, tenant scoped, and deduplicated', () => 
   assert.match(routes, /lower\(s\.status\) NOT IN \('cancelled','completed','missed'\)/);
   assert.match(routes, /lower\(r\.status\) NOT IN \('completed','cancelled','administered','missed','withheld','archived'\)/);
   assert.match(routes, /NOT EXISTS \(\s*SELECT 1 FROM vaccinations newer/);
+  const reminderSelect = routes.slice(
+    routes.indexOf('function reminderSelectSql'),
+    routes.indexOf('async function loadReminderFeed'),
+  );
+  assert.match(
+    reminderSelect,
+    /lower\(trim\(newer\.vaccine_name\)\)=lower\(trim\(v\.vaccine_name\)\)[\s\S]*newer\.administered_at >= v\.next_due_at/,
+  );
   assert.match(routes, /dismissObsoleteReminderNotifications/);
   assert.match(routes, /NOT \(dedupe_key = ANY\(\$3::text\[\]\)\)/);
   assert.doesNotMatch(routes, /dismissed_at=NULL/);

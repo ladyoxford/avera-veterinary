@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import rateLimit from '@fastify/rate-limit';
+import Fastify from 'fastify';
+
+import { authRoutes } from '../src/routes/auth-routes.js';
 import { verifyPassword } from '../src/security/passwords.js';
 import { hashToken } from '../src/security/tokens.js';
 import {
@@ -14,9 +18,15 @@ const environment = {
     'https://accounts.averavet.sbs/reset-password',
 };
 
-function requestHarness({ includeUser = true } = {}) {
+function requestHarness({
+  includeUser = true,
+  failDeliveryAudit = false,
+  failDeliveryConnect = false,
+  failDeliveryUpdate = false,
+} = {}) {
   const state = {
     audits: [],
+    connections: 0,
     delivery: null,
     issued: null,
   };
@@ -54,6 +64,11 @@ function requestHarness({ includeUser = true } = {}) {
         sql.includes('UPDATE activation_tokens') &&
         sql.includes('delivery_method = $2')
       ) {
+        if (failDeliveryUpdate) {
+          const error = new Error('simulated delivery metadata failure');
+          error.code = 'delivery_metadata_failed';
+          throw error;
+        }
         state.delivery = {
           method: parameters[1],
           submittedAt: parameters[2],
@@ -64,6 +79,14 @@ function requestHarness({ includeUser = true } = {}) {
         return { rows: [] };
       }
       if (sql.includes('INSERT INTO audit_logs')) {
+        if (
+          failDeliveryAudit &&
+          parameters[4] === 'password.reset_email_submitted'
+        ) {
+          const error = new Error('simulated delivery audit failure');
+          error.code = 'delivery_audit_failed';
+          throw error;
+        }
         state.audits.push(parameters[4]);
         return { rows: [] };
       }
@@ -73,8 +96,28 @@ function requestHarness({ includeUser = true } = {}) {
   };
   return {
     state,
-    pool: { connect: async () => client },
+    pool: {
+      async connect() {
+        state.connections += 1;
+        if (failDeliveryConnect && state.connections === 2) {
+          const error = new Error('simulated delivery connection failure');
+          error.code = 'delivery_connection_failed';
+          throw error;
+        }
+        return client;
+      },
+    },
   };
+}
+
+async function forgotPasswordApp(passwordResetService) {
+  const app = Fastify({ logger: false, trustProxy: true });
+  app.decorate('environment', { NODE_ENV: 'production' });
+  app.decorate('passwordResetService', passwordResetService);
+  await app.register(rateLimit, { global: false });
+  await app.register(authRoutes);
+  await app.ready();
+  return app;
 }
 
 function resetHarness({ expired = false } = {}) {
@@ -205,6 +248,189 @@ test('unknown reset email returns the same accepted response without issuing a t
   );
   assert.equal(harness.state.issued, null);
   assert.equal(deliveries, 0);
+});
+
+for (const scenario of [
+  {
+    name: 'delivery metadata update fails',
+    options: { failDeliveryUpdate: true },
+    stage: 'delivery_metadata',
+  },
+  {
+    name: 'delivery audit write fails',
+    options: { failDeliveryAudit: true },
+    stage: 'audit',
+  },
+  {
+    name: 'delivery bookkeeping connection fails',
+    options: { failDeliveryConnect: true },
+    stage: 'connect',
+  },
+]) {
+  test(`provider acceptance remains successful when ${scenario.name}`, async () => {
+    const harness = requestHarness(scenario.options);
+    const logs = [];
+    const service = new PasswordResetService({
+      pool: harness.pool,
+      environment,
+      logger: {
+        error(details, message) {
+          logs.push({ details, message });
+        },
+      },
+      deliveryService: {
+        configured: true,
+        provider: 'resend',
+        async sendPasswordReset() {
+          return {
+            accepted: true,
+            provider: 'resend',
+            providerMessageId: 'resend-message-accepted',
+            submittedAt: new Date().toISOString(),
+          };
+        },
+      },
+    });
+
+    assert.deepEqual(
+      await service.request({ email: 'owner@avera.test' }),
+      { accepted: true },
+    );
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].details.providerAccepted, true);
+    assert.equal(logs[0].details.provider, 'resend');
+    assert.equal(logs[0].details.stage, scenario.stage);
+    assert.equal(
+      logs[0].details.event,
+      'password_reset_delivery_bookkeeping_failed',
+    );
+    assert.equal(JSON.stringify(logs).includes('owner@avera.test'), false);
+  });
+}
+
+test('password reset request fails when the email provider rejects delivery', async () => {
+  const harness = requestHarness();
+  const service = new PasswordResetService({
+    pool: harness.pool,
+    environment,
+    deliveryService: {
+      configured: true,
+      provider: 'resend',
+      async sendPasswordReset() {
+        return {
+          accepted: false,
+          provider: 'resend',
+          providerMessageId: null,
+          submittedAt: null,
+          failureCode: 'email_provider_rejected',
+        };
+      },
+    },
+  });
+
+  await assert.rejects(
+    service.request({ email: 'owner@avera.test' }),
+    (error) => {
+      assert.equal(error.code, 'password_reset_delivery_failed');
+      assert.equal(error.statusCode, 503);
+      return true;
+    },
+  );
+  assert.equal(harness.state.delivery.method, 'email_failed');
+  assert.equal(harness.state.delivery.failureCode, 'email_provider_rejected');
+  assert.deepEqual(harness.state.audits, [
+    'password.reset_requested',
+    'password.reset_email_submission_failed',
+  ]);
+});
+
+test('forgot-password returns HTTP 202 after provider acceptance despite audit failure', async (t) => {
+  const harness = requestHarness({ failDeliveryAudit: true });
+  const service = new PasswordResetService({
+    pool: harness.pool,
+    environment,
+    deliveryService: {
+      configured: true,
+      provider: 'resend',
+      async sendPasswordReset() {
+        return {
+          accepted: true,
+          provider: 'resend',
+          providerMessageId: 'resend-message-accepted',
+          submittedAt: new Date().toISOString(),
+        };
+      },
+    },
+  });
+  const app = await forgotPasswordApp(service);
+  t.after(() => app.close());
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/forgot-password',
+    payload: { email: 'owner@avera.test' },
+  });
+
+  assert.equal(response.statusCode, 202);
+  assert.deepEqual(response.json(), {
+    accepted: true,
+    message: 'If this email is registered, a password reset link has been sent.',
+  });
+});
+
+test('forgot-password preserves a real provider failure', async (t) => {
+  const harness = requestHarness();
+  const service = new PasswordResetService({
+    pool: harness.pool,
+    environment,
+    deliveryService: {
+      configured: true,
+      provider: 'resend',
+      async sendPasswordReset() {
+        return {
+          accepted: false,
+          provider: 'resend',
+          failureCode: 'email_provider_unavailable',
+        };
+      },
+    },
+  });
+  const app = await forgotPasswordApp(service);
+  t.after(() => app.close());
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/forgot-password',
+    payload: { email: 'owner@avera.test' },
+  });
+
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.json().error, 'password_reset_delivery_failed');
+});
+
+test('forgot-password rate limiting uses trusted forwarded client addresses', async (t) => {
+  let requests = 0;
+  const app = await forgotPasswordApp({
+    async request() {
+      requests += 1;
+      return { accepted: true };
+    },
+  });
+  t.after(() => app.close());
+
+  const send = (address) => app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/forgot-password',
+    headers: { 'x-forwarded-for': address },
+    payload: { email: 'owner@avera.test' },
+  });
+
+  for (let index = 0; index < 5; index += 1) {
+    assert.equal((await send('203.0.113.10')).statusCode, 202);
+  }
+  assert.equal((await send('203.0.113.11')).statusCode, 202);
+  assert.equal((await send('203.0.113.10')).statusCode, 429);
+  assert.equal(requests, 6);
 });
 
 test('password reset is single-use, unlocks the account, and revokes sessions', async () => {

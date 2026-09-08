@@ -77,7 +77,21 @@ void main() {
 
       expect(find.text('Start New Consultation'), findsOneWidget);
       expect(find.text('Reschedule'), findsOneWidget);
+      expect(find.text('Completed'), findsOneWidget);
       expect(find.text('Cancel Visit'), findsOneWidget);
+      expect(find.text('Close'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.text('Completed')).style?.color,
+        AppTheme.success,
+      );
+      expect(
+        tester.widget<Text>(find.text('Reschedule')).style?.color,
+        AppTheme.warning,
+      );
+      expect(
+        tester.widget<Text>(find.text('Cancel Visit')).style?.color,
+        AppTheme.error,
+      );
       expect(find.text('DETAIL ROUTE'), findsNothing);
       expect(tester.takeException(), isNull);
     },
@@ -111,6 +125,12 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Reschedule'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Mark Completed'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Mark Completed'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Cancel Visit'),
       200,

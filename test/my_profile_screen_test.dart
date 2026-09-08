@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:avera/core/config/app_providers.dart';
 import 'package:avera/core/repositories/clinic_repository.dart';
+import 'package:avera/core/remote/api_client.dart';
 import 'package:avera/core/theme/app_theme.dart';
 import 'package:avera/features/shared/screens/my_profile_screen.dart';
 import 'package:avera/features/shared/widgets/branded_app_bar.dart';
@@ -16,6 +18,74 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 void main() {
+  for (final fails in [false, true]) {
+    testWidgets(
+      'profile removal is optimistic and ${fails ? 'rolls back on failure' : 'stays cleared on success'}',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 1000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final database = AppDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
+        final repository = _PendingPhotoRepository(database);
+        await repository.seedSampleData();
+        final original = (await repository.authenticateUser(
+          username: 'admin@avera.test',
+          password: 'admin123',
+        ))!;
+        final photoSession = UserSession(
+          user: original.user.copyWith(
+            profilePhoto: const Value('profile-photo.jpg'),
+          ),
+          clinic: original.clinic,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              databaseProvider.overrideWithValue(database),
+              clinicRepositoryProvider.overrideWithValue(repository),
+              userSessionProvider.overrideWith(
+                (ref) async => repository.removed ? original : photoSession,
+              ),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.light(),
+              home: const MyProfileScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        AveraIdentityAvatar avatar() =>
+            tester.widget(find.byKey(const Key('profile-avatar')));
+        expect(avatar().photoReference, 'profile-photo.jpg');
+        await tester.tap(find.byKey(const Key('profile-avatar')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove photo'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove Photo'));
+        await tester.pumpAndSettle();
+        expect(avatar().photoReference, isNull);
+        expect(avatar().onTap, isNull);
+        expect(repository.calls, 1);
+        if (fails) {
+          repository.pending.completeError(
+            const ApiException('unavailable', 'Removal failed.'),
+          );
+        } else {
+          repository.pending.complete();
+        }
+        await tester.pumpAndSettle();
+        expect(avatar().photoReference, fails ? 'profile-photo.jpg' : null);
+        expect(
+          find.text(fails ? 'Removal failed.' : 'Profile photo removed.'),
+          findsOneWidget,
+        );
+        expect(avatar().onTap, isNotNull);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+      },
+    );
+  }
   test('shared initials preserve established first-two-name behavior', () {
     expect(averaInitials('Chukwu Kenechukwu Chukwu'), 'CK');
     expect(averaInitials('Ada'), 'A');
@@ -276,4 +346,17 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+}
+
+class _PendingPhotoRepository extends ClinicRepository {
+  _PendingPhotoRepository(super.db);
+  final pending = Completer<void>();
+  int calls = 0;
+  bool removed = false;
+  @override
+  Future<void> removeOwnProfilePhoto(UserSession session) async {
+    calls++;
+    await pending.future;
+    removed = true;
+  }
 }

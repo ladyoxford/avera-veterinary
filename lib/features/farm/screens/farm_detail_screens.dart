@@ -448,6 +448,7 @@ class FarmUnitDetailScreen extends ConsumerStatefulWidget {
 
 class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
   late Future<_FarmUnitTreatmentData?> _data;
+  bool _allTreatments = false;
 
   @override
   void initState() {
@@ -471,7 +472,7 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
       farmId: widget.farmId,
       unitId: widget.unitId,
     );
-    final populationMovements = await repository.getFarmUnitPopulationMovements(
+    final populationMovements = await repository.getFarmUnitPopulationHistory(
       farmId: widget.farmId,
       unitId: widget.unitId,
     );
@@ -517,172 +518,193 @@ class _FarmUnitDetailScreenState extends ConsumerState<FarmUnitDetailScreen> {
             ),
         ],
       ),
-      body: FutureBuilder<_FarmUnitTreatmentData?>(
-        future: _data,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final data = snapshot.data;
-          if (data == null) {
-            return const _DetailMessage(
-              title: 'Unit unavailable',
-              message: 'This unit is not available in the active clinic.',
-            );
-          }
-          final unit = data.unit;
-          final total = unit.maleCount + unit.femaleCount + unit.unknownCount;
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AveraSpacing.pageHorizontalPadding,
-              AveraSpacing.pageTopPadding,
-              AveraSpacing.pageHorizontalPadding,
-              AveraSpacing.bottomContentClearance,
-            ),
-            children: [
-              AveraPageHeader(
-                title: unit.name,
-                subtitle:
-                    '${unit.unitType} • $total/${unit.capacity ?? total} • ${unit.status}',
+      body: SafeArea(
+        child: FutureBuilder<_FarmUnitTreatmentData?>(
+          future: _data,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final data = snapshot.data;
+            if (data == null) {
+              return const _DetailMessage(
+                title: 'Unit unavailable',
+                message: 'This unit is not available in the active clinic.',
+              );
+            }
+            final unit = data.unit;
+            final total = unit.maleCount + unit.femaleCount + unit.unknownCount;
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AveraSpacing.pageHorizontalPadding,
+                AveraSpacing.pageTopPadding,
+                AveraSpacing.pageHorizontalPadding,
+                AveraSpacing.bottomContentClearance,
               ),
-              const SizedBox(height: AveraSpacing.subtitleToContentGap),
-              FarmUnitSummaryCard(unit: unit, populations: data.populations),
-              if (unit.capacity != null && total > unit.capacity!) ...[
-                const SizedBox(height: AveraSpacing.cardGap),
-                _DetailMessage(
-                  title: 'Unit above stated capacity',
-                  message:
-                      '$total animals are recorded in a unit with capacity ${unit.capacity}. Review housing and update the capacity when appropriate.',
+              children: [
+                AveraPageHeader(
+                  title: unit.name,
+                  subtitle:
+                      '${unit.unitType} • $total/${unit.capacity ?? total} • ${unit.status}',
                 ),
-              ],
-              if (session?.can(Permissions.farmMortalityRecord) == true ||
-                  session?.can(Permissions.farmUnitsManage) == true) ...[
-                const SizedBox(height: AveraSpacing.cardGap),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    if (session?.can(Permissions.farmMortalityRecord) == true)
-                      FilledButton.icon(
-                        key: const Key('record-farm-mortality'),
-                        onPressed: () => _recordPopulationMovement(
-                          unit,
-                          data.populations,
-                          session!,
-                          FarmPopulationMovementType.mortality,
-                        ),
-                        icon: const Icon(Icons.remove_circle_outline),
-                        label: const Text('Record Mortality'),
-                      ),
-                    if (session?.can(Permissions.farmUnitsManage) == true)
-                      OutlinedButton.icon(
-                        key: const Key('record-animal-purchase'),
-                        onPressed: () => _recordPopulationMovement(
-                          unit,
-                          data.populations,
-                          session!,
-                          FarmPopulationMovementType.purchase,
-                        ),
-                        icon: const Icon(Icons.add_circle_outline),
-                        label: const Text('Add Purchased Animals'),
-                      ),
-                  ],
-                ),
-              ],
-              if (unit.notes?.trim().isNotEmpty == true) ...[
-                const SizedBox(height: AveraSpacing.cardGap),
-                AveraLabeledFieldCard(
-                  label: 'Notes',
-                  child: Text(
-                    unit.notes!,
-                    style: averaText(context).fieldValue,
+                const SizedBox(height: AveraSpacing.subtitleToContentGap),
+                FarmUnitSummaryCard(unit: unit, populations: data.populations),
+                if (unit.capacity != null && total > unit.capacity!) ...[
+                  const SizedBox(height: AveraSpacing.cardGap),
+                  _DetailMessage(
+                    title: 'Unit above stated capacity',
+                    message:
+                        '$total animals are recorded in a unit with capacity ${unit.capacity}. Review housing and update the capacity when appropriate.',
                   ),
-                ),
-              ],
-              const SizedBox(height: AveraSpacing.sectionGap),
-              const AveraSectionHeader(
-                title: 'Unit Records',
-                subtitle:
-                    'Health, reproduction, transfers and individual animal records.',
-              ),
-              const SizedBox(height: AveraSpacing.cardGap),
-              if (session?.can(Permissions.farmHealthRecord) == true) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () =>
-                        _recordTreatment(unit, data.populations, session!),
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Record Treatment'),
-                  ),
-                ),
-                const SizedBox(height: AveraSpacing.cardGap),
-              ],
-              FarmTreatmentOverviewGrid(treatments: data.treatments),
-              const SizedBox(height: AveraSpacing.sectionGap),
-              const AveraSectionHeader(title: 'Population History'),
-              const SizedBox(height: AveraSpacing.cardGap),
-              if (data.populationMovements.isEmpty)
-                const _DetailMessage(
-                  title: 'No population movements',
-                  message: 'Mortality and animal purchases will appear here.',
-                )
-              else
-                AveraSurfaceCard(
-                  child: Column(
+                ],
+                if (session?.can(Permissions.farmMortalityRecord) == true ||
+                    session?.can(Permissions.farmUnitsManage) == true) ...[
+                  const SizedBox(height: AveraSpacing.cardGap),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
                     children: [
-                      for (
-                        var index = 0;
-                        index < data.populationMovements.length;
-                        index++
-                      ) ...[
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            data.populationMovements[index].eventType ==
-                                    'Population mortality'
-                                ? Icons.remove_circle_outline
-                                : Icons.add_circle_outline,
+                      if (session?.can(Permissions.farmMortalityRecord) == true)
+                        FilledButton.icon(
+                          key: const Key('record-farm-mortality'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error,
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onError,
                           ),
-                          title: Text(
-                            data.populationMovements[index].eventType,
+                          onPressed: () => _recordPopulationMovement(
+                            unit,
+                            data.populations,
+                            session!,
+                            FarmPopulationMovementType.mortality,
                           ),
-                          subtitle: Text(
-                            data.populationMovements[index].description ??
-                                'No details recorded',
-                          ),
-                          trailing: Text(
-                            DateFormat.yMMMd().format(
-                              data.populationMovements[index].occurredAt,
-                            ),
-                          ),
+                          icon: const Icon(Icons.remove_circle_outline),
+                          label: const Text('Record Mortality'),
                         ),
-                        if (index != data.populationMovements.length - 1)
-                          const Divider(),
-                      ],
+                      if (session?.can(Permissions.farmUnitsManage) == true)
+                        OutlinedButton.icon(
+                          key: const Key('record-animal-purchase'),
+                          onPressed: () => _recordPopulationMovement(
+                            unit,
+                            data.populations,
+                            session!,
+                            FarmPopulationMovementType.purchase,
+                          ),
+                          icon: const Icon(Icons.add_circle_outline),
+                          label: const Text('Add Purchased Animals'),
+                        ),
                     ],
                   ),
-                ),
-              const SizedBox(height: AveraSpacing.sectionGap),
-              const AveraSectionHeader(title: 'Recent Treatments'),
-              const SizedBox(height: AveraSpacing.cardGap),
-              if (data.treatments.isEmpty)
-                const _DetailMessage(
-                  title: 'No treatments recorded',
-                  message:
-                      'Record a treatment to begin this unit health history.',
-                )
-              else
-                for (final treatment in data.treatments) ...[
-                  _TreatmentListTile(
-                    treatment: treatment,
-                    onTap: () => _showTreatmentDetails(treatment),
+                ],
+                if (unit.notes?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: AveraSpacing.cardGap),
+                  AveraLabeledFieldCard(
+                    label: 'Notes',
+                    child: Text(
+                      unit.notes!,
+                      style: averaText(context).fieldValue,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AveraSpacing.sectionGap),
+                const AveraSectionHeader(title: 'Unit Records'),
+                const SizedBox(height: AveraSpacing.cardGap),
+                if (session?.can(Permissions.farmHealthRecord) == true) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () =>
+                          _recordTreatment(unit, data.populations, session!),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Record Treatment'),
+                    ),
                   ),
                   const SizedBox(height: AveraSpacing.cardGap),
                 ],
-            ],
-          );
-        },
+                FarmTreatmentOverviewGrid(treatments: data.treatments),
+                const SizedBox(height: AveraSpacing.sectionGap),
+                const AveraSectionHeader(title: 'Population History'),
+                const SizedBox(height: AveraSpacing.cardGap),
+                if (data.populationMovements.isEmpty)
+                  const _DetailMessage(
+                    title: 'No population movements',
+                    message: 'Mortality and animal purchases will appear here.',
+                  )
+                else
+                  AveraSurfaceCard(
+                    child: Column(
+                      children: [
+                        for (
+                          var index = 0;
+                          index < data.populationMovements.length;
+                          index++
+                        ) ...[
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              data.populationMovements[index].eventType ==
+                                      'Population mortality'
+                                  ? Icons.remove_circle_outline
+                                  : Icons.add_circle_outline,
+                            ),
+                            title: Text(
+                              data.populationMovements[index].eventType,
+                            ),
+                            subtitle: Text(
+                              data.populationMovements[index].description,
+                            ),
+                            trailing: Text(
+                              DateFormat.yMMMd().format(
+                                data.populationMovements[index].occurredAt,
+                              ),
+                            ),
+                          ),
+                          if (index != data.populationMovements.length - 1)
+                            const Divider(),
+                        ],
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: AveraSpacing.sectionGap),
+                AveraSectionHeader(
+                  title: _allTreatments
+                      ? 'Treatment History'
+                      : 'Recent Treatments',
+                  action: data.treatments.length > 3
+                      ? TextButton(
+                          onPressed: () =>
+                              setState(() => _allTreatments = !_allTreatments),
+                          child: Text(
+                            _allTreatments ? 'Show Recent' : 'See All',
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(height: AveraSpacing.cardGap),
+                if (data.treatments.isEmpty)
+                  const _DetailMessage(
+                    title: 'No treatments recorded',
+                    message:
+                        'Record a treatment to begin this unit health history.',
+                  )
+                else
+                  for (final treatment
+                      in (_allTreatments
+                          ? data.treatments
+                          : data.treatments.take(3))) ...[
+                    _TreatmentListTile(
+                      treatment: treatment,
+                      onTap: () => _showTreatmentDetails(treatment),
+                    ),
+                    const SizedBox(height: AveraSpacing.cardGap),
+                  ],
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -785,8 +807,29 @@ class _FarmUnitTreatmentData {
   final FarmUnit unit;
   final List<FarmUnitPopulation> populations;
   final List<FarmHealthRecord> treatments;
-  final List<FarmEvent> populationMovements;
+  final List<FarmPopulationHistoryItem> populationMovements;
 }
+
+Future<bool?> showFarmPopulationMovement({
+  required BuildContext context,
+  required String farmId,
+  required FarmUnit unit,
+  required List<FarmUnitPopulation> populations,
+  required UserSession session,
+  required FarmPopulationMovementType type,
+}) => showModalBottomSheet<bool>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  showDragHandle: true,
+  builder: (_) => _PopulationMovementSheet(
+    farmId: farmId,
+    unit: unit,
+    populations: populations,
+    session: session,
+    type: type,
+  ),
+);
 
 class _PopulationMovementSheet extends ConsumerStatefulWidget {
   const _PopulationMovementSheet({
@@ -914,7 +957,7 @@ class _PopulationMovementSheetState
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'This purchase will put the unit above its stated capacity. You can continue, but review housing and capacity after saving.',
+                          'Population will exceed the current unit capacity of ${widget.unit.capacity}.',
                           style: averaText(context).listItemSubtitle,
                         ),
                       ),

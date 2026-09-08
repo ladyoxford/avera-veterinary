@@ -1223,6 +1223,12 @@ export async function recordFarmPopulationMovement(client, context, input) {
   );
   if (!farm.rows[0]) return { error: 'farm_mismatch' };
 
+  const lifecycle = await client.query(
+    'SELECT status FROM farms WHERE clinic_id=$1 AND farm_id=$2 FOR UPDATE',
+    [context.clinicId, input.farmId],
+  );
+  if (lifecycle.rows[0]?.status === 'Archived') return { error: 'farm_archived' };
+
   await client.query(
     `INSERT INTO farm_units
        (farm_unit_id, clinic_id, farm_id, name, unit_type, species, breed)
@@ -2877,11 +2883,13 @@ export async function clinicalRoutes(app) {
         actorUserId: request.auth.userId,
       }, body.data);
       if (result.error) {
-        const statusCode = result.error === 'insufficient_population' ? 409 : 404;
+        const statusCode = ['insufficient_population', 'farm_archived'].includes(result.error) ? 409 : 404;
         return reply.code(statusCode).send({
           error: result.error,
           available: result.available,
-          message: result.error === 'insufficient_population'
+          message: result.error === 'farm_archived'
+            ? 'Reactivate the farm before recording a movement.'
+            : result.error === 'insufficient_population'
             ? `Only ${result.available} animals are available in that sex group.`
             : 'The selected farm population is not available in this clinic.',
         });
@@ -2908,6 +2916,32 @@ export async function clinicalRoutes(app) {
     });
   });
 
+  app.patch('/api/v1/farms/:farmId/status', {
+    preHandler: [authenticate, requirePermission(permissions.farmsCreate)],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = farmUuidSchema.safeParse(request.params);
+    const body = z.object({ status: z.enum(['Active', 'Archived']), name: z.string().trim().min(2).max(160) }).safeParse(request.body);
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ error: 'validation_error', message: 'Please review the farm status.' });
+    }
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      // Local-first farms may not have been used for remote billing yet.
+      await client.query(`INSERT INTO farms (farm_id, clinic_id, name)
+        VALUES ($1,$2,$3) ON CONFLICT (farm_id) DO NOTHING`,
+      [params.data.farmId, request.auth.clinicId, body.data.name]);
+      const saved = await client.query(`UPDATE farms SET status=$1, updated_at=now()
+        WHERE clinic_id=$2 AND farm_id=$3 RETURNING farm_id, status`,
+      [body.data.status, request.auth.clinicId, params.data.farmId]);
+      if (!saved.rows[0]) return reply.code(404).send({ error: 'farm_not_found', message: 'The farm is not available in this clinic.' });
+      await writeAudit(client, { clinicId: request.auth.clinicId, actingUserId: request.auth.userId,
+        targetType: 'Farm', targetId: params.data.farmId,
+        action: body.data.status === 'Archived' ? 'farm.archived' : 'farm.reactivated',
+        newSummary: { status: body.data.status }, sessionId: request.auth.sessionId });
+      return { farm: saved.rows[0] };
+    });
+  });
+
   app.get('/api/v1/farms/:farmId/population-movements', {
     preHandler: [authenticate, requirePermission(permissions.farmsView)],
   }, async (request, reply) => {
@@ -2921,9 +2955,12 @@ export async function clinicalRoutes(app) {
         `SELECT farm_population_movement_id AS "id", farm_id AS "farmId",
                 farm_unit_id AS "farmUnitId",
                 farm_unit_population_id AS "farmUnitPopulationId",
-                movement_type AS "movementType", sex, quantity,
+                submission_id AS "submissionId", movement_type AS "movementType", sex, quantity,
                 occurred_at AS "occurredAt", source, notes,
-                created_by AS "createdBy", created_at AS "createdAt"
+                created_by AS "createdBy", created_at AS "createdAt",
+                (SELECT u.full_name FROM users u
+                  WHERE u.user_id = farm_population_movements.created_by
+                    AND u.clinic_id = $1) AS "createdByName"
            FROM farm_population_movements
           WHERE clinic_id=$1 AND farm_id=$2
           ORDER BY occurred_at DESC, created_at DESC

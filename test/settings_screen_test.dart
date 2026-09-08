@@ -278,6 +278,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('clinic-logo-preview')), findsOneWidget);
+    expect(find.text('Clinic Logo'), findsOneWidget);
+    expect(
+      find.text('Used on invoices, receipts and clinic reports.'),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('change-clinic-logo')), findsOneWidget);
     expect(find.text('Clinic Banner'), findsNothing);
     expect(find.text('No clinic logo uploaded'), findsOneWidget);

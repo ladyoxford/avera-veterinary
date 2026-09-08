@@ -37,7 +37,7 @@ export const permissions = {
   mediaView: 'media.view',
   clinicSettingsView: 'clinic_settings.view', clinicSettingsEdit: 'clinic_settings.edit',
   clinicWorkHoursManage: 'clinic.work_hours.manage',
-  farmsView: 'farms.view', farmUnitsManage: 'farms.units.manage',
+  farmsView: 'farms.view', farmsCreate: 'farms.create', farmUnitsManage: 'farms.units.manage',
   farmDailyRecord: 'farms.daily.record', farmMortalityRecord: 'farms.mortality.record',
   farmHealthRecord: 'farms.health.record',
   twoFactorManageSelf: 'security.twoFactor.manageSelf',

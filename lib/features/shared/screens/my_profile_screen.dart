@@ -26,6 +26,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   final _license = TextEditingController();
   String? _loadedUserId;
   bool _saving = false;
+  bool _photoRemoved = false;
 
   @override
   void dispose() {
@@ -56,6 +57,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
           data: (session) {
             if (_loadedUserId != session.user.userId) {
               _loadedUserId = session.user.userId;
+              _photoRemoved = false;
               _name.text = session.user.fullName;
               _phone.text = session.user.phoneNumber ?? '';
               _license.text = session.user.veterinaryLicenseNumber ?? '';
@@ -84,7 +86,9 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                           AveraIdentityAvatar(
                             key: const Key('profile-avatar'),
                             name: session.user.fullName,
-                            photoReference: session.user.profilePhoto,
+                            photoReference: _photoRemoved
+                                ? null
+                                : session.user.profilePhoto,
                             size: 120,
                             onTap: _saving
                                 ? null
@@ -229,7 +233,9 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     final action = await showAveraPhotoActionSheet(
       context: context,
       subjectName: session.user.fullName,
-      hasPhoto: session.user.profilePhoto?.trim().isNotEmpty == true,
+      hasPhoto:
+          !_photoRemoved &&
+          session.user.profilePhoto?.trim().isNotEmpty == true,
       canRemovePhoto: true,
     );
     if (!mounted || action == null) return;
@@ -266,7 +272,10 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
           );
       ref.invalidate(userSessionProvider);
       await ref.read(userSessionProvider.future);
-      if (mounted) _message('Profile photo updated.');
+      if (mounted) {
+        setState(() => _photoRemoved = false);
+        _message('Profile photo updated.');
+      }
     } on ApiException catch (error) {
       if (mounted) _message(error.message);
     } catch (_) {
@@ -279,6 +288,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   }
 
   Future<void> _removePhoto(UserSession session) async {
+    if (_saving) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -297,14 +307,24 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _photoRemoved = true;
+    });
     try {
       await ref.read(clinicRepositoryProvider).removeOwnProfilePhoto(session);
       ref.invalidate(userSessionProvider);
-      await ref.read(userSessionProvider.future);
       if (mounted) _message('Profile photo removed.');
     } on ApiException catch (error) {
-      if (mounted) _message(error.message);
+      if (mounted) {
+        setState(() => _photoRemoved = false);
+        _message(error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _photoRemoved = false);
+        _message('Your photo could not be removed. Please try again.');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
+import Fastify from 'fastify';
 import {
   farmContextSchema,
   farmPopulationMovementSchema,
   recordFarmPopulationMovement,
   readFarmContext,
   upsertFarmInvoiceContext,
+  clinicalRoutes,
 } from '../src/routes/clinical-routes.js';
 
 const clinicId = '11111111-1111-4111-8111-111111111111';
@@ -17,6 +19,46 @@ const unitId = '55555555-5555-4555-8555-555555555555';
 const goatGroupId = '66666666-6666-4666-8666-666666666666';
 const sheepGroupId = '77777777-7777-4777-8777-777777777777';
 const treatmentId = '88888888-8888-4888-8888-888888888888';
+
+test('farm archive is tenant-scoped, permission-checked and preserves all children', async (t) => {
+  const app = Fastify();
+  t.after(() => app.close());
+  const calls = [];
+  let tenant = clinicId;
+  let allowed = true;
+  let status = 'Active';
+  const client = { release() {}, async query(sql, values) {
+    calls.push({ sql, values });
+    if (sql.startsWith('UPDATE farms')) {
+      if (values[1] !== clinicId) return { rows: [] };
+      status = values[0];
+      return { rows: [{ farm_id: farmId, status }] };
+    }
+    return { rows: [] };
+  } };
+  app.decorate('pool', { connect: async () => client });
+  app.addHook('onRoute', (options) => {
+    const guards = options.preHandler ?? [];
+    options.preHandler = [async (request) => {
+      request.auth = { userId, clinicId: tenant, sessionId: 'session', permissions: allowed ? ['farms.create'] : [] };
+    }, ...guards.slice(1)];
+  });
+  await clinicalRoutes(app);
+  const send = (nextStatus) => app.inject({ method: 'PATCH', url: `/api/v1/farms/${farmId}/status`,
+    payload: { name: 'Actual Farm', status: nextStatus, clinicId: otherClinicId } });
+  assert.equal((await send('Archived')).statusCode, 200);
+  assert.equal(status, 'Archived');
+  assert.equal((await send('Active')).statusCode, 200);
+  assert.equal(status, 'Active');
+  assert.ok(calls.every(({ sql }) => !/DELETE|UPDATE farm_unit|UPDATE farm_treatment/i.test(sql)));
+  tenant = otherClinicId;
+  assert.equal((await send('Archived')).statusCode, 404);
+  assert.equal(status, 'Active');
+  allowed = false;
+  const before = calls.length;
+  assert.equal((await send('Archived')).statusCode, 403);
+  assert.equal(calls.length, before);
+});
 
 function context(overrides = {}) {
   return {

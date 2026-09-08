@@ -14,6 +14,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../shared/widgets/avera_ui.dart';
 import '../../shared/widgets/catalogue_selector.dart';
 import '../widgets/farm_back_navigation.dart';
+import 'farm_detail_screens.dart';
 
 class FarmRecordsScreen extends ConsumerStatefulWidget {
   const FarmRecordsScreen({super.key});
@@ -25,13 +26,22 @@ class FarmRecordsScreen extends ConsumerStatefulWidget {
 class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
   String _query = '';
   String _status = 'Active';
+  Stream<List<FarmDashboardData>>? _dashboards;
+  String? _clinicId;
 
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(userSessionProvider).valueOrNull;
-    final canCreate = session?.can(Permissions.farmsCreate) == true;
-    if (session != null && !session.can(Permissions.farmsView)) {
+    if (session == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final canCreate = session.can(Permissions.farmsCreate);
+    if (!session.can(Permissions.farmsView)) {
       return const Scaffold(body: _FarmDenied());
+    }
+    if (_clinicId != session.clinic.clinicId) {
+      _clinicId = session.clinic.clinicId;
+      _dashboards = ref.read(clinicRepositoryProvider).watchFarmDashboards();
     }
     return Scaffold(
       appBar: AppBar(
@@ -46,16 +56,20 @@ class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
             )
           : null,
       body: SafeArea(
-        child: StreamBuilder<List<Farm>>(
-          stream: ref
-              .read(clinicRepositoryProvider)
-              .watchFarms(status: _status),
+        child: StreamBuilder<List<FarmDashboardData>>(
+          stream: _dashboards,
           builder: (context, snapshot) {
-            final farms = (snapshot.data ?? const <Farm>[])
+            final all = snapshot.data ?? const <FarmDashboardData>[];
+            final selected = all
+                .where((data) => data.farm.status == _status)
+                .toList();
+            final farms = selected
                 .where(
-                  (farm) =>
-                      farm.name.toLowerCase().contains(_query.toLowerCase()) ||
-                      (farm.location ?? '').toLowerCase().contains(
+                  (data) =>
+                      data.farm.name.toLowerCase().contains(
+                        _query.toLowerCase(),
+                      ) ||
+                      (data.farm.location ?? '').toLowerCase().contains(
                         _query.toLowerCase(),
                       ),
                 )
@@ -77,7 +91,7 @@ class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
                   onChanged: (value) => setState(() => _query = value),
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search_rounded),
-                    hintText: 'Search farms',
+                    hintText: 'Search farms...',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -86,7 +100,9 @@ class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
                   children: ['Active', 'Archived']
                       .map(
                         (status) => ChoiceChip(
-                          label: Text(status),
+                          label: Text(
+                            '$status (${all.where((data) => data.farm.status == status).length})',
+                          ),
                           selected: _status == status,
                           onSelected: (_) => setState(() => _status = status),
                         ),
@@ -94,7 +110,31 @@ class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
                       .toList(),
                 ),
                 const SizedBox(height: AveraSpacing.cardGap),
-                if (snapshot.hasError)
+                if (snapshot.hasData) ...[
+                  FarmPopulationSummary(
+                    dashboards: selected,
+                    countLabel: _status == 'Active'
+                        ? 'Active Farms'
+                        : 'Archived Farms',
+                    count: selected.length,
+                  ),
+                  const SizedBox(height: AveraSpacing.sectionGap),
+                  AveraSectionHeader(
+                    title: 'Farms (${farms.length})',
+                    action: canCreate
+                        ? TextButton.icon(
+                            onPressed: () => context.push('/farm-records/new'),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Farm'),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: AveraSpacing.cardGap),
+                ],
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData)
+                  const Center(child: CircularProgressIndicator())
+                else if (snapshot.hasError)
                   const _FarmMessage(
                     icon: Icons.error_outline_rounded,
                     title: 'Farm records unavailable',
@@ -110,7 +150,7 @@ class _FarmRecordsScreenState extends ConsumerState<FarmRecordsScreen> {
                   )
                 else
                   for (final farm in farms) ...[
-                    _FarmCard(farm: farm),
+                    _FarmCard(data: farm),
                     const SizedBox(height: AveraSpacing.cardGap),
                   ],
               ],
@@ -132,7 +172,11 @@ class FarmDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
-  late Future<FarmDashboardData?> _dashboard;
+  late Stream<List<FarmDashboardData>> _dashboard;
+  String? _clinicId;
+  String _section = 'Animals';
+  String _query = '';
+  String? _species;
 
   @override
   void initState() {
@@ -140,19 +184,37 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
     _refresh();
   }
 
-  void _refresh() => _dashboard = ref
-      .read(clinicRepositoryProvider)
-      .getFarmDashboard(widget.farmId);
+  void _refresh() =>
+      _dashboard = ref.read(clinicRepositoryProvider).watchFarmDashboards();
 
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(userSessionProvider).valueOrNull;
+    if (session == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (!session.can(Permissions.farmsView)) {
+      return const Scaffold(body: _FarmDenied());
+    }
+    if (_clinicId != session.clinic.clinicId) {
+      _clinicId = session.clinic.clinicId;
+      _refresh();
+    }
     return Scaffold(
       appBar: AppBar(
         leading: const FarmBackButton(fallbackPath: '/farm-records'),
-        title: const Text('Farm Records'),
+        title: const Text('Farm Details'),
+        actions: [
+          if (session.can(Permissions.farmsCreate))
+            IconButton(
+              tooltip: 'Edit Farm',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () =>
+                  context.push('/farm-records/${widget.farmId}/edit'),
+            ),
+        ],
       ),
-      floatingActionButton: session?.can(Permissions.farmDailyRecord) == true
+      floatingActionButton: session.can(Permissions.farmDailyRecord)
           ? FloatingActionButton.extended(
               onPressed: () async {
                 final repository = ref.read(clinicRepositoryProvider);
@@ -174,230 +236,341 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
               label: const Text('Daily Record'),
             )
           : null,
-      body: FutureBuilder<FarmDashboardData?>(
-        future: _dashboard,
-        builder: (context, snapshot) {
-          final data = snapshot.data;
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (data == null) {
-            return const _FarmMessage(
-              icon: Icons.error_outline_rounded,
-              title: 'Farm unavailable',
-              message: 'This farm is not available in the active clinic.',
+      body: SafeArea(
+        child: StreamBuilder<List<FarmDashboardData>>(
+          stream: _dashboard,
+          builder: (context, snapshot) {
+            final matches = snapshot.data?.where(
+              (data) => data.farm.id == widget.farmId,
             );
-          }
-          final species = _labels(
-            data.farm.speciesJson,
-            AnimalCatalogue.speciesById,
-          );
-          return RefreshIndicator(
-            onRefresh: () async => setState(_refresh),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                AveraSpacing.bottomContentClearance,
-              ),
-              children: [
-                Text(data.farm.name, style: averaText(context).pageTitle),
-                const SizedBox(height: 6),
-                Text(
-                  data.farm.location ?? 'Location not recorded',
-                  style: averaText(context).pageSubtitle,
+            final data = matches == null || matches.isEmpty
+                ? null
+                : matches.first;
+            if (!snapshot.hasData && !snapshot.hasError) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (data == null) {
+              return const _FarmMessage(
+                icon: Icons.error_outline_rounded,
+                title: 'Farm unavailable',
+                message: 'This farm is not available in the active clinic.',
+              );
+            }
+            final species = data.populationBySpecies.keys.toList();
+            final visibleUnits = data.units.where((unit) {
+              final groups = data.populations.where(
+                (group) => group.farmUnitId == unit.id,
+              );
+              return unit.name.toLowerCase().contains(_query.toLowerCase()) &&
+                  (_species == null ||
+                      groups.any((group) => group.speciesId == _species) ||
+                      (groups.isEmpty && unit.speciesId == _species));
+            }).toList();
+            return RefreshIndicator(
+              onRefresh: () async => setState(_refresh),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  20,
+                  20,
+                  AveraSpacing.bottomContentClearance,
                 ),
-                const SizedBox(height: AveraSpacing.subtitleToContentGap),
-                InkWell(
-                  borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
-                  onTap: () =>
-                      context.push('/farm-records/${data.farm.id}/overview'),
-                  child: AveraSurfaceCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                species.isEmpty
-                                    ? 'Species not recorded'
-                                    : species.join(' | '),
-                                style: averaText(context).listItemSubtitle,
-                              ),
-                            ),
-                            const Icon(Icons.chevron_right_rounded),
-                          ],
+                children: [
+                  Text(data.farm.name, style: averaText(context).pageTitle),
+                  const SizedBox(height: 6),
+                  Text(
+                    data.farm.location ?? 'Location not recorded',
+                    style: averaText(context).pageSubtitle,
+                  ),
+                  const SizedBox(height: AveraSpacing.subtitleToContentGap),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Chip(label: Text(data.farm.status)),
+                  ),
+                  FarmPopulationSummary(
+                    dashboards: [data],
+                    countLabel: 'Active Units',
+                    count: data.activeUnits.length,
+                  ),
+                  const SizedBox(height: AveraSpacing.cardGap),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final section in [
+                        'Animals',
+                        'Farm Settings',
+                        'Records',
+                      ])
+                        ChoiceChip(
+                          label: Text(section),
+                          selected: _section == section,
+                          onSelected: (_) => setState(() => _section = section),
                         ),
-                        const SizedBox(height: 12),
-                        Row(
+                    ],
+                  ),
+                  const SizedBox(height: AveraSpacing.cardGap),
+                  if (_section == 'Farm Settings')
+                    InkWell(
+                      borderRadius: BorderRadius.circular(
+                        AveraSpacing.cardRadius,
+                      ),
+                      onTap: () => context.push(
+                        '/farm-records/${data.farm.id}/overview',
+                      ),
+                      child: AveraSurfaceCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: _Metric(
-                                label: 'Population',
-                                value: '${data.currentPopulation} animals',
-                              ),
-                            ),
-                            Expanded(
-                              child: _Metric(
-                                label: 'Units',
-                                value: '${data.units.length} active',
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (data.populationBySpecies.isNotEmpty) ...[
-                          const Divider(height: 28),
-                          for (final entry
-                              in data.populationBySpecies.entries) ...[
                             Row(
                               children: [
                                 Expanded(
                                   child: Text(
-                                    AnimalCatalogue.speciesById(
-                                          entry.key,
-                                        )?.displayName ??
-                                        'Unassigned',
+                                    species.isEmpty
+                                        ? 'Species not recorded'
+                                        : species
+                                              .map(
+                                                (id) =>
+                                                    AnimalCatalogue.speciesById(
+                                                      id,
+                                                    )?.displayName ??
+                                                    id,
+                                              )
+                                              .join(' | '),
                                     style: averaText(context).listItemSubtitle,
                                   ),
                                 ),
-                                Text(
-                                  '${entry.value}',
-                                  style: averaText(context).fieldValue,
+                                const Icon(Icons.chevron_right_rounded),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _Metric(
+                                    label: 'Population',
+                                    value: '${data.currentPopulation} animals',
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _Metric(
+                                    label: 'Units',
+                                    value: '${data.activeUnits.length} active',
+                                  ),
                                 ),
                               ],
                             ),
-                            if (entry != data.populationBySpecies.entries.last)
-                              const SizedBox(height: 8),
+                            if (data.populationBySpecies.isNotEmpty) ...[
+                              const Divider(height: 28),
+                              for (final entry
+                                  in data.populationBySpecies.entries) ...[
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        AnimalCatalogue.speciesById(
+                                              entry.key,
+                                            )?.displayName ??
+                                            'Unassigned',
+                                        style: averaText(
+                                          context,
+                                        ).listItemSubtitle,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${entry.value}',
+                                      style: averaText(context).fieldValue,
+                                    ),
+                                  ],
+                                ),
+                                if (entry !=
+                                    data.populationBySpecies.entries.last)
+                                  const SizedBox(height: 8),
+                              ],
+                            ],
                           ],
-                        ],
+                        ),
+                      ),
+                    ),
+                  if (_section == 'Farm Settings') ...[
+                    ListTile(
+                      leading: const Icon(Icons.edit_outlined),
+                      title: const Text('Edit Farm Details'),
+                      onTap: session.can(Permissions.farmsCreate)
+                          ? () => context.push(
+                              '/farm-records/${data.farm.id}/edit',
+                            )
+                          : null,
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.receipt_long_outlined),
+                      title: const Text('Farm Overview & Billing'),
+                      onTap: () => context.push(
+                        '/farm-records/${data.farm.id}/overview',
+                      ),
+                    ),
+                  ],
+                  if (_section == 'Animals') ...[
+                    TextField(
+                      onChanged: (value) => setState(() => _query = value),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Search animals...',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: Text('All (${data.currentPopulation})'),
+                          selected: _species == null,
+                          onSelected: (_) => setState(() => _species = null),
+                        ),
+                        for (final entry in data.populationBySpecies.entries)
+                          ChoiceChip(
+                            label: Text(
+                              '${AnimalCatalogue.speciesById(entry.key)?.displayName ?? entry.key} (${entry.value})',
+                            ),
+                            selected: _species == entry.key,
+                            onSelected: (_) =>
+                                setState(() => _species = entry.key),
+                          ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: AveraSpacing.sectionGap),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Farm Units',
-                        style: averaText(context).sectionTitle,
-                      ),
-                    ),
-                    if (session?.can(Permissions.farmUnitsManage) == true)
-                      TextButton.icon(
-                        onPressed: () async {
-                          final changed = await showModalBottomSheet<bool>(
-                            context: context,
-                            isScrollControlled: true,
-                            useSafeArea: true,
-                            builder: (_) => _AddUnitSheet(farmId: data.farm.id),
-                          );
-                          if (changed == true && mounted) setState(_refresh);
-                        },
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Add Unit'),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (data.units.isEmpty)
-                  const _FarmMessage(
-                    icon: Icons.home_work_outlined,
-                    title: 'No farm units',
-                    message:
-                        'Add pens, sectors, houses or paddocks to track occupancy.',
-                  )
-                else
-                  for (final unit in data.units) ...[
-                    AveraSurfaceCard(
-                      child: ListTile(
-                        onTap: () async {
-                          final changed = await context.push<bool>(
-                            '/farm-records/${data.farm.id}/units/${unit.id}',
-                          );
-                          if (changed == true && mounted) setState(_refresh);
-                        },
-                        contentPadding: EdgeInsets.zero,
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.home_work_outlined),
-                        ),
-                        title: Text(
-                          unit.name,
-                          style: averaText(context).listItemTitle,
-                        ),
-                        subtitle: Text(
-                          '${AnimalCatalogue.speciesById(unit.speciesId ?? '')?.displayName ?? 'Species not assigned'} | '
-                          '${unit.unitType} | ${unit.maleCount} male | '
-                          '${unit.femaleCount} female | ${unit.unknownCount} unknown',
-                          style: averaText(context).listItemSubtitle,
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (unit.capacity != null)
-                              Text(
-                                '${unit.maleCount + unit.femaleCount + unit.unknownCount}/${unit.capacity}',
-                                style: averaText(context).caption,
-                              ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.chevron_right_rounded),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AveraSpacing.cardGap),
-                  ],
-                const SizedBox(height: AveraSpacing.sectionGap),
-                Text('Daily Records', style: averaText(context).sectionTitle),
-                const SizedBox(height: 8),
-                if (data.dailyRecords.isEmpty)
-                  const _FarmMessage(
-                    icon: Icons.edit_calendar_outlined,
-                    title: 'No daily records',
-                    message:
-                        'Create today\'s record to reconcile population, mortality and feed.',
-                  )
-                else
-                  for (final record in data.dailyRecords.take(10)) ...[
-                    AveraSurfaceCard(
-                      child: ListTile(
-                        onTap: () => context.push(
-                          '/farm-records/${data.farm.id}/daily/${record.id}',
-                        ),
-                        contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          child: Icon(
-                            record.status == 'Finalized'
-                                ? Icons.task_alt_rounded
-                                : Icons.edit_note_rounded,
+                    const SizedBox(height: AveraSpacing.sectionGap),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Farm Units',
+                            style: averaText(context).sectionTitle,
                           ),
                         ),
-                        title: Text(
-                          DateFormat.yMMMMd().format(record.recordDate),
-                          style: averaText(context).listItemTitle,
-                        ),
-                        subtitle: Text(
-                          'Opening ${record.openingPopulation} - Closing ${record.closingPopulation} - ${record.feedSuppliedKg.toStringAsFixed(1)} kg feed',
-                          style: averaText(context).listItemSubtitle,
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _RecordStatus(status: record.status),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.chevron_right_rounded),
-                          ],
-                        ),
-                      ),
+                        if (session.can(Permissions.farmUnitsManage))
+                          TextButton.icon(
+                            onPressed: () async {
+                              final changed = await showModalBottomSheet<bool>(
+                                context: context,
+                                isScrollControlled: true,
+                                useSafeArea: true,
+                                builder: (_) =>
+                                    _AddUnitSheet(farmId: data.farm.id),
+                              );
+                              if (changed == true && mounted) {
+                                setState(_refresh);
+                              }
+                            },
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('Add Unit'),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: AveraSpacing.cardGap),
+                    const SizedBox(height: 8),
+                    if (visibleUnits.isEmpty)
+                      const _FarmMessage(
+                        icon: Icons.home_work_outlined,
+                        title: 'No farm units',
+                        message:
+                            'Add pens, sectors, houses or paddocks to track occupancy.',
+                      )
+                    else
+                      for (final unit in visibleUnits) ...[
+                        AveraSurfaceCard(
+                          child: ListTile(
+                            onTap: () async {
+                              await context.push<bool>(
+                                '/farm-records/${data.farm.id}/units/${unit.id}',
+                              );
+                              if (mounted) setState(_refresh);
+                            },
+                            contentPadding: EdgeInsets.zero,
+                            leading: const CircleAvatar(
+                              child: Icon(Icons.home_work_outlined),
+                            ),
+                            title: Text(
+                              unit.name,
+                              style: averaText(context).listItemTitle,
+                            ),
+                            subtitle: Text(
+                              '${AnimalCatalogue.speciesById(unit.speciesId ?? '')?.displayName ?? 'Species not assigned'} | '
+                              '${unit.unitType} | ${unit.maleCount} male | '
+                              '${unit.femaleCount} female | ${unit.unknownCount} unknown',
+                              style: averaText(context).listItemSubtitle,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (unit.capacity != null)
+                                  Text(
+                                    '${unit.maleCount + unit.femaleCount + unit.unknownCount}/${unit.capacity}',
+                                    style: averaText(context).caption,
+                                  ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.chevron_right_rounded),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AveraSpacing.cardGap),
+                      ],
                   ],
-              ],
-            ),
-          );
-        },
+                  if (_section == 'Records') ...[
+                    const SizedBox(height: AveraSpacing.sectionGap),
+                    Text(
+                      'Daily Records',
+                      style: averaText(context).sectionTitle,
+                    ),
+                    const SizedBox(height: 8),
+                    if (data.dailyRecords.isEmpty)
+                      const _FarmMessage(
+                        icon: Icons.edit_calendar_outlined,
+                        title: 'No daily records',
+                        message:
+                            'Create today\'s record to reconcile population, mortality and feed.',
+                      )
+                    else
+                      for (final record in data.dailyRecords.take(10)) ...[
+                        AveraSurfaceCard(
+                          child: ListTile(
+                            onTap: () => context.push(
+                              '/farm-records/${data.farm.id}/daily/${record.id}',
+                            ),
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(
+                              child: Icon(
+                                record.status == 'Finalized'
+                                    ? Icons.task_alt_rounded
+                                    : Icons.edit_note_rounded,
+                              ),
+                            ),
+                            title: Text(
+                              DateFormat.yMMMMd().format(record.recordDate),
+                              style: averaText(context).listItemTitle,
+                            ),
+                            subtitle: Text(
+                              'Opening ${record.openingPopulation} - Closing ${record.closingPopulation} - ${record.feedSuppliedKg.toStringAsFixed(1)} kg feed',
+                              style: averaText(context).listItemSubtitle,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _RecordStatus(status: record.status),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.chevron_right_rounded),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AveraSpacing.cardGap),
+                      ],
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -1175,34 +1348,282 @@ List<String> _jsonStringList(String value) {
 }
 
 class _FarmCard extends ConsumerWidget {
-  const _FarmCard({required this.farm});
-  final Farm farm;
+  const _FarmCard({required this.data});
+  final FarmDashboardData data;
+  Farm get farm => data.farm;
   @override
   Widget build(BuildContext context, WidgetRef ref) => AveraSurfaceCard(
     child: InkWell(
       borderRadius: BorderRadius.circular(AveraSpacing.cardRadius),
       onTap: () => context.push('/farm-records/${farm.id}'),
+      onLongPress: () => showFarmActions(context, ref, data),
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 4,
-          ),
-          leading: const CircleAvatar(child: Icon(Icons.agriculture_rounded)),
-          title: Text(farm.name, style: averaText(context).listItemTitle),
-          subtitle: Text(
-            '${farm.location ?? 'Location not recorded'}\n${_labels(farm.speciesJson, AnimalCatalogue.speciesById).join(' - ')}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: averaText(context).listItemSubtitle,
-          ),
-          isThreeLine: true,
-          trailing: const Icon(Icons.chevron_right_rounded),
+        child: Column(
+          children: [
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              leading: const CircleAvatar(
+                child: Icon(Icons.agriculture_rounded),
+              ),
+              title: Text(farm.name, style: averaText(context).listItemTitle),
+              subtitle: Text(
+                '${farm.location ?? 'Location not recorded'}\n${data.populationBySpecies.keys.map((id) => AnimalCatalogue.speciesById(id)?.displayName ?? id).join(' | ')}',
+                style: averaText(context).listItemSubtitle,
+              ),
+              isThreeLine: true,
+              trailing: const Icon(Icons.chevron_right_rounded),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Chip(label: Text(farm.status)),
+            ),
+            const Divider(),
+            Wrap(
+              spacing: 24,
+              runSpacing: 12,
+              children: [
+                _Metric(
+                  label: 'Total Animals',
+                  value: '${data.currentPopulation}',
+                ),
+                _Metric(label: 'Units', value: '${data.activeUnits.length}'),
+                _Metric(
+                  label: 'Last Updated',
+                  value: DateFormat.yMMMd().format(data.lastUpdated),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     ),
   );
+}
+
+class FarmPopulationSummary extends StatelessWidget {
+  const FarmPopulationSummary({
+    super.key,
+    required this.dashboards,
+    required this.countLabel,
+    required this.count,
+  });
+  final List<FarmDashboardData> dashboards;
+  final String countLabel;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final species = <String, int>{};
+    for (final data in dashboards) {
+      for (final entry in data.populationBySpecies.entries) {
+        species.update(
+          entry.key,
+          (value) => value + entry.value,
+          ifAbsent: () => entry.value,
+        );
+      }
+    }
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: .35),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _Metric(
+                  label: 'Total Animals',
+                  value:
+                      '${species.values.fold<int>(0, (sum, value) => sum + value)}',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _Metric(label: countLabel, value: '$count'),
+              ),
+            ],
+          ),
+          if (species.isNotEmpty) ...[
+            const Divider(height: 28),
+            Wrap(
+              spacing: 24,
+              runSpacing: 8,
+              children: [
+                for (final entry in species.entries)
+                  Text(
+                    '${AnimalCatalogue.speciesById(entry.key)?.displayName ?? 'Unassigned'}  ${entry.value}',
+                    style: averaText(context).fieldValue,
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> showFarmActions(
+  BuildContext context,
+  WidgetRef ref,
+  FarmDashboardData data,
+) async {
+  final session = ref.read(userSessionProvider).valueOrNull;
+  if (session == null) return;
+  final colors = Theme.of(context).colorScheme;
+  final archived = data.farm.status == 'Archived';
+  final action = await showAveraActionSheet<String>(
+    context: context,
+    title: data.farm.name,
+    description: data.farm.location,
+    builder: (sheetContext) => Flexible(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (session.can(Permissions.farmsCreate))
+              ListTile(
+                leading: Icon(Icons.edit_outlined, color: colors.primary),
+                title: const Text('Edit Farm Details'),
+                subtitle: const Text('Update name, location and farm settings'),
+                onTap: () => Navigator.pop(sheetContext, 'edit'),
+              ),
+            if (!archived && session.can(Permissions.farmUnitsManage))
+              ListTile(
+                leading: Icon(Icons.add_circle_outline, color: colors.primary),
+                title: const Text('Add Purchased Animals'),
+                subtitle: const Text('Record animals added to this farm'),
+                onTap: () => Navigator.pop(sheetContext, 'purchase'),
+              ),
+            if (!archived)
+              const ListTile(
+                enabled: false,
+                leading: Icon(Icons.swap_vert, color: Colors.blue),
+                title: Text('Transfer Animals'),
+                subtitle: Text(
+                  'Individual group transfers are not supported yet',
+                ),
+              ),
+            if (!archived && session.can(Permissions.farmMortalityRecord))
+              ListTile(
+                leading: Icon(Icons.remove_circle_outline, color: colors.error),
+                title: const Text('Record Mortality'),
+                subtitle: const Text('Record deaths and update population'),
+                onTap: () => Navigator.pop(sheetContext, 'mortality'),
+              ),
+            if (session.can(Permissions.farmsCreate))
+              ListTile(
+                leading: const Icon(
+                  Icons.archive_outlined,
+                  color: Colors.amber,
+                ),
+                title: Text(archived ? 'Reactivate Farm' : 'Archive Farm'),
+                subtitle: const Text(
+                  'Preserve all population, treatment and billing history',
+                ),
+                onTap: () => Navigator.pop(sheetContext, 'archive'),
+              ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(sheetContext),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  if (!context.mounted || action == null) return;
+  if (action == 'edit') {
+    await context.push('/farm-records/${data.farm.id}/edit');
+  } else if (action == 'purchase' || action == 'mortality') {
+    final unit = await showAveraActionSheet<FarmUnit>(
+      context: context,
+      title: 'Select Farm Unit',
+      builder: (sheetContext) => Flexible(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (data.activeUnits.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Add a farm unit first.'),
+                ),
+              for (final unit in data.activeUnits)
+                ListTile(
+                  title: Text(unit.name),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.pop(sheetContext, unit),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!context.mounted || unit == null) return;
+    await showFarmPopulationMovement(
+      context: context,
+      farmId: data.farm.id,
+      unit: unit,
+      populations: data.populations
+          .where((group) => group.farmUnitId == unit.id)
+          .toList(),
+      session: session,
+      type: action == 'purchase'
+          ? FarmPopulationMovementType.purchase
+          : FarmPopulationMovementType.mortality,
+    );
+  } else if (action == 'archive') {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(archived ? 'Reactivate Farm?' : 'Archive Farm?'),
+        content: const Text('All existing records will be preserved.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(archived ? 'Reactivate' : 'Archive'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref
+          .read(clinicRepositoryProvider)
+          .setFarmArchived(
+            session: session,
+            farmId: data.farm.id,
+            archived: !archived,
+          );
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The farm status could not be updated. Please try again.',
+            ),
+          ),
+        );
+      }
+    }
+  }
 }
 
 class _Metric extends StatelessWidget {
@@ -1280,15 +1701,4 @@ class _FarmDenied extends StatelessWidget {
     title: 'Farm Records unavailable',
     message: 'You do not have permission to view farm records for this clinic.',
   );
-}
-
-List<String> _labels<T>(String json, T? Function(String id) resolver) {
-  try {
-    return (jsonDecode(json) as List).whereType<String>().map((id) {
-      final dynamic option = resolver(id);
-      return option?.displayName as String? ?? id;
-    }).toList();
-  } catch (_) {
-    return const [];
-  }
 }

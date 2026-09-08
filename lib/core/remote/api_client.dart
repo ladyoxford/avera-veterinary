@@ -129,7 +129,11 @@ class ApiClient {
         'The AVERA server address has not been configured.',
       );
     }
-    final headers = <String, String>{'Content-Type': 'application/json'};
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      if (method == 'POST' || method == 'PUT' || method == 'PATCH')
+        'Content-Type': 'application/json',
+    };
     if (authenticated) {
       final token = await tokens.accessToken;
       if (token == null) {

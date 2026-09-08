@@ -23,6 +23,7 @@ import '../services/feature_gate_service.dart';
 import '../services/animal_age_service.dart';
 import '../services/hospital_numbering.dart';
 import 'subscription_repository.dart';
+import 'cloud_cache_repository.dart';
 
 class DashboardStats {
   const DashboardStats({
@@ -179,6 +180,17 @@ class AppointmentDetail {
   final List<AppointmentReminder> reminders;
 }
 
+class FarmPopulationHistoryItem {
+  const FarmPopulationHistoryItem({
+    required this.eventType,
+    required this.description,
+    required this.occurredAt,
+  });
+  final String eventType;
+  final String description;
+  final DateTime occurredAt;
+}
+
 class FarmDashboardData {
   const FarmDashboardData({
     required this.farm,
@@ -192,27 +204,33 @@ class FarmDashboardData {
   final List<FarmDailyRecord> dailyRecords;
   final List<FarmUnitPopulation> populations;
 
-  int get currentPopulation => populations.isNotEmpty
-      ? populations.fold(0, (total, item) => total + item.total)
-      : units.fold(
-          0,
-          (total, unit) =>
-              total + unit.maleCount + unit.femaleCount + unit.unknownCount,
-        );
+  List<FarmUnit> get activeUnits =>
+      units.where((unit) => unit.status == 'Active').toList();
+
+  int get currentPopulation =>
+      populationBySpecies.values.fold(0, (total, value) => total + value);
+
+  DateTime get lastUpdated => [
+    farm.updatedAt,
+    ...units.map((unit) => unit.updatedAt),
+    ...populations.map((population) => population.updatedAt),
+    ...dailyRecords.map((record) => record.updatedAt),
+  ].reduce((a, b) => a.isAfter(b) ? a : b);
 
   Map<String, int> get populationBySpecies {
     final result = <String, int>{};
-    if (populations.isNotEmpty) {
-      for (final population in populations) {
-        result.update(
-          population.speciesId,
-          (value) => value + population.total,
-          ifAbsent: () => population.total,
-        );
+    for (final unit in activeUnits) {
+      final groups = populations.where((group) => group.farmUnitId == unit.id);
+      if (groups.isNotEmpty) {
+        for (final population in groups) {
+          result.update(
+            population.speciesId,
+            (value) => value + population.total,
+            ifAbsent: () => population.total,
+          );
+        }
+        continue;
       }
-      return result;
-    }
-    for (final unit in units) {
       final speciesId = unit.speciesId ?? 'unassigned';
       result.update(
         speciesId,
@@ -5464,6 +5482,27 @@ class ClinicRepository {
     return query.watch();
   }
 
+  Stream<List<FarmDashboardData>> watchFarmDashboards() => db
+      .customSelect(
+        'SELECT id FROM farms WHERE clinic_id = ? ORDER BY name',
+        variables: [Variable<String>(activeClinicId)],
+        readsFrom: {
+          db.farms,
+          db.farmUnits,
+          db.farmUnitPopulations,
+          db.farmDailyRecords,
+        },
+      )
+      .watch()
+      .asyncMap((rows) async {
+        final result = <FarmDashboardData>[];
+        for (final row in rows) {
+          final data = await getFarmDashboard(row.read<String>('id'));
+          if (data != null) result.add(data);
+        }
+        return result;
+      });
+
   Future<FarmDashboardData?> getFarmDashboard(String farmId) async {
     final farm =
         await (db.select(db.farms)..where(
@@ -5503,6 +5542,38 @@ class ClinicRepository {
       dailyRecords: dailyRecords,
       populations: populations,
     );
+  }
+
+  Future<void> setFarmArchived({
+    required UserSession session,
+    required String farmId,
+    required bool archived,
+  }) async {
+    _requireFarmPermission(session, Permissions.farmsCreate);
+    final farm = await _farmForSession(farmId, session);
+    final status = archived ? 'Archived' : 'Active';
+    if (_apiClient != null) {
+      await _apiClient.patch(
+        '/api/v1/farms/$farmId/status',
+        body: {'status': status, 'name': farm.name},
+      );
+    }
+    final now = _clock.nowForClinic(session.clinic);
+    await db.transaction(() async {
+      await (db.update(db.farms)..where(
+            (row) =>
+                row.id.equals(farmId) &
+                row.clinicId.equals(session.clinic.clinicId),
+          ))
+          .write(FarmsCompanion(status: Value(status), updatedAt: Value(now)));
+      await _writeFarmAudit(
+        session: session,
+        farmId: farmId,
+        action: archived ? 'farm.archived' : 'farm.reactivated',
+        details: {'previousStatus': farm.status, 'status': status},
+        createdAt: now,
+      );
+    });
   }
 
   Future<Farm> createFarm({
@@ -5746,6 +5817,92 @@ class ClinicRepository {
             ..orderBy([(row) => OrderingTerm.desc(row.occurredAt)]))
           .get();
 
+  Future<List<FarmPopulationHistoryItem>> getFarmUnitPopulationHistory({
+    required String farmId,
+    required int unitId,
+  }) async {
+    if (await getFarmUnit(farmId, unitId) == null) return [];
+    final cache = CloudCacheRepository(db);
+    final key = 'farm-movements:$activeClinicId:$farmId';
+    Map<String, dynamic>? payload;
+    try {
+      if (_apiClient != null) {
+        payload = await _apiClient.get(
+          '/api/v1/farms/$farmId/population-movements',
+        );
+        if (payload['items'] is! List) {
+          throw const FormatException('Invalid movement response');
+        }
+        payload = {
+          'items': (payload['items'] as List)
+              .whereType<Map>()
+              .where((row) => row['farmId'] == farmId)
+              .toList(),
+        };
+        await cache.put(key: key, clinicId: activeClinicId, payload: payload);
+      }
+    } on ApiException catch (error) {
+      if (error.statusCode == 401 ||
+          error.statusCode == 403 ||
+          error.code == 'session_expired') {
+        rethrow;
+      }
+    }
+    payload ??= await cache.get(key, clinicId: activeClinicId);
+    final remoteUnitId = _uuid.v5(
+      Namespace.url.value,
+      'avera:$farmId:farm-unit:$unitId',
+    );
+    final groups = await getFarmUnitPopulations(farmId: farmId, unitId: unitId);
+    final remote = (payload?['items'] as List? ?? [])
+        .whereType<Map>()
+        .where(
+          (row) => row['farmId'] == farmId && row['farmUnitId'] == remoteUnitId,
+        )
+        .toList();
+    if (remote.isNotEmpty) {
+      return remote.map((row) {
+        final group = groups.where(
+          (group) =>
+              _uuid.v5(
+                Namespace.url.value,
+                'avera:$farmId:farm-population:${group.id}',
+              ) ==
+              row['farmUnitPopulationId'],
+        );
+        return FarmPopulationHistoryItem(
+          eventType: row['movementType'] == 'mortality'
+              ? 'Population mortality'
+              : 'Animal purchase',
+          occurredAt: DateTime.parse(row['occurredAt'] as String).toLocal(),
+          description: [
+            '${row['quantity']} ${row['sex']}',
+            if (group.isNotEmpty)
+              AnimalCatalogue.speciesById(group.first.speciesId)?.displayName ??
+                  group.first.speciesId,
+            if (row['source'] != null) 'Source: ${row['source']}',
+            if (row['notes'] != null) '${row['notes']}',
+            if (row['createdByName'] != null || row['createdBy'] != null)
+              'Recorded by: ${row['createdByName'] ?? row['createdBy']}',
+          ].join(' | '),
+        );
+      }).toList();
+    }
+    final local = await getFarmUnitPopulationMovements(
+      farmId: farmId,
+      unitId: unitId,
+    );
+    return local
+        .map(
+          (row) => FarmPopulationHistoryItem(
+            eventType: row.eventType,
+            description: row.description ?? 'No details recorded',
+            occurredAt: row.occurredAt,
+          ),
+        )
+        .toList();
+  }
+
   Future<void> recordFarmPopulationMovement({
     required UserSession session,
     required FarmPopulationMovementInput input,
@@ -5758,6 +5915,9 @@ class ClinicRepository {
       throw StateError('Enter a quantity greater than zero.');
     }
     final farm = await _farmForSession(input.farmId, session);
+    if (farm.status != 'Active') {
+      throw StateError('Reactivate the farm before recording a movement.');
+    }
     final unit = await getFarmUnit(input.farmId, input.farmUnitId);
     final population =
         await (db.select(db.farmUnitPopulations)..where(
@@ -5770,6 +5930,9 @@ class ClinicRepository {
             .getSingleOrNull();
     if (unit == null || population == null) {
       throw StateError('The selected farm population is no longer available.');
+    }
+    if (unit.status != 'Active') {
+      throw StateError('Reactivate the unit before recording a movement.');
     }
     int selectedCount(FarmUnitPopulation value) => switch (input.sex) {
       FarmPopulationSex.male => value.maleCount,
@@ -6022,6 +6185,49 @@ class ClinicRepository {
         },
         createdAt: now,
       );
+      if (remotePopulation != null) {
+        final cache = CloudCacheRepository(db);
+        final key = 'farm-movements:${session.clinic.clinicId}:${farm.id}';
+        final cached = await cache.get(key, clinicId: session.clinic.clinicId);
+        final items = (cached?['items'] as List? ?? [])
+            .whereType<Map>()
+            .where(
+              (row) =>
+                  row['farmId'] == farm.id &&
+                  row['submissionId'] != submissionId,
+            )
+            .toList();
+        items.add({
+          'submissionId': submissionId,
+          'farmId': farm.id,
+          'farmUnitId': _uuid.v5(
+            Namespace.url.value,
+            'avera:${farm.id}:farm-unit:${unit.id}',
+          ),
+          'farmUnitPopulationId': _uuid.v5(
+            Namespace.url.value,
+            'avera:${farm.id}:farm-population:${population.id}',
+          ),
+          'movementType': input.type.name,
+          'sex': input.sex.name,
+          'quantity': input.quantity,
+          'occurredAt': input.occurredAt.toUtc().toIso8601String(),
+          'source': _nullIfBlank(input.source),
+          'notes': _nullIfBlank(input.notes),
+          'createdBy': session.user.userId,
+          'createdByName': session.user.fullName,
+        });
+        items.sort(
+          (a, b) => DateTime.parse(
+            b['occurredAt'] as String,
+          ).compareTo(DateTime.parse(a['occurredAt'] as String)),
+        );
+        await cache.put(
+          key: key,
+          clinicId: session.clinic.clinicId,
+          payload: {'items': items},
+        );
+      }
     });
   }
 

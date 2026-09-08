@@ -365,7 +365,11 @@ export async function clinicRoutes(app) {
          ON CONFLICT (user_id) DO UPDATE SET profile_photo_path = EXCLUDED.profile_photo_path, updated_at = now()`,
         [request.auth.userId, request.auth.clinicId, path],
       );
-      if (previousPath && previousPath !== path) await app.profilePhotoStorage.remove(previousPath);
+      if (previousPath && previousPath !== path) {
+        void Promise.resolve().then(() => app.profilePhotoStorage.remove(previousPath)).catch(() => {
+          request.log.warn({ userId: request.auth.userId }, 'Previous profile photo cleanup failed.');
+        });
+      }
       return { profilePhotoUrl: await app.profilePhotoStorage.signedUrl(path) };
     } catch (error) {
       return reply.code(error.statusCode ?? 500).send({ error: error.code ?? 'profile_photo_upload_failed', message: error.statusCode ? error.message : 'The profile photo could not be uploaded.' });
@@ -395,14 +399,13 @@ export async function clinicRoutes(app) {
       });
       return profile?.profile_photo_path;
     });
-    try {
-      await app.profilePhotoStorage.remove(current);
-    } catch (error) {
+    // New uploads have unique paths, so delayed cleanup cannot remove a replacement.
+    void Promise.resolve().then(() => app.profilePhotoStorage.remove(current)).catch(() => {
       request.log.warn(
-        { err: error, userId: request.auth.userId },
+        { userId: request.auth.userId },
         'Profile photo reference cleared; object cleanup will need retrying.',
       );
-    }
+    });
     return reply.code(204).send();
   });
   app.post('/api/v1/users/invitations', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } }, preHandler: [authenticate, requirePermission(permissions.usersCreate)] }, async (request, reply) => {

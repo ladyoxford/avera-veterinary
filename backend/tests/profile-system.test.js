@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import Fastify from 'fastify';
+import { clinicRoutes } from '../src/routes/clinic-routes.js';
 
 import { ProfilePhotoStorageService } from '../src/services/profile-photo-storage-service.js';
 
@@ -9,6 +11,68 @@ const environment = {
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-secret-value',
   PROFILE_PHOTO_BUCKET: 'profile-photos',
 };
+
+test('actual profile DELETE rejects empty JSON but accepts bodyless 204 after database clear', async (t) => {
+  const app = Fastify();
+  t.after(() => app.close());
+  const queries = [];
+  let failDatabase = false;
+  let cleanupCalls = 0;
+  let slowCleanup;
+  const client = { release() {}, async query(sql, values) {
+    queries.push({ sql, values });
+    if (sql.startsWith('UPDATE staff_profiles')) {
+      assert.deepEqual(values, ['authenticated-user']);
+      if (failDatabase) throw new Error('database unavailable');
+    }
+    return { rows: sql.startsWith('SELECT profile_photo_path')
+      ? [{ profile_photo_path: 'clinic/authenticated-user/avatar.jpg' }] : [] };
+  } };
+  app.decorate('pool', { connect: async () => client });
+  app.decorate('profilePhotoStorage', { async remove(path) {
+    cleanupCalls++;
+    assert.equal(path, 'clinic/authenticated-user/avatar.jpg');
+    if (slowCleanup) return slowCleanup;
+    throw new Error('secondary cleanup failed');
+  } });
+  // Authentication is isolated here; exercise the actual parser and route with
+  // a fixed server-side identity, including a malicious query-string user ID.
+  app.addHook('onRoute', (options) => {
+    options.preHandler = async (request) => {
+      request.auth = { userId: 'authenticated-user', clinicId: 'clinic', sessionId: 'session' };
+    };
+  });
+  await clinicRoutes(app);
+  const broken = await app.inject({ method: 'DELETE', url: '/api/v1/me/profile-photo',
+    headers: { 'content-type': 'application/json' } });
+  assert.equal(broken.statusCode, 400);
+  assert.equal(broken.json().code, 'FST_ERR_CTP_EMPTY_JSON_BODY');
+  assert.equal(queries.length, 0);
+  const removed = await app.inject({ method: 'DELETE', url: '/api/v1/me/profile-photo?userId=another-user' });
+  assert.equal(removed.statusCode, 204);
+  assert.equal(removed.body, '');
+  assert.equal(cleanupCalls, 1);
+  assert.ok(queries.some(({ sql }) => sql === 'COMMIT'));
+  failDatabase = true;
+  const failed = await app.inject({ method: 'DELETE', url: '/api/v1/me/profile-photo' });
+  assert.equal(failed.statusCode, 500);
+  assert.equal(cleanupCalls, 1);
+  assert.ok(queries.some(({ sql }) => sql === 'ROLLBACK'));
+  failDatabase = false;
+  let release;
+  slowCleanup = new Promise((resolve) => { release = resolve; });
+  let timeout;
+  try {
+    const response = await Promise.race([
+      app.inject({ method: 'DELETE', url: '/api/v1/me/profile-photo' }),
+      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Response waited for storage cleanup')), 1500); }),
+    ]);
+    assert.equal(response.statusCode, 204);
+  } finally {
+    clearTimeout(timeout);
+    release();
+  }
+});
 
 test('profile photo validation accepts images and rejects disguised content', () => {
   const storage = new ProfilePhotoStorageService({ environment });
@@ -24,10 +88,10 @@ test('profile photo validation accepts images and rejects disguised content', ()
 
 test('profile photos are scoped by clinic and authenticated user identifiers', () => {
   const storage = new ProfilePhotoStorageService({ environment });
-  assert.equal(
-    storage.objectPath({ clinicId: 'clinic-a', userId: 'user-a', contentType: 'image/jpeg' }),
-    'clinic-a/user-a/avatar.jpg',
-  );
+  const first = storage.objectPath({ clinicId: 'clinic-a', userId: 'user-a', contentType: 'image/jpeg' });
+  const next = storage.objectPath({ clinicId: 'clinic-a', userId: 'user-a', contentType: 'image/jpeg' });
+  assert.match(first, /^clinic-a\/user-a\/avatars\/[0-9a-f-]+\.jpg$/);
+  assert.notEqual(first, next);
 });
 
 test('profile photo object removal accepts missing objects and reports cleanup failures', async () => {
@@ -168,7 +232,7 @@ test('self profile routes never accept a target user id', async () => {
   );
   assert.match(removal, /withTenantTransaction/);
   assert.match(removal, /profile\.photo_removed/);
-  assert.match(removal, /catch \(error\)[\s\S]*request\.log\.warn/);
+  assert.match(removal, /\.catch\(\(\) => \{[\s\S]*request\.log\.warn/);
   assert.match(removal, /reply\.code\(204\)\.send\(\)/);
 });
 

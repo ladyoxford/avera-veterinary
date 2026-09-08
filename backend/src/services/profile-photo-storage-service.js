@@ -33,7 +33,7 @@ export class ProfilePhotoStorageService {
   objectPath({ clinicId, userId, contentType }) {
     const scope = clinicId ?? 'platform';
     const extension = contentType === 'image/png' ? 'png' : 'jpg';
-    return `${scope}/${userId}/avatar.${extension}`;
+    return `${scope}/${userId}/avatars/${randomUUID()}.${extension}`;
   }
 
   brandObjectPath({ clinicId, kind, contentType }) {

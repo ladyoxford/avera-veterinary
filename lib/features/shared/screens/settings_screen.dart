@@ -268,9 +268,9 @@ class _ClinicLogoScreenState extends ConsumerState<ClinicLogoScreen> {
             AveraSpacing.bottomContentClearance,
           ),
           children: [
-            const AveraPageHeader(
-              title: 'Clinic Logo',
-              subtitle: 'Used on invoices, receipts and clinic reports.',
+            Text(
+              'Used on invoices, receipts and clinic reports.',
+              style: averaText(context).pageSubtitle,
             ),
             const SizedBox(height: AveraSpacing.subtitleToContentGap),
             AveraSurfaceCard(

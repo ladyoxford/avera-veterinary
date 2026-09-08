@@ -16,6 +16,30 @@ void main() {
   FlutterSecureStorage.setMockInitialValues({});
 
   test(
+    'bodyless DELETE omits JSON content type and accepts empty 204',
+    () async {
+      const tokens = TokenStore(FlutterSecureStorage());
+      await tokens.save(
+        accessToken: 'test-access',
+        refreshToken: 'test-refresh',
+      );
+      final api = ApiClient(
+        baseUrl: 'https://api.avera.test',
+        tokens: tokens,
+        client: MockClient((request) async {
+          expect(request.method, 'DELETE');
+          expect(request.headers['content-type'], isNull);
+          expect(request.headers['authorization'], 'Bearer test-access');
+          expect(request.body, isEmpty);
+          return http.Response('', 204);
+        }),
+      );
+      expect(await api.delete('/api/v1/me/profile-photo'), isEmpty);
+      await tokens.clear();
+    },
+  );
+
+  test(
     'ApiClient uses the configured base URL and normalizes one trailing slash',
     () async {
       final client = MockClient((request) async {

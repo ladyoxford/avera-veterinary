@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import Fastify from 'fastify';
+import { withTenantTransaction } from '../src/database/pool.js';
 import {
   farmContextSchema,
   farmPopulationMovementSchema,
@@ -103,7 +104,7 @@ function persistenceClient({ populationRows } = {}) {
     async query(sql, values) {
       calls.push({ sql, values });
       if (sql.includes('SELECT farm_id FROM farms')) return { rows: [{ farm_id: farmId }] };
-      if (sql.includes('SELECT farm_unit_id FROM farm_units')) return { rows: [{ farm_unit_id: unitId }] };
+      if (sql.includes('SELECT farm_unit_id') && sql.includes('FROM farm_units')) return { rows: [{ farm_unit_id: unitId }] };
       if (sql.includes('SELECT farm_unit_population_id FROM farm_unit_populations')) {
         return { rows: populationRows ?? values[3].map((id) => ({ farm_unit_population_id: id })) };
       }
@@ -178,7 +179,7 @@ function movementClient({ ownedClinicId = clinicId } = {}) {
       if (sql.includes('SELECT farm_id FROM farms')) {
         return { rows: values[0] === ownedClinicId ? [{ farm_id: farmId }] : [] };
       }
-      if (sql.includes('SELECT farm_unit_id FROM farm_units')) {
+      if (sql.includes('SELECT farm_unit_id') && sql.includes('FROM farm_units')) {
         return { rows: values[0] === ownedClinicId ? [{ farm_unit_id: unitId }] : [] };
       }
       if (sql.includes('FROM farm_population_movements') && sql.includes('submission_id')) {
@@ -412,4 +413,90 @@ test('selected groups cannot be empty and entire-unit treatments cannot carry gr
   entireWithGroup.treatments[0].targetScope = 'EntireUnit';
   entireWithGroup.treatments[0].targetPopulationIds = [goatGroupId];
   assert.equal(farmContextSchema.safeParse(entireWithGroup).success, false);
+});
+
+
+test('purchase sale mortality follow the approved ledger example with atomic rejection', async () => {
+  const client = movementClient();
+  Object.assign(client.state, {male_count: 24, female_count: 2, unknown_count: 0});
+  const context = {clinicId, actorUserId: userId};
+  const apply = (type, sex, quantity, submissionId) => recordFarmPopulationMovement(client, context, movement({movementType:type, sex, quantity, submissionId}));
+  await apply('purchase', 'male', 5, 'purchase');
+  assert.equal(client.state.male_count, 29);
+  await apply('sale', 'male', 3, 'sale');
+  assert.equal(client.state.male_count, 26);
+  await apply('sale', 'male', 3, 'sale');
+  assert.equal(client.state.male_count, 26);
+  const inserted = () => client.calls.filter(c => c.sql.includes('INSERT INTO farm_population_movements')).length;
+  const before = inserted();
+  assert.equal((await apply('sale', 'male', 27, 'oversale')).error, 'insufficient_population');
+  assert.equal((await apply('mortality', 'female', 3, 'overdeath')).error, 'insufficient_population');
+  assert.equal(inserted(), before);
+  await apply('mortality', 'female', 1, 'death');
+  assert.deepEqual(client.state, {male_count:26, female_count:1, unknown_count:0});
+  assert.equal(inserted(), 3);
+});
+
+test('movement validation accepts sale and rejects invalid quantity and sex', async () => {
+  assert.equal(farmPopulationMovementSchema.safeParse(movement({movementType:'sale'})).success, true);
+  const client = movementClient();
+  for (const invalid of [{quantity:0}, {quantity:-1}, {quantity:1.5}, {sex:'invalid'}, {movementType:'invalid'}]) {
+    assert.equal((await recordFarmPopulationMovement(client, {clinicId, actorUserId:userId}, movement(invalid))).error, 'invalid_movement');
+  }
+  assert.equal(client.calls.length, 0);
+});
+
+test('archived units reject transactions before population mutation', async () => {
+  const client = movementClient();
+  const query = client.query.bind(client);
+  client.query = (sql, values) => sql.includes('SELECT farm_unit_id, status') ? {rows:[{farm_unit_id:unitId,status:'Archived'}]} : query(sql, values);
+  assert.equal((await recordFarmPopulationMovement(client, {clinicId,actorUserId:userId}, movement({movementType:'sale'}))).error, 'farm_archived');
+  assert.equal(client.calls.some(c => c.sql.includes('UPDATE farm_unit_populations')), false);
+});
+
+
+test('failed ledger insert rolls back the population update through the tenant transaction', async () => {
+  const client = movementClient();
+  const initial = {...client.state};
+  const query = client.query.bind(client);
+  client.release = () => {};
+  client.query = async (sql, values) => {
+    if (sql.includes('INSERT INTO farm_population_movements')) throw new Error('injected insert failure');
+    if (sql === 'ROLLBACK') Object.assign(client.state,initial);
+    return query(sql,values);
+  };
+  await assert.rejects(withTenantTransaction({connect:async () => client},{clinicId}, tx => recordFarmPopulationMovement(tx,{clinicId,actorUserId:userId},movement({movementType:'sale'}))),/injected insert failure/);
+  assert.deepEqual(client.state,initial);
+  assert.ok(client.calls.some(c => c.sql === 'ROLLBACK'));
+  assert.equal(client.calls.some(c => c.sql === 'COMMIT'),false);
+});
+
+
+test('unit lifecycle is tenant scoped, permission checked, and retains populations', async (t) => {
+  const app=Fastify(); t.after(() => app.close());
+  let tenant=clinicId, allowed=true, status='Active';
+  const calls=[];
+  const client={release(){},async query(sql,values){
+    calls.push({sql,values});
+    if (sql.includes('SELECT farm_id FROM farms')) return {rows: values[0] === clinicId ? [{farm_id:farmId}] : []};
+    if (sql.startsWith('UPDATE farm_units')) { if (values[1] !== clinicId) return {rows:[]}; status=values[0];return {rows:[{farm_unit_id:unitId,status}]}; }
+    return {rows:[]};
+  }};
+  app.decorate('pool',{connect:async()=>client});
+  app.addHook('onRoute', options => {const guards=options.preHandler??[]; options.preHandler=[async request=>{request.auth={userId,clinicId:tenant,sessionId:'session',permissions:allowed?['farms.units.manage']:[]};},...guards.slice(1)];});
+  await clinicalRoutes(app);
+  const send=status=>app.inject({method:'PATCH',url:`/api/v1/farms/${farmId}/units/${unitId}/status`,payload:{status,farmName:'Farm',name:'Pen',unitType:'Pen',clinicId:otherClinicId}});
+  assert.equal((await send('Archived')).statusCode,200); assert.equal(status,'Archived');
+  assert.equal((await send('Active')).statusCode,200); assert.equal(status,'Active');
+  tenant=otherClinicId; assert.equal((await send('Archived')).statusCode,404); assert.equal(status,'Active');
+  allowed=false; assert.equal((await send('Archived')).statusCode,403);
+  assert.equal(calls.some(c=> /DELETE|UPDATE farm_unit_populations/.test(c.sql)),false);
+});
+
+for (const target of ['unit','population']) test(`movement rejects a foreign ${target} without mutation`, async () => {
+  const client=movementClient(); const query=client.query.bind(client);
+  client.query=(sql,values)=> (target==='unit' && sql.includes('SELECT farm_unit_id, status')) || (target==='population' && sql.includes('FROM farm_unit_populations') && sql.includes('FOR UPDATE')) ? {rows:[]} : query(sql,values);
+  const result=await recordFarmPopulationMovement(client,{clinicId,actorUserId:userId},movement({movementType:'sale'}));
+  assert.equal(result.error,target==='unit'?'farm_unit_mismatch':'farm_population_mismatch');
+  assert.equal(client.calls.some(c=>c.sql.includes('UPDATE farm_unit_populations')),false);
 });

@@ -946,3 +946,11 @@ test('revenue summary is tenant scoped and based on settled payment dates', () =
   assert.match(reportService, /li\.unit_cost_snapshot \* li\.quantity/);
   assert.match(reportService, /li\.invoice_line_item_id IS NOT NULL/);
 });
+
+
+test('migration 035 extends the existing population ledger for sales without deleting data', () => {
+  const sql = fs.readFileSync(new URL('../migrations/035_farm_population_sales.sql', import.meta.url), 'utf8');
+  assert.match(sql, /ALTER TABLE farm_population_movements/);
+  assert.match(sql, /CHECK \(movement_type IN \('mortality', 'purchase', 'sale'\)\)/);
+  assert.doesNotMatch(sql, /DROP TABLE|TRUNCATE|DELETE FROM|UPDATE farm_population/i);
+});

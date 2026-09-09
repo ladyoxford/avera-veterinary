@@ -185,10 +185,26 @@ class FarmPopulationHistoryItem {
     required this.eventType,
     required this.description,
     required this.occurredAt,
+    this.details = const {},
   });
   final String eventType;
   final String description;
   final DateTime occurredAt;
+  final Map<String, dynamic> details;
+  String get type =>
+      details['movementType'] as String? ??
+      (eventType == 'Animal sale'
+          ? 'sale'
+          : eventType == 'Population mortality'
+          ? 'mortality'
+          : 'purchase');
+  String get label => type == 'sale'
+      ? 'Sale'
+      : type == 'mortality'
+      ? 'Mortality'
+      : 'Purchase';
+  String get signedQuantity =>
+      '${type == 'purchase' ? '+' : '-'}${details['quantity'] ?? ''}';
 }
 
 class FarmDashboardData {
@@ -265,7 +281,7 @@ class FarmUnitPopulationInput {
   int get total => maleCount + femaleCount + unknownCount;
 }
 
-enum FarmPopulationMovementType { mortality, purchase }
+enum FarmPopulationMovementType { mortality, purchase, sale }
 
 enum FarmPopulationSex { male, female, unknown }
 
@@ -5812,6 +5828,7 @@ class ClinicRepository {
                   row.eventType.isIn([
                     'Population mortality',
                     'Animal purchase',
+                    'Animal sale',
                   ]),
             )
             ..orderBy([(row) => OrderingTerm.desc(row.occurredAt)]))
@@ -5833,11 +5850,25 @@ class ClinicRepository {
         if (payload['items'] is! List) {
           throw const FormatException('Invalid movement response');
         }
+        final previous = await cache.get(key, clinicId: activeClinicId);
+        final previousItems = (previous?['items'] as List? ?? [])
+            .whereType<Map>()
+            .toList();
+        final fresh = (payload['items'] as List).whereType<Map>().map((item) {
+          final old = previousItems
+              .where((old) => old['submissionId'] == item['submissionId'])
+              .firstOrNull;
+          return {...?old, ...item};
+        }).toList();
         payload = {
-          'items': (payload['items'] as List)
-              .whereType<Map>()
-              .where((row) => row['farmId'] == farmId)
-              .toList(),
+          'items': [
+            ...fresh,
+            ...(previous?['items'] as List? ?? []).whereType<Map>().where(
+              (old) => !fresh.any(
+                (item) => item['submissionId'] == old['submissionId'],
+              ),
+            ),
+          ].whereType<Map>().where((row) => row['farmId'] == farmId).toList(),
         };
         await cache.put(key: key, clinicId: activeClinicId, payload: payload);
       }
@@ -5860,47 +5891,101 @@ class ClinicRepository {
           (row) => row['farmId'] == farmId && row['farmUnitId'] == remoteUnitId,
         )
         .toList();
+    remote.sort(
+      (a, b) => DateTime.parse(
+        b['occurredAt'] as String,
+      ).compareTo(DateTime.parse(a['occurredAt'] as String)),
+    );
+    final items = <FarmPopulationHistoryItem>[];
     if (remote.isNotEmpty) {
-      return remote.map((row) {
-        final group = groups.where(
-          (group) =>
-              _uuid.v5(
-                Namespace.url.value,
-                'avera:$farmId:farm-population:${group.id}',
-              ) ==
-              row['farmUnitPopulationId'],
-        );
-        return FarmPopulationHistoryItem(
-          eventType: row['movementType'] == 'mortality'
-              ? 'Population mortality'
-              : 'Animal purchase',
-          occurredAt: DateTime.parse(row['occurredAt'] as String).toLocal(),
-          description: [
-            '${row['quantity']} ${row['sex']}',
-            if (group.isNotEmpty)
-              AnimalCatalogue.speciesById(group.first.speciesId)?.displayName ??
-                  group.first.speciesId,
-            if (row['source'] != null) 'Source: ${row['source']}',
-            if (row['notes'] != null) '${row['notes']}',
-            if (row['createdByName'] != null || row['createdBy'] != null)
-              'Recorded by: ${row['createdByName'] ?? row['createdBy']}',
-          ].join(' | '),
-        );
-      }).toList();
+      items.addAll(
+        remote.map((row) {
+          final group = groups.where(
+            (group) =>
+                _uuid.v5(
+                  Namespace.url.value,
+                  'avera:$farmId:farm-population:${group.id}',
+                ) ==
+                row['farmUnitPopulationId'],
+          );
+          return FarmPopulationHistoryItem(
+            eventType: row['movementType'] == 'mortality'
+                ? 'Population mortality'
+                : row['movementType'] == 'sale'
+                ? 'Animal sale'
+                : 'Animal purchase',
+            details: {
+              ...Map<String, dynamic>.from(row),
+              if (group.isNotEmpty)
+                'groupLabel':
+                    '${AnimalCatalogue.speciesById(group.first.speciesId)?.displayName ?? group.first.speciesId} / ${AnimalCatalogue.breedById(group.first.breedId ?? '')?.displayName ?? 'Not recorded'}',
+            },
+            occurredAt: DateTime.parse(row['occurredAt'] as String).toLocal(),
+            description: [
+              '${row['quantity']} ${row['sex']}',
+              if (group.isNotEmpty)
+                AnimalCatalogue.speciesById(
+                      group.first.speciesId,
+                    )?.displayName ??
+                    group.first.speciesId,
+              if (row['source'] != null) 'Source: ${row['source']}',
+              if (row['notes'] != null) '${row['notes']}',
+              if (row['createdByName'] != null || row['createdBy'] != null)
+                'Recorded by: ${row['createdByName'] ?? row['createdBy']}',
+            ].join(' | '),
+          );
+        }),
+      );
     }
     final local = await getFarmUnitPopulationMovements(
       farmId: farmId,
       unitId: unitId,
     );
-    return local
-        .map(
-          (row) => FarmPopulationHistoryItem(
-            eventType: row.eventType,
-            description: row.description ?? 'No details recorded',
-            occurredAt: row.occurredAt,
-          ),
-        )
-        .toList();
+    // Pre-ledger local events have no submission ID. Match each remote event
+    // at most once, retaining unmatched historical events in the same timeline.
+    final unmatched = remote.toList();
+    for (final row in local) {
+      final match = unmatched.indexWhere(
+        (movement) =>
+            movement['localEventId'] == row.id ||
+            (movement['localEventId'] == null &&
+                (movement['movementType'] == 'sale'
+                        ? 'Animal sale'
+                        : movement['movementType'] == 'mortality'
+                        ? 'Population mortality'
+                        : 'Animal purchase') ==
+                    row.eventType &&
+                DateTime.parse(
+                  movement['occurredAt'] as String,
+                ).isAtSameMomentAs(row.occurredAt) &&
+                (row.description ?? '').startsWith(
+                  '${movement['quantity']} ${movement['sex']} animal(s)',
+                )),
+      );
+      if (match >= 0) {
+        unmatched.removeAt(match);
+        continue;
+      }
+      final quantityAndSex = RegExp(
+        r'^(\d+)\s+(male|female|unknown)\b',
+      ).firstMatch(row.description ?? '');
+      items.add(
+        FarmPopulationHistoryItem(
+          eventType: row.eventType,
+          description: row.description ?? 'No details recorded',
+          occurredAt: row.occurredAt,
+          details: {
+            'id': row.id,
+            'createdBy': row.createdByUserId,
+            if (quantityAndSex != null)
+              'quantity': int.parse(quantityAndSex.group(1)!),
+            if (quantityAndSex != null) 'sex': quantityAndSex.group(2),
+          },
+        ),
+      );
+    }
+    items.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+    return items;
   }
 
   Future<void> recordFarmPopulationMovement({
@@ -5911,6 +5996,17 @@ class ClinicRepository {
         ? Permissions.farmMortalityRecord
         : Permissions.farmUnitsManage;
     _requireFarmPermission(session, permission);
+    final submissionId = input.submissionId ?? _uuid.v4();
+    final receiptKey =
+        'farm-movement-receipt:${session.clinic.clinicId}:$submissionId';
+    final movementCache = CloudCacheRepository(db);
+    if (await movementCache.get(
+          receiptKey,
+          clinicId: session.clinic.clinicId,
+        ) !=
+        null) {
+      return;
+    }
     if (input.quantity <= 0) {
       throw StateError('Enter a quantity greater than zero.');
     }
@@ -5940,10 +6036,10 @@ class ClinicRepository {
       FarmPopulationSex.unknown => value.unknownCount,
     };
 
-    if (input.type == FarmPopulationMovementType.mortality &&
+    if (input.type != FarmPopulationMovementType.purchase &&
         input.quantity > selectedCount(population)) {
       throw StateError(
-        'Only ${selectedCount(population)} animals are available in that sex group.',
+        'Only ${selectedCount(population)} ${input.sex.name} ${AnimalCatalogue.speciesById(population.speciesId)?.displayName.toLowerCase() ?? 'animals'} are currently available.',
       );
     }
     final localDate = DateTime(
@@ -5958,8 +6054,8 @@ class ClinicRepository {
       );
     }
 
-    final submissionId = input.submissionId ?? _uuid.v4();
     Map<String, dynamic>? remotePopulation;
+    Map<String, dynamic>? remoteMovement;
     if (_apiClient != null) {
       final remoteUnitId = _uuid.v5(
         Namespace.url.value,
@@ -5993,6 +6089,9 @@ class ClinicRepository {
           'notes': _nullIfBlank(input.notes),
         },
       );
+      remoteMovement = response['movement'] is Map
+          ? Map<String, dynamic>.from(response['movement'] as Map)
+          : null;
       remotePopulation = response['population'] is Map
           ? Map<String, dynamic>.from(response['population'] as Map)
           : null;
@@ -6003,6 +6102,13 @@ class ClinicRepository {
 
     final now = _clock.nowForClinic(session.clinic);
     await db.transaction(() async {
+      if (await movementCache.get(
+            receiptKey,
+            clinicId: session.clinic.clinicId,
+          ) !=
+          null) {
+        return;
+      }
       final current =
           await (db.select(db.farmUnitPopulations)..where(
                 (row) =>
@@ -6012,7 +6118,7 @@ class ClinicRepository {
                     row.farmUnitId.equals(input.farmUnitId),
               ))
               .getSingle();
-      final delta = input.type == FarmPopulationMovementType.mortality
+      final delta = input.type != FarmPopulationMovementType.purchase
           ? -input.quantity
           : input.quantity;
       final male = remotePopulation == null
@@ -6107,6 +6213,11 @@ class ClinicRepository {
                       ? input.quantity
                       : 0,
                 ),
+                sales: Value(
+                  input.type == FarmPopulationMovementType.sale
+                      ? input.quantity
+                      : 0,
+                ),
                 mortality: Value(
                   input.type == FarmPopulationMovementType.mortality
                       ? input.quantity
@@ -6130,6 +6241,12 @@ class ClinicRepository {
                       ? input.quantity
                       : 0),
             ),
+            sales: Value(
+              daily.sales +
+                  (input.type == FarmPopulationMovementType.sale
+                      ? input.quantity
+                      : 0),
+            ),
             mortality: Value(
               daily.mortality +
                   (input.type == FarmPopulationMovementType.mortality
@@ -6144,11 +6261,13 @@ class ClinicRepository {
       }
       final label = input.type == FarmPopulationMovementType.mortality
           ? 'Population mortality'
+          : input.type == FarmPopulationMovementType.sale
+          ? 'Animal sale'
           : 'Animal purchase';
       final detail = input.type == FarmPopulationMovementType.mortality
           ? '${input.quantity} ${input.sex.name} animal(s) recorded dead.'
-          : '${input.quantity} ${input.sex.name} animal(s) added.';
-      await db
+          : '${input.quantity} ${input.sex.name} animal(s) ${input.type == FarmPopulationMovementType.sale ? 'sold' : 'added'}.';
+      final localEventId = await db
           .into(db.farmEvents)
           .insert(
             FarmEventsCompanion.insert(
@@ -6185,7 +6304,12 @@ class ClinicRepository {
         },
         createdAt: now,
       );
-      if (remotePopulation != null) {
+      await movementCache.put(
+        key: receiptKey,
+        clinicId: session.clinic.clinicId,
+        payload: {'submissionId': submissionId},
+      );
+      {
         final cache = CloudCacheRepository(db);
         final key = 'farm-movements:${session.clinic.clinicId}:${farm.id}';
         final cached = await cache.get(key, clinicId: session.clinic.clinicId);
@@ -6198,6 +6322,11 @@ class ClinicRepository {
             )
             .toList();
         items.add({
+          'localEventId': localEventId,
+          'id': remoteMovement?['id'] ?? submissionId,
+          'clinicId': session.clinic.clinicId,
+          'createdAt':
+              remoteMovement?['createdAt'] ?? now.toUtc().toIso8601String(),
           'submissionId': submissionId,
           'farmId': farm.id,
           'farmUnitId': _uuid.v5(
@@ -6642,6 +6771,73 @@ class ClinicRepository {
         },
       );
       return _invoiceDetailForSession(id, session);
+    });
+  }
+
+  Future<void> updateFarmUnitMetadata({
+    required UserSession session,
+    required String farmId,
+    required int unitId,
+    required String name,
+    required String unitType,
+    int? capacity,
+    String? notes,
+    String? status,
+  }) async {
+    _requireFarmPermission(session, Permissions.farmUnitsManage);
+    final farm = await _farmForSession(farmId, session);
+    if (name.trim().isEmpty ||
+        unitType.trim().isEmpty ||
+        (capacity != null && capacity < 0)) {
+      throw StateError('Enter a unit name, type and non-negative capacity.');
+    }
+    final unit = await getFarmUnit(farmId, unitId);
+    if (unit == null) {
+      throw StateError('The selected farm population is no longer available.');
+    }
+    if (status != null && !['Active', 'Archived'].contains(status)) {
+      throw StateError('Enter a valid unit status.');
+    }
+    if (_apiClient != null && status != null && status != unit.status) {
+      final remoteUnitId = _uuid.v5(
+        Namespace.url.value,
+        'avera:$farmId:farm-unit:$unitId',
+      );
+      await _apiClient.patch(
+        '/api/v1/farms/$farmId/units/$remoteUnitId/status',
+        body: {
+          'status': status,
+          'farmName': farm.name,
+          'name': name.trim(),
+          'unitType': unitType.trim(),
+        },
+      );
+    }
+    final now = _clock.nowForClinic(session.clinic);
+    await db.transaction(() async {
+      await (db.update(db.farmUnits)..where(
+            (row) =>
+                row.id.equals(unitId) &
+                row.farmId.equals(farmId) &
+                row.clinicId.equals(session.clinic.clinicId),
+          ))
+          .write(
+            FarmUnitsCompanion(
+              status: status == null ? const Value.absent() : Value(status),
+              name: Value(name.trim()),
+              unitType: Value(unitType.trim()),
+              capacity: Value(capacity),
+              notes: Value(_nullIfBlank(notes)),
+              updatedAt: Value(now),
+            ),
+          );
+      await _writeFarmAudit(
+        session: session,
+        action: 'farm.unit_updated',
+        farmId: farmId,
+        details: {'unitId': unitId, 'name': name.trim(), 'capacity': capacity},
+        createdAt: now,
+      );
     });
   }
 

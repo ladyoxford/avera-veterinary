@@ -297,7 +297,7 @@ export const farmPopulationMovementSchema = z.object({
   baselineMaleCount: z.number().int().min(0).max(1000000000),
   baselineFemaleCount: z.number().int().min(0).max(1000000000),
   baselineUnknownCount: z.number().int().min(0).max(1000000000),
-  movementType: z.enum(['mortality', 'purchase']),
+  movementType: z.enum(['mortality', 'purchase', 'sale']),
   sex: z.enum(['male', 'female', 'unknown']),
   quantity: z.number().int().positive().max(1000000000),
   occurredAt: z.string().datetime(),
@@ -1212,6 +1212,11 @@ export async function readFarmContext(client, clinicId, farmId) {
 }
 
 export async function recordFarmPopulationMovement(client, context, input) {
+  if (!['purchase', 'sale', 'mortality'].includes(input.movementType) ||
+      !['male', 'female', 'unknown'].includes(input.sex) ||
+      !Number.isSafeInteger(input.quantity) || input.quantity <= 0) {
+    return { error: 'invalid_movement' };
+  }
   await client.query(
     `INSERT INTO farms (farm_id, clinic_id, name)
      VALUES ($1,$2,$3) ON CONFLICT (farm_id) DO NOTHING`,
@@ -1238,11 +1243,12 @@ export async function recordFarmPopulationMovement(client, context, input) {
       input.farmUnitType ?? null, input.speciesId, input.breedId ?? null],
   );
   const unit = await client.query(
-    `SELECT farm_unit_id FROM farm_units
-      WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3`,
+    `SELECT farm_unit_id, status FROM farm_units
+      WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3 FOR UPDATE`,
     [context.clinicId, input.farmId, input.farmUnitId],
   );
   if (!unit.rows[0]) return { error: 'farm_unit_mismatch' };
+  if (unit.rows[0].status === 'Archived') return { error: 'farm_archived' };
 
   await client.query(
     `INSERT INTO farm_unit_populations
@@ -1279,10 +1285,10 @@ export async function recordFarmPopulationMovement(client, context, input) {
 
   const column = `${input.sex}_count`;
   const available = Number(current[column]);
-  if (input.movementType === 'mortality' && input.quantity > available) {
+  if (input.movementType !== 'purchase' && input.quantity > available) {
     return { error: 'insufficient_population', available };
   }
-  const delta = input.movementType === 'mortality'
+  const delta = input.movementType !== 'purchase'
     ? -input.quantity
     : input.quantity;
   const updated = (
@@ -1296,18 +1302,19 @@ export async function recordFarmPopulationMovement(client, context, input) {
         input.farmUnitPopulationId],
     )
   ).rows[0];
-  await client.query(
+  const movement = await client.query(
     `INSERT INTO farm_population_movements
        (clinic_id, farm_id, farm_unit_id, farm_unit_population_id,
         submission_id, movement_type, sex, quantity, occurred_at,
         source, notes, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     RETURNING farm_population_movement_id AS id, created_at AS "createdAt"`,
     [context.clinicId, input.farmId, input.farmUnitId,
       input.farmUnitPopulationId, input.submissionId, input.movementType,
       input.sex, input.quantity, input.occurredAt, input.source ?? null,
       input.notes ?? null, context.actorUserId],
   );
-  return { population: updated, duplicateSubmission: false };
+  return { population: updated, movement: movement.rows[0], duplicateSubmission: false };
 }
 
 export async function prepareProductLines(client, clinicId, products) {
@@ -2878,11 +2885,13 @@ export async function clinicalRoutes(app) {
       });
     }
     return withTenantTransaction(app.pool, request.auth, async (client) => {
+      await client.query('SAVEPOINT farm_movement');
       const result = await recordFarmPopulationMovement(client, {
         clinicId: request.auth.clinicId,
         actorUserId: request.auth.userId,
       }, body.data);
       if (result.error) {
+        await client.query('ROLLBACK TO SAVEPOINT farm_movement');
         const statusCode = ['insufficient_population', 'farm_archived'].includes(result.error) ? 409 : 404;
         return reply.code(statusCode).send({
           error: result.error,
@@ -2894,7 +2903,7 @@ export async function clinicalRoutes(app) {
             : 'The selected farm population is not available in this clinic.',
         });
       }
-      await writeAudit(client, {
+      if (!result.duplicateSubmission) await writeAudit(client, {
         clinicId: request.auth.clinicId,
         actingUserId: request.auth.userId,
         targetType: 'FarmPopulation',
@@ -2913,6 +2922,27 @@ export async function clinicalRoutes(app) {
       });
       reply.code(result.duplicateSubmission ? 200 : 201);
       return result;
+    });
+  });
+
+  app.patch('/api/v1/farms/:farmId/units/:unitId/status', {
+    preHandler: [authenticate, requirePermission(permissions.farmUnitsManage)],
+  }, async (request, reply) => {
+    if (!requireClinic(request, reply)) return undefined;
+    const params = z.object({farmId:z.string().uuid(), unitId:z.string().uuid()}).safeParse(request.params);
+    const body = z.object({status:z.enum(['Active','Archived']), farmName:z.string().trim().min(1).max(240), name:z.string().trim().min(1).max(240), unitType:z.string().trim().min(1).max(120)}).safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({error:'validation_error',message:'Please review the unit status.'});
+    return withTenantTransaction(app.pool, request.auth, async (client) => {
+      const clinicId = request.auth.clinicId;
+      const {farmId,unitId} = params.data;
+      await client.query('INSERT INTO farms (farm_id,clinic_id,name) VALUES ($1,$2,$3) ON CONFLICT (farm_id) DO NOTHING',[farmId,clinicId,body.data.farmName]);
+      const farm = await client.query('SELECT farm_id FROM farms WHERE clinic_id=$1 AND farm_id=$2 FOR UPDATE',[clinicId,farmId]);
+      if (!farm.rows[0]) return reply.code(404).send({error:'farm_mismatch',message:'The farm is not available in this clinic.'});
+      await client.query('INSERT INTO farm_units (farm_unit_id,clinic_id,farm_id,name,unit_type) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (farm_unit_id) DO NOTHING',[unitId,clinicId,farmId,body.data.name,body.data.unitType]);
+      const saved = await client.query('UPDATE farm_units SET status=$1, updated_at=now() WHERE clinic_id=$2 AND farm_id=$3 AND farm_unit_id=$4 RETURNING farm_unit_id,status',[body.data.status,clinicId,farmId,unitId]);
+      if (!saved.rows[0]) return reply.code(404).send({error:'farm_unit_mismatch',message:'The unit is not available in this clinic.'});
+      await writeAudit(client,{clinicId,actingUserId:request.auth.userId,targetType:'FarmUnit',targetId:unitId,action:body.data.status === 'Archived' ? 'farm.unit_archived' : 'farm.unit_reactivated',newSummary:{status:body.data.status},sessionId:request.auth.sessionId});
+      return {unit:saved.rows[0]};
     });
   });
 

@@ -7,6 +7,37 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('population statistics handle zero and over-capacity at 320px', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final empty = _unit(
+      speciesId: 'species_cattle',
+      breedId: '',
+      maleCount: 0,
+      femaleCount: 0,
+    );
+    await tester.pumpWidget(_subject(FarmUnitPopulationStats(unit: empty)));
+    expect(find.text('0%'), findsNWidgets(3));
+    expect(find.textContaining('NaN'), findsNothing);
+    expect(find.textContaining('Infinity'), findsNothing);
+    final over = _unit(
+      speciesId: 'species_cattle',
+      breedId: '',
+      maleCount: 24,
+      femaleCount: 2,
+    ).copyWith(maleCount: 29);
+    await tester.pumpWidget(_subject(FarmUnitPopulationStats(unit: over)));
+    expect(find.text('31 / 26'), findsOneWidget);
+    expect(find.text('119% capacity'), findsOneWidget);
+    expect(
+      find.text('Population exceeds unit capacity by 5 animals.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('farm summary keeps long breed and counts separated on a phone', (
     tester,
   ) async {

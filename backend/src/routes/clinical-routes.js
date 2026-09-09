@@ -1250,38 +1250,100 @@ export async function recordFarmPopulationMovement(client, context, input) {
   if (!unit.rows[0]) return { error: 'farm_unit_mismatch' };
   if (unit.rows[0].status === 'Archived') return { error: 'farm_archived' };
 
-  await client.query(
-    `INSERT INTO farm_unit_populations
-       (farm_unit_population_id, clinic_id, farm_id, farm_unit_id,
-        species_id, breed_id, male_count, female_count, unknown_count)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-     ON CONFLICT (farm_unit_population_id) DO NOTHING`,
-    [input.farmUnitPopulationId, context.clinicId, input.farmId,
-      input.farmUnitId, input.speciesId, input.breedId ?? null,
-      input.baselineMaleCount, input.baselineFemaleCount,
-      input.baselineUnknownCount],
-  );
-
-  const population = await client.query(
-    `SELECT farm_unit_population_id, male_count, female_count, unknown_count
+  const populationColumns = `farm_unit_population_id, species_id, breed_id,
+    male_count, female_count, unknown_count`;
+  let population = await client.query(
+    `SELECT ${populationColumns},
+            lower(btrim(species_id))=lower(btrim($5::text))
+              AND lower(btrim(COALESCE(breed_id, '')))
+                =lower(btrim(COALESCE($6::text, ''))) AS group_matches
        FROM farm_unit_populations
       WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3
         AND farm_unit_population_id=$4
       FOR UPDATE`,
     [context.clinicId, input.farmId, input.farmUnitId,
-      input.farmUnitPopulationId],
+      input.farmUnitPopulationId, input.speciesId, input.breedId ?? null],
   );
-  const current = population.rows[0];
+  let current = population.rows[0];
+  if (current && current.group_matches === false) {
+    return { error: 'farm_population_mismatch' };
+  }
+
+  // Migration 025 generated UUIDs for legacy groups. Those UUIDs do not match
+  // the deterministic IDs later clients derived from their local Drift rows.
+  // Resolve the canonical server row by the same normalized key enforced by
+  // farm_unit_populations_group_unique before considering a new insert.
+  if (!current) {
+    population = await client.query(
+      `SELECT ${populationColumns}
+         FROM farm_unit_populations
+        WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3
+          AND lower(btrim(species_id))=lower(btrim($4::text))
+          AND lower(btrim(COALESCE(breed_id, '')))
+            =lower(btrim(COALESCE($5::text, '')))
+        FOR UPDATE`,
+      [context.clinicId, input.farmId, input.farmUnitId,
+        input.speciesId, input.breedId ?? null],
+    );
+    current = population.rows[0];
+  }
+
+  if (!current) {
+    const created = await client.query(
+      `INSERT INTO farm_unit_populations
+         (farm_unit_population_id, clinic_id, farm_id, farm_unit_id,
+          species_id, breed_id, male_count, female_count, unknown_count)
+       VALUES ($1,$2,$3,$4,btrim($5::text),NULLIF(btrim($6::text),''),$7,$8,$9)
+       ON CONFLICT DO NOTHING
+       RETURNING ${populationColumns}`,
+      [input.farmUnitPopulationId, context.clinicId, input.farmId,
+        input.farmUnitId, input.speciesId, input.breedId ?? null,
+        input.baselineMaleCount, input.baselineFemaleCount,
+        input.baselineUnknownCount],
+    );
+    current = created.rows[0];
+  }
+
+  // If another transaction created the same normalized group concurrently,
+  // its unique-index lock is released before ON CONFLICT returns. Resolve and
+  // lock that winner rather than turning the expected race into an HTTP 500.
+  if (!current) {
+    population = await client.query(
+      `SELECT ${populationColumns}
+         FROM farm_unit_populations
+        WHERE clinic_id=$1 AND farm_id=$2 AND farm_unit_id=$3
+          AND lower(btrim(species_id))=lower(btrim($4::text))
+          AND lower(btrim(COALESCE(breed_id, '')))
+            =lower(btrim(COALESCE($5::text, '')))
+        FOR UPDATE`,
+      [context.clinicId, input.farmId, input.farmUnitId,
+        input.speciesId, input.breedId ?? null],
+    );
+    current = population.rows[0];
+  }
   if (!current) return { error: 'farm_population_mismatch' };
   // The population row serializes competing deltas. Re-check idempotency only
   // after acquiring that lock so concurrent retries observe the committed event.
   const existing = await client.query(
-    `SELECT movement_type, sex, quantity
+    `SELECT farm_id, farm_unit_id, farm_unit_population_id,
+            movement_type, sex, quantity
        FROM farm_population_movements
       WHERE clinic_id=$1 AND submission_id=$2`,
     [context.clinicId, input.submissionId],
   );
-  if (existing.rows[0]) return { population: current, duplicateSubmission: true };
+  if (existing.rows[0]) {
+    const recorded = existing.rows[0];
+    if (recorded.farm_id.toLowerCase() !== input.farmId.toLowerCase()
+        || recorded.farm_unit_id.toLowerCase() !== input.farmUnitId.toLowerCase()
+        || recorded.farm_unit_population_id.toLowerCase()
+          !== current.farm_unit_population_id.toLowerCase()
+        || recorded.movement_type !== input.movementType
+        || recorded.sex !== input.sex
+        || Number(recorded.quantity) !== input.quantity) {
+      return { error: 'submission_conflict' };
+    }
+    return { population: current, duplicateSubmission: true };
+  }
 
   const column = `${input.sex}_count`;
   const available = Number(current[column]);
@@ -1299,7 +1361,7 @@ export async function recordFarmPopulationMovement(client, context, input) {
           AND farm_unit_population_id=$5
       RETURNING farm_unit_population_id, male_count, female_count, unknown_count`,
       [delta, context.clinicId, input.farmId, input.farmUnitId,
-        input.farmUnitPopulationId],
+        current.farm_unit_population_id],
     )
   ).rows[0];
   const movement = await client.query(
@@ -1310,7 +1372,7 @@ export async function recordFarmPopulationMovement(client, context, input) {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
      RETURNING farm_population_movement_id AS id, created_at AS "createdAt"`,
     [context.clinicId, input.farmId, input.farmUnitId,
-      input.farmUnitPopulationId, input.submissionId, input.movementType,
+      current.farm_unit_population_id, input.submissionId, input.movementType,
       input.sex, input.quantity, input.occurredAt, input.source ?? null,
       input.notes ?? null, context.actorUserId],
   );
@@ -2892,7 +2954,11 @@ export async function clinicalRoutes(app) {
       }, body.data);
       if (result.error) {
         await client.query('ROLLBACK TO SAVEPOINT farm_movement');
-        const statusCode = ['insufficient_population', 'farm_archived'].includes(result.error) ? 409 : 404;
+        const statusCode = [
+          'insufficient_population',
+          'farm_archived',
+          'submission_conflict',
+        ].includes(result.error) ? 409 : 404;
         return reply.code(statusCode).send({
           error: result.error,
           available: result.available,
@@ -2900,6 +2966,8 @@ export async function clinicalRoutes(app) {
             ? 'Reactivate the farm before recording a movement.'
             : result.error === 'insufficient_population'
             ? `Only ${result.available} animals are available in that sex group.`
+            : result.error === 'submission_conflict'
+            ? 'This transaction was already submitted with different details.'
             : 'The selected farm population is not available in this clinic.',
         });
       }
@@ -2907,7 +2975,7 @@ export async function clinicalRoutes(app) {
         clinicId: request.auth.clinicId,
         actingUserId: request.auth.userId,
         targetType: 'FarmPopulation',
-        targetId: body.data.farmUnitPopulationId,
+        targetId: result.population.farm_unit_population_id,
         action: `farm.population_${body.data.movementType}_recorded`,
         newSummary: {
           farmId: body.data.farmId,

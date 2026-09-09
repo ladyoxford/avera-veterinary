@@ -20,6 +20,8 @@ const unitId = '55555555-5555-4555-8555-555555555555';
 const goatGroupId = '66666666-6666-4666-8666-666666666666';
 const sheepGroupId = '77777777-7777-4777-8777-777777777777';
 const treatmentId = '88888888-8888-4888-8888-888888888888';
+const migratedCattleGroupId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const clientCattleGroupId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 test('farm archive is tenant-scoped, permission-checked and preserves all children', async (t) => {
   const app = Fastify();
@@ -122,6 +124,10 @@ test('migration 025 preserves legacy units and defaults old treatments to Entire
     'utf8',
   );
   assert.match(sql, /CREATE TABLE IF NOT EXISTS farm_unit_populations/);
+  assert.match(
+    sql,
+    /CREATE UNIQUE INDEX IF NOT EXISTS farm_unit_populations_group_unique\s+ON farm_unit_populations\s+\(clinic_id, farm_unit_id, lower\(btrim\(species_id\)\), lower\(btrim\(coalesce\(breed_id, ''\)\)\)\)/i,
+  );
   assert.match(sql, /FROM farm_units u/);
   assert.match(sql, /NOT EXISTS[\s\S]*farm_unit_populations p/);
   assert.match(sql, /target_scope TEXT NOT NULL DEFAULT 'EntireUnit'/);
@@ -195,6 +201,9 @@ function movementClient({ ownedClinicId = clinicId } = {}) {
       }
       if (sql.includes('INSERT INTO farm_population_movements')) {
         movements.set(values[4], {
+          farm_id: values[1],
+          farm_unit_id: values[2],
+          farm_unit_population_id: values[3],
           movement_type: values[5], sex: values[6], quantity: values[7],
         });
       }
@@ -500,3 +509,418 @@ for (const target of ['unit','population']) test(`movement rejects a foreign ${t
   assert.equal(result.error,target==='unit'?'farm_unit_mismatch':'farm_population_mismatch');
   assert.equal(client.calls.some(c=>c.sql.includes('UPDATE farm_unit_populations')),false);
 });
+
+function existingCattleGroupClient({
+  existingPopulation = {
+    farm_unit_population_id: migratedCattleGroupId,
+    species_id: 'species_cattle',
+    breed_id: 'breed_cattle_white_fulani_bunaji',
+    male_count: 24,
+    female_count: 2,
+    unknown_count: 0,
+  },
+  populationInsert = 'reject',
+  additionalPopulations = [],
+  expectedClinicId = clinicId,
+  expectedFarmId = farmId,
+  expectedUnitId = unitId,
+} = {}) {
+  const calls = [];
+  const movements = new Map();
+  const withScope = (population) => ({
+    clinic_id: expectedClinicId.toLowerCase(),
+    farm_id: expectedFarmId.toLowerCase(),
+    farm_unit_id: expectedUnitId.toLowerCase(),
+    ...population,
+  });
+  const populations = [
+    ...additionalPopulations.map(withScope),
+    ...(existingPopulation ? [withScope(existingPopulation)] : []),
+  ];
+  const normalized = (value) => (value ?? '').trim().toLowerCase();
+  const sameUuid = (left, right) => left?.toLowerCase() === right?.toLowerCase();
+  const resultRow = (population, extra = {}) => ({ ...population, ...extra });
+  return {
+    calls,
+    movements,
+    populations,
+    release() {},
+    async query(sql, values = []) {
+      calls.push({ sql, values });
+      if (sql.includes('SELECT farm_id FROM farms')) {
+        return {
+          rows: sameUuid(values[0], expectedClinicId)
+            && sameUuid(values[1], expectedFarmId)
+            ? [{ farm_id: expectedFarmId.toLowerCase() }]
+            : [],
+        };
+      }
+      if (sql.includes('SELECT status FROM farms')) {
+        return {
+          rows: sameUuid(values[0], expectedClinicId)
+            && sameUuid(values[1], expectedFarmId)
+            ? [{ status: 'Active' }]
+            : [],
+        };
+      }
+      if (sql.includes('SELECT farm_unit_id, status FROM farm_units')) {
+        return {
+          rows: sameUuid(values[0], expectedClinicId)
+            && sameUuid(values[1], expectedFarmId)
+            && sameUuid(values[2], expectedUnitId)
+            ? [{ farm_unit_id: expectedUnitId.toLowerCase(), status: 'Active' }]
+            : [],
+        };
+      }
+      if (sql.includes('FROM farm_unit_populations') && sql.includes('FOR UPDATE')) {
+        assert.match(
+          sql,
+          /WHERE clinic_id=\$1 AND farm_id=\$2 AND farm_unit_id=\$3/,
+        );
+        if (sql.includes('farm_unit_population_id=$4')) {
+          const found = populations.find((row) =>
+            sameUuid(row.clinic_id, values[0])
+              && sameUuid(row.farm_id, values[1])
+              && sameUuid(row.farm_unit_id, values[2])
+              && sameUuid(row.farm_unit_population_id, values[3]));
+          return {
+            rows: found
+              ? [resultRow(found, {
+                group_matches: normalized(found.species_id) === normalized(values[4])
+                  && normalized(found.breed_id) === normalized(values[5]),
+              })]
+              : [],
+          };
+        }
+        const found = populations.find((row) =>
+          sameUuid(row.clinic_id, values[0])
+            && sameUuid(row.farm_id, values[1])
+            && sameUuid(row.farm_unit_id, values[2])
+            && normalized(row.species_id) === normalized(values[3])
+            && normalized(row.breed_id) === normalized(values[4]));
+        return { rows: found ? [resultRow(found)] : [] };
+      }
+      if (sql.includes('INSERT INTO farm_unit_populations')) {
+        if (populationInsert === 'reject') {
+          throw new Error(
+            'duplicate key value violates unique constraint "farm_unit_populations_group_unique"',
+          );
+        }
+        assert.match(sql, /ON CONFLICT\s+DO NOTHING/i);
+        const created = {
+          clinic_id: values[1].toLowerCase(),
+          farm_id: values[2].toLowerCase(),
+          farm_unit_id: values[3].toLowerCase(),
+          farm_unit_population_id: populationInsert === 'race'
+            ? migratedCattleGroupId
+            : values[0].toLowerCase(),
+          species_id: values[4].trim(),
+          breed_id: values[5]?.trim() || null,
+          male_count: values[6],
+          female_count: values[7],
+          unknown_count: values[8],
+        };
+        populations.push(created);
+        return { rows: populationInsert === 'race' ? [] : [resultRow(created)] };
+      }
+      if (sql.includes('FROM farm_population_movements')
+          && sql.includes('submission_id')) {
+        return { rows: movements.has(values[1]) ? [movements.get(values[1])] : [] };
+      }
+      if (sql.includes('UPDATE farm_unit_populations')) {
+        const population = populations.find((row) =>
+          sameUuid(row.clinic_id, values[1])
+            && sameUuid(row.farm_id, values[2])
+            && sameUuid(row.farm_unit_id, values[3])
+            && sameUuid(row.farm_unit_population_id, values[4]));
+        assert.ok(population, 'the canonical population row must be updated');
+        const column = sql.match(/SET (male_count|female_count|unknown_count)=/)[1];
+        population[column] += values[0];
+        return { rows: [resultRow(population)] };
+      }
+      if (sql.includes('INSERT INTO farm_population_movements')) {
+        assert.equal(
+          movements.has(values[4]),
+          false,
+          'a submission ID must produce only one movement ledger row',
+        );
+        const row = {
+          id: `movement-${movements.size + 1}`,
+          createdAt: '2026-09-09T12:00:00.000Z',
+          farm_unit_population_id: values[3].toLowerCase(),
+          farm_id: values[1].toLowerCase(),
+          farm_unit_id: values[2].toLowerCase(),
+          movement_type: values[5],
+          sex: values[6],
+          quantity: values[7],
+        };
+        movements.set(values[4], row);
+        return { rows: [row] };
+      }
+      return { rows: [] };
+    },
+  };
+}
+
+test('existing normalized cattle group handles purchase sale and mortality without duplicate insert', async (t) => {
+  const app = Fastify();
+  t.after(() => app.close());
+  const client = existingCattleGroupClient();
+  app.decorate('pool', { connect: async () => client });
+  app.addHook('onRoute', (options) => {
+    const guards = options.preHandler ?? [];
+    options.preHandler = [async (request) => {
+      request.auth = {
+        userId,
+        clinicId,
+        sessionId: 'session',
+        permissions: ['farms.units.manage', 'farms.mortality.record'],
+      };
+    }, ...guards.slice(1)];
+  });
+  await clinicalRoutes(app);
+
+  const send = (movementType, submissionId, speciesId, breedId) => app.inject({
+    method: 'POST',
+    url: `/api/v1/farms/${farmId}/population-movements`,
+    payload: {
+      ...movement({
+        submissionId,
+        farmUnitPopulationId: clientCattleGroupId,
+        speciesId,
+        breedId,
+        movementType,
+      }),
+      farmUnitId: unitId,
+      farmId,
+    },
+  });
+
+  const purchase = await send(
+    'purchase',
+    '10000000-0000-4000-8000-000000000001',
+    ' species_cattle ',
+    ' breed_cattle_white_fulani_bunaji ',
+  );
+  assert.equal(purchase.statusCode, 201);
+  assert.equal(
+    purchase.json().population.farm_unit_population_id,
+    migratedCattleGroupId,
+  );
+  assert.equal(client.populations[0].male_count, 25);
+  assert.equal((await send(
+    'purchase',
+    '10000000-0000-4000-8000-000000000001',
+    'species_cattle',
+    'breed_cattle_white_fulani_bunaji',
+  )).statusCode, 200);
+  assert.equal(client.populations[0].male_count, 25);
+
+  const sale = await send(
+    'sale',
+    '10000000-0000-4000-8000-000000000002',
+    'SPECIES_CATTLE',
+    'BREED_CATTLE_WHITE_FULANI_BUNAJI',
+  );
+  assert.equal(sale.statusCode, 201);
+  assert.equal(client.populations[0].male_count, 24);
+  assert.equal((await send(
+    'sale',
+    '10000000-0000-4000-8000-000000000002',
+    'species_cattle',
+    'breed_cattle_white_fulani_bunaji',
+  )).statusCode, 200);
+  assert.equal(client.populations[0].male_count, 24);
+
+  const mortality = await send(
+    'mortality',
+    '10000000-0000-4000-8000-000000000003',
+    'species_cattle',
+    'breed_cattle_white_fulani_bunaji',
+  );
+  assert.equal(mortality.statusCode, 201);
+  assert.equal(client.populations[0].male_count, 23);
+  assert.equal((await send(
+    'mortality',
+    '10000000-0000-4000-8000-000000000003',
+    'species_cattle',
+    'breed_cattle_white_fulani_bunaji',
+  )).statusCode, 200);
+  assert.equal(client.populations[0].male_count, 23);
+  assert.equal(client.populations.length, 1);
+  assert.equal(client.movements.size, 3);
+  assert.equal(
+    client.calls.filter((call) =>
+      call.sql.includes('INSERT INTO farm_population_movements')).length,
+    3,
+  );
+  assert.ok([...client.movements.values()].every((row) =>
+    row.farm_unit_population_id === migratedCattleGroupId));
+  const audits = client.calls.filter((call) =>
+    call.sql.includes('INSERT INTO audit_logs'));
+  assert.equal(audits.length, 3);
+  assert.ok(audits.every((call) => call.values[3] === migratedCattleGroupId));
+  assert.equal(
+    client.calls.some((call) => call.sql.includes('INSERT INTO farm_unit_populations')),
+    false,
+  );
+  const normalizedLookups = client.calls.filter((call) =>
+    call.sql.includes('lower(btrim(species_id))')
+      && !call.sql.includes('AS group_matches'));
+  assert.ok(normalizedLookups.length >= 3);
+  assert.ok(normalizedLookups.every((call) =>
+    call.values[0] === clinicId
+      && call.values[1] === farmId
+      && call.values[2] === unitId));
+});
+
+test('normalized population lookup treats null and empty breed as the same group', async () => {
+  const client = existingCattleGroupClient();
+  client.populations[0].breed_id = null;
+  const result = await recordFarmPopulationMovement(
+    client,
+    { clinicId, actorUserId: userId },
+    movement({
+      submissionId: '10000000-0000-4000-8000-000000000004',
+      farmUnitPopulationId: clientCattleGroupId,
+      speciesId: ' SPECIES_CATTLE ',
+      breedId: '',
+      movementType: 'purchase',
+      baselineMaleCount: 900,
+      baselineFemaleCount: 900,
+      baselineUnknownCount: 900,
+    }),
+  );
+
+  assert.equal(result.population.farm_unit_population_id, migratedCattleGroupId);
+  assert.deepEqual(
+    client.populations.map((row) => ({
+      id: row.farm_unit_population_id,
+      male: row.male_count,
+      female: row.female_count,
+      unknown: row.unknown_count,
+    })),
+    [{ id: migratedCattleGroupId, male: 25, female: 2, unknown: 0 }],
+  );
+  assert.equal(
+    client.calls.some((call) => call.sql.includes('INSERT INTO farm_unit_populations')),
+    false,
+  );
+});
+
+test('normalized population lookup stays scoped to the requested clinic and unit', async () => {
+  const foreignPopulationId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const client = existingCattleGroupClient({
+    additionalPopulations: [{
+      clinic_id: otherClinicId,
+      farm_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      farm_unit_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      farm_unit_population_id: foreignPopulationId,
+      species_id: 'species_cattle',
+      breed_id: 'breed_cattle_white_fulani_bunaji',
+      male_count: 80,
+      female_count: 20,
+      unknown_count: 0,
+    }],
+  });
+
+  const result = await recordFarmPopulationMovement(
+    client,
+    { clinicId, actorUserId: userId },
+    movement({
+      submissionId: '10000000-0000-4000-8000-000000000007',
+      farmUnitPopulationId: clientCattleGroupId,
+      speciesId: 'species_cattle',
+      breedId: 'breed_cattle_white_fulani_bunaji',
+      movementType: 'purchase',
+    }),
+  );
+
+  assert.equal(result.population.farm_unit_population_id, migratedCattleGroupId);
+  assert.equal(
+    client.populations.find((row) =>
+      row.farm_unit_population_id === foreignPopulationId).male_count,
+    80,
+  );
+  assert.equal(
+    client.populations.find((row) =>
+      row.farm_unit_population_id === migratedCattleGroupId).male_count,
+    25,
+  );
+});
+
+test('idempotent retries accept uppercase UUID spellings', async () => {
+  const uppercaseFarmId = 'A4444444-4444-4444-8444-444444444444';
+  const uppercaseUnitId = 'B5555555-5555-4555-8555-555555555555';
+  const client = existingCattleGroupClient({
+    expectedFarmId: uppercaseFarmId,
+    expectedUnitId: uppercaseUnitId,
+  });
+  const input = movement({
+    submissionId: '10000000-0000-4000-8000-000000000008',
+    farmId: uppercaseFarmId,
+    farmUnitId: uppercaseUnitId,
+    farmUnitPopulationId: clientCattleGroupId.toUpperCase(),
+    speciesId: 'species_cattle',
+    breedId: 'breed_cattle_white_fulani_bunaji',
+    movementType: 'purchase',
+  });
+
+  const first = await recordFarmPopulationMovement(
+    client,
+    { clinicId, actorUserId: userId },
+    input,
+  );
+  const retry = await recordFarmPopulationMovement(
+    client,
+    { clinicId, actorUserId: userId },
+    input,
+  );
+
+  assert.equal(first.population.male_count, 25);
+  assert.equal(retry.duplicateSubmission, true);
+  assert.equal(client.populations.at(-1).male_count, 25);
+  assert.equal(
+    client.calls.filter((call) =>
+      call.sql.includes('INSERT INTO farm_population_movements')).length,
+    1,
+  );
+});
+
+for (const populationInsert of ['create', 'race']) {
+  test(`missing population group uses the safe ${populationInsert} path`, async () => {
+    const client = existingCattleGroupClient({
+      existingPopulation: null,
+      populationInsert,
+    });
+    const result = await recordFarmPopulationMovement(
+      client,
+      { clinicId, actorUserId: userId },
+      movement({
+        submissionId: populationInsert === 'create'
+          ? '10000000-0000-4000-8000-000000000005'
+          : '10000000-0000-4000-8000-000000000006',
+        farmUnitPopulationId: clientCattleGroupId,
+        speciesId: 'species_cattle',
+        breedId: 'breed_cattle_white_fulani_bunaji',
+        movementType: 'purchase',
+      }),
+    );
+
+    assert.equal(client.populations.length, 1);
+    assert.equal(client.populations[0].male_count, 4);
+    assert.equal(
+      result.population.farm_unit_population_id,
+      populationInsert === 'race' ? migratedCattleGroupId : clientCattleGroupId,
+    );
+    assert.equal(client.movements.size, 1);
+    const populationInserts = client.calls.filter((call) =>
+      call.sql.includes('INSERT INTO farm_unit_populations'));
+    assert.equal(populationInserts.length, 1);
+    assert.match(populationInserts[0].sql, /ON CONFLICT\s+DO NOTHING/i);
+    const normalizedLookups = client.calls.filter((call) =>
+      call.sql.includes('lower(btrim(species_id))')
+        && !call.sql.includes('AS group_matches'));
+    assert.equal(normalizedLookups.length, populationInsert === 'race' ? 2 : 1);
+  });
+}
